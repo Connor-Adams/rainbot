@@ -35,31 +35,50 @@ router.get('/sounds', async (req, res) => {
     }
 });
 
-// POST /api/sounds - Upload a sound
-router.post('/sounds', requireAuth, upload.single('sound'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+// POST /api/sounds - Upload one or more sounds
+router.post('/sounds', requireAuth, upload.array('sound', 50), async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    try {
-        // Always use storage module - it handles S3 vs local
-        const { Readable } = require('stream');
-        const fileStream = Readable.from(req.file.buffer);
-        const filename = await storage.uploadSound(fileStream, req.file.originalname);
-        
-        const currentStorageType = storage.getStorageType();
+    const results = [];
+    const errors = [];
 
-        res.json({
-            message: 'File uploaded successfully',
-            file: {
+    for (const file of req.files) {
+        try {
+            // Always use storage module - it handles S3 vs local
+            const { Readable } = require('stream');
+            const fileStream = Readable.from(file.buffer);
+            const filename = await storage.uploadSound(fileStream, file.originalname);
+            
+            const currentStorageType = storage.getStorageType();
+
+            results.push({
                 name: filename,
-                size: req.file.size,
+                originalName: file.originalname,
+                size: file.size,
                 storage: currentStorageType,
-            },
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+            });
+        } catch (error) {
+            errors.push({
+                originalName: file.originalname,
+                error: error.message,
+            });
+        }
     }
+
+    if (results.length === 0) {
+        return res.status(500).json({ 
+            error: 'All uploads failed',
+            errors: errors,
+        });
+    }
+
+    res.json({
+        message: `Successfully uploaded ${results.length} file(s)${errors.length > 0 ? `, ${errors.length} failed` : ''}`,
+        files: results,
+        errors: errors.length > 0 ? errors : undefined,
+    });
 });
 
 // DELETE /api/sounds/:name - Delete a sound

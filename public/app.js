@@ -32,6 +32,7 @@ const userName = document.getElementById('user-name');
 async function api(endpoint, options = {}) {
     const res = await fetch(`/api${endpoint}`, {
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Important: include cookies for authentication
         ...options,
     });
     const data = await res.json();
@@ -315,23 +316,56 @@ async function migrateLocalToS3() {
 
 // Upload files
 async function uploadFiles(files) {
-    for (const file of files) {
-        const formData = new FormData();
-        formData.append('sound', file);
+    if (files.length === 0) return;
 
-        try {
-            const res = await fetch('/api/sounds', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            showToast(`Uploaded: ${file.name}`);
-        } catch (error) {
-            showToast(`Failed to upload ${file.name}: ${error.message}`, 'error');
-        }
+    // Disable upload button during upload
+    const originalText = uploadBtn.textContent;
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = `Uploading ${files.length} file(s)...`;
+
+    const formData = new FormData();
+    // Append all files to the same FormData
+    for (const file of files) {
+        formData.append('sound', file);
     }
-    fetchSounds();
+
+    try {
+        const res = await fetch('/api/sounds', {
+            method: 'POST',
+            credentials: 'include', // Important: include cookies for authentication
+            body: formData,
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.error || 'Upload failed');
+        }
+
+        // Show success message
+        if (data.files && data.files.length > 0) {
+            const successCount = data.files.length;
+            const failCount = data.errors ? data.errors.length : 0;
+            
+            if (failCount === 0) {
+                showToast(`Successfully uploaded ${successCount} file(s)`);
+            } else {
+                showToast(`Uploaded ${successCount} file(s), ${failCount} failed`, 'warning');
+                console.error('Upload errors:', data.errors);
+            }
+        } else {
+            showToast(data.message || 'Upload completed');
+        }
+
+        // Refresh sounds list
+        await fetchSounds();
+    } catch (error) {
+        showToast(`Failed to upload files: ${error.message}`, 'error');
+        console.error('Upload error:', error);
+    } finally {
+        // Re-enable upload button
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = originalText;
+    }
 }
 
 // Event Listeners
