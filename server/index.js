@@ -13,14 +13,8 @@ let discordClient = null;
 
 function createServer() {
     const app = express();
-    
-    // Use environment variables, fallback to config.json for local development
-    let config;
-    try {
-        config = require('../config.json');
-    } catch (e) {
-        config = {};
-    }
+    const { loadConfig } = require('../utils/config');
+    const config = loadConfig();
 
     // Request logging
     app.use(requestLogger);
@@ -28,13 +22,13 @@ function createServer() {
     // Session configuration
     // Use file store for persistent sessions (works on Railway and locally)
     const sessionStore = new FileStore({
-        path: (config.sessionStorePath || process.env.SESSION_STORE_PATH || './sessions'),
+        path: config.sessionStorePath,
         ttl: 7 * 24 * 60 * 60, // 7 days
     });
 
     app.use(session({
         store: sessionStore,
-        secret: process.env.SESSION_SECRET || config.sessionSecret || 'change-this-secret-in-production',
+        secret: config.sessionSecret || 'change-this-secret-in-production',
         resave: false,
         saveUninitialized: false,
         cookie: {
@@ -80,13 +74,15 @@ function createServer() {
 function start(client, port = 3000) {
     discordClient = client;
     const app = createServer();
+    const { loadConfig } = require('../utils/config');
+    const config = loadConfig();
 
     // Railway and other platforms use 0.0.0.0 instead of localhost
     const host = process.env.HOST || '0.0.0.0';
     
     app.listen(port, host, () => {
-        const url = process.env.RAILWAY_PUBLIC_DOMAIN 
-            ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        const url = config.railwayPublicDomain 
+            ? `https://${config.railwayPublicDomain}`
             : `http://${host}:${port}`;
         log.info(`Dashboard running at ${url}`);
     });

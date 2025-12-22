@@ -3,20 +3,11 @@
 // to deploy commands without starting the bot
 
 const { deployCommands } = require('./utils/deployCommands');
+const { loadConfig } = require('./utils/config');
 
-// Use environment variables, fallback to config.json
-let config;
-try {
-    config = require('./config.json');
-} catch (e) {
-    config = {};
-}
+const config = loadConfig();
 
-const token = process.env.DISCORD_BOT_TOKEN || config.token;
-const clientId = process.env.DISCORD_CLIENT_ID || config.clientId;
-const guildId = process.env.DISCORD_GUILD_ID || config.guildId;
-
-if (!token || !clientId) {
+if (!config.token || !config.clientId) {
     console.error('Error: Missing DISCORD_BOT_TOKEN or DISCORD_CLIENT_ID');
     console.error('Set environment variables or configure config.json');
     process.exit(1);
@@ -24,7 +15,7 @@ if (!token || !clientId) {
 
 (async () => {
     try {
-        await deployCommands(token, clientId, guildId || null);
+        await deployCommands(config.token, config.clientId, config.guildId || null);
         process.exit(0);
     } catch (error) {
         console.error('Failed to deploy commands:', error);

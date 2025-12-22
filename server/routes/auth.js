@@ -8,29 +8,25 @@ const server = require('../index');
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
 
-// Get config - use environment variables, fallback to config.json
-let config;
-try {
-    config = require('../../config.json');
-} catch (e) {
-    config = {};
-}
+const { loadConfig } = require('../../utils/config');
 
 const getConfig = () => {
+    const config = loadConfig();
+    
     // Determine callback URL - prioritize Railway, then CALLBACK_URL, then default
-    let callbackURL = process.env.CALLBACK_URL || config.callbackURL;
-    if (process.env.RAILWAY_PUBLIC_DOMAIN && !callbackURL) {
-        callbackURL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/auth/discord/callback`;
+    let callbackURL = config.callbackURL;
+    if (config.railwayPublicDomain && !callbackURL) {
+        callbackURL = `https://${config.railwayPublicDomain}/auth/discord/callback`;
     }
     if (!callbackURL) {
         callbackURL = 'http://localhost:3000/auth/discord/callback';
     }
     
     return {
-        clientId: process.env.DISCORD_CLIENT_ID || config.clientId,
-        clientSecret: process.env.DISCORD_CLIENT_SECRET || config.discordClientSecret,
+        clientId: config.clientId,
+        clientSecret: config.discordClientSecret,
         callbackURL: callbackURL,
-        requiredRoleId: process.env.REQUIRED_ROLE_ID || config.requiredRoleId,
+        requiredRoleId: config.requiredRoleId,
     };
 };
 
@@ -102,9 +98,12 @@ passport.deserializeUser((user, done) => {
 
 // Helper to get base URL from request
 function getBaseUrl(req) {
+    const { loadConfig } = require('../../utils/config');
+    const config = loadConfig();
+    
     // Railway provides public domain
-    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    if (config.railwayPublicDomain) {
+        return `https://${config.railwayPublicDomain}`;
     }
     // Local development
     const protocol = req.protocol || 'http';
@@ -173,10 +172,10 @@ router.get('/check', async (req, res) => {
 
     const user = req.user;
     const botClient = server.getClient();
+    const cfg = getConfig();
 
     // Verify user still has access
     try {
-        const cfg = getConfig();
         const hasRole = await verifyUserRole(user.id, cfg.requiredRoleId, botClient);
         
         if (!hasRole) {
