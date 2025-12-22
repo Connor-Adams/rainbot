@@ -64,29 +64,59 @@ async function getStreamUrl(videoUrl) {
 async function createTrackResourceAsync(track) {
     const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     if (ytMatch) {
-        const streamUrl = await getStreamUrl(track.url);
-        log.debug(`Got stream URL, starting fetch...`);
-        
-        // Stream directly with fetch (much faster than yt-dlp piping)
-        const response = await fetch(streamUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': '*/*',
-                'Accept-Encoding': 'identity', // No compression for faster streaming
-                'Range': 'bytes=0-', // Start from beginning
-            },
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Stream fetch failed: ${response.status}`);
+        try {
+            const streamUrl = await getStreamUrl(track.url);
+            log.debug(`Got stream URL, starting fetch...`);
+            
+            // Stream directly with fetch (much faster than yt-dlp piping)
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            try {
+                const response = await fetch(streamUrl, {
+                    signal: controller.signal,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': '*/*',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'identity', // No compression for faster streaming
+                        'Range': 'bytes=0-', // Start from beginning
+                        'Referer': 'https://www.youtube.com/',
+                        'Origin': 'https://www.youtube.com',
+                    },
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    // If fetch fails, fall back to yt-dlp piping
+                    log.warn(`Stream fetch failed (${response.status}), falling back to yt-dlp piping`);
+                    throw new Error(`Stream fetch failed: ${response.status}`);
+                }
+                
+                const { Readable } = require('stream');
+                const nodeStream = Readable.fromWeb(response.body);
+                
+                return {
+                    resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
+                };
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                if (fetchError.name === 'AbortError') {
+                    log.warn('Fetch timeout, falling back to yt-dlp piping');
+                    throw new Error('Stream fetch timeout');
+                }
+                throw fetchError;
+            }
+        } catch (error) {
+            // Fallback to yt-dlp piping if fetch fails
+            if (error.message.includes('Stream fetch failed') || error.message.includes('fetch')) {
+                log.info(`Using yt-dlp fallback for: ${track.title}`);
+                return createTrackResource(track);
+            }
+            throw error;
         }
-        
-        const { Readable } = require('stream');
-        const nodeStream = Readable.fromWeb(response.body);
-        
-        return {
-            resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
-        };
     }
     return null;
 }
@@ -190,9 +220,23 @@ async function playNext(guildId) {
                 
                 const ytMatch = nextTrack.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
                 if (ytMatch) {
-                    // Use async version (checks cache, uses fetch for streaming)
-                    const result = await createTrackResourceAsync(nextTrack);
-                    resource = result.resource;
+                    // Try async version first (checks cache, uses fetch for streaming)
+                    try {
+                        const result = await createTrackResourceAsync(nextTrack);
+                        resource = result.resource;
+                    } catch (error) {
+                        // If async fails, try play-dl as fallback
+                        log.warn(`yt-dlp methods failed for ${nextTrack.title}, trying play-dl...`);
+                        try {
+                            const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
+                            resource = createAudioResource(streamInfo.stream, {
+                                inputType: streamInfo.type,
+                            });
+                        } catch (playDlError) {
+                            log.error(`All streaming methods failed for ${nextTrack.title}: ${error.message}, ${playDlError.message}`);
+                            throw new Error(`Failed to stream: ${error.message}`);
+                        }
+                    }
                 } else {
                     // Use play-dl for other platforms (SoundCloud, Spotify via YouTube, etc.)
                     const urlType = await play.validate(nextTrack.url);
@@ -223,8 +267,33 @@ async function playNext(guildId) {
         return nextTrack;
     } catch (error) {
         log.error(`Failed to play ${nextTrack.title} (${nextTrack.url}): ${error.message}`);
-        // Try next track
-        return playNext(guildId);
+        
+        // Check if it's a recoverable error (403, 404, unavailable, etc.)
+        const isRecoverable = error.message.includes('403') || 
+                              error.message.includes('404') || 
+                              error.message.includes('unavailable') ||
+                              error.message.includes('deleted') ||
+                              error.message.includes('terminated') ||
+                              error.message.includes('Stream fetch failed') ||
+                              error.message.includes('no longer available');
+        
+        if (isRecoverable) {
+            log.warn(`Skipping track due to error: ${nextTrack.title}`);
+        }
+        
+        // Try to play next track automatically
+        if (state.queue.length > 0) {
+            log.info(`Auto-advancing to next track in queue...`);
+            // Small delay to prevent rapid retries
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return playNext(guildId);
+        } else {
+            // No more tracks, stop playback
+            state.nowPlaying = null;
+            state.currentTrack = null;
+            log.info(`Queue exhausted after error`);
+            return null;
+        }
     }
 }
 
