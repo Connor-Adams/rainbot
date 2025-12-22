@@ -250,7 +250,7 @@ router.get('/check', async (req, res) => {
 
     log.debug(`Auth check: User ${user.username} (${user.id}) is authenticated`);
 
-    const botClient = server.getClient();
+    const botClient = clientStore.getClient();
     const cfg = getConfig();
 
     // Check if verification is cached and still valid
