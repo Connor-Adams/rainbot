@@ -209,6 +209,47 @@ router.get('/guilds/:id/channels', (req, res) => {
     res.json(voiceChannels);
 });
 
+// GET /api/queue/:guildId - Get queue for a guild
+router.get('/queue/:guildId', requireAuth, (req, res) => {
+    const { guildId } = req.params;
+
+    try {
+        const queue = voiceManager.getQueue(guildId);
+        res.json(queue);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// POST /api/queue/:guildId/clear - Clear the queue
+router.post('/queue/:guildId/clear', requireAuth, (req, res) => {
+    const { guildId } = req.params;
+
+    try {
+        const cleared = voiceManager.clearQueue(guildId);
+        res.json({ message: `Cleared ${cleared} tracks`, cleared });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// DELETE /api/queue/:guildId/:index - Remove a track from queue by index
+router.delete('/queue/:guildId/:index', requireAuth, (req, res) => {
+    const { guildId, index } = req.params;
+    const trackIndex = parseInt(index);
+
+    if (isNaN(trackIndex) || trackIndex < 0) {
+        return res.status(400).json({ error: 'Invalid index' });
+    }
+
+    try {
+        const removed = voiceManager.removeTrackFromQueue(guildId, trackIndex);
+        res.json({ message: 'Track removed', track: removed });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // Error handling for multer
 router.use((error, req, res, next) => {
     if (error instanceof multer.MulterError) {

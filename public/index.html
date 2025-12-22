@@ -40,14 +40,32 @@
                 <section class="panel connections-panel">
                     <h2>Voice Connections</h2>
                     <div id="connections-list" class="connections-list">
-                        <p class="empty-state">No active connections</p>
+                        <div class="skeleton skeleton-item"></div>
+                        <div class="skeleton skeleton-item"></div>
                     </div>
                 </section>
 
                 <section class="panel servers-panel">
                     <h2>Servers</h2>
                     <div id="servers-list" class="servers-list">
-                        <p class="empty-state">Loading...</p>
+                        <div class="skeleton skeleton-item"></div>
+                        <div class="skeleton skeleton-item"></div>
+                        <div class="skeleton skeleton-item"></div>
+                    </div>
+                </section>
+
+                <section class="panel queue-panel">
+                    <div class="queue-header">
+                        <h2>Queue</h2>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span class="queue-count" id="queue-count">0</span>
+                            <button class="btn btn-danger btn-small" id="clear-queue-btn" style="display: none;">
+                                <span class="btn-icon">🗑</span> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div id="queue-list" class="queue-list">
+                        <p class="queue-empty">Queue is empty</p>
                     </div>
                 </section>
             </aside>
@@ -89,9 +107,13 @@
                     </div>
                     <div class="search-bar">
                         <input type="text" id="search-input" placeholder="Search sounds..." />
+                        <button class="clear-btn" id="clear-search-btn" style="display: none;">✕</button>
                     </div>
                     <div id="sounds-grid" class="sounds-grid">
-                        <p class="empty-state">No sounds uploaded yet</p>
+                        <div class="skeleton skeleton-card"></div>
+                        <div class="skeleton skeleton-card"></div>
+                        <div class="skeleton skeleton-card"></div>
+                        <div class="skeleton skeleton-card"></div>
                     </div>
                 </section>
             </div>

@@ -723,6 +723,25 @@ function clearQueue(guildId) {
 }
 
 /**
+ * Remove a track from the queue by index
+ */
+function removeTrackFromQueue(guildId, index) {
+    const state = voiceStates.get(guildId);
+    if (!state) {
+        throw new Error('Bot is not connected to a voice channel');
+    }
+
+    if (index < 0 || index >= state.queue.length) {
+        throw new Error('Invalid queue index');
+    }
+
+    const removed = state.queue.splice(index, 1)[0];
+    log.info(`Removed track "${removed.title}" from queue at index ${index}`);
+    
+    return removed;
+}
+
+/**
  * Stop current playback and clear queue
  */
 function stopSound(guildId) {
@@ -796,6 +815,7 @@ module.exports = {
     togglePause,
     getQueue,
     clearQueue,
+    removeTrackFromQueue,
     stopSound,
     getStatus,
     getAllConnections,

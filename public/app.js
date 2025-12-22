@@ -4,6 +4,7 @@ let sounds = [];
 let connections = [];
 let selectedGuildId = null;
 let isAuthenticated = false;
+let queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
 
 // DOM Elements
 const botStatus = document.getElementById('bot-status');
@@ -27,6 +28,10 @@ const logoutBtn = document.getElementById('logout-btn');
 const userInfo = document.getElementById('user-info');
 const userAvatar = document.getElementById('user-avatar');
 const userName = document.getElementById('user-name');
+const queueList = document.getElementById('queue-list');
+const queueCount = document.getElementById('queue-count');
+const clearSearchBtn = document.getElementById('clear-search-btn');
+const clearQueueBtn = document.getElementById('clear-queue-btn');
 
 // API Helpers
 async function api(endpoint, options = {}) {
@@ -44,12 +49,29 @@ async function api(endpoint, options = {}) {
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠'
+    };
+    
     toast.innerHTML = `
-        <span class="toast-icon">${type === 'success' ? '✓' : '✕'}</span>
+        <span class="toast-icon">${icons[type] || icons.success}</span>
         <span class="toast-message">${message}</span>
     `;
     toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+    });
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(calc(100% + 1.5rem))';
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
 }
 
 // Format file size
@@ -76,7 +98,7 @@ function updateStatusDisplay(data) {
 // Render connections list
 function renderConnections() {
     if (connections.length === 0) {
-        connectionsList.innerHTML = '<p class="empty-state">No active connections</p>';
+        connectionsList.innerHTML = '<p class="empty-state">🔇 No active connections<br><small style="margin-top: 0.5rem; display: block;">Join a voice channel to get started</small></p>';
         nowPlaying.classList.add('hidden');
         return;
     }
@@ -85,8 +107,8 @@ function renderConnections() {
         <div class="connection-item">
             <span class="icon">🔊</span>
             <div class="info">
-                <div class="name">${conn.channelName}</div>
-                ${conn.nowPlaying ? `<div class="playing">♪ ${conn.nowPlaying}</div>` : '<div class="detail">Idle</div>'}
+                <div class="name">${escapeHtml(conn.channelName)}</div>
+                ${conn.nowPlaying ? `<div class="playing">♪ ${escapeHtml(conn.nowPlaying)}</div>` : '<div class="detail">Idle</div>'}
             </div>
         </div>
     `).join('');
@@ -101,10 +123,17 @@ function renderConnections() {
     }
 }
 
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Render servers list
 function renderServers() {
     if (guilds.length === 0) {
-        serversList.innerHTML = '<p class="empty-state">No servers</p>';
+        serversList.innerHTML = '<p class="empty-state">🏠 No servers available</p>';
         return;
     }
 
@@ -112,7 +141,7 @@ function renderServers() {
         <div class="server-item" data-guild-id="${guild.id}">
             <span class="icon">🏠</span>
             <div class="info">
-                <div class="name">${guild.name}</div>
+                <div class="name">${escapeHtml(guild.name)}</div>
                 <div class="detail">${guild.memberCount} members</div>
             </div>
         </div>
@@ -120,7 +149,7 @@ function renderServers() {
 
     // Update guild select dropdown
     guildSelect.innerHTML = '<option value="">Select server...</option>' +
-        guilds.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+        guilds.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
     
     if (selectedGuildId) {
         guildSelect.value = selectedGuildId;
@@ -135,8 +164,8 @@ function renderSounds(filter = '') {
 
     if (filtered.length === 0) {
         soundsGrid.innerHTML = filter 
-            ? '<p class="empty-state">No matching sounds</p>'
-            : '<p class="empty-state">No sounds uploaded yet</p>';
+            ? '<p class="empty-state">🔍 No matching sounds</p>'
+            : '<p class="empty-state">📭 No sounds uploaded yet<br><small style="margin-top: 0.5rem; display: block;">Upload your first sound to get started</small></p>';
         return;
     }
 
@@ -144,7 +173,7 @@ function renderSounds(filter = '') {
         <div class="sound-card" data-name="${sound.name}">
             <div class="sound-icon">🎵</div>
             <div class="sound-info">
-                <div class="sound-name" title="${sound.name}">${sound.name}</div>
+                <div class="sound-name" title="${escapeHtml(sound.name)}">${escapeHtml(sound.name)}</div>
                 <div class="sound-meta">
                     <span class="sound-size">${formatSize(sound.size)}</span>
                 </div>
@@ -161,7 +190,7 @@ function renderSounds(filter = '') {
         btn.addEventListener('click', (e) => {
             const card = e.target.closest('.sound-card');
             const name = card.dataset.name;
-            playSound(name);
+            playSound(name, e);
         });
     });
 
@@ -174,6 +203,133 @@ function renderSounds(filter = '') {
     });
 }
 
+// Fetch queue data
+async function fetchQueue(guildId) {
+    if (!guildId) {
+        queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
+        renderQueue();
+        return;
+    }
+
+    try {
+        const data = await api(`/queue/${guildId}`);
+        queueData = data;
+        renderQueue();
+    } catch (error) {
+        console.error('Failed to fetch queue:', error);
+        queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
+        renderQueue();
+    }
+}
+
+// Render queue
+function renderQueue() {
+    queueCount.textContent = queueData.totalInQueue || 0;
+    
+    // Show/hide clear button
+    const hasQueue = (queueData.nowPlaying || (queueData.queue && queueData.queue.length > 0));
+    clearQueueBtn.style.display = hasQueue ? 'flex' : 'none';
+
+    if (!queueData.nowPlaying && queueData.queue.length === 0) {
+        queueList.innerHTML = '<p class="queue-empty">Queue is empty<br><small style="margin-top: 0.5rem; display: block;">Add tracks to start playing</small></p>';
+        return;
+    }
+
+    let html = '';
+
+    // Now playing item
+    if (queueData.nowPlaying) {
+        html += `
+            <div class="queue-item playing">
+                <div class="queue-position">▶</div>
+                <div class="queue-item-info">
+                    <div class="queue-item-title">${escapeHtml(queueData.nowPlaying)}</div>
+                    <div class="queue-item-meta">
+                        <span class="queue-item-source">🎵 Now Playing</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Queue items
+    if (queueData.queue && queueData.queue.length > 0) {
+        html += queueData.queue.map((track, index) => {
+            const sourceIcon = track.isLocal ? '📁' : (track.url?.includes('youtube') ? '▶️' : '🎵');
+            const sourceText = track.isLocal ? 'Local' : (track.url?.includes('youtube') ? 'YouTube' : 'Stream');
+            return `
+                <div class="queue-item" data-index="${index}">
+                    <div class="queue-position">${index + 1}</div>
+                    <div class="queue-item-info">
+                        <div class="queue-item-title" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
+                        <div class="queue-item-meta">
+                            <span class="queue-item-source">${sourceIcon} ${sourceText}</span>
+                            ${track.duration ? `<span>${formatDuration(track.duration)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="queue-item-actions">
+                        <button class="btn btn-danger btn-small remove-queue-item-btn" data-index="${index}">✕</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    queueList.innerHTML = html;
+
+    // Add event listeners for remove buttons
+    queueList.querySelectorAll('.remove-queue-item-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const index = parseInt(e.target.dataset.index);
+            await removeFromQueue(index);
+        });
+    });
+}
+
+// Format duration
+function formatDuration(seconds) {
+    if (!seconds) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Remove track from queue
+async function removeFromQueue(index) {
+    const guildId = guildSelect.value;
+    if (!guildId) {
+        showToast('Please select a server first', 'error');
+        return;
+    }
+
+    try {
+        await api(`/queue/${guildId}/${index}`, { method: 'DELETE' });
+        showToast('Track removed from queue');
+        await fetchQueue(guildId);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// Clear queue
+async function clearQueue() {
+    const guildId = guildSelect.value;
+    if (!guildId) {
+        showToast('Please select a server first', 'error');
+        return;
+    }
+
+    if (!confirm('Clear the entire queue?')) return;
+
+    try {
+        await api(`/queue/${guildId}/clear`, { method: 'POST' });
+        showToast('Queue cleared');
+        await fetchQueue(guildId);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 // Fetch status from API
 async function fetchStatus() {
     try {
@@ -183,27 +339,51 @@ async function fetchStatus() {
         updateStatusDisplay(data);
         renderConnections();
         renderServers();
+        
+        // Fetch queue if a guild is selected
+        if (selectedGuildId) {
+            await fetchQueue(selectedGuildId);
+        }
     } catch (error) {
         updateStatusDisplay({ online: false });
+        // Clear skeleton loaders on error
+        connectionsList.innerHTML = '<p class="empty-state">❌ Failed to load connections</p>';
+        serversList.innerHTML = '<p class="empty-state">❌ Failed to load servers</p>';
     }
 }
 
 // Fetch sounds from API
 async function fetchSounds() {
     try {
+        // Show skeleton loader
+        soundsGrid.innerHTML = `
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+        `;
+        
         sounds = await api('/sounds');
         renderSounds(searchInput.value);
     } catch (error) {
         console.error('Failed to fetch sounds:', error);
+        soundsGrid.innerHTML = '<p class="empty-state">❌ Failed to load sounds</p>';
     }
 }
 
 // Play a sound
-async function playSound(source) {
+async function playSound(source, event) {
     const guildId = guildSelect.value;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
+    }
+
+    // Set loading state
+    const btn = event?.target?.closest('.play-sound-btn') || event?.target?.closest('#play-url-btn');
+    if (btn) {
+        btn.classList.add('loading');
+        btn.disabled = true;
     }
 
     try {
@@ -211,10 +391,16 @@ async function playSound(source) {
             method: 'POST',
             body: JSON.stringify({ guildId, source }),
         });
-        showToast(`Playing: ${data.title}`);
-        fetchStatus();
+        showToast(`Added to queue: ${data.title}`);
+        await fetchStatus();
+        await fetchQueue(guildId);
     } catch (error) {
         showToast(error.message, 'error');
+    } finally {
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
     }
 }
 
@@ -306,13 +492,13 @@ async function uploadFiles(files) {
 }
 
 // Event Listeners
-playUrlBtn.addEventListener('click', () => {
+playUrlBtn.addEventListener('click', (e) => {
     const url = urlInput.value.trim();
     if (!url) {
         showToast('Please enter a URL', 'error');
         return;
     }
-    playSound(url);
+    playSound(url, e);
 });
 
 urlInput.addEventListener('keypress', (e) => {
@@ -321,13 +507,28 @@ urlInput.addEventListener('keypress', (e) => {
 
 stopBtn.addEventListener('click', stopPlayback);
 
-guildSelect.addEventListener('change', (e) => {
+guildSelect.addEventListener('change', async (e) => {
     selectedGuildId = e.target.value;
+    if (selectedGuildId) {
+        await fetchQueue(selectedGuildId);
+    } else {
+        queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
+        renderQueue();
+    }
 });
 
 searchInput.addEventListener('input', (e) => {
     renderSounds(e.target.value);
+    clearSearchBtn.style.display = e.target.value ? 'flex' : 'none';
 });
+
+clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    renderSounds('');
+});
+
+clearQueueBtn.addEventListener('click', clearQueue);
 
 uploadBtn.addEventListener('click', () => fileInput.click());
 
@@ -468,7 +669,12 @@ checkAuth().then(authenticated => {
         fetchStatus();
         fetchSounds();
         // Poll for updates every 5 seconds
-        setInterval(fetchStatus, 5000);
+        setInterval(async () => {
+            await fetchStatus();
+            if (selectedGuildId) {
+                await fetchQueue(selectedGuildId);
+            }
+        }, 5000);
     } else {
         // If not authenticated, check again after a short delay (in case session is still being created)
         setTimeout(() => {
