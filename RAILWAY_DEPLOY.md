@@ -13,7 +13,7 @@ Railway is perfect for deploying both your Discord bot and web dashboard togethe
 2. Select "Deploy from GitHub repo"
 3. Choose your `rainbot` repository
 4. Railway will automatically detect it's a Node.js project
-5. **Note**: The `nixpacks.toml` file ensures Python 3 and FFmpeg are installed for `youtube-dl-exec` to work properly
+5. **Note**: The `Dockerfile` ensures Python 3, FFmpeg, and yt-dlp are installed for `youtube-dl-exec` to work properly
 
 ### 3. Set Environment Variables
 
@@ -61,12 +61,14 @@ In your Railway project settings, go to "Variables" and add:
 ### 6. Deploy
 
 Railway will automatically:
-- Install dependencies (`npm install`)
+- Build the Docker image (installs Python3, FFmpeg, yt-dlp, and Node.js dependencies)
 - Start your app (`npm start`)
 - **Auto-deploy Discord commands** (no need to run `deploy-commands.js` manually!)
 - Provide a public URL for your dashboard
 
-**Note**: Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
+**Note**: 
+- The build uses a Dockerfile to install system dependencies (Python3, FFmpeg, yt-dlp) required for YouTube audio extraction
+- Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
 
 ### 7. Get Your Public URL
 
