@@ -152,6 +152,7 @@ async function playNext(guildId) {
     if (!state || state.queue.length === 0) {
         if (state) {
             state.nowPlaying = null;
+            state.currentTrack = null;
             state.preBuffered = null;
         }
         return null;
@@ -210,6 +211,7 @@ async function playNext(guildId) {
         log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
         state.player.play(resource);
         state.nowPlaying = nextTrack.title;
+        state.currentTrack = nextTrack; // Store full track object for embeds
         // Store current track source for potential overlay mixing
         state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url;
         log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
@@ -405,6 +407,7 @@ async function joinChannel(channel) {
             playNext(guildId);
         } else if (state) {
             state.nowPlaying = null;
+            state.currentTrack = null;
         }
     });
 
@@ -413,6 +416,7 @@ async function joinChannel(channel) {
         const state = voiceStates.get(guildId);
         if (state) {
             state.nowPlaying = null;
+            state.currentTrack = null;
             // Try to play next track on error
             if (state.queue.length > 0) {
                 playNext(guildId);
@@ -424,6 +428,7 @@ async function joinChannel(channel) {
         connection,
         player,
         nowPlaying: null,
+        currentTrack: null,
         queue: [],
         channelId: channel.id,
         channelName: channel.name,
@@ -883,13 +888,14 @@ async function processSpotifyPlaylistTracks(spotifyTracks, guildId, state) {
 function getQueue(guildId) {
     const state = voiceStates.get(guildId);
     if (!state) {
-        return { nowPlaying: null, queue: [] };
+        return { nowPlaying: null, queue: [], currentTrack: null };
     }
 
     return {
         nowPlaying: state.nowPlaying,
         queue: state.queue.slice(0, 20), // Return first 20
         totalInQueue: state.queue.length,
+        currentTrack: state.currentTrack || null,
     };
 }
 
@@ -937,6 +943,7 @@ function stopSound(guildId) {
         state.queue = [];
         state.player.stop();
         state.nowPlaying = null;
+        state.currentTrack = null;
         log.debug(`Stopped playback in guild ${guildId}`);
         return true;
     }

@@ -36,16 +36,16 @@ module.exports = {
 
         try {
             const result = await voiceManager.playSound(guildId, source);
-            const { nowPlaying, queue } = voiceManager.getQueue(guildId);
+            const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
             
             if (result.added === 1) {
                 log.info(`Playing: "${result.tracks[0].title}" in ${interaction.guild.name}`);
-                await interaction.editReply(createPlayerMessage(nowPlaying, queue, false));
+                await interaction.editReply(createPlayerMessage(nowPlaying, queue, false, currentTrack));
             } else {
                 log.info(`Added ${result.added} tracks to queue in ${interaction.guild.name}`);
                 
                 // Show playlist added message with player
-                const playerMsg = createPlayerMessage(nowPlaying, queue, false);
+                const playerMsg = createPlayerMessage(nowPlaying, queue, false, currentTrack);
                 playerMsg.content = `📋 Added **${result.added}** tracks to queue!`;
                 await interaction.editReply(playerMsg);
             }

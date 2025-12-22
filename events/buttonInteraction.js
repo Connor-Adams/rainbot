@@ -28,8 +28,8 @@ module.exports = {
             switch (action) {
                 case 'pause': {
                     const result = voiceManager.togglePause(guildId);
-                    const { nowPlaying, queue } = voiceManager.getQueue(guildId);
-                    await interaction.update(createPlayerMessage(nowPlaying, queue, result.paused));
+                    const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
+                    await interaction.update(createPlayerMessage(nowPlaying, queue, result.paused, currentTrack));
                     break;
                 }
 
@@ -37,8 +37,8 @@ module.exports = {
                     const skipped = voiceManager.skip(guildId);
                     // Small delay to let next track start
                     await new Promise(r => setTimeout(r, 500));
-                    const { nowPlaying, queue } = voiceManager.getQueue(guildId);
-                    await interaction.update(createPlayerMessage(nowPlaying, queue, false));
+                    const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
+                    await interaction.update(createPlayerMessage(nowPlaying, queue, false, currentTrack));
                     break;
                 }
 
@@ -48,7 +48,8 @@ module.exports = {
                         embeds: [{
                             color: 0xef4444,
                             title: '⏹️ Stopped',
-                            description: 'Playback stopped and queue cleared.',
+                            description: 'Playback stopped and queue cleared.\n\nUse `/play` to start playing music again.',
+                            timestamp: new Date().toISOString(),
                         }],
                         components: [],
                     });
@@ -56,28 +57,66 @@ module.exports = {
                 }
 
                 case 'queue': {
-                    const { nowPlaying, queue, totalInQueue } = voiceManager.getQueue(guildId);
+                    const { nowPlaying, queue, totalInQueue, currentTrack } = voiceManager.getQueue(guildId);
                     
-                    let description = nowPlaying 
-                        ? `▶️ **Now Playing:** ${nowPlaying}\n\n`
-                        : '**Nothing playing**\n\n';
-
-                    if (queue.length > 0) {
-                        const queueList = queue.slice(0, 10).map((t, i) => `${i + 1}. ${t.title}`).join('\n');
-                        description += `**Queue (${totalInQueue} tracks):**\n${queueList}`;
-                        if (totalInQueue > 10) {
-                            description += `\n*...and ${totalInQueue - 10} more*`;
+                    const formatDuration = (seconds) => {
+                        if (!seconds || isNaN(seconds)) return null;
+                        const hours = Math.floor(seconds / 3600);
+                        const minutes = Math.floor((seconds % 3600) / 60);
+                        const secs = Math.floor(seconds % 60);
+                        if (hours > 0) {
+                            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
                         }
+                        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+                    };
+
+                    const embed = {
+                        color: 0x6366f1,
+                        title: '📋 Queue',
+                        timestamp: new Date().toISOString(),
+                    };
+
+                    // Now Playing
+                    if (nowPlaying && currentTrack) {
+                        const durationText = currentTrack.duration ? ` • \`${formatDuration(currentTrack.duration)}\`` : '';
+                        embed.description = `**${nowPlaying}**${durationText}`;
+                    } else if (nowPlaying) {
+                        embed.description = `**${nowPlaying}**`;
                     } else {
-                        description += '*Queue is empty*';
+                        embed.description = '*Nothing playing*';
                     }
 
+                    // Queue list
+                    if (queue.length > 0) {
+                        const queueList = queue.slice(0, 10)
+                            .map((t, i) => {
+                                const num = (i + 1).toString().padStart(2, '0');
+                                const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
+                                return `\`${num}\` ${t.title}${duration}`;
+                            })
+                            .join('\n');
+                        
+                        const moreText = totalInQueue > 10 ? `\n\n*...and ${totalInQueue - 10} more track${totalInQueue - 10 === 1 ? '' : 's'}*` : '';
+                        
+                        embed.fields = [{
+                            name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
+                            value: queueList + moreText,
+                            inline: false,
+                        }];
+                    } else {
+                        embed.fields = [{
+                            name: '📋 Queue',
+                            value: '*Queue is empty*\n\nUse `/play` to add tracks!',
+                            inline: false,
+                        }];
+                    }
+
+                    embed.footer = {
+                        text: `Total: ${totalInQueue} track${totalInQueue === 1 ? '' : 's'} in queue`
+                    };
+
                     await interaction.reply({
-                        embeds: [{
-                            color: 0x6366f1,
-                            title: '📋 Queue',
-                            description,
-                        }],
+                        embeds: [embed],
                         ephemeral: true,
                     });
                     break;
