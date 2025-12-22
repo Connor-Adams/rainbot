@@ -2,42 +2,67 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const voiceManager = require('../../utils/voiceManager');
+const storage = require('../../utils/storage');
 const server = require('../index');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, voiceManager.SOUNDS_DIR);
-    },
-    filename: (req, file, cb) => {
-        // Sanitize filename
-        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-        cb(null, safeName);
-    },
-});
+// If using S3, we'll handle uploads differently
+const storageType = storage.getStorageType();
+let upload;
 
-const upload = multer({
-    storage,
-    limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB max
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
-        if (allowedTypes.test(file.originalname)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
-        }
-    },
-});
+if (storageType === 's3') {
+    // For S3, use memory storage and upload directly
+    upload = multer({
+        storage: multer.memoryStorage(),
+        limits: {
+            fileSize: 50 * 1024 * 1024, // 50MB max
+        },
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
+            if (allowedTypes.test(file.originalname)) {
+                cb(null, true);
+            } else {
+                cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
+            }
+        },
+    });
+} else {
+    // For local storage, use disk storage
+    const diskStorage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            const soundsDir = storage.getSoundsDir();
+            cb(null, soundsDir);
+        },
+        filename: (req, file, cb) => {
+            // Sanitize filename
+            const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            cb(null, safeName);
+        },
+    });
+
+    upload = multer({
+        storage: diskStorage,
+        limits: {
+            fileSize: 50 * 1024 * 1024, // 50MB max
+        },
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
+            if (allowedTypes.test(file.originalname)) {
+                cb(null, true);
+            } else {
+                cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
+            }
+        },
+    });
+}
 
 // GET /api/sounds - List all sounds
-router.get('/sounds', (req, res) => {
+router.get('/sounds', async (req, res) => {
     try {
-        const sounds = voiceManager.listSounds();
+        const sounds = await voiceManager.listSounds();
         res.json(sounds);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -45,24 +70,39 @@ router.get('/sounds', (req, res) => {
 });
 
 // POST /api/sounds - Upload a sound
-router.post('/sounds', requireAuth, upload.single('sound'), (req, res) => {
+router.post('/sounds', requireAuth, upload.single('sound'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    res.json({
-        message: 'File uploaded successfully',
-        file: {
-            name: req.file.filename,
-            size: req.file.size,
-        },
-    });
+    try {
+        let filename;
+        
+        if (storageType === 's3') {
+            // Upload to S3
+            const fileStream = require('stream').Readable.from(req.file.buffer);
+            filename = await storage.uploadSound(fileStream, req.file.originalname);
+        } else {
+            // Local storage - file already saved by multer
+            filename = req.file.filename;
+        }
+
+        res.json({
+            message: 'File uploaded successfully',
+            file: {
+                name: filename,
+                size: req.file.size,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // DELETE /api/sounds/:name - Delete a sound
-router.delete('/sounds/:name', requireAuth, (req, res) => {
+router.delete('/sounds/:name', requireAuth, async (req, res) => {
     try {
-        voiceManager.deleteSound(req.params.name);
+        await voiceManager.deleteSound(req.params.name);
         res.json({ message: 'Sound deleted successfully' });
     } catch (error) {
         res.status(404).json({ error: error.message });

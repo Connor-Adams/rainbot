@@ -65,6 +65,13 @@ function loadConfig() {
         // Railway-specific
         railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
         
+        // Storage configuration (Railway S3-compatible buckets)
+        storageBucketName: process.env.STORAGE_BUCKET_NAME,
+        storageAccessKey: process.env.STORAGE_ACCESS_KEY,
+        storageSecretKey: process.env.STORAGE_SECRET_KEY,
+        storageEndpoint: process.env.STORAGE_ENDPOINT,
+        storageRegion: process.env.STORAGE_REGION || 'us-east-1',
+        
         // Feature flags
         disableAutoDeploy: process.env.DISABLE_AUTO_DEPLOY === 'true',
     };

@@ -19,12 +19,10 @@ const log = createLogger('VOICE');
 // Map of guildId -> { connection, player, nowPlaying, queue, preBuffered }
 const voiceStates = new Map();
 
-const SOUNDS_DIR = path.join(__dirname, '..', 'sounds');
+const storage = require('./storage');
 
-// Ensure sounds directory exists
-if (!fs.existsSync(SOUNDS_DIR)) {
-    fs.mkdirSync(SOUNDS_DIR, { recursive: true });
-}
+// For backward compatibility, get sounds directory (null if using S3)
+const SOUNDS_DIR = storage.getSoundsDir() || path.join(__dirname, '..', 'sounds');
 
 /**
  * Create a resource for a track (YouTube or other)
@@ -163,7 +161,14 @@ async function playNext(guildId) {
         let resource;
 
         if (nextTrack.isLocal) {
-            resource = createAudioResource(nextTrack.source);
+            // Handle both file paths and streams
+            if (nextTrack.isStream) {
+                // Stream from storage (S3 or local stream)
+                resource = createAudioResource(nextTrack.source, { inputType: StreamType.Arbitrary });
+            } else {
+                // File path (backward compatibility)
+                resource = createAudioResource(nextTrack.source);
+            }
         } else {
             // Check if we have this track pre-buffered
             if (state.preBuffered && state.preBuffered.track.url === nextTrack.url) {
@@ -467,17 +472,21 @@ async function playSound(guildId, source) {
             });
         }
     } else {
-        // Play from local file
-        const filePath = path.join(SOUNDS_DIR, source);
-        
-        if (!fs.existsSync(filePath)) {
+        // Play from stored sound file (local or S3)
+        // Check if sound exists
+        const exists = await storage.soundExists(source);
+        if (!exists) {
             throw new Error(`Sound file not found: ${source}`);
         }
 
+        // Get stream from storage
+        const stream = await storage.getSoundStream(source);
+
         tracks.push({
             title: path.basename(source, path.extname(source)),
-            source: filePath,
+            source: stream,
             isLocal: true,
+            isStream: true, // Indicate this is a stream, not a file path
         });
     }
 
@@ -622,43 +631,15 @@ function getAllConnections() {
 /**
  * List all available sounds
  */
-function listSounds() {
-    if (!fs.existsSync(SOUNDS_DIR)) {
-        return [];
-    }
-
-    const files = fs.readdirSync(SOUNDS_DIR);
-    return files
-        .filter(file => /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(file))
-        .map(file => {
-            const filePath = path.join(SOUNDS_DIR, file);
-            const stats = fs.statSync(filePath);
-            return {
-                name: file,
-                size: stats.size,
-                createdAt: stats.birthtime,
-            };
-        });
+async function listSounds() {
+    return await storage.listSounds();
 }
 
 /**
  * Delete a sound file
  */
-function deleteSound(filename) {
-    const filePath = path.join(SOUNDS_DIR, filename);
-    
-    // Prevent path traversal
-    if (!filePath.startsWith(SOUNDS_DIR)) {
-        throw new Error('Invalid filename');
-    }
-
-    if (!fs.existsSync(filePath)) {
-        throw new Error('Sound not found');
-    }
-
-    fs.unlinkSync(filePath);
-    log.info(`Deleted sound: ${filename}`);
-    return true;
+async function deleteSound(filename) {
+    return await storage.deleteSound(filename);
 }
 
 module.exports = {

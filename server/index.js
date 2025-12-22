@@ -16,6 +16,14 @@ function createServer() {
     const { loadConfig } = require('../utils/config');
     const config = loadConfig();
 
+    // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
+    // This enables correct handling of X-Forwarded-* headers
+    const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PUBLIC_DOMAIN;
+    if (isRailway || process.env.NODE_ENV === 'production') {
+        app.set('trust proxy', 1);
+        log.debug('Trust proxy enabled for production/Railway environment');
+    }
+
     // Request logging
     app.use(requestLogger);
 
@@ -26,8 +34,7 @@ function createServer() {
         ttl: 7 * 24 * 60 * 60, // 7 days
     });
 
-    // Determine if we're on Railway (HTTPS) or local (HTTP)
-    const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PUBLIC_DOMAIN;
+    // Determine cookie security based on environment
     const useSecureCookies = process.env.NODE_ENV === 'production' || isRailway;
     
     app.use(session({
