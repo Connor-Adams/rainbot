@@ -16,11 +16,35 @@ let soundsDir = null;
 function initStorage() {
     const config = loadConfig();
     
-    // Check if Railway storage is configured
+    // Log which storage config vars are present
+    // Railway auto-injects: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+    const storageVars = {
+        'bucket (BUCKET)': !!config.storageBucketName,
+        'accessKey (ACCESS_KEY_ID)': !!config.storageAccessKey,
+        'secretKey (SECRET_ACCESS_KEY)': !!config.storageSecretKey,
+        'endpoint (ENDPOINT)': !!config.storageEndpoint,
+    };
+    
+    const missingVars = Object.entries(storageVars)
+        .filter(([, present]) => !present)
+        .map(([name]) => name);
+    
+    const presentVars = Object.entries(storageVars)
+        .filter(([, present]) => present)
+        .map(([name]) => name);
+    
+    if (presentVars.length > 0) {
+        log.debug(`S3 config present: ${presentVars.join(', ')}`);
+    }
+    if (missingVars.length > 0 && presentVars.length > 0) {
+        log.warn(`S3 config MISSING: ${missingVars.join(', ')} - will use local storage`);
+    }
+    
+    // Check if Railway storage is configured (ALL vars required)
     if (config.storageBucketName && config.storageAccessKey && config.storageSecretKey && config.storageEndpoint) {
         try {
             // Use Railway S3-compatible storage
-            const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+            const { S3Client } = require('@aws-sdk/client-s3');
             
             s3Client = new S3Client({
                 endpoint: config.storageEndpoint,
@@ -35,23 +59,34 @@ function initStorage() {
             bucketName = config.storageBucketName;
             storageType = 's3';
             
-            log.info(`Storage initialized: Railway S3 bucket "${bucketName}"`);
+            log.info(`✓ Storage initialized: S3 bucket "${bucketName}" at ${config.storageEndpoint}`);
         } catch (error) {
-            log.warn(`Failed to initialize S3 storage: ${error.message}, falling back to local storage`);
-            storageType = 'local';
+            log.error(`✗ Failed to initialize S3 storage: ${error.message}`);
+            log.warn('Falling back to local storage');
+            initLocalStorage();
         }
     } else {
         // Use local filesystem storage
-        storageType = 'local';
-        soundsDir = path.join(__dirname, '..', 'sounds');
-        
-        // Ensure sounds directory exists
-        if (!fs.existsSync(soundsDir)) {
-            fs.mkdirSync(soundsDir, { recursive: true });
+        if (missingVars.length === 4) {
+            log.info('No S3 storage configured, using local filesystem');
         }
-        
-        log.info(`Storage initialized: Local filesystem (${soundsDir})`);
+        initLocalStorage();
     }
+}
+
+/**
+ * Initialize local filesystem storage
+ */
+function initLocalStorage() {
+    storageType = 'local';
+    soundsDir = path.join(__dirname, '..', 'sounds');
+    
+    // Ensure sounds directory exists
+    if (!fs.existsSync(soundsDir)) {
+        fs.mkdirSync(soundsDir, { recursive: true });
+    }
+    
+    log.info(`✓ Storage initialized: Local filesystem (${soundsDir})`);
 }
 
 /**

@@ -9,55 +9,21 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Configure multer for file uploads
-// If using S3, we'll handle uploads differently
-const storageType = storage.getStorageType();
-let upload;
-
-if (storageType === 's3') {
-    // For S3, use memory storage and upload directly
-    upload = multer({
-        storage: multer.memoryStorage(),
-        limits: {
-            fileSize: 50 * 1024 * 1024, // 50MB max
-        },
-        fileFilter: (req, file, cb) => {
-            const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
-            if (allowedTypes.test(file.originalname)) {
-                cb(null, true);
-            } else {
-                cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
-            }
-        },
-    });
-} else {
-    // For local storage, use disk storage
-    const diskStorage = multer.diskStorage({
-        destination: (req, file, cb) => {
-            const soundsDir = storage.getSoundsDir();
-            cb(null, soundsDir);
-        },
-        filename: (req, file, cb) => {
-            // Sanitize filename
-            const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-            cb(null, safeName);
-        },
-    });
-
-    upload = multer({
-        storage: diskStorage,
-        limits: {
-            fileSize: 50 * 1024 * 1024, // 50MB max
-        },
-        fileFilter: (req, file, cb) => {
-            const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
-            if (allowedTypes.test(file.originalname)) {
-                cb(null, true);
-            } else {
-                cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
-            }
-        },
-    });
-}
+// Always use memory storage - let storage module handle S3 vs local
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB max
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
+        if (allowedTypes.test(file.originalname)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Allowed: mp3, wav, ogg, m4a, webm, flac'));
+        }
+    },
+});
 
 // GET /api/sounds - List all sounds
 router.get('/sounds', async (req, res) => {
@@ -76,22 +42,19 @@ router.post('/sounds', requireAuth, upload.single('sound'), async (req, res) => 
     }
 
     try {
-        let filename;
+        // Always use storage module - it handles S3 vs local
+        const { Readable } = require('stream');
+        const fileStream = Readable.from(req.file.buffer);
+        const filename = await storage.uploadSound(fileStream, req.file.originalname);
         
-        if (storageType === 's3') {
-            // Upload to S3
-            const fileStream = require('stream').Readable.from(req.file.buffer);
-            filename = await storage.uploadSound(fileStream, req.file.originalname);
-        } else {
-            // Local storage - file already saved by multer
-            filename = req.file.filename;
-        }
+        const currentStorageType = storage.getStorageType();
 
         res.json({
             message: 'File uploaded successfully',
             file: {
                 name: filename,
                 size: req.file.size,
+                storage: currentStorageType,
             },
         });
     } catch (error) {

@@ -8,15 +8,23 @@ const log = createLogger('CONFIG');
  * Provides consistent config loading across the application
  */
 function loadConfig() {
-    // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_
+    // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_ or STORAGE_
+    // Also includes Railway's auto-injected bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
     const relevantEnvVars = Object.keys(process.env).filter(key => 
         key.startsWith('DISCORD_') || 
         key.startsWith('SESSION_') || 
         key.startsWith('REQUIRED_') ||
+        key.startsWith('STORAGE_') ||
         key === 'PORT' ||
         key === 'CALLBACK_URL' ||
         key === 'RAILWAY_PUBLIC_DOMAIN' ||
-        key === 'DISABLE_AUTO_DEPLOY'
+        key === 'DISABLE_AUTO_DEPLOY' ||
+        // Railway bucket auto-config vars
+        key === 'BUCKET' ||
+        key === 'ACCESS_KEY_ID' ||
+        key === 'SECRET_ACCESS_KEY' ||
+        key === 'ENDPOINT' ||
+        key === 'REGION'
     );
     
     if (relevantEnvVars.length > 0) {
@@ -25,7 +33,8 @@ function loadConfig() {
         relevantEnvVars.forEach(key => {
             const value = process.env[key];
             if (value) {
-                const masked = key.includes('SECRET') || key.includes('TOKEN') 
+                const shouldMask = key.includes('SECRET') || key.includes('TOKEN') || key === 'ACCESS_KEY_ID';
+                const masked = shouldMask
                     ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}` 
                     : value;
                 log.debug(`  ${key}=${masked}`);
@@ -66,11 +75,13 @@ function loadConfig() {
         railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
         
         // Storage configuration (Railway S3-compatible buckets)
-        storageBucketName: process.env.STORAGE_BUCKET_NAME,
-        storageAccessKey: process.env.STORAGE_ACCESS_KEY,
-        storageSecretKey: process.env.STORAGE_SECRET_KEY,
-        storageEndpoint: process.env.STORAGE_ENDPOINT,
-        storageRegion: process.env.STORAGE_REGION || 'us-east-1',
+        // Railway auto-injects: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+        // Also supports custom STORAGE_* names for manual config
+        storageBucketName: process.env.BUCKET || process.env.STORAGE_BUCKET_NAME,
+        storageAccessKey: process.env.ACCESS_KEY_ID || process.env.STORAGE_ACCESS_KEY,
+        storageSecretKey: process.env.SECRET_ACCESS_KEY || process.env.STORAGE_SECRET_KEY,
+        storageEndpoint: process.env.ENDPOINT || process.env.STORAGE_ENDPOINT,
+        storageRegion: process.env.REGION || process.env.STORAGE_REGION || 'auto',
         
         // Feature flags
         disableAutoDeploy: process.env.DISABLE_AUTO_DEPLOY === 'true',
