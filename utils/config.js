@@ -3,11 +3,12 @@ const { createLogger } = require('./logger');
 const log = createLogger('CONFIG');
 
 /**
- * Load configuration from environment variables with fallback to config.json
+ * Load configuration from environment variables (.env file or process.env) with fallback to config.json
+ * dotenv is loaded in index.js before this module is required
  * Provides consistent config loading across the application
  */
 function loadConfig() {
-    // Try to load config.json (for local development)
+    // Try to load config.json (for local development fallback)
     let fileConfig = {};
     try {
         fileConfig = require('../config.json');
@@ -15,6 +16,11 @@ function loadConfig() {
     } catch (e) {
         // config.json doesn't exist or can't be loaded - that's fine for production
         log.debug('config.json not found, using environment variables only');
+    }
+    
+    // Check if .env file was loaded
+    if (process.env.DOTENV_LOADED !== undefined || Object.keys(process.env).some(key => key.startsWith('DISCORD_'))) {
+        log.debug('Environment variables loaded (from .env file or system env)');
     }
 
     // Build config object prioritizing environment variables

@@ -37,15 +37,22 @@ npm install
    - **Linux**: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or `sudo yum install ffmpeg` (CentOS/RHEL)
 
 4. Configure the bot:
-   - Copy `config.json` and fill in your bot credentials:
-   ```json
-   {
-       "token": "YOUR_BOT_TOKEN",
-       "clientId": "YOUR_BOT_CLIENT_ID",
-       "guildId": "YOUR_GUILD_ID",
-       "dashboardPort": 3000
-   }
+   
+   **Option A: Using `.env` file (recommended for local development)**
+   - Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
    ```
+   - Edit `.env` and fill in your bot credentials
+   
+   **Option B: Using `config.json`**
+   - Copy `config.example.json` to `config.json`:
+   ```bash
+   cp config.example.json config.json
+   ```
+   - Edit `config.json` and fill in your bot credentials
+   
+   **Note**: Environment variables (`.env` file) take priority over `config.json`. For production (Railway), use environment variables set in the platform.
 
 5. Start the bot:
 ```bash

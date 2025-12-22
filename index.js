@@ -1,3 +1,7 @@
+// Load environment variables from .env file (if it exists)
+// This must be loaded before any other modules that use process.env
+require('dotenv').config();
+
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const server = require('./server');
 const { loadConfig } = require('./utils/config');
