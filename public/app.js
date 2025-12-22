@@ -42,6 +42,7 @@ const playPauseBtn = document.getElementById('play-pause-btn');
 const prevBtn = document.getElementById('prev-btn');
 const nextBtn = document.getElementById('next-btn');
 const progressBar = document.getElementById('progress-bar');
+const trackLink = document.getElementById('track-link');
 
 // API Helpers
 async function api(endpoint, options = {}) {
@@ -123,10 +124,12 @@ function renderConnections() {
         </div>
     `).join('');
 
-    // Update now playing card
+    // Update now playing card - use queueData.currentTrack if available
     const playing = connections.find(c => c.nowPlaying);
     if (playing && selectedGuildId) {
-        updateNowPlayingCard(playing.nowPlaying, playing.guildId);
+        // Use currentTrack from queueData if available, otherwise use connection data
+        const title = queueData.currentTrack?.title || playing.nowPlaying;
+        updateNowPlayingCard(title, selectedGuildId);
     } else {
         nowPlayingCard.style.display = 'none';
     }
@@ -142,22 +145,44 @@ function updateNowPlayingCard(title, guildId) {
     nowPlayingCard.style.display = 'block';
     trackTitle.textContent = title;
     
-    // Try to extract artist/source info
+    // Get current track from queueData (includes currentTrack from API)
+    const currentTrack = queueData.currentTrack;
     const currentQueue = queueData.queue || [];
-    const nowPlayingTrack = currentQueue.find(t => t.title === title) || 
+    const nowPlayingTrack = currentTrack || currentQueue.find(t => t.title === title) || 
                            (queueData.nowPlaying === title ? { isLocal: false } : null);
     
     if (nowPlayingTrack) {
+        // Update artist/source
         if (nowPlayingTrack.isLocal) {
             trackArtist.textContent = 'Local Sound';
+            trackLink.style.display = 'none';
         } else if (nowPlayingTrack.spotifyUrl || nowPlayingTrack.spotifyId) {
             trackArtist.textContent = 'Spotify';
-        } else if (nowPlayingTrack.url?.includes('youtube')) {
+            // Use Spotify URL if available, otherwise use YouTube URL
+            if (nowPlayingTrack.spotifyUrl) {
+                trackLink.href = nowPlayingTrack.spotifyUrl;
+                trackLink.style.display = 'flex';
+            } else if (nowPlayingTrack.url) {
+                trackLink.href = nowPlayingTrack.url;
+                trackLink.style.display = 'flex';
+            } else {
+                trackLink.style.display = 'none';
+            }
+        } else if (nowPlayingTrack.url?.includes('youtube') || nowPlayingTrack.url?.includes('youtu.be')) {
             trackArtist.textContent = 'YouTube';
+            trackLink.href = nowPlayingTrack.url;
+            trackLink.style.display = 'flex';
         } else if (nowPlayingTrack.url?.includes('soundcloud')) {
             trackArtist.textContent = 'SoundCloud';
-        } else {
+            trackLink.href = nowPlayingTrack.url;
+            trackLink.style.display = 'flex';
+        } else if (nowPlayingTrack.url) {
             trackArtist.textContent = 'Stream';
+            trackLink.href = nowPlayingTrack.url;
+            trackLink.style.display = 'flex';
+        } else {
+            trackArtist.textContent = 'Playing';
+            trackLink.style.display = 'none';
         }
         
         // Update total time if available
@@ -166,6 +191,7 @@ function updateNowPlayingCard(title, guildId) {
         }
     } else {
         trackArtist.textContent = 'Playing';
+        trackLink.style.display = 'none';
     }
 
     // Update play/pause button state - will be updated when we fetch status

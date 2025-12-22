@@ -637,6 +637,36 @@ select {
     white-space: nowrap;
 }
 
+.track-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--accent);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    width: fit-content;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+.track-link:hover {
+    color: var(--accent-hover);
+    background: rgba(59, 130, 246, 0.1);
+    transform: translateX(2px);
+}
+
+.track-link svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.track-link span {
+    font-weight: 500;
+}
+
 .progress-container {
     display: flex;
     flex-direction: column;
