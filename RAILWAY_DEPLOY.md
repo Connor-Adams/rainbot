@@ -13,6 +13,7 @@ Railway is perfect for deploying both your Discord bot and web dashboard togethe
 2. Select "Deploy from GitHub repo"
 3. Choose your `rainbot` repository
 4. Railway will automatically detect it's a Node.js project
+5. **Note**: The `nixpacks.toml` file ensures Python 3 and FFmpeg are installed for `youtube-dl-exec` to work properly
 
 ### 3. Set Environment Variables
 
@@ -120,6 +121,7 @@ Railway provides:
 ✅ Easy environment variable management  
 ✅ Automatic HTTPS  
 ✅ GitHub integration  
+✅ Supports multiple languages (Node.js + Python for yt-dlp)  
 
 ## Local Development
 
