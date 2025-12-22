@@ -8,6 +8,33 @@ const log = createLogger('CONFIG');
  * Provides consistent config loading across the application
  */
 function loadConfig() {
+    // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_
+    const relevantEnvVars = Object.keys(process.env).filter(key => 
+        key.startsWith('DISCORD_') || 
+        key.startsWith('SESSION_') || 
+        key.startsWith('REQUIRED_') ||
+        key === 'PORT' ||
+        key === 'CALLBACK_URL' ||
+        key === 'RAILWAY_PUBLIC_DOMAIN' ||
+        key === 'DISABLE_AUTO_DEPLOY'
+    );
+    
+    if (relevantEnvVars.length > 0) {
+        log.info(`Found ${relevantEnvVars.length} relevant environment variables: ${relevantEnvVars.join(', ')}`);
+        // Log values (masked for security)
+        relevantEnvVars.forEach(key => {
+            const value = process.env[key];
+            if (value) {
+                const masked = key.includes('SECRET') || key.includes('TOKEN') 
+                    ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}` 
+                    : value;
+                log.debug(`  ${key}=${masked}`);
+            }
+        });
+    } else {
+        log.warn('No relevant environment variables found!');
+    }
+
     // Try to load config.json (for local development fallback)
     let fileConfig = {};
     try {
@@ -16,11 +43,6 @@ function loadConfig() {
     } catch (e) {
         // config.json doesn't exist or can't be loaded - that's fine for production
         log.debug('config.json not found, using environment variables only');
-    }
-    
-    // Check if .env file was loaded
-    if (process.env.DOTENV_LOADED !== undefined || Object.keys(process.env).some(key => key.startsWith('DISCORD_'))) {
-        log.debug('Environment variables loaded (from .env file or system env)');
     }
 
     // Build config object prioritizing environment variables
@@ -50,27 +72,56 @@ function loadConfig() {
     // Log which source is being used (for debugging)
     const envVarsUsed = [];
     const fileVarsUsed = [];
+    const missingVars = [];
     
-    if (process.env.DISCORD_BOT_TOKEN) envVarsUsed.push('DISCORD_BOT_TOKEN');
-    else if (fileConfig.token) fileVarsUsed.push('token');
+    if (process.env.DISCORD_BOT_TOKEN) {
+        envVarsUsed.push('DISCORD_BOT_TOKEN');
+    } else if (fileConfig.token) {
+        fileVarsUsed.push('token');
+    } else {
+        missingVars.push('DISCORD_BOT_TOKEN');
+    }
     
-    if (process.env.DISCORD_CLIENT_ID) envVarsUsed.push('DISCORD_CLIENT_ID');
-    else if (fileConfig.clientId) fileVarsUsed.push('clientId');
+    if (process.env.DISCORD_CLIENT_ID) {
+        envVarsUsed.push('DISCORD_CLIENT_ID');
+    } else if (fileConfig.clientId) {
+        fileVarsUsed.push('clientId');
+    } else {
+        missingVars.push('DISCORD_CLIENT_ID');
+    }
     
-    if (process.env.DISCORD_CLIENT_SECRET) envVarsUsed.push('DISCORD_CLIENT_SECRET');
-    else if (fileConfig.discordClientSecret) fileVarsUsed.push('discordClientSecret');
+    if (process.env.DISCORD_CLIENT_SECRET) {
+        envVarsUsed.push('DISCORD_CLIENT_SECRET');
+    } else if (fileConfig.discordClientSecret) {
+        fileVarsUsed.push('discordClientSecret');
+    } else {
+        missingVars.push('DISCORD_CLIENT_SECRET');
+    }
     
-    if (process.env.SESSION_SECRET) envVarsUsed.push('SESSION_SECRET');
-    else if (fileConfig.sessionSecret) fileVarsUsed.push('sessionSecret');
+    if (process.env.SESSION_SECRET) {
+        envVarsUsed.push('SESSION_SECRET');
+    } else if (fileConfig.sessionSecret) {
+        fileVarsUsed.push('sessionSecret');
+    } else {
+        missingVars.push('SESSION_SECRET');
+    }
     
-    if (process.env.REQUIRED_ROLE_ID) envVarsUsed.push('REQUIRED_ROLE_ID');
-    else if (fileConfig.requiredRoleId) fileVarsUsed.push('requiredRoleId');
+    if (process.env.REQUIRED_ROLE_ID) {
+        envVarsUsed.push('REQUIRED_ROLE_ID');
+    } else if (fileConfig.requiredRoleId) {
+        fileVarsUsed.push('requiredRoleId');
+    } else {
+        missingVars.push('REQUIRED_ROLE_ID');
+    }
 
     if (envVarsUsed.length > 0) {
-        log.info(`Using environment variables: ${envVarsUsed.join(', ')}`);
+        log.info(`✓ Using environment variables: ${envVarsUsed.join(', ')}`);
     }
     if (fileVarsUsed.length > 0) {
-        log.info(`Using config.json: ${fileVarsUsed.join(', ')}`);
+        log.info(`✓ Using config.json: ${fileVarsUsed.join(', ')}`);
+    }
+    if (missingVars.length > 0) {
+        log.error(`✗ Missing configuration: ${missingVars.join(', ')}`);
     }
 
     // Validate required config

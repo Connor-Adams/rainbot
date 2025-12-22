@@ -1,6 +1,11 @@
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
-require('dotenv').config();
+const dotenvResult = require('dotenv').config();
+if (dotenvResult.error) {
+    // .env file doesn't exist - that's fine, we'll use system env vars or config.json
+} else if (dotenvResult.parsed) {
+    console.log(`[MAIN] Loaded ${Object.keys(dotenvResult.parsed).length} variables from .env file`);
+}
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const server = require('./server');
@@ -8,6 +13,20 @@ const { loadConfig } = require('./utils/config');
 const { createLogger } = require('./utils/logger');
 
 const log = createLogger('MAIN');
+
+// Debug: Log all process.env keys (for Railway debugging)
+if (process.env.RAILWAY_ENVIRONMENT) {
+    log.info('Running on Railway');
+    const allEnvKeys = Object.keys(process.env);
+    log.debug(`Total environment variables: ${allEnvKeys.length}`);
+    const discordKeys = allEnvKeys.filter(k => k.includes('DISCORD') || k.includes('SESSION') || k.includes('REQUIRED'));
+    if (discordKeys.length > 0) {
+        log.info(`Railway env vars found: ${discordKeys.join(', ')}`);
+    } else {
+        log.error('No Discord/Session env vars found in Railway! Check Railway dashboard settings.');
+    }
+}
+
 const config = loadConfig();
 
 const client = new Client({
