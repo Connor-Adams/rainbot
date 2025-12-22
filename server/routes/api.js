@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const voiceManager = require('../../utils/voiceManager');
 const storage = require('../../utils/storage');
-const server = require('../index');
+const clientStore = require('../client');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -143,7 +143,7 @@ router.post('/stop', requireAuth, (req, res) => {
 
 // GET /api/status - Get bot status
 router.get('/status', (req, res) => {
-    const client = server.getClient();
+    const client = clientStore.getClient();
 
     if (!client || !client.isReady()) {
         return res.json({
@@ -172,7 +172,7 @@ router.get('/status', (req, res) => {
 
 // GET /api/guilds/:id/channels - Get voice channels for a guild
 router.get('/guilds/:id/channels', (req, res) => {
-    const client = server.getClient();
+    const client = clientStore.getClient();
 
     if (!client || !client.isReady()) {
         return res.status(503).json({ error: 'Bot not ready' });

@@ -1,6 +1,6 @@
 const { createLogger } = require('../../utils/logger');
 const { verifyUserRole } = require('../utils/roleVerifier');
-const server = require('../index');
+const clientStore = require('../client');
 
 const log = createLogger('AUTH');
 
@@ -25,7 +25,7 @@ async function requireAuth(req, res, next) {
     // Get config and bot client
     const { loadConfig } = require('../../utils/config');
     const config = loadConfig();
-    const botClient = server.getClient();
+    const botClient = clientStore.getClient();
 
     if (!config.requiredRoleId) {
         log.error('requiredRoleId not configured. Set REQUIRED_ROLE_ID environment variable.');

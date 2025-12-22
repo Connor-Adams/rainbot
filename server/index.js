@@ -8,8 +8,7 @@ const requestLogger = require('./middleware/requestLogger');
 const { requireAuth } = require('./middleware/auth');
 
 const log = createLogger('SERVER');
-
-let discordClient = null;
+const clientStore = require('./client');
 
 function createServer() {
     const app = express();
@@ -87,7 +86,7 @@ function createServer() {
 }
 
 function start(client, port = 3000) {
-    discordClient = client;
+    clientStore.setClient(client);
     const app = createServer();
     const { loadConfig } = require('../utils/config');
     const config = loadConfig();
@@ -106,7 +105,7 @@ function start(client, port = 3000) {
 }
 
 function getClient() {
-    return discordClient;
+    return clientStore.getClient();
 }
 
 module.exports = {

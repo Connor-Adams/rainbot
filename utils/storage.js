@@ -56,8 +56,12 @@ function initStorage() {
 
 /**
  * List all sound files
+ * Combines sounds from S3 and local storage (for migration compatibility)
  */
 async function listSounds() {
+    const sounds = [];
+    const seenNames = new Set();
+    
     if (storageType === 's3') {
         const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
         
@@ -69,70 +73,114 @@ async function listSounds() {
             
             const response = await s3Client.send(command);
             
-            if (!response.Contents) {
-                return [];
+            if (response.Contents) {
+                response.Contents
+                    .filter(obj => /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key))
+                    .forEach(obj => {
+                        const name = path.basename(obj.Key);
+                        if (!seenNames.has(name)) {
+                            sounds.push({
+                                name: name,
+                                size: obj.Size,
+                                createdAt: obj.LastModified,
+                                source: 's3',
+                            });
+                            seenNames.add(name);
+                        }
+                    });
             }
-            
-            return response.Contents
-                .filter(obj => /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key))
-                .map(obj => ({
-                    name: path.basename(obj.Key),
-                    size: obj.Size,
-                    createdAt: obj.LastModified,
-                }));
         } catch (error) {
-            log.error(`Error listing sounds from S3: ${error.message}`);
-            throw error;
+            log.warn(`Error listing sounds from S3: ${error.message}, continuing with local storage...`);
         }
-    } else {
-        // Local storage
-        if (!fs.existsSync(soundsDir)) {
-            return [];
-        }
-
-        const files = fs.readdirSync(soundsDir);
-        return files
+    }
+    
+    // Also check local storage (for migration compatibility)
+    const localSoundsDir = path.join(__dirname, '..', 'sounds');
+    if (fs.existsSync(localSoundsDir)) {
+        const files = fs.readdirSync(localSoundsDir);
+        files
             .filter(file => /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(file))
-            .map(file => {
-                const filePath = path.join(soundsDir, file);
-                const stats = fs.statSync(filePath);
-                return {
-                    name: file,
-                    size: stats.size,
-                    createdAt: stats.birthtime,
-                };
+            .forEach(file => {
+                if (!seenNames.has(file)) {
+                    const filePath = path.join(localSoundsDir, file);
+                    const stats = fs.statSync(filePath);
+                    sounds.push({
+                        name: file,
+                        size: stats.size,
+                        createdAt: stats.birthtime,
+                        source: 'local',
+                    });
+                    seenNames.add(file);
+                }
             });
     }
+    
+    return sounds;
 }
 
 /**
  * Get a readable stream for a sound file
+ * Falls back to local storage if not found in S3 (for migration compatibility)
  */
-function getSoundStream(filename) {
+async function getSoundStream(filename) {
     if (storageType === 's3') {
         const { GetObjectCommand } = require('@aws-sdk/client-s3');
+        const { Readable } = require('stream');
         
-        const command = new GetObjectCommand({
-            Bucket: bucketName,
-            Key: `sounds/${filename}`,
-        });
-        
-        return s3Client.send(command).then(response => response.Body);
+        try {
+            const command = new GetObjectCommand({
+                Bucket: bucketName,
+                Key: `sounds/${filename}`,
+            });
+            
+            const response = await s3Client.send(command);
+            
+            // Convert AWS SDK stream to Node.js stream if needed
+            if (response.Body instanceof Readable) {
+                return response.Body;
+            } else if (response.Body && typeof response.Body.transformToWebStream === 'function') {
+                // Handle web streams (newer AWS SDK versions)
+                const webStream = response.Body.transformToWebStream();
+                return Readable.fromWeb(webStream);
+            } else {
+                // Fallback: convert to buffer then stream
+                const chunks = [];
+                for await (const chunk of response.Body) {
+                    chunks.push(chunk);
+                }
+                return Readable.from(Buffer.concat(chunks));
+            }
+        } catch (error) {
+            // If not found in S3, try local storage as fallback
+            if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
+                log.debug(`Sound ${filename} not found in S3, checking local storage...`);
+                return getLocalSoundStream(filename);
+            }
+            throw error;
+        }
     } else {
-        // Local storage
-        const filePath = path.join(soundsDir, filename);
-        
-        // Prevent path traversal
-        if (!filePath.startsWith(soundsDir)) {
-            throw new Error('Invalid filename');
-        }
-        
-        if (!fs.existsSync(filePath)) {
-            throw new Error('Sound not found');
-        }
-        
-        return fs.createReadStream(filePath);
+        // Local storage only
+        return getLocalSoundStream(filename);
     }
+}
+
+/**
+ * Get sound stream from local filesystem
+ */
+function getLocalSoundStream(filename) {
+    const localSoundsDir = path.join(__dirname, '..', 'sounds');
+    const filePath = path.join(localSoundsDir, filename);
+    
+    // Prevent path traversal
+    if (!filePath.startsWith(localSoundsDir)) {
+        throw new Error('Invalid filename');
+    }
+    
+    if (!fs.existsSync(filePath)) {
+        throw new Error('Sound not found');
+    }
+    
+    return fs.createReadStream(filePath);
 }
 
 /**
@@ -218,6 +266,7 @@ async function deleteSound(filename) {
 
 /**
  * Check if a sound file exists
+ * Checks S3 first, then falls back to local storage (for migration compatibility)
  */
 async function soundExists(filename) {
     if (storageType === 's3') {
@@ -233,6 +282,13 @@ async function soundExists(filename) {
             return true;
         } catch (error) {
             if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+                // Not found in S3, check local storage as fallback
+                const localSoundsDir = path.join(__dirname, '..', 'sounds');
+                const filePath = path.join(localSoundsDir, filename);
+                if (filePath.startsWith(localSoundsDir) && fs.existsSync(filePath)) {
+                    log.debug(`Sound ${filename} found in local storage (fallback)`);
+                    return true;
+                }
                 return false;
             }
             throw error;

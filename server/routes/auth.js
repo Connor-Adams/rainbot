@@ -3,7 +3,7 @@ const passport = require('passport');
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const { createLogger } = require('../../utils/logger');
 const { verifyUserRole } = require('../utils/roleVerifier');
-const server = require('../index');
+const clientStore = require('../client');
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
@@ -43,7 +43,7 @@ passport.use('discord', new OAuth2Strategy({
     try {
         log.debug('OAuth strategy callback started');
         
-        const botClient = server.getClient();
+        const botClient = clientStore.getClient();
 
         if (!botClient || !botClient.isReady()) {
             log.error('Bot client not ready during OAuth verification');
