@@ -97,8 +97,29 @@ router.post('/play', requireAuth, async (req, res) => {
     }
 
     try {
-        const title = await voiceManager.playSound(guildId, source);
-        res.json({ message: 'Playing', title });
+        const result = await voiceManager.playSound(guildId, source);
+        
+        // Extract title from first track
+        const title = result.tracks && result.tracks.length > 0 
+            ? result.tracks[0].title 
+            : 'Unknown';
+        
+        // Sanitize tracks array to remove stream objects (which have circular references)
+        const sanitizedTracks = result.tracks ? result.tracks.map(track => ({
+            title: track.title,
+            url: track.url,
+            duration: track.duration,
+            isLocal: track.isLocal,
+            // Explicitly exclude 'source' and 'isStream' to avoid circular references
+        })) : [];
+        
+        res.json({ 
+            message: 'Playing', 
+            title,
+            added: result.added,
+            totalInQueue: result.totalInQueue,
+            tracks: sanitizedTracks,
+        });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
