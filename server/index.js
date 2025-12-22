@@ -13,25 +13,35 @@ let discordClient = null;
 
 function createServer() {
     const app = express();
-    const config = require('../config.json');
+    
+    // Use environment variables, fallback to config.json for local development
+    let config;
+    try {
+        config = require('../config.json');
+    } catch (e) {
+        config = {};
+    }
 
     // Request logging
     app.use(requestLogger);
 
     // Session configuration
-    const sessionStorePath = config.sessionStorePath || './sessions';
+    // Use file store for persistent sessions (works on Railway and locally)
+    const sessionStore = new FileStore({
+        path: (config.sessionStorePath || process.env.SESSION_STORE_PATH || './sessions'),
+        ttl: 7 * 24 * 60 * 60, // 7 days
+    });
+
     app.use(session({
-        store: new FileStore({
-            path: sessionStorePath,
-            ttl: 7 * 24 * 60 * 60, // 7 days
-        }),
-        secret: config.sessionSecret || 'change-this-secret-in-production',
+        store: sessionStore,
+        secret: process.env.SESSION_SECRET || config.sessionSecret || 'change-this-secret-in-production',
         resave: false,
         saveUninitialized: false,
         cookie: {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // Only use secure cookies in production
+            secure: process.env.NODE_ENV === 'production', // Secure cookies in production
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            sameSite: 'lax',
         },
     }));
 
@@ -71,8 +81,14 @@ function start(client, port = 3000) {
     discordClient = client;
     const app = createServer();
 
-    app.listen(port, () => {
-        log.info(`Dashboard running at http://localhost:${port}`);
+    // Railway and other platforms use 0.0.0.0 instead of localhost
+    const host = process.env.HOST || '0.0.0.0';
+    
+    app.listen(port, host, () => {
+        const url = process.env.RAILWAY_PUBLIC_DOMAIN 
+            ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+            : `http://${host}:${port}`;
+        log.info(`Dashboard running at ${url}`);
     });
 
     return app;

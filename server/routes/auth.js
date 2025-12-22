@@ -8,16 +8,40 @@ const server = require('../index');
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
 
-// Get config
-const config = require('../../config.json');
+// Get config - use environment variables, fallback to config.json
+let config;
+try {
+    config = require('../../config.json');
+} catch (e) {
+    config = {};
+}
+
+const getConfig = () => {
+    // Determine callback URL - prioritize Railway, then CALLBACK_URL, then default
+    let callbackURL = process.env.CALLBACK_URL || config.callbackURL;
+    if (process.env.RAILWAY_PUBLIC_DOMAIN && !callbackURL) {
+        callbackURL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/auth/discord/callback`;
+    }
+    if (!callbackURL) {
+        callbackURL = 'http://localhost:3000/auth/discord/callback';
+    }
+    
+    return {
+        clientId: process.env.DISCORD_CLIENT_ID || config.clientId,
+        clientSecret: process.env.DISCORD_CLIENT_SECRET || config.discordClientSecret,
+        callbackURL: callbackURL,
+        requiredRoleId: process.env.REQUIRED_ROLE_ID || config.requiredRoleId,
+    };
+};
 
 // Configure Discord OAuth Strategy using OAuth2
+const cfg = getConfig();
 passport.use('discord', new OAuth2Strategy({
     authorizationURL: 'https://discord.com/api/oauth2/authorize',
     tokenURL: 'https://discord.com/api/oauth2/token',
-    clientID: config.clientId,
-    clientSecret: config.discordClientSecret,
-    callbackURL: config.callbackURL,
+    clientID: cfg.clientId,
+    clientSecret: cfg.clientSecret,
+    callbackURL: cfg.callbackURL,
     scope: ['identify', 'guilds'],
 }, async (accessToken, refreshToken, profile, done) => {
     try {
@@ -42,7 +66,8 @@ passport.use('discord', new OAuth2Strategy({
         const discordUser = await userResponse.json();
 
         // Verify user has required role
-        const hasRole = await verifyUserRole(discordUser.id, config.requiredRoleId, botClient);
+        const cfg = getConfig();
+        const hasRole = await verifyUserRole(discordUser.id, cfg.requiredRoleId, botClient);
 
         if (!hasRole) {
             log.info(`OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role`);
@@ -75,6 +100,18 @@ passport.deserializeUser((user, done) => {
     done(null, user);
 });
 
+// Helper to get base URL from request
+function getBaseUrl(req) {
+    // Railway provides public domain
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    // Local development
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3000';
+    return `${protocol}://${host}`;
+}
+
 // Initiate OAuth flow
 router.get('/discord', passport.authenticate('discord'));
 
@@ -87,7 +124,8 @@ router.get('/discord/callback',
         req.session.lastVerified = Date.now();
         
         log.info(`User ${req.user.username} logged in successfully`);
-        res.redirect('http://localhost:3000/');
+        const baseUrl = getBaseUrl(req);
+        res.redirect(`${baseUrl}/`);
     }
 );
 
@@ -104,7 +142,8 @@ router.get('/logout', (req, res) => {
                 log.error(`Error destroying session: ${err.message}`);
             }
             log.info(`User ${username} logged out`);
-            res.redirect('http://localhost:3000/');
+            const baseUrl = getBaseUrl(req);
+            res.redirect(`${baseUrl}/`);
         });
     });
 });
@@ -137,7 +176,8 @@ router.get('/check', async (req, res) => {
 
     // Verify user still has access
     try {
-        const hasRole = await verifyUserRole(user.id, config.requiredRoleId, botClient);
+        const cfg = getConfig();
+        const hasRole = await verifyUserRole(user.id, cfg.requiredRoleId, botClient);
         
         if (!hasRole) {
             return res.status(403).json({ 

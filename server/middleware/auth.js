@@ -23,10 +23,17 @@ async function requireAuth(req, res, next) {
     }
 
     // Get config and bot client
-    const config = require('../../config.json');
+    let config;
+    try {
+        config = require('../../config.json');
+    } catch (e) {
+        config = {};
+    }
+    
+    const requiredRoleId = process.env.REQUIRED_ROLE_ID || config.requiredRoleId;
     const botClient = server.getClient();
 
-    if (!config.requiredRoleId) {
+    if (!requiredRoleId) {
         log.error('requiredRoleId not configured');
         return res.status(500).json({ error: 'Server configuration error' });
     }
@@ -43,7 +50,7 @@ async function requireAuth(req, res, next) {
 
     // Verify user still has required role
     try {
-        const hasRole = await verifyUserRole(user.id, config.requiredRoleId, botClient);
+        const hasRole = await verifyUserRole(user.id, requiredRoleId, botClient);
 
         // Update session cache
         req.session.hasAccess = hasRole;
