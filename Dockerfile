@@ -9,8 +9,8 @@ RUN apt-get update && \
     ffmpeg \
     curl \
     ca-certificates && \
-    # Install yt-dlp via pip
-    pip3 install --no-cache-dir yt-dlp && \
+    # Install yt-dlp via pip (--break-system-packages needed for Python 3.11+ PEP 668)
+    pip3 install --no-cache-dir --break-system-packages yt-dlp && \
     # Clean up apt cache
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
