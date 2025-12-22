@@ -23,6 +23,8 @@ const uploadArea = document.getElementById('upload-area');
 const toastContainer = document.getElementById('toast-container');
 const loadingOverlay = document.getElementById('loading-overlay');
 const loginBtn = document.getElementById('login-btn');
+const loginBtnCentered = document.getElementById('login-btn-centered');
+const loginContainer = document.getElementById('login-container');
 const logoutBtn = document.getElementById('logout-btn');
 const userInfo = document.getElementById('user-info');
 const userAvatar = document.getElementById('user-avatar');
@@ -814,16 +816,30 @@ async function getUserInfo() {
 
 function showLoginUI() {
     loadingOverlay.style.display = 'none';
-    loginBtn.style.display = 'block';
+    loginBtn.style.display = 'none';
+    loginContainer.style.display = 'flex';
     userInfo.style.display = 'none';
     document.querySelector('.main').style.display = 'none';
+    // Hide status in header when showing login
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) {
+        const status = headerRight.querySelector('.status');
+        if (status) status.style.display = 'none';
+    }
 }
 
 function showDashboardUI() {
     loadingOverlay.style.display = 'none';
     loginBtn.style.display = 'none';
+    loginContainer.style.display = 'none';
     userInfo.style.display = 'flex';
     document.querySelector('.main').style.display = 'flex';
+    // Show status in header when showing dashboard
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) {
+        const status = headerRight.querySelector('.status');
+        if (status) status.style.display = 'flex';
+    }
 }
 
 function showAccessDenied() {
@@ -837,8 +853,12 @@ function showAccessDenied() {
     `;
 }
 
-// Login button handler
+// Login button handlers
 loginBtn.addEventListener('click', () => {
+    window.location.href = '/auth/discord';
+});
+
+loginBtnCentered.addEventListener('click', () => {
     window.location.href = '/auth/discord';
 });
 
