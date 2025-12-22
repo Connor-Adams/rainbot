@@ -13,12 +13,15 @@ let bucketName = null;
 function initStorage() {
     const config = loadConfig();
     
-    // Railway auto-injects: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+    // Railway Bucket service variables can be:
+    // - AWS_* prefix: AWS_S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL, AWS_DEFAULT_REGION
+    // - Legacy: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+    // - Manual config: STORAGE_BUCKET_NAME, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_ENDPOINT, STORAGE_REGION
     const storageVars = {
-        'bucket (BUCKET)': !!config.storageBucketName,
-        'accessKey (ACCESS_KEY_ID)': !!config.storageAccessKey,
-        'secretKey (SECRET_ACCESS_KEY)': !!config.storageSecretKey,
-        'endpoint (ENDPOINT)': !!config.storageEndpoint,
+        'bucket (AWS_S3_BUCKET_NAME, BUCKET, or STORAGE_BUCKET_NAME)': !!config.storageBucketName,
+        'accessKey (AWS_ACCESS_KEY_ID, ACCESS_KEY_ID, or STORAGE_ACCESS_KEY)': !!config.storageAccessKey,
+        'secretKey (AWS_SECRET_ACCESS_KEY, SECRET_ACCESS_KEY, or STORAGE_SECRET_KEY)': !!config.storageSecretKey,
+        'endpoint (AWS_ENDPOINT_URL, ENDPOINT, or STORAGE_ENDPOINT)': !!config.storageEndpoint,
     };
     
     const missingVars = Object.entries(storageVars)
@@ -27,7 +30,31 @@ function initStorage() {
     
     // Require all S3 configuration variables
     if (missingVars.length > 0) {
+        // Log all available environment variables for debugging
+        const allEnvVars = Object.keys(process.env).filter(key => 
+            key.startsWith('AWS_') ||
+            key.includes('BUCKET') || 
+            key.includes('ACCESS') || 
+            key.includes('SECRET') || 
+            key.includes('ENDPOINT') ||
+            key.includes('STORAGE')
+        );
+        
         log.error(`S3 storage configuration incomplete. Missing: ${missingVars.join(', ')}`);
+        if (allEnvVars.length > 0) {
+            log.info(`Found these storage-related environment variables: ${allEnvVars.join(', ')}`);
+            log.info(`Tip: Railway Bucket service variables may need to be manually set as STORAGE_* variables`);
+            log.info(`Or ensure the Bucket service is properly linked to your main service`);
+        } else {
+            log.info(`No storage-related environment variables found.`);
+            log.info(`Please set these environment variables in Railway:`);
+            log.info(`  - STORAGE_BUCKET_NAME (or BUCKET)`);
+            log.info(`  - STORAGE_ACCESS_KEY (or ACCESS_KEY_ID)`);
+            log.info(`  - STORAGE_SECRET_KEY (or SECRET_ACCESS_KEY)`);
+            log.info(`  - STORAGE_ENDPOINT (or ENDPOINT)`);
+            log.info(`  - STORAGE_REGION (or REGION, optional, defaults to us-east-1)`);
+        }
+        
         throw new Error(`S3 storage is required but not fully configured. Missing: ${missingVars.join(', ')}`);
     }
     

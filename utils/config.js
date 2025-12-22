@@ -19,7 +19,9 @@ function loadConfig() {
         key === 'CALLBACK_URL' ||
         key === 'RAILWAY_PUBLIC_DOMAIN' ||
         key === 'DISABLE_AUTO_DEPLOY' ||
-        // Railway bucket auto-config vars
+        // Railway Bucket service vars (AWS_* prefix)
+        key.startsWith('AWS_') ||
+        // Railway bucket legacy vars
         key === 'BUCKET' ||
         key === 'ACCESS_KEY_ID' ||
         key === 'SECRET_ACCESS_KEY' ||
@@ -76,13 +78,14 @@ function loadConfig() {
         railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
         
         // Storage configuration (Railway S3-compatible buckets)
-        // Railway auto-injects: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
-        // Also supports custom STORAGE_* names for manual config
-        storageBucketName: process.env.BUCKET || process.env.STORAGE_BUCKET_NAME,
-        storageAccessKey: process.env.ACCESS_KEY_ID || process.env.STORAGE_ACCESS_KEY,
-        storageSecretKey: process.env.SECRET_ACCESS_KEY || process.env.STORAGE_SECRET_KEY,
-        storageEndpoint: process.env.ENDPOINT || process.env.STORAGE_ENDPOINT,
-        storageRegion: process.env.REGION || process.env.STORAGE_REGION || 'auto',
+        // Railway Bucket service uses: AWS_ENDPOINT_URL, AWS_S3_BUCKET_NAME, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+        // Also supports: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION (legacy)
+        // And custom STORAGE_* names for manual config
+        storageBucketName: process.env.AWS_S3_BUCKET_NAME || process.env.BUCKET || process.env.STORAGE_BUCKET_NAME,
+        storageAccessKey: process.env.AWS_ACCESS_KEY_ID || process.env.ACCESS_KEY_ID || process.env.STORAGE_ACCESS_KEY,
+        storageSecretKey: process.env.AWS_SECRET_ACCESS_KEY || process.env.SECRET_ACCESS_KEY || process.env.STORAGE_SECRET_KEY,
+        storageEndpoint: process.env.AWS_ENDPOINT_URL || process.env.ENDPOINT || process.env.STORAGE_ENDPOINT,
+        storageRegion: process.env.AWS_DEFAULT_REGION || process.env.REGION || process.env.STORAGE_REGION || 'us-east-1',
         
         // Feature flags
         disableAutoDeploy: process.env.DISABLE_AUTO_DEPLOY === 'true',
