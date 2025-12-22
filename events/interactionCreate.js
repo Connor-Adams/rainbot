@@ -1,11 +1,59 @@
 const { Events } = require('discord.js');
 const { createLogger } = require('../utils/logger');
+const voiceManager = require('../utils/voiceManager');
 
 const log = createLogger('INTERACTION');
 
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // Handle autocomplete interactions
+        if (interaction.isAutocomplete()) {
+            const command = interaction.client.commands.get(interaction.commandName);
+
+            if (!command) {
+                return;
+            }
+
+            // Handle autocomplete for /play command's source option
+            if (interaction.commandName === 'play') {
+                const focusedOption = interaction.options.getFocused(true);
+                
+                if (focusedOption.name === 'source') {
+                    try {
+                        const sounds = await voiceManager.listSounds();
+                        const input = focusedOption.value.toLowerCase().trim();
+                        
+                        let filtered;
+                        if (input === '') {
+                            // Show all sounds if no input (up to 25)
+                            filtered = sounds.slice(0, 25);
+                        } else {
+                            // Filter sounds that match the input
+                            filtered = sounds.filter(sound => 
+                                sound.name.toLowerCase().includes(input)
+                            );
+                        }
+                        
+                        // Limit to 25 choices (Discord's limit)
+                        const choices = filtered
+                            .slice(0, 25)
+                            .map(sound => ({
+                                name: sound.name.length > 100 ? sound.name.substring(0, 97) + '...' : sound.name,
+                                value: sound.name,
+                            }));
+                        
+                        await interaction.respond(choices);
+                    } catch (error) {
+                        log.error(`Error in autocomplete: ${error.message}`);
+                        // Return empty array on error - user can still type and search
+                        await interaction.respond([]);
+                    }
+                }
+            }
+            return;
+        }
+
         if (!interaction.isChatInputCommand()) return;
 
         const command = interaction.client.commands.get(interaction.commandName);

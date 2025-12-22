@@ -4,7 +4,7 @@ const voiceManager = require('../../utils/voiceManager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('queue')
-        .setDescription('View the current music queue'),
+        .setDescription('View the current music queue and what\'s playing now'),
 
     async execute(interaction) {
         const guildId = interaction.guildId;
@@ -12,7 +12,7 @@ module.exports = {
         const status = voiceManager.getStatus(guildId);
         if (!status) {
             return interaction.reply({
-                content: '❌ I\'m not in a voice channel!',
+                content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
                 ephemeral: true,
             });
         }

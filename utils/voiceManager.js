@@ -718,22 +718,40 @@ async function playSound(guildId, source) {
             });
         }
     } else {
-        // Play from stored sound file (local or S3)
-        // Check if sound exists
+        // Check if it's a stored sound file first
         const exists = await storage.soundExists(source);
-        if (!exists) {
-            throw new Error(`Sound file not found: ${source}`);
+        if (exists) {
+            // Play from stored sound file (local or S3)
+            const stream = await storage.getSoundStream(source);
+
+            tracks.push({
+                title: path.basename(source, path.extname(source)),
+                source: stream,
+                isLocal: true,
+                isStream: true, // Indicate this is a stream, not a file path
+            });
+        } else {
+            // Not a sound file - treat as search query
+            log.info(`Searching YouTube for: "${source}"`);
+            try {
+                const ytResults = await play.search(source, { limit: 1 });
+                if (ytResults && ytResults.length > 0) {
+                    const result = ytResults[0];
+                    tracks.push({
+                        title: result.title || source,
+                        url: result.url,
+                        duration: result.durationInSec || null,
+                        isLocal: false,
+                    });
+                    log.info(`Found YouTube result: "${result.title}"`);
+                } else {
+                    throw new Error(`No results found for: ${source}`);
+                }
+            } catch (error) {
+                log.error(`Search error: ${error.message}`);
+                throw new Error(`Could not find "${source}". Try a different search term or provide a direct URL.`);
+            }
         }
-
-        // Get stream from storage
-        const stream = await storage.getSoundStream(source);
-
-        tracks.push({
-            title: path.basename(source, path.extname(source)),
-            source: stream,
-            isLocal: true,
-            isStream: true, // Indicate this is a stream, not a file path
-        });
     }
 
     // Add tracks to queue
@@ -757,17 +775,47 @@ async function playSound(guildId, source) {
 }
 
 /**
- * Skip current track
+ * Skip current track(s)
+ * @param {string} guildId - Guild ID
+ * @param {number} count - Number of tracks to skip (default: 1)
+ * @returns {Array<string>} Array of skipped track titles
  */
-function skip(guildId) {
+function skip(guildId, count = 1) {
     const state = voiceStates.get(guildId);
     if (!state) {
         throw new Error('Bot is not connected to a voice channel');
     }
 
-    const skipped = state.nowPlaying;
-    state.player.stop(); // This triggers Idle event which plays next
+    if (!state.nowPlaying && state.queue.length === 0) {
+        throw new Error('Nothing is playing');
+    }
+
+    // Validate count
+    if (count < 1) {
+        count = 1;
+    }
+
+    const skipped = [];
+    const queueLength = state.queue.length;
     
+    // Skip the current track
+    if (state.nowPlaying) {
+        skipped.push(state.nowPlaying);
+    }
+    
+    // Remove tracks from queue if count > 1
+    const tracksToRemove = Math.min(count - 1, queueLength);
+    for (let i = 0; i < tracksToRemove; i++) {
+        if (state.queue.length > 0) {
+            skipped.push(state.queue[0].title);
+            state.queue.shift();
+        }
+    }
+    
+    // Stop player to trigger next track (or end playback)
+    state.player.stop();
+    
+    // Return array (always has at least one item if we got here)
     return skipped;
 }
 

@@ -8,12 +8,13 @@ const log = createLogger('PLAY');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Play a sound, URL, or playlist')
+        .setDescription('Play a sound file, search for a song, or play from a URL/playlist')
         .addStringOption(option =>
             option
                 .setName('source')
-                .setDescription('Sound filename, YouTube/SoundCloud URL, or playlist URL')
+                .setDescription('Sound filename, song name/artist/keywords to search, or YouTube/SoundCloud/Spotify URL')
                 .setRequired(true)
+                .setAutocomplete(true)
         ),
 
     async execute(interaction) {
@@ -26,7 +27,7 @@ module.exports = {
         const status = voiceManager.getStatus(guildId);
         if (!status) {
             return interaction.reply({
-                content: '❌ I\'m not in a voice channel! Use `/join` first.',
+                content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
                 ephemeral: true,
             });
         }
@@ -51,7 +52,7 @@ module.exports = {
         } catch (error) {
             log.error(`Failed to play "${source}": ${error.message}`);
             await interaction.editReply({
-                content: `❌ Failed to play: ${error.message}`,
+                content: `❌ Failed to play "${source}": ${error.message}\n\n💡 **Tips:**\n• Try searching with song name and artist (e.g., "Bohemian Rhapsody Queen")\n• Use direct URLs for YouTube, SoundCloud, or Spotify\n• For sound files, use the exact filename\n• For playlists, use the playlist URL`,
             });
         }
     },

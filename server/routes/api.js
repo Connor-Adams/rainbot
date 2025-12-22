@@ -167,8 +167,8 @@ router.post('/skip', requireAuth, (req, res) => {
 
     try {
         const skipped = voiceManager.skip(guildId);
-        if (skipped) {
-            res.json({ message: 'Skipped to next track' });
+        if (skipped && skipped.length > 0) {
+            res.json({ message: `Skipped ${skipped.length} track(s)`, skipped });
         } else {
             res.status(400).json({ error: 'No track to skip' });
         }
