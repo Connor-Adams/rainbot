@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainbot Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🌧️</span>
+                <h1>Rainbot</h1>
+            </div>
+            <div class="header-right">
+                <div class="user-info" id="user-info" style="display: none;">
+                    <img class="user-avatar" id="user-avatar" src="" alt="User avatar" />
+                    <span class="user-name" id="user-name"></span>
+                    <button class="btn btn-secondary btn-small" id="logout-btn">Logout</button>
+                </div>
+                <button class="btn btn-primary" id="login-btn" style="display: none;">Login with Discord</button>
+                <div class="status" id="bot-status">
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-spinner"></div>
+            <p>Checking authentication...</p>
+        </div>
+
+        <main class="main">
+            <aside class="sidebar">
+                <section class="panel connections-panel">
+                    <h2>Voice Connections</h2>
+                    <div id="connections-list" class="connections-list">
+                        <p class="empty-state">No active connections</p>
+                    </div>
+                </section>
+
+                <section class="panel servers-panel">
+                    <h2>Servers</h2>
+                    <div id="servers-list" class="servers-list">
+                        <p class="empty-state">Loading...</p>
+                    </div>
+                </section>
+            </aside>
+
+            <div class="content">
+                <section class="panel player-panel">
+                    <h2>URL Player</h2>
+                    <div class="url-player">
+                        <div class="input-group">
+                            <input type="text" id="url-input" placeholder="YouTube, SoundCloud, or direct URL..." />
+                            <select id="guild-select">
+                                <option value="">Select server...</option>
+                            </select>
+                        </div>
+                        <div class="player-controls">
+                            <button class="btn btn-primary" id="play-url-btn">
+                                <span class="btn-icon">▶</span> Play
+                            </button>
+                            <button class="btn btn-danger" id="stop-btn">
+                                <span class="btn-icon">■</span> Stop
+                            </button>
+                        </div>
+                    </div>
+                    <div id="now-playing" class="now-playing hidden">
+                        <span class="now-playing-label">Now Playing:</span>
+                        <span class="now-playing-title" id="now-playing-title"></span>
+                    </div>
+                </section>
+
+                <section class="panel sounds-panel">
+                    <div class="panel-header">
+                        <h2>Sound Library</h2>
+                        <div class="upload-area" id="upload-area">
+                            <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.m4a,.webm,.flac" multiple hidden />
+                            <button class="btn btn-secondary" id="upload-btn">
+                                <span class="btn-icon">↑</span> Upload
+                            </button>
+                        </div>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="search-input" placeholder="Search sounds..." />
+                    </div>
+                    <div id="sounds-grid" class="sounds-grid">
+                        <p class="empty-state">No sounds uploaded yet</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

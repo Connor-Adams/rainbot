@@ -1,0 +1,12 @@
+{
+    "token": "YOUR_BOT_TOKEN",
+    "clientId": "YOUR_BOT_CLIENT_ID",
+    "guildId": "YOUR_GUILD_ID",
+    "dashboardPort": 3000,
+    "discordClientSecret": "YOUR_DISCORD_OAUTH_CLIENT_SECRET",
+    "sessionSecret": "GENERATE_A_RANDOM_SECRET_STRING_HERE",
+    "callbackURL": "http://localhost:3000/auth/discord/callback",
+    "requiredRoleId": "YOUR_REQUIRED_ROLE_ID",
+    "sessionStorePath": "./sessions"
+}
+
