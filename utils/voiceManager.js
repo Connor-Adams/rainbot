@@ -9,8 +9,11 @@ const {
     StreamType,
 } = require('@discordjs/voice');
 const play = require('play-dl');
-const youtubedl = require('youtube-dl-exec');
+const youtubedlPkg = require('youtube-dl-exec');
 const path = require('path');
+
+// Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
+const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { createLogger } = require('./logger');
