@@ -159,22 +159,36 @@ router.get('/discord/callback',
             req.session.hasAccess = true;
             req.session.lastVerified = Date.now();
             
-            // Save session before redirect
-            req.session.save((err) => {
-                if (err) {
-                    log.error(`Error saving session: ${err.message}`);
+            // Ensure user is serialized in session
+            req.login(req.user, (loginErr) => {
+                if (loginErr) {
+                    log.error(`Error during req.login: ${loginErr.message}`);
                     return res.redirect('/auth/error');
                 }
                 
-                log.info(`User ${req.user.username} (${req.user.id}) logged in successfully`);
-                log.debug(`Session ID: ${req.sessionID}, Session data:`, {
-                    userId: req.user.id,
-                    hasAccess: req.session.hasAccess,
-                    lastVerified: req.session.lastVerified
-                });
+                // Set access flags in session
+                req.session.hasAccess = true;
+                req.session.lastVerified = Date.now();
                 
-                const baseUrl = getBaseUrl(req);
-                res.redirect(`${baseUrl}/`);
+                // Save session before redirect
+                req.session.save((err) => {
+                    if (err) {
+                        log.error(`Error saving session: ${err.message}`);
+                        return res.redirect('/auth/error');
+                    }
+                    
+                    log.info(`User ${req.user.username} (${req.user.id}) logged in successfully`);
+                    log.debug(`Session ID: ${req.sessionID}, Session data:`, {
+                        userId: req.user.id,
+                        hasAccess: req.session.hasAccess,
+                        lastVerified: req.session.lastVerified,
+                        authenticated: req.isAuthenticated()
+                    });
+                    
+                    const baseUrl = getBaseUrl(req);
+                    log.debug(`Redirecting to: ${baseUrl}/`);
+                    res.redirect(`${baseUrl}/`);
+                });
             });
         } catch (error) {
             log.error(`Error in OAuth callback handler: ${error.message}`);
@@ -221,19 +235,53 @@ router.get('/me', (req, res) => {
 
 // Check authentication status
 router.get('/check', async (req, res) => {
+    log.debug(`Auth check requested - Session ID: ${req.sessionID}, Authenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}`);
+    
     if (!req.isAuthenticated || !req.isAuthenticated()) {
+        log.debug('Auth check: Not authenticated');
         return res.status(401).json({ authenticated: false });
     }
 
     const user = req.user;
+    if (!user) {
+        log.warn('Auth check: req.user is null despite being authenticated');
+        return res.status(401).json({ authenticated: false });
+    }
+
+    log.debug(`Auth check: User ${user.username} (${user.id}) is authenticated`);
+
     const botClient = server.getClient();
     const cfg = getConfig();
 
-    // Verify user still has access
+    // Check if verification is cached and still valid
+    const now = Date.now();
+    const lastVerified = req.session.lastVerified || 0;
+    const hasAccess = req.session.hasAccess;
+    const VERIFICATION_CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+
+    // If we have cached access and it's still valid, use it
+    if (hasAccess && (now - lastVerified) < VERIFICATION_CACHE_TIME) {
+        log.debug(`Auth check: Using cached verification (${Math.round((now - lastVerified) / 1000)}s old)`);
+        return res.json({ 
+            authenticated: true, 
+            hasAccess: true,
+            cached: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                discriminator: user.discriminator,
+                avatar: user.avatar,
+            }
+        });
+    }
+
+    // Verify user still has access (cache expired or not set)
     try {
+        log.debug(`Auth check: Verifying role (cache expired or not set)`);
         const hasRole = await verifyUserRole(user.id, cfg.requiredRoleId, botClient);
         
         if (!hasRole) {
+            log.warn(`Auth check: User ${user.username} no longer has required role`);
             return res.status(403).json({ 
                 authenticated: true, 
                 hasAccess: false,
@@ -243,11 +291,15 @@ router.get('/check', async (req, res) => {
 
         // Update session cache
         req.session.hasAccess = true;
-        req.session.lastVerified = Date.now();
+        req.session.lastVerified = now;
+        req.session.save(); // Save updated cache
+
+        log.debug(`Auth check: Access verified and cached`);
 
         res.json({ 
             authenticated: true, 
             hasAccess: true,
+            cached: false,
             user: {
                 id: user.id,
                 username: user.username,
