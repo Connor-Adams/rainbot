@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const voiceManager = require('../utils/voiceManager');
 const { createPlayerMessage } = require('../utils/playerEmbed');
 const { createLogger } = require('../utils/logger');
+const listeningHistory = require('../utils/listeningHistory');
 
 const log = createLogger('BUTTONS');
 
@@ -9,6 +10,69 @@ module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
         if (!interaction.isButton()) return;
+        
+        // Handle resume/dismiss buttons
+        if (interaction.customId.startsWith('resume_')) {
+            const userId = interaction.customId.replace('resume_', '');
+            if (userId !== interaction.user.id) {
+                return interaction.reply({
+                    content: '❌ This resume prompt is not for you!',
+                    ephemeral: true,
+                });
+            }
+
+            try {
+                const result = voiceManager.resumeHistory(interaction.guildId, userId);
+                const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(interaction.guildId);
+                
+                await interaction.update({
+                    embeds: [{
+                        color: 0x10b981,
+                        title: '✅ Resumed',
+                        description: `Restored **${result.restored}** track${result.restored === 1 ? '' : 's'} from your listening history!`,
+                        timestamp: new Date().toISOString(),
+                    }],
+                    components: [],
+                });
+
+                // Send player message to channel
+                const channel = interaction.channel;
+                if (channel) {
+                    await channel.send(createPlayerMessage(nowPlaying, queue, false, currentTrack));
+                }
+            } catch (error) {
+                log.error(`Resume error: ${error.message}`);
+                await interaction.update({
+                    content: `❌ Failed to resume: ${error.message}`,
+                    embeds: [],
+                    components: [],
+                });
+            }
+            return;
+        }
+
+        if (interaction.customId.startsWith('dismiss_history_')) {
+            const userId = interaction.customId.replace('dismiss_history_', '');
+            if (userId !== interaction.user.id) {
+                return interaction.reply({
+                    content: '❌ This prompt is not for you!',
+                    ephemeral: true,
+                });
+            }
+
+            listeningHistory.clearHistory(userId);
+            await interaction.update({
+                embeds: [{
+                    color: 0x6366f1,
+                    title: '👋 Dismissed',
+                    description: 'History cleared. Start fresh with `/play`!',
+                    timestamp: new Date().toISOString(),
+                }],
+                components: [],
+            });
+            return;
+        }
+
         if (!interaction.customId.startsWith('player_')) return;
 
         const guildId = interaction.guildId;

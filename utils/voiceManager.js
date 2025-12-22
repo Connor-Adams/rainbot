@@ -24,6 +24,7 @@ const log = createLogger('VOICE');
 const voiceStates = new Map();
 
 const storage = require('./storage');
+const listeningHistory = require('./listeningHistory');
 
 // Storage is always S3 - no local file paths needed
 
@@ -501,6 +502,7 @@ async function joinChannel(channel) {
         queue: [],
         channelId: channel.id,
         channelName: channel.name,
+        lastUserId: null, // Track last user who played music
     });
 
     log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
@@ -514,6 +516,13 @@ async function joinChannel(channel) {
 function leaveChannel(guildId) {
     const connection = getVoiceConnection(guildId);
     if (connection) {
+        // Save history before leaving
+        const state = voiceStates.get(guildId);
+        if (state && state.lastUserId) {
+            const { nowPlaying, queue, currentTrack } = getQueue(guildId);
+            listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
+        }
+        
         connection.destroy();
         voiceStates.delete(guildId);
         log.info(`Left voice channel in guild ${guildId}`);
@@ -524,8 +533,11 @@ function leaveChannel(guildId) {
 
 /**
  * Add track(s) to queue and start playing if not already
+ * @param {string} guildId - Guild ID
+ * @param {string} source - Source URL or sound name
+ * @param {string} userId - User ID who initiated playback (optional, for history tracking)
  */
-async function playSound(guildId, source) {
+async function playSound(guildId, source, userId = null) {
     const startTime = Date.now();
     const state = voiceStates.get(guildId);
     if (!state) {
@@ -828,6 +840,11 @@ async function playSound(guildId, source) {
         }
     }
 
+    // Store userId for history tracking
+    if (userId) {
+        state.lastUserId = userId;
+    }
+
     // Add tracks to queue
     state.queue.push(...tracks);
     log.debug(`[TIMING] Tracks queued (${Date.now() - startTime}ms)`);
@@ -840,6 +857,12 @@ async function playSound(guildId, source) {
         log.debug(`[TIMING] playNext returned (${Date.now() - startTime}ms)`);
     }
     log.info(`Added ${tracks.length} track(s) to queue`);
+
+    // Save history for user
+    if (userId) {
+        const { nowPlaying, queue } = getQueue(guildId);
+        listeningHistory.saveHistory(userId, guildId, queue, nowPlaying, state.currentTrack);
+    }
 
     return {
         added: tracks.length,
@@ -1009,6 +1032,12 @@ function removeTrackFromQueue(guildId, index) {
 function stopSound(guildId) {
     const state = voiceStates.get(guildId);
     if (state && state.player) {
+        // Save history before stopping
+        if (state.lastUserId) {
+            const { nowPlaying, queue, currentTrack } = getQueue(guildId);
+            listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
+        }
+        
         state.queue = [];
         state.player.stop();
         state.nowPlaying = null;
@@ -1069,6 +1098,43 @@ async function deleteSound(filename) {
     return await storage.deleteSound(filename);
 }
 
+/**
+ * Resume listening history for a user
+ * @param {string} guildId - Guild ID
+ * @param {string} userId - User ID
+ * @returns {Object} Result object with restored tracks count
+ */
+function resumeHistory(guildId, userId) {
+    const state = voiceStates.get(guildId);
+    if (!state) {
+        throw new Error('Bot is not connected to a voice channel');
+    }
+
+    const history = listeningHistory.getHistory(userId);
+    if (!history || history.queue.length === 0) {
+        throw new Error('No listening history found');
+    }
+
+    // Restore queue
+    state.queue = [...history.queue];
+    state.lastUserId = userId;
+
+    // Start playing if not already
+    const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+    if (!isPlaying && state.queue.length > 0) {
+        playNext(guildId).catch(err => {
+            log.error(`Failed to resume playback: ${err.message}`);
+        });
+    }
+
+    log.info(`Resumed history for user ${userId}: ${history.queue.length} tracks`);
+
+    return {
+        restored: history.queue.length,
+        nowPlaying: history.nowPlaying,
+    };
+}
+
 module.exports = {
     joinChannel,
     leaveChannel,
@@ -1084,4 +1150,5 @@ module.exports = {
     getAllConnections,
     listSounds,
     deleteSound,
+    resumeHistory,
 };

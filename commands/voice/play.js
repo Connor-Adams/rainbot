@@ -35,7 +35,7 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            const result = await voiceManager.playSound(guildId, source);
+            const result = await voiceManager.playSound(guildId, source, interaction.user.id);
             const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
             
             if (result.added === 1) {
