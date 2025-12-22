@@ -1,47 +1,34 @@
-const { REST, Routes } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const config = require('./config.json');
+// Manual command deployment script
+// Note: Commands are automatically deployed on bot startup, but you can use this script
+// to deploy commands without starting the bot
 
-const commands = [];
-const commandsPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(commandsPath);
+const { deployCommands } = require('./utils/deployCommands');
 
-for (const folder of commandFolders) {
-    const folderPath = path.join(commandsPath, folder);
-    
-    if (!fs.statSync(folderPath).isDirectory()) continue;
-
-    const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
-
-    for (const file of commandFiles) {
-        const filePath = path.join(folderPath, file);
-        const command = require(filePath);
-
-        if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
-            console.log(`[LOADED] Command for deployment: ${command.data.name}`);
-        } else {
-            console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-        }
-    }
+// Use environment variables, fallback to config.json
+let config;
+try {
+    config = require('./config.json');
+} catch (e) {
+    config = {};
 }
 
-const rest = new REST().setToken(config.token);
+const token = process.env.DISCORD_BOT_TOKEN || config.token;
+const clientId = process.env.DISCORD_CLIENT_ID || config.clientId;
+const guildId = process.env.DISCORD_GUILD_ID || config.guildId;
+
+if (!token || !clientId) {
+    console.error('Error: Missing DISCORD_BOT_TOKEN or DISCORD_CLIENT_ID');
+    console.error('Set environment variables or configure config.json');
+    process.exit(1);
+}
 
 (async () => {
     try {
-        console.log(`Started refreshing ${commands.length} application (/) commands.`);
-
-        // Deploy to a specific guild (faster for development)
-        const data = await rest.put(
-            Routes.applicationGuildCommands(config.clientId, config.guildId),
-            { body: commands },
-        );
-
-        console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+        await deployCommands(token, clientId, guildId || null);
+        process.exit(0);
     } catch (error) {
-        console.error(error);
+        console.error('Failed to deploy commands:', error);
+        process.exit(1);
     }
 })();
 

@@ -27,6 +27,8 @@ In your Railway project settings, go to "Variables" and add:
 - `REQUIRED_ROLE_ID` - The Discord role ID users must have to access the dashboard
 
 **Optional:**
+- `DISCORD_GUILD_ID` - Guild ID for faster command deployment (deploys to specific guild instead of globally)
+- `DISABLE_AUTO_DEPLOY` - Set to `true` to disable automatic command deployment on startup
 - `PORT` - Railway sets this automatically (don't set manually)
 - `HOST` - Railway sets this automatically (don't set manually)
 - `SESSION_STORE_PATH` - Path for session files (default: `./sessions`)
@@ -46,7 +48,10 @@ In your Railway project settings, go to "Variables" and add:
 Railway will automatically:
 - Install dependencies (`npm install`)
 - Start your app (`npm start`)
+- **Auto-deploy Discord commands** (no need to run `deploy-commands.js` manually!)
 - Provide a public URL for your dashboard
+
+**Note**: Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
 
 ### 6. Get Your Public URL
 
@@ -63,6 +68,8 @@ Railway will automatically:
 | `DISCORD_CLIENT_SECRET` | OAuth Client Secret | Yes |
 | `SESSION_SECRET` | Random secret for sessions | Yes |
 | `REQUIRED_ROLE_ID` | Discord role ID for dashboard access | Yes |
+| `DISCORD_GUILD_ID` | Guild ID for faster command deployment (optional) | No |
+| `DISABLE_AUTO_DEPLOY` | Set to `true` to disable auto-deploy (optional) | No |
 | `CALLBACK_URL` | OAuth callback URL (auto-detected if not set) | No |
 | `SESSION_STORE_PATH` | Path for session files | No |
 

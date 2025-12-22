@@ -47,14 +47,16 @@ npm install
    }
    ```
 
-5. Deploy Discord commands:
-```bash
-node deploy-commands.js
-```
-
-6. Start the bot:
+5. Start the bot:
 ```bash
 node index.js
+```
+
+**Note**: Discord commands are automatically deployed when the bot starts! You don't need to run `deploy-commands.js` manually unless you want to deploy commands without starting the bot.
+
+To manually deploy commands (optional):
+```bash
+node deploy-commands.js
 ```
 
 ## Configuration
