@@ -125,6 +125,22 @@ router.post('/play', requireAuth, async (req, res) => {
     }
 });
 
+// POST /api/soundboard - Play a soundboard sound with overlay (ducks music)
+router.post('/soundboard', requireAuth, async (req, res) => {
+    const { guildId, sound } = req.body;
+
+    if (!guildId || !sound) {
+        return res.status(400).json({ error: 'guildId and sound are required' });
+    }
+
+    try {
+        const result = await voiceManager.playSoundboardOverlay(guildId, sound);
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // POST /api/stop - Stop playback
 router.post('/stop', requireAuth, (req, res) => {
     const { guildId } = req.body;

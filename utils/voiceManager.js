@@ -12,11 +12,12 @@ const play = require('play-dl');
 const youtubedl = require('youtube-dl-exec');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const { createLogger } = require('./logger');
 
 const log = createLogger('VOICE');
 
-// Map of guildId -> { connection, player, nowPlaying, queue, preBuffered }
+// Map of guildId -> { connection, player, nowPlaying, queue, preBuffered, currentTrackSource }
 const voiceStates = new Map();
 
 const storage = require('./storage');
@@ -207,6 +208,8 @@ async function playNext(guildId) {
         log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
         state.player.play(resource);
         state.nowPlaying = nextTrack.title;
+        // Store current track source for potential overlay mixing
+        state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url;
         log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
         log.info(`Now playing: ${nextTrack.title}`);
         
@@ -218,6 +221,159 @@ async function playNext(guildId) {
         log.error(`Failed to play ${nextTrack.title} (${nextTrack.url}): ${error.message}`);
         // Try next track
         return playNext(guildId);
+    }
+}
+
+/**
+ * Play a soundboard sound overlaid on current music
+ * Uses FFmpeg to mix the soundboard with ducked music
+ */
+async function playSoundboardOverlay(guildId, soundName) {
+    const state = voiceStates.get(guildId);
+    if (!state) {
+        throw new Error('Bot is not connected to a voice channel');
+    }
+
+    // Check if sound exists
+    const exists = await storage.soundExists(soundName);
+    if (!exists) {
+        throw new Error(`Sound file not found: ${soundName}`);
+    }
+
+    const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+    const hasMusicSource = state.currentTrackSource;
+
+    // If nothing is playing or no music source, just play the sound normally
+    if (!isPlaying || !hasMusicSource) {
+        log.debug('No music playing, playing soundboard normally');
+        // Get sound stream and play directly
+        const soundStream = await storage.getSoundStream(soundName);
+        const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+        
+        // Store what was playing to resume after
+        const wasPlaying = state.nowPlaying;
+        const hadQueue = state.queue.length > 0;
+        
+        state.player.play(resource);
+        state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
+        state.currentTrackSource = null;
+        
+        return { 
+            overlaid: false, 
+            sound: soundName,
+            message: 'Playing soundboard (no music to overlay)'
+        };
+    }
+
+    log.info(`Overlaying soundboard "${soundName}" on music`);
+
+    try {
+        // Get the music stream URL (from cache ideally)
+        const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
+        
+        // Get the soundboard file path or stream
+        // For S3, we need to download to temp or use URL
+        // For local, we can use the file path directly
+        let soundInput;
+        const storageType = storage.getStorageType();
+        
+        if (storageType === 's3') {
+            // For S3, get a presigned URL or stream
+            // For simplicity, we'll pipe the stream to FFmpeg
+            soundInput = 'pipe:3'; // We'll pipe soundboard on fd 3
+        } else {
+            // Local file path
+            soundInput = path.join(SOUNDS_DIR, soundName);
+        }
+
+        // Create FFmpeg process for mixing
+        // Music is ducked to 25% volume, soundboard at full volume
+        // Using amix filter to combine both streams
+        const ffmpegArgs = [
+            '-reconnect', '1',
+            '-reconnect_streamed', '1', 
+            '-reconnect_delay_max', '5',
+            '-i', musicStreamUrl,                    // Input 0: Music stream
+            '-i', storageType === 's3' ? 'pipe:3' : soundInput,  // Input 1: Soundboard
+            '-filter_complex',
+            // Sidechain compression: music ducks when soundboard audio is present, restores when it ends
+            // [0:a] = music, [1:a] = soundboard (sidechain trigger)
+            // threshold=0.01 triggers on any soundboard audio
+            // ratio=4 ducks to ~25% volume, attack=0.01 quick duck, release=0.5 smooth restore
+            '[1:a]asplit=2[sc][sfx];[0:a][sc]sidechaincompress=threshold=0.01:ratio=4:attack=0.01:release=0.5[ducked];[ducked][sfx]amix=inputs=2:duration=first:dropout_transition=0.5[out]',
+            '-map', '[out]',
+            '-acodec', 'libopus',
+            '-f', 'opus',
+            '-ar', '48000',
+            '-ac', '2',
+            'pipe:1'
+        ];
+
+        log.debug(`FFmpeg args: ${ffmpegArgs.join(' ')}`);
+
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
+            stdio: ['pipe', 'pipe', 'pipe', 'pipe'] // stdin, stdout, stderr, extra pipe for soundboard
+        });
+
+        // If using S3, pipe the soundboard stream to fd 3
+        if (storageType === 's3') {
+            const soundStream = await storage.getSoundStream(soundName);
+            soundStream.pipe(ffmpeg.stdio[3]);
+        }
+
+        // Log FFmpeg errors
+        ffmpeg.stderr.on('data', (data) => {
+            const msg = data.toString().trim();
+            if (msg && !msg.includes('frame=') && !msg.includes('size=')) {
+                log.debug(`FFmpeg overlay: ${msg}`);
+            }
+        });
+
+        ffmpeg.on('error', (err) => {
+            log.error(`FFmpeg overlay error: ${err.message}`);
+        });
+
+        ffmpeg.on('close', (code) => {
+            if (code !== 0 && code !== 255) {
+                log.warn(`FFmpeg overlay exited with code ${code}`);
+            }
+        });
+
+        // Create audio resource from FFmpeg output
+        const resource = createAudioResource(ffmpeg.stdout, {
+            inputType: StreamType.OggOpus,
+        });
+
+        // Play the mixed audio
+        state.player.play(resource);
+        state.nowPlaying = `${state.nowPlaying} 🔊`;
+        state.overlayProcess = ffmpeg;
+
+        log.info(`Soundboard "${soundName}" overlaid on music`);
+
+        return {
+            overlaid: true,
+            sound: soundName,
+            message: 'Soundboard playing over ducked music'
+        };
+
+    } catch (error) {
+        log.error(`Failed to overlay soundboard: ${error.message}`);
+        
+        // Fallback: just play the soundboard normally (interrupts music)
+        log.info('Falling back to normal soundboard playback');
+        const soundStream = await storage.getSoundStream(soundName);
+        const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+        state.player.play(resource);
+        state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
+        state.currentTrackSource = null;
+        
+        return {
+            overlaid: false,
+            sound: soundName,
+            message: 'Overlay failed, played soundboard normally',
+            error: error.message
+        };
     }
 }
 
@@ -646,6 +802,7 @@ module.exports = {
     joinChannel,
     leaveChannel,
     playSound,
+    playSoundboardOverlay,
     skip,
     togglePause,
     getQueue,
