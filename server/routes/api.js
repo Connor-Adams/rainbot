@@ -193,6 +193,20 @@ router.get('/guilds/:id/channels', (req, res) => {
     res.json(voiceChannels);
 });
 
+// POST /api/sounds/migrate - Migrate local sounds to S3
+router.post('/sounds/migrate', requireAuth, async (req, res) => {
+    try {
+        const { migrateLocalToS3 } = require('../../utils/migrateStorage');
+        const results = await migrateLocalToS3();
+        res.json({
+            message: 'Migration completed',
+            ...results,
+        });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // Error handling for multer
 router.use((error, req, res, next) => {
     if (error instanceof multer.MulterError) {
