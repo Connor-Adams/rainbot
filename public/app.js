@@ -14,8 +14,7 @@ const guildSelect = document.getElementById('guild-select');
 const urlInput = document.getElementById('url-input');
 const playUrlBtn = document.getElementById('play-url-btn');
 const stopBtn = document.getElementById('stop-btn');
-const nowPlaying = document.getElementById('now-playing');
-const nowPlayingTitle = document.getElementById('now-playing-title');
+// Removed old nowPlaying elements - using nowPlayingCard instead
 const soundsGrid = document.getElementById('sounds-grid');
 const searchInput = document.getElementById('search-input');
 const uploadBtn = document.getElementById('upload-btn');
@@ -32,6 +31,17 @@ const queueList = document.getElementById('queue-list');
 const queueCount = document.getElementById('queue-count');
 const clearSearchBtn = document.getElementById('clear-search-btn');
 const clearQueueBtn = document.getElementById('clear-queue-btn');
+const nowPlayingCard = document.getElementById('now-playing-card');
+const trackTitle = document.getElementById('track-title');
+const trackArtist = document.getElementById('track-artist');
+const progressFill = document.getElementById('progress-fill');
+const progressHandle = document.getElementById('progress-handle');
+const currentTimeEl = document.getElementById('current-time');
+const totalTimeEl = document.getElementById('total-time');
+const playPauseBtn = document.getElementById('play-pause-btn');
+const prevBtn = document.getElementById('prev-btn');
+const nextBtn = document.getElementById('next-btn');
+const progressBar = document.getElementById('progress-bar');
 
 // API Helpers
 async function api(endpoint, options = {}) {
@@ -99,7 +109,7 @@ function updateStatusDisplay(data) {
 function renderConnections() {
     if (connections.length === 0) {
         connectionsList.innerHTML = '<p class="empty-state">🔇 No active connections<br><small style="margin-top: 0.5rem; display: block;">Join a voice channel to get started</small></p>';
-        nowPlaying.classList.add('hidden');
+        nowPlayingCard.style.display = 'none';
         return;
     }
 
@@ -113,13 +123,71 @@ function renderConnections() {
         </div>
     `).join('');
 
-    // Update now playing
+    // Update now playing card
     const playing = connections.find(c => c.nowPlaying);
-    if (playing) {
-        nowPlayingTitle.textContent = playing.nowPlaying;
-        nowPlaying.classList.remove('hidden');
+    if (playing && selectedGuildId) {
+        updateNowPlayingCard(playing.nowPlaying, playing.guildId);
     } else {
-        nowPlaying.classList.add('hidden');
+        nowPlayingCard.style.display = 'none';
+    }
+}
+
+// Update Spotify-like now playing card
+function updateNowPlayingCard(title, guildId) {
+    if (!title || !guildId) {
+        nowPlayingCard.style.display = 'none';
+        return;
+    }
+
+    nowPlayingCard.style.display = 'block';
+    trackTitle.textContent = title;
+    
+    // Try to extract artist/source info
+    const currentQueue = queueData.queue || [];
+    const nowPlayingTrack = currentQueue.find(t => t.title === title) || 
+                           (queueData.nowPlaying === title ? { isLocal: false } : null);
+    
+    if (nowPlayingTrack) {
+        if (nowPlayingTrack.isLocal) {
+            trackArtist.textContent = 'Local Sound';
+        } else if (nowPlayingTrack.spotifyUrl || nowPlayingTrack.spotifyId) {
+            trackArtist.textContent = 'Spotify';
+        } else if (nowPlayingTrack.url?.includes('youtube')) {
+            trackArtist.textContent = 'YouTube';
+        } else if (nowPlayingTrack.url?.includes('soundcloud')) {
+            trackArtist.textContent = 'SoundCloud';
+        } else {
+            trackArtist.textContent = 'Stream';
+        }
+        
+        // Update total time if available
+        if (nowPlayingTrack.duration) {
+            totalTimeEl.textContent = formatDuration(nowPlayingTrack.duration);
+        }
+    } else {
+        trackArtist.textContent = 'Playing';
+    }
+
+    // Update play/pause button state - will be updated when we fetch status
+    // The button state is managed by the pause endpoint response
+
+    // Update progress (simulated for now - would need real-time updates)
+    updateProgress(0, nowPlayingTrack?.duration || 0);
+}
+
+// Update progress bar
+function updateProgress(current, total) {
+    if (total > 0) {
+        const percentage = (current / total) * 100;
+        progressFill.style.width = `${percentage}%`;
+        progressHandle.style.left = `${percentage}%`;
+        currentTimeEl.textContent = formatDuration(current);
+        totalTimeEl.textContent = formatDuration(total);
+    } else {
+        progressFill.style.width = '0%';
+        progressHandle.style.left = '0%';
+        currentTimeEl.textContent = '0:00';
+        totalTimeEl.textContent = '0:00';
     }
 }
 
@@ -230,6 +298,11 @@ function renderQueue() {
     const hasQueue = (queueData.nowPlaying || (queueData.queue && queueData.queue.length > 0));
     clearQueueBtn.style.display = hasQueue ? 'flex' : 'none';
 
+    // Update now playing card
+    if (queueData.nowPlaying && selectedGuildId) {
+        updateNowPlayingCard(queueData.nowPlaying, selectedGuildId);
+    }
+
     if (!queueData.nowPlaying && queueData.queue.length === 0) {
         queueList.innerHTML = '<p class="queue-empty">Queue is empty<br><small style="margin-top: 0.5rem; display: block;">Add tracks to start playing</small></p>';
         return;
@@ -237,26 +310,26 @@ function renderQueue() {
 
     let html = '';
 
-    // Now playing item
-    if (queueData.nowPlaying) {
-        html += `
-            <div class="queue-item playing">
-                <div class="queue-position">▶</div>
-                <div class="queue-item-info">
-                    <div class="queue-item-title">${escapeHtml(queueData.nowPlaying)}</div>
-                    <div class="queue-item-meta">
-                        <span class="queue-item-source">🎵 Now Playing</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // Queue items
+    // Queue items (now playing is shown in the card, not in queue list)
     if (queueData.queue && queueData.queue.length > 0) {
         html += queueData.queue.map((track, index) => {
-            const sourceIcon = track.isLocal ? '📁' : (track.url?.includes('youtube') ? '▶️' : '🎵');
-            const sourceText = track.isLocal ? 'Local' : (track.url?.includes('youtube') ? 'YouTube' : 'Stream');
+            let sourceIcon, sourceText;
+            if (track.isLocal) {
+                sourceIcon = '📁';
+                sourceText = 'Local';
+            } else if (track.spotifyUrl || track.spotifyId) {
+                sourceIcon = '🎵';
+                sourceText = 'Spotify';
+            } else if (track.url?.includes('youtube')) {
+                sourceIcon = '▶️';
+                sourceText = 'YouTube';
+            } else if (track.url?.includes('soundcloud')) {
+                sourceIcon = '🎧';
+                sourceText = 'SoundCloud';
+            } else {
+                sourceIcon = '🎵';
+                sourceText = 'Stream';
+            }
             return `
                 <div class="queue-item" data-index="${index}">
                     <div class="queue-position">${index + 1}</div>
@@ -268,7 +341,7 @@ function renderQueue() {
                         </div>
                     </div>
                     <div class="queue-item-actions">
-                        <button class="btn btn-danger btn-small remove-queue-item-btn" data-index="${index}">✕</button>
+                        <button class="btn btn-danger btn-small remove-queue-item-btn" data-index="${index}" title="Remove">✕</button>
                     </div>
                 </div>
             `;
@@ -529,6 +602,104 @@ clearSearchBtn.addEventListener('click', () => {
 });
 
 clearQueueBtn.addEventListener('click', clearQueue);
+
+// Player control event listeners
+playPauseBtn.addEventListener('click', async () => {
+    const guildId = guildSelect.value;
+    if (!guildId) {
+        showToast('Please select a server first', 'error');
+        return;
+    }
+    
+    playPauseBtn.disabled = true;
+    
+    try {
+        const data = await api('/pause', {
+            method: 'POST',
+            body: JSON.stringify({ guildId }),
+        });
+        
+        // Update button state
+        const playIcon = playPauseBtn.querySelector('.play-icon');
+        const pauseIcon = playPauseBtn.querySelector('.pause-icon');
+        
+        if (data.paused) {
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+        } else {
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+        }
+        
+        await fetchStatus();
+        await fetchQueue(guildId);
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        playPauseBtn.disabled = false;
+    }
+});
+
+prevBtn.addEventListener('click', async () => {
+    const guildId = guildSelect.value;
+    if (!guildId) {
+        showToast('Please select a server first', 'error');
+        return;
+    }
+    // Previous track not implemented yet - would need history
+    showToast('Previous track functionality coming soon', 'info');
+});
+
+nextBtn.addEventListener('click', async () => {
+    const guildId = guildSelect.value;
+    if (!guildId) {
+        showToast('Please select a server first', 'error');
+        return;
+    }
+    
+    // Add loading state
+    nextBtn.disabled = true;
+    
+    try {
+        await api('/skip', {
+            method: 'POST',
+            body: JSON.stringify({ guildId }),
+        });
+        showToast('Skipped to next track');
+        await fetchStatus();
+        await fetchQueue(guildId);
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        nextBtn.disabled = false;
+    }
+});
+
+// Progress bar interaction
+let isDragging = false;
+progressBar.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    updateProgressFromEvent(e);
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+        updateProgressFromEvent(e);
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+
+function updateProgressFromEvent(e) {
+    const rect = progressBar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    progressFill.style.width = `${percentage}%`;
+    progressHandle.style.left = `${percentage}%`;
+    // Would seek to position here if API supported it
+}
 
 uploadBtn.addEventListener('click', () => fileInput.click());
 

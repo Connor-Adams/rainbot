@@ -193,7 +193,7 @@ async function playNext(guildId) {
                     const result = await createTrackResourceAsync(nextTrack);
                     resource = result.resource;
                 } else {
-                    // Use play-dl for other platforms (SoundCloud, etc.)
+                    // Use play-dl for other platforms (SoundCloud, Spotify via YouTube, etc.)
                     const urlType = await play.validate(nextTrack.url);
                     if (urlType) {
                         const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
@@ -474,13 +474,26 @@ async function playSound(guildId, source) {
             throw new Error('Invalid URL format');
         }
 
-        // Fast URL type detection for YouTube (no HTTP requests)
+        // Fast URL type detection for YouTube and Spotify (no HTTP requests)
         let urlType;
         if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
             if (url.searchParams.has('list')) {
                 urlType = 'yt_playlist';
             } else {
                 urlType = 'yt_video';
+            }
+        } else if (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com')) {
+            // Detect Spotify URL type from path
+            const pathParts = url.pathname.split('/').filter(p => p);
+            if (pathParts[0] === 'track') {
+                urlType = 'sp_track';
+            } else if (pathParts[0] === 'playlist') {
+                urlType = 'sp_playlist';
+            } else if (pathParts[0] === 'album') {
+                urlType = 'sp_album';
+            } else {
+                // Fall back to play-dl validation
+                urlType = await play.validate(source);
             }
         } else {
             // Fall back to play-dl for other platforms (slower)
@@ -608,6 +621,94 @@ async function playSound(guildId, source) {
                 });
             }
         }
+        // Handle Spotify
+        else if (urlType === 'sp_track' || urlType === 'sp_playlist' || urlType === 'sp_album') {
+            try {
+                if (urlType === 'sp_track') {
+                    // Single Spotify track
+                    const spotifyTrack = await play.spotify(source);
+                    // Spotify tracks need to be searched on YouTube to get playable URL
+                    const searchQuery = `${spotifyTrack.name} ${spotifyTrack.artists[0]?.name || ''}`;
+                    log.debug(`Searching YouTube for Spotify track: ${searchQuery}`);
+                    
+                    // Search YouTube for the track
+                    const ytResults = await play.search(searchQuery, { limit: 1 });
+                    if (ytResults && ytResults.length > 0) {
+                        tracks.push({
+                            title: `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown Artist'}`,
+                            url: ytResults[0].url,
+                            duration: Math.floor((spotifyTrack.durationInMs || 0) / 1000),
+                            isLocal: false,
+                            spotifyId: spotifyTrack.id,
+                            spotifyUrl: source,
+                        });
+                    } else {
+                        throw new Error(`Could not find YouTube equivalent for Spotify track: ${spotifyTrack.name}`);
+                    }
+                } else if (urlType === 'sp_playlist') {
+                    // Spotify playlist
+                    const spotifyPlaylist = await play.spotify(source);
+                    const playlistTracks = await spotifyPlaylist.all_tracks();
+                    
+                    log.info(`Found ${playlistTracks.length} tracks in Spotify playlist: ${spotifyPlaylist.name}`);
+                    
+                    // Queue first track immediately
+                    if (playlistTracks.length > 0) {
+                        const firstTrack = playlistTracks[0];
+                        const searchQuery = `${firstTrack.name} ${firstTrack.artists[0]?.name || ''}`;
+                        const ytResults = await play.search(searchQuery, { limit: 1 });
+                        
+                        if (ytResults && ytResults.length > 0) {
+                            tracks.push({
+                                title: `${firstTrack.name} - ${firstTrack.artists[0]?.name || 'Unknown Artist'}`,
+                                url: ytResults[0].url,
+                                duration: Math.floor((firstTrack.durationInMs || 0) / 1000),
+                                isLocal: false,
+                                spotifyId: firstTrack.id,
+                                spotifyUrl: firstTrack.url,
+                            });
+                        }
+                    }
+                    
+                    // Process remaining tracks in background
+                    if (playlistTracks.length > 1) {
+                        processSpotifyPlaylistTracks(playlistTracks.slice(1), guildId, state);
+                    }
+                } else if (urlType === 'sp_album') {
+                    // Spotify album
+                    const spotifyAlbum = await play.spotify(source);
+                    const albumTracks = await spotifyAlbum.all_tracks();
+                    
+                    log.info(`Found ${albumTracks.length} tracks in Spotify album: ${spotifyAlbum.name}`);
+                    
+                    // Queue first track immediately
+                    if (albumTracks.length > 0) {
+                        const firstTrack = albumTracks[0];
+                        const searchQuery = `${firstTrack.name} ${firstTrack.artists[0]?.name || ''}`;
+                        const ytResults = await play.search(searchQuery, { limit: 1 });
+                        
+                        if (ytResults && ytResults.length > 0) {
+                            tracks.push({
+                                title: `${firstTrack.name} - ${firstTrack.artists[0]?.name || 'Unknown Artist'}`,
+                                url: ytResults[0].url,
+                                duration: Math.floor((firstTrack.durationInMs || 0) / 1000),
+                                isLocal: false,
+                                spotifyId: firstTrack.id,
+                                spotifyUrl: firstTrack.url,
+                            });
+                        }
+                    }
+                    
+                    // Process remaining tracks in background
+                    if (albumTracks.length > 1) {
+                        processSpotifyPlaylistTracks(albumTracks.slice(1), guildId, state);
+                    }
+                }
+            } catch (error) {
+                log.error(`Spotify error: ${error.message}`);
+                throw new Error(`Failed to process Spotify link: ${error.message}`);
+            }
+        }
         // Other supported types
         else {
             tracks.push({
@@ -688,6 +789,44 @@ function togglePause(guildId) {
     } else {
         throw new Error('Nothing is playing');
     }
+}
+
+/**
+ * Process Spotify playlist/album tracks in background
+ */
+async function processSpotifyPlaylistTracks(spotifyTracks, guildId, state) {
+    let added = 0;
+    let failed = 0;
+    
+    for (const spotifyTrack of spotifyTracks) {
+        try {
+            const searchQuery = `${spotifyTrack.name} ${spotifyTrack.artists[0]?.name || ''}`;
+            const ytResults = await play.search(searchQuery, { limit: 1 });
+            
+            if (ytResults && ytResults.length > 0) {
+                state.queue.push({
+                    title: `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown Artist'}`,
+                    url: ytResults[0].url,
+                    duration: Math.floor((spotifyTrack.durationInMs || 0) / 1000),
+                    isLocal: false,
+                    spotifyId: spotifyTrack.id,
+                    spotifyUrl: spotifyTrack.url,
+                });
+                added++;
+            } else {
+                failed++;
+                log.warn(`Could not find YouTube equivalent for: ${spotifyTrack.name}`);
+            }
+            
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+            failed++;
+            log.error(`Error processing Spotify track ${spotifyTrack.name}: ${error.message}`);
+        }
+    }
+    
+    log.info(`Added ${added} tracks from Spotify playlist/album (${failed} failed)`);
 }
 
 /**

@@ -157,6 +157,42 @@ router.post('/stop', requireAuth, (req, res) => {
     }
 });
 
+// POST /api/skip - Skip to next track
+router.post('/skip', requireAuth, (req, res) => {
+    const { guildId } = req.body;
+
+    if (!guildId) {
+        return res.status(400).json({ error: 'guildId is required' });
+    }
+
+    try {
+        const skipped = voiceManager.skip(guildId);
+        if (skipped) {
+            res.json({ message: 'Skipped to next track' });
+        } else {
+            res.status(400).json({ error: 'No track to skip' });
+        }
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// POST /api/pause - Toggle pause/resume
+router.post('/pause', requireAuth, (req, res) => {
+    const { guildId } = req.body;
+
+    if (!guildId) {
+        return res.status(400).json({ error: 'guildId is required' });
+    }
+
+    try {
+        const paused = voiceManager.togglePause(guildId);
+        res.json({ message: paused ? 'Paused' : 'Resumed', paused });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // GET /api/status - Get bot status
 router.get('/status', (req, res) => {
     const client = clientStore.getClient();

@@ -71,27 +71,76 @@
             </aside>
 
             <div class="content">
+                <!-- Spotify-like Now Playing Card -->
+                <section class="panel now-playing-card" id="now-playing-card" style="display: none;">
+                    <div class="now-playing-content">
+                        <div class="now-playing-artwork">
+                            <div class="artwork-placeholder" id="artwork-placeholder">
+                                <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect width="200" height="200" fill="url(#gradient)"/>
+                                    <defs>
+                                        <linearGradient id="gradient" x1="0" y1="0" x2="200" y2="200">
+                                            <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M80 60L140 100L80 140V60Z" fill="white" opacity="0.9"/>
+                                </svg>
+                            </div>
+                            <div class="artwork-overlay">
+                                <div class="equalizer" id="equalizer">
+                                    <span></span><span></span><span></span><span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="now-playing-info">
+                            <div class="track-info">
+                                <div class="track-title" id="track-title">No track playing</div>
+                                <div class="track-artist" id="track-artist">Select a server to start</div>
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-bar" id="progress-bar">
+                                    <div class="progress-fill" id="progress-fill"></div>
+                                    <div class="progress-handle" id="progress-handle"></div>
+                                </div>
+                                <div class="progress-time">
+                                    <span id="current-time">0:00</span>
+                                    <span id="total-time">0:00</span>
+                                </div>
+                            </div>
+                            <div class="player-controls-main">
+                                <button class="control-btn" id="prev-btn" title="Previous">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                                </button>
+                                <button class="control-btn control-btn-primary" id="play-pause-btn" title="Play/Pause">
+                                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display: none;"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+                                </button>
+                                <button class="control-btn" id="next-btn" title="Next">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="panel player-panel">
-                    <h2>URL Player</h2>
+                    <h2>Add to Queue</h2>
                     <div class="url-player">
                         <div class="input-group">
-                            <input type="text" id="url-input" placeholder="YouTube, SoundCloud, or direct URL..." />
+                            <input type="text" id="url-input" placeholder="YouTube, Spotify, SoundCloud, or direct URL..." />
                             <select id="guild-select">
                                 <option value="">Select server...</option>
                             </select>
                         </div>
                         <div class="player-controls">
                             <button class="btn btn-primary" id="play-url-btn">
-                                <span class="btn-icon">▶</span> Play
+                                <span class="btn-icon">▶</span> Add to Queue
                             </button>
                             <button class="btn btn-danger" id="stop-btn">
                                 <span class="btn-icon">■</span> Stop
                             </button>
                         </div>
-                    </div>
-                    <div id="now-playing" class="now-playing hidden">
-                        <span class="now-playing-label">Now Playing:</span>
-                        <span class="now-playing-title" id="now-playing-title"></span>
                     </div>
                 </section>
 
