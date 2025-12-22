@@ -38,21 +38,13 @@ npm install
 
 4. Configure the bot:
    
-   **Option A: Using `.env` file (recommended for local development)**
-   - Copy `.env.example` to `.env`:
+   Create a `.env` file in the project root:
    ```bash
    cp .env.example .env
    ```
    - Edit `.env` and fill in your bot credentials
    
-   **Option B: Using `config.json`**
-   - Copy `config.example.json` to `config.json`:
-   ```bash
-   cp config.example.json config.json
-   ```
-   - Edit `config.json` and fill in your bot credentials
-   
-   **Note**: Environment variables (`.env` file) take priority over `config.json`. For production (Railway), use environment variables set in the platform.
+   **Note**: For production (Railway), set environment variables in the platform dashboard instead of using `.env`.
 
 5. Start the bot:
 ```bash
@@ -153,7 +145,6 @@ rainbot/
 ├── utils/             # Utility modules
 │   ├── logger.js     # Winston logger
 │   └── voiceManager.js # Voice connection manager
-├── config.json        # Bot configuration
 ├── deploy-commands.js # Command deployment script
 └── index.js          # Main entry point
 ```

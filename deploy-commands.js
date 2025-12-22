@@ -9,7 +9,7 @@ const config = loadConfig();
 
 if (!config.token || !config.clientId) {
     console.error('Error: Missing DISCORD_BOT_TOKEN or DISCORD_CLIENT_ID');
-    console.error('Set environment variables or configure config.json');
+    console.error('Set environment variables (DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID)');
     process.exit(1);
 }
 

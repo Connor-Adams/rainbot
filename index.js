@@ -2,7 +2,7 @@
 // This must be loaded before any other modules that use process.env
 const dotenvResult = require('dotenv').config();
 if (dotenvResult.error) {
-    // .env file doesn't exist - that's fine, we'll use system env vars or config.json
+    // .env file doesn't exist - that's fine, we'll use system env vars
 } else if (dotenvResult.parsed) {
     console.log(`[MAIN] Loaded ${Object.keys(dotenvResult.parsed).length} variables from .env file`);
 }
@@ -48,7 +48,7 @@ client.once(Events.ClientReady, () => {
 
 // Validate bot token
 if (!config.token) {
-    log.error('Error: Discord bot token not found. Set DISCORD_BOT_TOKEN environment variable or configure config.json');
+    log.error('Error: Discord bot token not found. Set DISCORD_BOT_TOKEN environment variable');
     process.exit(1);
 }
 

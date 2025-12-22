@@ -172,11 +172,15 @@ Railway provides:
 
 ## Local Development
 
-The code works locally too! Just use `config.json`:
+The code works locally too! Use a `.env` file for local development:
 
 ```bash
 # Install dependencies
 npm install
+
+# Create .env file from example
+cp .env.example .env
+# Edit .env with your credentials
 
 # Run locally
 npm start
