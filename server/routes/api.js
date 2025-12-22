@@ -9,7 +9,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Configure multer for file uploads
-// Always use memory storage - let storage module handle S3 vs local
+// Always use memory storage - files are uploaded to S3
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -46,18 +46,15 @@ router.post('/sounds', requireAuth, upload.array('sound', 50), async (req, res) 
 
     for (const file of req.files) {
         try {
-            // Always use storage module - it handles S3 vs local
+            // Upload to S3 storage
             const { Readable } = require('stream');
             const fileStream = Readable.from(file.buffer);
             const filename = await storage.uploadSound(fileStream, file.originalname);
-            
-            const currentStorageType = storage.getStorageType();
 
             results.push({
                 name: filename,
                 originalName: file.originalname,
                 size: file.size,
-                storage: currentStorageType,
             });
         } catch (error) {
             errors.push({
@@ -189,20 +186,6 @@ router.get('/guilds/:id/channels', (req, res) => {
         }));
 
     res.json(voiceChannels);
-});
-
-// POST /api/sounds/migrate - Migrate local sounds to S3
-router.post('/sounds/migrate', requireAuth, async (req, res) => {
-    try {
-        const { migrateLocalToS3 } = require('../../utils/migrateStorage');
-        const results = await migrateLocalToS3();
-        res.json({
-            message: 'Migration completed',
-            ...results,
-        });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
 });
 
 // Error handling for multer

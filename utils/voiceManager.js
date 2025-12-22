@@ -25,8 +25,7 @@ const voiceStates = new Map();
 
 const storage = require('./storage');
 
-// For backward compatibility, get sounds directory (null if using S3)
-const SOUNDS_DIR = storage.getSoundsDir() || path.join(__dirname, '..', 'sounds');
+// Storage is always S3 - no local file paths needed
 
 /**
  * Create a resource for a track (YouTube or other)
@@ -274,20 +273,9 @@ async function playSoundboardOverlay(guildId, soundName) {
         // Get the music stream URL (from cache ideally)
         const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
         
-        // Get the soundboard file path or stream
-        // For S3, we need to download to temp or use URL
-        // For local, we can use the file path directly
-        let soundInput;
-        const storageType = storage.getStorageType();
-        
-        if (storageType === 's3') {
-            // For S3, get a presigned URL or stream
-            // For simplicity, we'll pipe the stream to FFmpeg
-            soundInput = 'pipe:3'; // We'll pipe soundboard on fd 3
-        } else {
-            // Local file path
-            soundInput = path.join(SOUNDS_DIR, soundName);
-        }
+        // Get the soundboard stream from S3
+        // Pipe the stream to FFmpeg
+        const soundInput = 'pipe:3'; // We'll pipe soundboard on fd 3
 
         // Create FFmpeg process for mixing
         // Music is ducked to 25% volume, soundboard at full volume
@@ -297,7 +285,7 @@ async function playSoundboardOverlay(guildId, soundName) {
             '-reconnect_streamed', '1', 
             '-reconnect_delay_max', '5',
             '-i', musicStreamUrl,                    // Input 0: Music stream
-            '-i', storageType === 's3' ? 'pipe:3' : soundInput,  // Input 1: Soundboard
+            '-i', soundInput,                          // Input 1: Soundboard (piped from S3)
             '-filter_complex',
             // Sidechain compression: music ducks when soundboard audio is present, restores when it ends
             // [0:a] = music, [1:a] = soundboard (sidechain trigger)
@@ -318,11 +306,9 @@ async function playSoundboardOverlay(guildId, soundName) {
             stdio: ['pipe', 'pipe', 'pipe', 'pipe'] // stdin, stdout, stderr, extra pipe for soundboard
         });
 
-        // If using S3, pipe the soundboard stream to fd 3
-        if (storageType === 's3') {
-            const soundStream = await storage.getSoundStream(soundName);
-            soundStream.pipe(ffmpeg.stdio[3]);
-        }
+        // Pipe the soundboard stream from S3 to fd 3
+        const soundStream = await storage.getSoundStream(soundName);
+        soundStream.pipe(ffmpeg.stdio[3]);
 
         // Log FFmpeg errors
         ffmpeg.stderr.on('data', (data) => {
@@ -815,5 +801,4 @@ module.exports = {
     getAllConnections,
     listSounds,
     deleteSound,
-    SOUNDS_DIR,
 };

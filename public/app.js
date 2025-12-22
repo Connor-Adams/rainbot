@@ -140,34 +140,13 @@ function renderSounds(filter = '') {
         return;
     }
 
-    // Count sounds by source
-    const s3Count = filtered.filter(s => s.source === 's3').length;
-    const localCount = filtered.filter(s => s.source === 'local').length;
-
-    soundsGrid.innerHTML = `
-        ${s3Count > 0 && localCount > 0 ? `
-            <div class="migration-banner" style="grid-column: 1 / -1; padding: 1rem; background: #2a2a2a; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border);">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                    <div>
-                        <strong style="display: block; margin-bottom: 0.25rem;">Mixed Storage Detected</strong>
-                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">
-                            ${localCount} file(s) in local storage, ${s3Count} file(s) in S3
-                        </p>
-                    </div>
-                    <button id="migrate-btn" class="btn btn-secondary btn-small">Migrate All to S3</button>
-                </div>
-            </div>
-        ` : ''}
-        ${filtered.map(sound => `
+    soundsGrid.innerHTML = filtered.map(sound => `
         <div class="sound-card" data-name="${sound.name}">
             <div class="sound-icon">🎵</div>
             <div class="sound-info">
                 <div class="sound-name" title="${sound.name}">${sound.name}</div>
                 <div class="sound-meta">
                     <span class="sound-size">${formatSize(sound.size)}</span>
-                    ${sound.source ? `<span class="sound-source ${sound.source === 's3' ? 'source-s3' : 'source-local'}" title="${sound.source === 's3' ? 'Stored in Railway S3 bucket' : 'Stored locally'}">
-                        ${sound.source === 's3' ? '☁️ S3' : '💾 Local'}
-                    </span>` : ''}
                 </div>
             </div>
             <div class="sound-actions">
@@ -175,7 +154,7 @@ function renderSounds(filter = '') {
                 <button class="btn btn-danger btn-small delete-sound-btn">✕</button>
             </div>
         </div>
-    `).join('')}`;
+    `).join('');
 
     // Add event listeners
     soundsGrid.querySelectorAll('.play-sound-btn').forEach(btn => {
@@ -193,12 +172,6 @@ function renderSounds(filter = '') {
             deleteSound(name);
         });
     });
-
-    // Add migrate button handler if it exists
-    const migrateBtn = document.getElementById('migrate-btn');
-    if (migrateBtn) {
-        migrateBtn.onclick = migrateLocalToS3;
-    }
 }
 
 // Fetch status from API
@@ -275,42 +248,6 @@ async function deleteSound(name) {
         fetchSounds();
     } catch (error) {
         showToast(error.message, 'error');
-    }
-}
-
-// Migrate local sounds to S3
-async function migrateLocalToS3() {
-    if (!confirm('Migrate all local sound files to Railway S3 storage? This will copy files but not delete local copies.')) {
-        return;
-    }
-
-    const migrateBtn = document.getElementById('migrate-btn');
-    if (migrateBtn) {
-        migrateBtn.disabled = true;
-        migrateBtn.textContent = 'Migrating...';
-    }
-
-    try {
-        const result = await api('/sounds/migrate', {
-            method: 'POST',
-        });
-
-        if (result.failed > 0) {
-            showToast(`Migration completed: ${result.success} succeeded, ${result.failed} failed. Check console for details.`, 'warning');
-            console.error('Migration errors:', result.errors);
-        } else {
-            showToast(`Successfully migrated ${result.success} file(s) to S3!`);
-        }
-
-        // Refresh sounds list
-        await fetchSounds();
-    } catch (error) {
-        showToast(`Migration failed: ${error.message}`, 'error');
-    } finally {
-        if (migrateBtn) {
-            migrateBtn.disabled = false;
-            migrateBtn.textContent = 'Migrate All to S3';
-        }
     }
 }
 
