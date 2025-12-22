@@ -33,9 +33,21 @@ In your Railway project settings, go to "Variables" and add:
 - `RAILWAY_PUBLIC_DOMAIN` - Railway public domain (usually auto-set, but if not: `rainbot-production.up.railway.app`)
 - `PORT` - Railway sets this automatically (don't set manually)
 - `HOST` - Railway sets this automatically (don't set manually)
-- `SESSION_STORE_PATH` - Path for session files (default: `./sessions`)
+- `REDIS_URL` - Redis connection URL (auto-set when Redis addon is added, see below)
+- `SESSION_STORE_PATH` - Path for session files (default: `./sessions`, only used if Redis is not available)
 
-### 4. Configure Discord OAuth
+### 4. Add Redis for Persistent Sessions (Recommended)
+
+**Why Redis?** Sessions stored in files are lost on every deployment. Redis ensures you stay logged in across deployments!
+
+1. In your Railway project, click **"+ New"** → **"Database"** → **"Add Redis"**
+2. Railway will automatically create a Redis instance and set the `REDIS_URL` environment variable
+3. The app will automatically detect and use Redis for session storage
+4. **That's it!** No additional configuration needed - sessions will now persist across deployments
+
+**Note:** If Redis is not available, the app will automatically fall back to file-based sessions (which don't persist across deployments).
+
+### 5. Configure Discord OAuth
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Select your application
@@ -46,7 +58,7 @@ In your Railway project settings, go to "Variables" and add:
    - Also add local development URL: `http://localhost:3000/auth/discord/callback`
    - Or use your custom domain if configured
 
-### 5. Deploy
+### 6. Deploy
 
 Railway will automatically:
 - Install dependencies (`npm install`)
@@ -56,7 +68,7 @@ Railway will automatically:
 
 **Note**: Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
 
-### 6. Get Your Public URL
+### 7. Get Your Public URL
 
 **Production Dashboard URL:** [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
 
@@ -77,7 +89,8 @@ Railway will automatically:
 | `DISCORD_GUILD_ID` | Guild ID for faster command deployment (optional) | No |
 | `DISABLE_AUTO_DEPLOY` | Set to `true` to disable auto-deploy (optional) | No |
 | `CALLBACK_URL` | OAuth callback URL (auto-detected if not set) | No |
-| `SESSION_STORE_PATH` | Path for session files | No |
+| `REDIS_URL` | Redis connection URL (auto-set when Redis addon is added) | No |
+| `SESSION_STORE_PATH` | Path for session files (fallback if Redis not available) | No |
 
 ## Generating Session Secret
 
@@ -115,10 +128,11 @@ Railway provides:
 - Check Discord OAuth redirect URL is correct
 - Ensure `DISCORD_CLIENT_SECRET` is set
 
-### Sessions not persisting
-- Sessions are stored in files by default
-- On Railway, sessions persist across restarts
-- For production, consider using Redis (Railway has Redis addon)
+### Sessions not persisting across deployments
+- **Solution:** Add Redis addon to your Railway project (see step 4)
+- Redis sessions persist across deployments, file-based sessions do not
+- The app automatically detects Redis and uses it if available
+- Check logs for "Using Redis for session storage" to confirm Redis is active
 
 ## Cost
 

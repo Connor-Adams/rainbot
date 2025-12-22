@@ -10,6 +10,18 @@ const { requireAuth } = require('./middleware/auth');
 const log = createLogger('SERVER');
 const clientStore = require('./client');
 
+// Try to load Redis (optional dependency)
+let RedisStore;
+let redis;
+try {
+    const redisLib = require('redis');
+    RedisStore = require('connect-redis').default;
+    redis = redisLib;
+} catch (e) {
+    // Redis not available, will use file store
+    log.debug('Redis not available, will use file store for sessions');
+}
+
 function createServer() {
     const app = express();
     const { loadConfig } = require('../utils/config');
@@ -27,11 +39,65 @@ function createServer() {
     app.use(requestLogger);
 
     // Session configuration
-    // Use file store for persistent sessions (works on Railway and locally)
-    const sessionStore = new FileStore({
-        path: config.sessionStorePath,
-        ttl: 7 * 24 * 60 * 60, // 7 days
-    });
+    // Prefer Redis for persistent sessions across deployments, fallback to file store
+    let sessionStore;
+    const redisUrl = config.redisUrl || process.env.REDIS_URL;
+    
+    if (redisUrl && RedisStore && redis) {
+        try {
+            // Create Redis client
+            const redisClient = redis.createClient({
+                url: redisUrl,
+                socket: {
+                    reconnectStrategy: (retries) => {
+                        if (retries > 10) {
+                            log.error('Redis connection failed after 10 retries, falling back to file store');
+                            return false; // Stop retrying
+                        }
+                        return Math.min(retries * 100, 3000); // Exponential backoff, max 3s
+                    }
+                }
+            });
+
+            redisClient.on('error', (err) => {
+                log.error(`Redis client error: ${err.message}`);
+            });
+
+            redisClient.on('connect', () => {
+                log.info('Redis client connected');
+            });
+
+            redisClient.on('ready', () => {
+                log.info('Redis client ready');
+            });
+
+            // Connect Redis client (non-blocking)
+            redisClient.connect().catch((err) => {
+                log.warn(`Failed to connect to Redis: ${err.message}, falling back to file store`);
+            });
+
+            // Create Redis session store
+            sessionStore = new RedisStore({
+                client: redisClient,
+                prefix: 'rainbot:sess:',
+                ttl: 7 * 24 * 60 * 60, // 7 days
+            });
+
+            log.info('Using Redis for session storage (sessions will persist across deployments)');
+        } catch (error) {
+            log.warn(`Failed to initialize Redis store: ${error.message}, falling back to file store`);
+            sessionStore = null;
+        }
+    }
+
+    // Fallback to file store if Redis is not available
+    if (!sessionStore) {
+        sessionStore = new FileStore({
+            path: config.sessionStorePath,
+            ttl: 7 * 24 * 60 * 60, // 7 days
+        });
+        log.info(`Using file store for sessions at ${config.sessionStorePath} (sessions may not persist across deployments)`);
+    }
 
     // Determine cookie security based on environment
     const useSecureCookies = process.env.NODE_ENV === 'production' || isRailway;
@@ -51,7 +117,7 @@ function createServer() {
         },
     }));
     
-    log.debug(`Session configured: secure=${useSecureCookies}, Railway=${isRailway}`);
+    log.debug(`Session configured: store=${sessionStore.constructor.name}, secure=${useSecureCookies}, Railway=${isRailway}`);
 
     // Initialize Passport
     app.use(passport.initialize());

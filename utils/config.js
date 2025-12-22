@@ -70,6 +70,7 @@ function loadConfig() {
         dashboardPort: process.env.PORT || fileConfig.dashboardPort || 3000,
         sessionSecret: process.env.SESSION_SECRET || fileConfig.sessionSecret,
         sessionStorePath: process.env.SESSION_STORE_PATH || fileConfig.sessionStorePath || './sessions',
+        redisUrl: process.env.REDIS_URL || fileConfig.redisUrl,
         
         // Railway-specific
         railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
