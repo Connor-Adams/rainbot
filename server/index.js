@@ -39,19 +39,63 @@ function createServer() {
     app.use(requestLogger);
 
     // Session configuration
-    // Prefer Redis for persistent sessions across deployments, fallback to file store
+    // Prefer Redis for persistent sessions across deployments
+    // IMPORTANT: Session secret must be consistent across deployments for sessions to persist
+    const sessionSecret = config.sessionSecret;
+    if (!sessionSecret || sessionSecret === 'change-this-secret-in-production') {
+        log.error('⚠️  WARNING: SESSION_SECRET not set or using default value!');
+        log.error('⚠️  Sessions will NOT persist across deployments without a consistent SESSION_SECRET.');
+        log.error('⚠️  Set SESSION_SECRET environment variable to a secure random string.');
+        log.error('⚠️  Generate one with: openssl rand -hex 32');
+    } else {
+        log.info('✓ SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
+    }
+    
     let sessionStore;
-    const redisUrl = config.redisUrl || process.env.REDIS_URL;
+    // Try to get Redis URL from config or environment
+    let redisUrl = config.redisUrl || process.env.REDIS_URL;
+    
+    // If REDIS_URL is not set, try to construct it from Railway's individual Redis env vars
+    if (!redisUrl && process.env.REDISHOST) {
+        const redisHost = process.env.REDISHOST;
+        const redisPort = process.env.REDISPORT || '6379';
+        const redisUser = process.env.REDISUSER || '';
+        const redisPassword = process.env.REDISPASSWORD || '';
+        
+        // Construct Redis URL: redis://[username]:[password]@host:port
+        if (redisPassword) {
+            if (redisUser) {
+                redisUrl = `redis://${redisUser}:${redisPassword}@${redisHost}:${redisPort}`;
+            } else {
+                redisUrl = `redis://:${redisPassword}@${redisHost}:${redisPort}`;
+            }
+        } else {
+            redisUrl = `redis://${redisHost}:${redisPort}`;
+        }
+        
+        log.info('✓ Constructed Redis URL from Railway environment variables (REDISHOST, REDISPORT, etc.)');
+    }
+    
+    // Check if Redis is available
+    if (!RedisStore || !redis) {
+        log.warn('⚠️  Redis libraries not available - install redis package for persistent sessions');
+    } else if (!redisUrl) {
+        log.warn('⚠️  Redis URL not configured - set REDIS_URL or Railway will auto-set it when Redis service is added');
+    }
     
     if (redisUrl && RedisStore && redis) {
         try {
-            // Create Redis client
+            // Mask password in logs for security
+            const maskedUrl = redisUrl.replace(/:[^:@]+@/, ':****@');
+            log.debug(`Connecting to Redis: ${maskedUrl}`);
+            
+            // Create Redis client using URL (works for both Railway REDIS_URL and constructed URLs)
             const redisClient = redis.createClient({
                 url: redisUrl,
                 socket: {
                     reconnectStrategy: (retries) => {
                         if (retries > 10) {
-                            log.error('Redis connection failed after 10 retries, falling back to file store');
+                            log.error('Redis connection failed after 10 retries, falling back to memory store');
                             return false; // Stop retrying
                         }
                         return Math.min(retries * 100, 3000); // Exponential backoff, max 3s
@@ -73,7 +117,7 @@ function createServer() {
 
             // Connect Redis client (non-blocking)
             redisClient.connect().catch((err) => {
-                log.warn(`Failed to connect to Redis: ${err.message}, falling back to file store`);
+                log.warn(`Failed to connect to Redis: ${err.message}, falling back to memory store`);
             });
 
             // Create Redis session store
@@ -83,20 +127,35 @@ function createServer() {
                 ttl: 7 * 24 * 60 * 60, // 7 days
             });
 
-            log.info('Using Redis for session storage (sessions will persist across deployments)');
+            log.info('✓ Using Redis for session storage (sessions will persist across deployments)');
         } catch (error) {
-            log.warn(`Failed to initialize Redis store: ${error.message}, falling back to file store`);
+            log.warn(`Failed to initialize Redis store: ${error.message}, falling back to memory store`);
             sessionStore = null;
         }
     }
 
-    // Fallback to file store if Redis is not available
+    // Fallback to memory store if Redis is not available
+    // Note: Memory store does NOT persist across restarts, but is better than file store on Railway
+    // For production, use Redis for persistent sessions
     if (!sessionStore) {
-        sessionStore = new FileStore({
-            path: config.sessionStorePath,
-            ttl: 7 * 24 * 60 * 60, // 7 days
-        });
-        log.info(`Using file store for sessions at ${config.sessionStorePath} (sessions may not persist across deployments)`);
+        if (isRailway || process.env.NODE_ENV === 'production') {
+            log.warn('⚠️  Using memory store for sessions (sessions will NOT persist across restarts)');
+            log.warn('⚠️  For persistent sessions, configure REDIS_URL environment variable');
+            // Use default memory store (no store specified)
+            sessionStore = undefined;
+        } else {
+            // Local development: use file store
+            try {
+                sessionStore = new FileStore({
+                    path: config.sessionStorePath,
+                    ttl: 7 * 24 * 60 * 60, // 7 days
+                });
+                log.info(`✓ Using file store for sessions at ${config.sessionStorePath}`);
+            } catch (error) {
+                log.warn(`Failed to create file store: ${error.message}, using memory store`);
+                sessionStore = undefined;
+            }
+        }
     }
 
     // Determine cookie security based on environment
@@ -104,7 +163,7 @@ function createServer() {
     
     app.use(session({
         store: sessionStore,
-        secret: config.sessionSecret || 'change-this-secret-in-production',
+        secret: sessionSecret || 'change-this-secret-in-production',
         resave: false,
         saveUninitialized: false,
         name: 'rainbot.sid', // Custom session name
@@ -112,12 +171,14 @@ function createServer() {
             httpOnly: true,
             secure: useSecureCookies, // Secure cookies on Railway/production
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            sameSite: 'lax',
-            // Don't set domain - let browser handle it
+            sameSite: 'lax', // Allows cookies to be sent on top-level navigations
+            // Don't set domain - let browser handle it (works better across subdomains)
         },
+        rolling: true, // Reset expiration on activity (extends session on each request)
     }));
     
-    log.debug(`Session configured: store=${sessionStore.constructor.name}, secure=${useSecureCookies}, Railway=${isRailway}`);
+    const storeType = sessionStore ? sessionStore.constructor.name : 'MemoryStore';
+    log.info(`Session configured: store=${storeType}, secure=${useSecureCookies}, Railway=${isRailway}`);
 
     // Initialize Passport
     app.use(passport.initialize());

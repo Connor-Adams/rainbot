@@ -86,7 +86,7 @@ Railway will automatically:
 | `DISCORD_BOT_TOKEN` | Bot token from Discord Developer Portal | Yes |
 | `DISCORD_CLIENT_ID` | Bot Client ID | Yes |
 | `DISCORD_CLIENT_SECRET` | OAuth Client Secret | Yes |
-| `SESSION_SECRET` | Random secret for sessions | Yes |
+| `SESSION_SECRET` | Random secret for sessions (MUST be consistent across deployments for sessions to persist) | Yes |
 | `REQUIRED_ROLE_ID` | Discord role ID for dashboard access | Yes |
 | `DISCORD_GUILD_ID` | Guild ID for faster command deployment (optional) | No |
 | `DISABLE_AUTO_DEPLOY` | Set to `true` to disable auto-deploy (optional) | No |
@@ -95,6 +95,8 @@ Railway will automatically:
 | `SESSION_STORE_PATH` | Path for session files (fallback if Redis not available) | No |
 
 ## Generating Session Secret
+
+**IMPORTANT**: The `SESSION_SECRET` must be the same value across all deployments for sessions to persist. If you change it, all users will be logged out.
 
 Generate a secure random string for `SESSION_SECRET`:
 
@@ -105,6 +107,22 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 # Using openssl
 openssl rand -hex 32
 ```
+
+**Once generated, set it as a Railway environment variable and never change it** (unless you want to force all users to re-authenticate).
+
+## Session Persistence
+
+For sessions to persist across app reloads and deployments:
+
+1. **Set `SESSION_SECRET`**: Must be consistent across all deployments
+2. **Use Redis (Recommended)**: Add a Redis service to your Railway project and set `REDIS_URL` environment variable
+   - Sessions stored in Redis persist across deployments
+   - Without Redis, sessions are stored in memory and will be lost on restart
+
+To add Redis on Railway:
+- Go to your Railway project
+- Click "New" → "Database" → "Add Redis"
+- Railway will automatically set the `REDIS_URL` environment variable
 
 ## Custom Domain (Optional)
 
