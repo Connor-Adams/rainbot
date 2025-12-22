@@ -28,7 +28,8 @@
     "connect-redis": "^7.1.1",
     "redis": "^4.7.0",
     "winston": "^3.19.0",
-    "youtube-dl-exec": "^3.0.28"
+    "youtube-dl-exec": "^3.0.28",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

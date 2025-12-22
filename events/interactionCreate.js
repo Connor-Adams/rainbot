@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const { createLogger } = require('../utils/logger');
 const voiceManager = require('../utils/voiceManager');
+const stats = require('../utils/statistics');
 
 const log = createLogger('INTERACTION');
 
@@ -66,8 +67,27 @@ module.exports = {
         try {
             await command.execute(interaction);
             log.debug(`Executed: ${interaction.commandName} by ${interaction.user.tag}`);
+            
+            // Track successful command execution
+            stats.trackCommand(
+                interaction.commandName,
+                interaction.user.id,
+                interaction.guildId,
+                'discord',
+                true
+            );
         } catch (error) {
             log.error(`Error executing ${interaction.commandName}: ${error.message}`, { stack: error.stack });
+
+            // Track failed command execution
+            stats.trackCommand(
+                interaction.commandName,
+                interaction.user.id,
+                interaction.guildId,
+                'discord',
+                false,
+                error.message
+            );
 
             const reply = { content: 'There was an error while executing this command!', ephemeral: true };
 

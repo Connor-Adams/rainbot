@@ -36,7 +36,22 @@ In your Railway project settings, go to "Variables" and add:
 - `REDIS_URL` - Redis connection URL (auto-set when Redis addon is added, see below)
 - `SESSION_STORE_PATH` - Path for session files (default: `./sessions`, only used if Redis is not available)
 
-### 4. Add Redis for Persistent Sessions (Recommended)
+### 4. Add PostgreSQL for Statistics (Required for Statistics Feature)
+
+**Why PostgreSQL?** The statistics feature requires a PostgreSQL database to track command usage, sound playback, user activity, and more.
+
+1. In your Railway project, click **"+ New"** → **"Database"** → **"Add PostgreSQL"**
+2. Railway will automatically create a PostgreSQL instance and set the `DATABASE_URL` environment variable
+3. The app will automatically detect and use PostgreSQL for statistics storage
+4. **Initialize the database schema**: Run the setup script once:
+   ```bash
+   node scripts/setup-database.js
+   ```
+   Or the schema will be automatically created on first run (if database connection is available)
+
+**Note:** Statistics tracking is optional - if `DATABASE_URL` is not set, the bot will work normally but statistics will be disabled.
+
+### 5. Add Redis for Persistent Sessions (Recommended)
 
 **Why Redis?** Sessions stored in files are lost on every deployment. Redis ensures you stay logged in across deployments!
 
@@ -47,7 +62,7 @@ In your Railway project settings, go to "Variables" and add:
 
 **Note:** If Redis is not available, the app will automatically fall back to file-based sessions (which don't persist across deployments).
 
-### 5. Configure Discord OAuth
+### 6. Configure Discord OAuth
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Select your application
@@ -58,7 +73,7 @@ In your Railway project settings, go to "Variables" and add:
    - Also add local development URL: `http://localhost:3000/auth/discord/callback`
    - Or use your custom domain if configured
 
-### 6. Deploy
+### 7. Deploy
 
 Railway will automatically:
 - Build the Docker image (installs Python3, FFmpeg, yt-dlp, and Node.js dependencies)
@@ -70,7 +85,7 @@ Railway will automatically:
 - The build uses a Dockerfile to install system dependencies (Python3, FFmpeg, yt-dlp) required for YouTube audio extraction
 - Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
 
-### 7. Get Your Public URL
+### 8. Get Your Public URL
 
 **Production Dashboard URL:** [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
 
@@ -91,6 +106,7 @@ Railway will automatically:
 | `DISCORD_GUILD_ID` | Guild ID for faster command deployment (optional) | No |
 | `DISABLE_AUTO_DEPLOY` | Set to `true` to disable auto-deploy (optional) | No |
 | `CALLBACK_URL` | OAuth callback URL (auto-detected if not set) | No |
+| `DATABASE_URL` | PostgreSQL connection URL (auto-set when PostgreSQL addon is added) | No (required for statistics) |
 | `REDIS_URL` | Redis connection URL (auto-set when Redis addon is added) | No |
 | `SESSION_STORE_PATH` | Path for session files (fallback if Redis not available) | No |
 

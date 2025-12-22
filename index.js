@@ -29,6 +29,10 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 
 const config = loadConfig();
 
+// Initialize database (non-blocking, handles errors gracefully)
+const { initDatabase } = require('./utils/database');
+initDatabase();
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -53,3 +57,22 @@ if (!config.token) {
 }
 
 client.login(config.token);
+
+// Graceful shutdown - flush statistics
+process.on('SIGINT', async () => {
+    log.info('Shutting down gracefully...');
+    const { flushAll } = require('./utils/statistics');
+    await flushAll();
+    const { close } = require('./utils/database');
+    await close();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    log.info('Shutting down gracefully...');
+    const { flushAll } = require('./utils/statistics');
+    await flushAll();
+    const { close } = require('./utils/database');
+    await close();
+    process.exit(0);
+});

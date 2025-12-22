@@ -7,6 +7,7 @@
     "sessionSecret": "GENERATE_A_RANDOM_SECRET_STRING_HERE",
     "callbackURL": "http://localhost:3000/auth/discord/callback",
     "requiredRoleId": "YOUR_REQUIRED_ROLE_ID",
-    "sessionStorePath": "./sessions"
+    "sessionStorePath": "./sessions",
+    "databaseUrl": "postgresql://user:password@localhost:5432/rainbot"
 }
 

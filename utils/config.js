@@ -19,6 +19,7 @@ function loadConfig() {
         key === 'CALLBACK_URL' ||
         key === 'RAILWAY_PUBLIC_DOMAIN' ||
         key === 'DISABLE_AUTO_DEPLOY' ||
+        key === 'DATABASE_URL' ||
         // Railway Bucket service vars (AWS_* prefix)
         key.startsWith('AWS_') ||
         // Railway bucket legacy vars
@@ -79,6 +80,9 @@ function loadConfig() {
         
         // Feature flags
         disableAutoDeploy: process.env.DISABLE_AUTO_DEPLOY === 'true',
+        
+        // Database configuration
+        databaseUrl: process.env.DATABASE_URL,
     };
 
     // Log which environment variables are set (for debugging)

@@ -31,8 +31,11 @@ module.exports = {
         const botStatus = vm.getStatus(guildId);
         if (!botStatus || botStatus.channelId !== channelId) return;
 
-        // Check if user has listening history
-        const history = listeningHistory.getHistory(userId);
+        // Check if user has listening history (try database first, fall back to in-memory)
+        let history = await listeningHistory.getRecentHistory(userId, guildId);
+        if (!history) {
+            history = listeningHistory.getHistory(userId);
+        }
         if (!history || history.queue.length === 0) return;
 
         // Don't show resume prompt if history is from a different guild

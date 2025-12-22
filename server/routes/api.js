@@ -5,6 +5,7 @@ const voiceManager = require('../../utils/voiceManager');
 const storage = require('../../utils/storage');
 const clientStore = require('../client');
 const { requireAuth } = require('../middleware/auth');
+const stats = require('../../utils/statistics');
 
 const router = express.Router();
 
@@ -97,12 +98,19 @@ router.post('/play', requireAuth, async (req, res) => {
     }
 
     try {
-        const result = await voiceManager.playSound(guildId, source);
+        const userId = req.user?.id || null;
+        // Pass 'api' as source indicator
+        const result = await voiceManager.playSound(guildId, source, userId, 'api');
         
         // Extract title from first track
         const title = result.tracks && result.tracks.length > 0 
             ? result.tracks[0].title 
             : 'Unknown';
+        
+        // Track API command
+        if (userId) {
+            stats.trackCommand('play', userId, guildId, 'api', true);
+        }
         
         // Sanitize tracks array to remove stream objects (which have circular references)
         const sanitizedTracks = result.tracks ? result.tracks.map(track => ({
@@ -121,6 +129,10 @@ router.post('/play', requireAuth, async (req, res) => {
             tracks: sanitizedTracks,
         });
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('play', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });
@@ -134,9 +146,20 @@ router.post('/soundboard', requireAuth, async (req, res) => {
     }
 
     try {
-        const result = await voiceManager.playSoundboardOverlay(guildId, sound);
+        const userId = req.user?.id || null;
+        const result = await voiceManager.playSoundboardOverlay(guildId, sound, userId, 'api');
+        
+        // Track API command
+        if (userId) {
+            stats.trackCommand('soundboard', userId, guildId, 'api', true);
+        }
+        
         res.json(result);
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('soundboard', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });
@@ -149,10 +172,19 @@ router.post('/stop', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'guildId is required' });
     }
 
+    const userId = req.user?.id || null;
     const stopped = voiceManager.stopSound(guildId);
     if (stopped) {
+        // Track stop as clear operation
+        if (userId) {
+            stats.trackCommand('stop', userId, guildId, 'api', true);
+            stats.trackQueueOperation('clear', userId, guildId, 'api', { cleared: 0 });
+        }
         res.json({ message: 'Playback stopped' });
     } else {
+        if (userId) {
+            stats.trackCommand('stop', userId, guildId, 'api', false, 'Not playing anything');
+        }
         res.status(400).json({ error: 'Not playing anything' });
     }
 });
@@ -166,13 +198,25 @@ router.post('/skip', requireAuth, (req, res) => {
     }
 
     try {
+        const userId = req.user?.id || null;
         const skipped = voiceManager.skip(guildId);
         if (skipped && skipped.length > 0) {
+            // Track API command and queue operation
+            if (userId) {
+                stats.trackCommand('skip', userId, guildId, 'api', true);
+            }
             res.json({ message: `Skipped ${skipped.length} track(s)`, skipped });
         } else {
+            if (userId) {
+                stats.trackCommand('skip', userId, guildId, 'api', false, 'No track to skip');
+            }
             res.status(400).json({ error: 'No track to skip' });
         }
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('skip', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });
@@ -186,9 +230,20 @@ router.post('/pause', requireAuth, (req, res) => {
     }
 
     try {
+        const userId = req.user?.id || null;
         const paused = voiceManager.togglePause(guildId);
+        
+        // Track API command
+        if (userId) {
+            stats.trackCommand('pause', userId, guildId, 'api', true);
+        }
+        
         res.json({ message: paused ? 'Paused' : 'Resumed', paused });
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('pause', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });
@@ -262,9 +317,20 @@ router.post('/queue/:guildId/clear', requireAuth, (req, res) => {
     const { guildId } = req.params;
 
     try {
+        const userId = req.user?.id || null;
         const cleared = voiceManager.clearQueue(guildId);
+        
+        // Track API command
+        if (userId) {
+            stats.trackCommand('clear', userId, guildId, 'api', true);
+        }
+        
         res.json({ message: `Cleared ${cleared} tracks`, cleared });
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('clear', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });
@@ -279,9 +345,20 @@ router.delete('/queue/:guildId/:index', requireAuth, (req, res) => {
     }
 
     try {
+        const userId = req.user?.id || null;
         const removed = voiceManager.removeTrackFromQueue(guildId, trackIndex);
+        
+        // Track API command
+        if (userId) {
+            stats.trackCommand('remove', userId, guildId, 'api', true);
+        }
+        
         res.json({ message: 'Track removed', track: removed });
     } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('remove', userId, guildId, 'api', false, error.message);
+        }
         res.status(400).json({ error: error.message });
     }
 });

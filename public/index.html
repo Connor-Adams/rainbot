@@ -90,6 +90,15 @@
             </aside>
 
             <div class="content">
+                <!-- Navigation Tabs -->
+                <div class="nav-tabs" id="nav-tabs">
+                    <button class="nav-tab active" data-tab="player">Player</button>
+                    <button class="nav-tab" data-tab="sounds">Sounds</button>
+                    <button class="nav-tab" data-tab="stats">Statistics</button>
+                </div>
+
+                <!-- Player Tab Content -->
+                <div class="tab-content" id="tab-player">
                 <!-- Spotify-like Now Playing Card -->
                 <section class="panel now-playing-card" id="now-playing-card" style="display: none;">
                     <div class="now-playing-content">
@@ -192,13 +201,25 @@
                         <div class="skeleton skeleton-card"></div>
                     </div>
                 </section>
+                </div>
+
+                <!-- Statistics Tab Content -->
+                <div class="tab-content" id="tab-stats" style="display: none;">
+                    <section class="panel stats-panel">
+                        <div id="stats-container">
+                            <div class="stats-loading">Loading statistics...</div>
+                        </div>
+                    </section>
+                </div>
             </div>
         </main>
 
         <div id="toast-container" class="toast-container"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="app.js"></script>
+    <script src="stats.js"></script>
 </body>
 </html>
 

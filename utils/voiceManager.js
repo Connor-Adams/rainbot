@@ -17,6 +17,7 @@ const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { createLogger } = require('./logger');
+const stats = require('./statistics');
 
 const log = createLogger('VOICE');
 
@@ -192,6 +193,9 @@ async function playNext(guildId) {
     const nextTrack = state.queue.shift();
     log.debug(`[TIMING] playNext: starting ${nextTrack.title}`);
     
+    // Get userId from track (if stored) or fall back to lastUserId
+    const trackUserId = nextTrack.userId || state.lastUserId;
+    
     try {
         let resource;
 
@@ -262,6 +266,47 @@ async function playNext(guildId) {
         log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
         log.info(`Now playing: ${nextTrack.title}`);
         
+        // Track sound playback statistics - use userId from track or fall back to lastUserId
+        if (trackUserId) {
+            let sourceType = 'other';
+            if (nextTrack.isLocal) {
+                sourceType = 'local';
+            } else if (nextTrack.url) {
+                if (nextTrack.url.includes('youtube.com') || nextTrack.url.includes('youtu.be')) {
+                    sourceType = 'youtube';
+                } else if (nextTrack.url.includes('spotify.com') || nextTrack.spotifyId) {
+                    sourceType = 'spotify';
+                } else if (nextTrack.url.includes('soundcloud.com')) {
+                    sourceType = 'soundcloud';
+                }
+            }
+            // Determine source (discord vs api) - default to discord if not specified
+            const source = nextTrack.source || 'discord';
+            
+            // Track in statistics
+            stats.trackSound(
+                nextTrack.title,
+                trackUserId,
+                guildId,
+                sourceType,
+                false,
+                nextTrack.duration || null,
+                source
+            );
+            
+            // Track in listening history
+            listeningHistory.trackPlayed(trackUserId, guildId, {
+                title: nextTrack.title,
+                url: nextTrack.url,
+                duration: nextTrack.duration,
+                isLocal: nextTrack.isLocal,
+                sourceType,
+                source,
+                spotifyId: nextTrack.spotifyId,
+                spotifyUrl: nextTrack.spotifyUrl,
+            }).catch(err => log.error(`Failed to track listening history: ${err.message}`));
+        }
+        
         // Pre-buffer the next track for instant skip
         setTimeout(() => preBufferNext(guildId), 500);
         
@@ -301,8 +346,12 @@ async function playNext(guildId) {
 /**
  * Play a soundboard sound overlaid on current music
  * Uses FFmpeg to mix the soundboard with ducked music
+ * @param {string} guildId - Guild ID
+ * @param {string} soundName - Name of the sound file
+ * @param {string} userId - User ID who triggered the soundboard (optional)
+ * @param {string} source - Source of the request ('discord' or 'api', default: 'discord')
  */
-async function playSoundboardOverlay(guildId, soundName) {
+async function playSoundboardOverlay(guildId, soundName, userId = null, source = 'discord') {
     const state = voiceStates.get(guildId);
     if (!state) {
         throw new Error('Bot is not connected to a voice channel');
@@ -412,6 +461,31 @@ async function playSoundboardOverlay(guildId, soundName) {
 
         log.info(`Soundboard "${soundName}" overlaid on music`);
 
+        // Track soundboard usage
+        const trackUserId = userId || state.lastUserId;
+        if (trackUserId) {
+            stats.trackSound(
+                soundName,
+                trackUserId,
+                guildId,
+                'local',
+                true,
+                null,
+                source
+            );
+            
+            // Track in listening history
+            listeningHistory.trackPlayed(trackUserId, guildId, {
+                title: soundName,
+                url: null,
+                duration: null,
+                isLocal: true,
+                sourceType: 'local',
+                source,
+                isSoundboard: true,
+            }).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+        }
+
         return {
             overlaid: true,
             sound: soundName,
@@ -428,6 +502,31 @@ async function playSoundboardOverlay(guildId, soundName) {
         state.player.play(resource);
         state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
         state.currentTrackSource = null;
+        
+        // Track soundboard usage (fallback case)
+        const trackUserId = userId || state.lastUserId;
+        if (trackUserId) {
+            stats.trackSound(
+                soundName,
+                trackUserId,
+                guildId,
+                'local',
+                true,
+                null,
+                source
+            );
+            
+            // Track in listening history
+            listeningHistory.trackPlayed(trackUserId, guildId, {
+                title: soundName,
+                url: null,
+                duration: null,
+                isLocal: true,
+                sourceType: 'local',
+                source,
+                isSoundboard: true,
+            }).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+        }
         
         return {
             overlaid: false,
@@ -507,6 +606,9 @@ async function joinChannel(channel) {
 
     log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
 
+    // Track voice join event (no userId for join command, use null)
+    stats.trackVoiceEvent('join', guildId, channel.id, channel.name, 'discord');
+
     return { connection, player };
 }
 
@@ -523,9 +625,18 @@ function leaveChannel(guildId) {
             listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
         }
         
+        const channelId = state?.channelId || null;
+        const channelName = state?.channelName || null;
+        
         connection.destroy();
         voiceStates.delete(guildId);
         log.info(`Left voice channel in guild ${guildId}`);
+        
+        // Track voice leave event
+        if (channelId) {
+            stats.trackVoiceEvent('leave', guildId, channelId, channelName, 'discord');
+        }
+        
         return true;
     }
     return false;
@@ -536,8 +647,9 @@ function leaveChannel(guildId) {
  * @param {string} guildId - Guild ID
  * @param {string} source - Source URL or sound name
  * @param {string} userId - User ID who initiated playback (optional, for history tracking)
+ * @param {string} requestSource - Source of the request ('discord' or 'api', default: 'discord')
  */
-async function playSound(guildId, source, userId = null) {
+async function playSound(guildId, source, userId = null, requestSource = 'discord') {
     const startTime = Date.now();
     const state = voiceStates.get(guildId);
     if (!state) {
@@ -640,6 +752,8 @@ async function playSound(guildId, source, userId = null) {
                         url: videoUrl,
                         duration: video.duration,
                         isLocal: false,
+                        userId: state.lastUserId || null,
+                        source: 'discord',
                     });
                     added++;
                 }
@@ -840,10 +954,20 @@ async function playSound(guildId, source, userId = null) {
         }
     }
 
-    // Store userId for history tracking
+    // Store userId for history tracking and statistics
     if (userId) {
         state.lastUserId = userId;
     }
+    
+    // Store userId and source with each track so we can track who queued what
+    tracks.forEach(track => {
+        if (!track.userId && userId) {
+            track.userId = userId;
+        }
+        if (!track.source) {
+            track.source = requestSource; // Use the requestSource parameter
+        }
+    });
 
     // Add tracks to queue
     state.queue.push(...tracks);
@@ -912,6 +1036,11 @@ function skip(guildId, count = 1) {
     // Stop player to trigger next track (or end playback)
     state.player.stop();
     
+    // Track skip operation
+    if (state.lastUserId) {
+        stats.trackQueueOperation('skip', state.lastUserId, guildId, 'discord', { count, skipped: skipped.length });
+    }
+    
     // Return array (always has at least one item if we got here)
     return skipped;
 }
@@ -927,9 +1056,21 @@ function togglePause(guildId) {
 
     if (state.player.state.status === AudioPlayerStatus.Paused) {
         state.player.unpause();
+        
+        // Track resume operation
+        if (state.lastUserId) {
+            stats.trackQueueOperation('resume', state.lastUserId, guildId, 'discord');
+        }
+        
         return { paused: false };
     } else if (state.player.state.status === AudioPlayerStatus.Playing) {
         state.player.pause();
+        
+        // Track pause operation
+        if (state.lastUserId) {
+            stats.trackQueueOperation('pause', state.lastUserId, guildId, 'discord');
+        }
+        
         return { paused: true };
     } else {
         throw new Error('Nothing is playing');
@@ -956,6 +1097,8 @@ async function processSpotifyPlaylistTracks(spotifyTracks, guildId, state) {
                     isLocal: false,
                     spotifyId: spotifyTrack.id,
                     spotifyUrl: spotifyTrack.url,
+                    userId: state.lastUserId || null,
+                    source: 'discord',
                 });
                 added++;
             } else {
@@ -1004,6 +1147,11 @@ function clearQueue(guildId) {
     state.queue = [];
     log.info(`Cleared ${cleared} tracks from queue`);
     
+    // Track queue clear operation
+    if (state.lastUserId) {
+        stats.trackQueueOperation('clear', state.lastUserId, guildId, 'discord', { cleared });
+    }
+    
     return cleared;
 }
 
@@ -1022,6 +1170,11 @@ function removeTrackFromQueue(guildId, index) {
 
     const removed = state.queue.splice(index, 1)[0];
     log.info(`Removed track "${removed.title}" from queue at index ${index}`);
+    
+    // Track track removal operation
+    if (state.lastUserId) {
+        stats.trackQueueOperation('remove', state.lastUserId, guildId, 'discord', { index, track: removed.title });
+    }
     
     return removed;
 }
@@ -1104,13 +1257,17 @@ async function deleteSound(filename) {
  * @param {string} userId - User ID
  * @returns {Object} Result object with restored tracks count
  */
-function resumeHistory(guildId, userId) {
+async function resumeHistory(guildId, userId) {
     const state = voiceStates.get(guildId);
     if (!state) {
         throw new Error('Bot is not connected to a voice channel');
     }
 
-    const history = listeningHistory.getHistory(userId);
+    // Try to get from database first, fall back to in-memory
+    let history = await listeningHistory.getRecentHistory(userId, guildId);
+    if (!history) {
+        history = listeningHistory.getHistory(userId);
+    }
     if (!history || history.queue.length === 0) {
         throw new Error('No listening history found');
     }

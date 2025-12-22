@@ -10,6 +10,7 @@ A Discord voice bot with a web dashboard for playing sounds, YouTube/SoundCloud 
 - 🎛️ **Web Dashboard**: Beautiful web interface for managing sounds and playing URLs
 - 📤 **Sound upload**: Upload and manage sound files through the web dashboard
 - 🎮 **Slash commands**: Easy-to-use Discord slash commands
+- 📊 **Statistics Dashboard**: Comprehensive statistics tracking with PostgreSQL (command usage, sound playback, user activity, time trends)
 
 ## Prerequisites
 
@@ -117,6 +118,13 @@ The bot includes a web dashboard accessible at `http://localhost:3000` (or your 
 - **URL Player**: Play YouTube, SoundCloud, or direct audio URLs
 - **Sound Library**: Browse and play uploaded sound files
 - **Sound Upload**: Upload new sound files (.mp3, .wav, .ogg, .m4a, .webm, .flac)
+- **Statistics Dashboard**: View comprehensive statistics including:
+  - Command usage statistics (top commands, success rates)
+  - Sound playback statistics (top sounds, source types, soundboard vs regular)
+  - User activity statistics (top users, activity counts)
+  - Guild activity statistics (top guilds, usage counts)
+  - Queue operation statistics (skip, pause, clear operations)
+  - Time-based trends (daily/weekly usage charts)
 
 ### Using the Dashboard
 
@@ -157,6 +165,8 @@ rainbot/
 - **express** (v5) - Web server framework
 - **winston** - Logging
 - **multer** - File upload handling
+- **pg** - PostgreSQL client for statistics
+- **Chart.js** - Statistics visualization
 
 ## Development
 

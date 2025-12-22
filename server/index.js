@@ -198,6 +198,10 @@ function createServer() {
     // API routes
     const apiRoutes = require('./routes/api');
     app.use('/api', apiRoutes);
+    
+    // Statistics routes
+    const statsRoutes = require('./routes/stats');
+    app.use('/api/stats', statsRoutes);
 
     // Serve dashboard for all other routes (protected)
     // This must be last to catch all unmatched routes

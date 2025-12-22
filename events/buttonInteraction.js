@@ -22,7 +22,7 @@ module.exports = {
             }
 
             try {
-                const result = voiceManager.resumeHistory(interaction.guildId, userId);
+                const result = await voiceManager.resumeHistory(interaction.guildId, userId);
                 const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(interaction.guildId);
                 
                 await interaction.update({
@@ -60,7 +60,7 @@ module.exports = {
                 });
             }
 
-            listeningHistory.clearHistory(userId);
+            await listeningHistory.clearListeningHistory(userId, interaction.guildId);
             await interaction.update({
                 embeds: [{
                     color: 0x6366f1,
