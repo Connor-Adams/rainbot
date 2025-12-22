@@ -18,27 +18,40 @@ function initDatabase() {
     }
 
     try {
-        pool = new Pool({
+        // Parse connection string to handle SSL requirements (common in Railway/cloud providers)
+        const poolConfig = {
             connectionString: config.databaseUrl,
             max: 10, // Maximum number of clients in the pool
             idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-            connectionTimeoutMillis: 5000, // Return an error after 5 seconds if connection could not be established
-        });
+            connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+        };
+
+        // For production databases (Railway, Heroku, etc.), SSL is usually required
+        // Parse URL to check if it's a cloud provider
+        if (config.databaseUrl && (config.databaseUrl.includes('railway.app') || 
+                                   config.databaseUrl.includes('herokuapp.com') ||
+                                   config.databaseUrl.includes('amazonaws.com'))) {
+            poolConfig.ssl = {
+                rejectUnauthorized: false, // Required for Railway/Heroku PostgreSQL
+            };
+        }
+
+        pool = new Pool(poolConfig);
 
         // Handle pool errors
         pool.on('error', (err) => {
             log.error(`Unexpected error on idle database client: ${err.message}`);
         });
 
-        // Test connection
-        pool.query('SELECT NOW()', (err) => {
-            if (err) {
+        // Test connection asynchronously
+        pool.query('SELECT NOW()')
+            .then(() => {
+                log.info('✓ Database connection pool initialized');
+            })
+            .catch((err) => {
                 log.error(`Database connection test failed: ${err.message}`);
                 pool = null;
-            } else {
-                log.info('✓ Database connection pool initialized');
-            }
-        });
+            });
 
         return pool;
     } catch (error) {
