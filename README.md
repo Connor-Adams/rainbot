@@ -75,13 +75,27 @@ Make sure your bot has the following permissions in your Discord server:
 - Speak in voice channels
 - Use slash commands
 - Read message history (optional, for better UX)
+- **View Channels** - Required for OAuth role verification
+- **Manage Roles** - Required to check if users have required role
+- **Read Member List** - Required to verify user membership
 
 ### Environment Setup
 
+**Basic Bot Configuration:**
 1. **Discord Bot Token**: Get your bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
 2. **Client ID**: Found in your Discord application's General Information
 3. **Guild ID**: Right-click your Discord server → Copy Server ID (enable Developer Mode in Discord settings)
 4. **Dashboard Port**: Port for the web dashboard (default: 3000)
+
+**OAuth Configuration (for Web Dashboard):**
+See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions.
+
+**Quick OAuth Setup:**
+1. Get **Client Secret** from Discord Developer Portal → OAuth2
+2. Create a **role** in your Discord server for dashboard access
+3. Get the **role ID** (right-click role → Copy ID)
+4. Add **redirect URL** in Discord OAuth2 settings: `https://your-domain.com/auth/discord/callback`
+5. Set environment variables: `DISCORD_CLIENT_SECRET`, `REQUIRED_ROLE_ID`, `SESSION_SECRET`
 
 ## Commands
 

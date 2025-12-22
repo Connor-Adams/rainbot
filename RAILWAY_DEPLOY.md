@@ -29,6 +29,8 @@ In your Railway project settings, go to "Variables" and add:
 **Optional:**
 - `DISCORD_GUILD_ID` - Guild ID for faster command deployment (deploys to specific guild instead of globally)
 - `DISABLE_AUTO_DEPLOY` - Set to `true` to disable automatic command deployment on startup
+- `CALLBACK_URL` - OAuth callback URL (auto-detected from Railway domain, but you can set manually: `https://rainbot-production.up.railway.app/auth/discord/callback`)
+- `RAILWAY_PUBLIC_DOMAIN` - Railway public domain (usually auto-set, but if not: `rainbot-production.up.railway.app`)
 - `PORT` - Railway sets this automatically (don't set manually)
 - `HOST` - Railway sets this automatically (don't set manually)
 - `SESSION_STORE_PATH` - Path for session files (default: `./sessions`)
@@ -39,8 +41,9 @@ In your Railway project settings, go to "Variables" and add:
 2. Select your application
 3. Go to OAuth2 → Redirects
 4. Add your Railway public domain callback URL:
-   - Railway will provide a public domain like `your-app.up.railway.app`
-   - Add: `https://your-app.up.railway.app/auth/discord/callback`
+   - **Production URL**: `https://rainbot-production.up.railway.app/auth/discord/callback`
+   - Add this exact URL to Discord OAuth redirects
+   - Also add local development URL: `http://localhost:3000/auth/discord/callback`
    - Or use your custom domain if configured
 
 ### 5. Deploy
@@ -55,9 +58,12 @@ Railway will automatically:
 
 ### 6. Get Your Public URL
 
+**Production Dashboard URL:** [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
+
 1. In Railway project, go to "Settings"
 2. Under "Networking", you'll see your public domain
 3. Copy this URL and add it to Discord OAuth redirects (step 4)
+4. **Callback URL**: `https://rainbot-production.up.railway.app/auth/discord/callback`
 
 ## Environment Variables Reference
 
