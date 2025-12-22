@@ -324,8 +324,15 @@ uploadArea.addEventListener('drop', (e) => {
 // Authentication functions
 async function checkAuth() {
     try {
-        const res = await fetch('/auth/check');
+        console.log('Checking authentication status...');
+        const res = await fetch('/auth/check', {
+            credentials: 'include', // Important: include cookies
+        });
+        
+        console.log('Auth check response:', res.status, res.statusText);
+        
         const data = await res.json();
+        console.log('Auth check data:', data);
 
         if (res.status === 401) {
             // Not authenticated
@@ -410,6 +417,13 @@ logoutBtn.addEventListener('click', async () => {
     }
 });
 
+// Check if we just came back from OAuth (check URL params)
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('code') || window.location.pathname === '/') {
+    // Just redirected from OAuth or on home page - check auth status
+    console.log('Checking auth status after redirect...');
+}
+
 // Initial load - check auth first
 checkAuth().then(authenticated => {
     if (authenticated) {
@@ -417,6 +431,12 @@ checkAuth().then(authenticated => {
         fetchSounds();
         // Poll for updates every 5 seconds
         setInterval(fetchStatus, 5000);
+    } else {
+        // If not authenticated, check again after a short delay (in case session is still being created)
+        setTimeout(() => {
+            console.log('Re-checking auth status...');
+            checkAuth();
+        }, 1000);
     }
 });
 

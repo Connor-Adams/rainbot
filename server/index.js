@@ -26,18 +26,26 @@ function createServer() {
         ttl: 7 * 24 * 60 * 60, // 7 days
     });
 
+    // Determine if we're on Railway (HTTPS) or local (HTTP)
+    const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PUBLIC_DOMAIN;
+    const useSecureCookies = process.env.NODE_ENV === 'production' || isRailway;
+    
     app.use(session({
         store: sessionStore,
         secret: config.sessionSecret || 'change-this-secret-in-production',
         resave: false,
         saveUninitialized: false,
+        name: 'rainbot.sid', // Custom session name
         cookie: {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // Secure cookies in production
+            secure: useSecureCookies, // Secure cookies on Railway/production
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
             sameSite: 'lax',
+            // Don't set domain - let browser handle it
         },
     }));
+    
+    log.debug(`Session configured: secure=${useSecureCookies}, Railway=${isRailway}`);
 
     // Initialize Passport
     app.use(passport.initialize());

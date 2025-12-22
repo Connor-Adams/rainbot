@@ -41,13 +41,16 @@ passport.use('discord', new OAuth2Strategy({
     scope: ['identify', 'guilds'],
 }, async (accessToken, refreshToken, profile, done) => {
     try {
+        log.debug('OAuth strategy callback started');
+        
         const botClient = server.getClient();
 
         if (!botClient || !botClient.isReady()) {
-            log.warn('Bot client not ready during OAuth verification');
-            return done(new Error('Bot is not ready'));
+            log.error('Bot client not ready during OAuth verification');
+            return done(new Error('Bot is not ready. Please ensure the bot is running and connected.'));
         }
 
+        log.debug('Fetching user profile from Discord API');
         // Fetch user profile from Discord API
         const userResponse = await fetch('https://discord.com/api/users/@me', {
             headers: {
@@ -56,18 +59,39 @@ passport.use('discord', new OAuth2Strategy({
         });
 
         if (!userResponse.ok) {
-            throw new Error('Failed to fetch user profile from Discord');
+            const errorText = await userResponse.text();
+            log.error(`Failed to fetch user profile: ${userResponse.status} ${errorText}`);
+            throw new Error(`Failed to fetch user profile from Discord: ${userResponse.status}`);
         }
 
         const discordUser = await userResponse.json();
+        log.debug(`Fetched user profile: ${discordUser.username} (${discordUser.id})`);
 
         // Verify user has required role
         const cfg = getConfig();
+        
+        if (!cfg.requiredRoleId) {
+            log.error('REQUIRED_ROLE_ID not configured');
+            return done(new Error('Server configuration error: REQUIRED_ROLE_ID not set'));
+        }
+        
+        log.debug(`Verifying role ${cfg.requiredRoleId} for user ${discordUser.id}`);
+        log.debug(`Bot is in ${botClient.guilds.cache.size} guild(s)`);
+        
         const hasRole = await verifyUserRole(discordUser.id, cfg.requiredRoleId, botClient);
 
         if (!hasRole) {
-            log.info(`OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role`);
-            return done(null, false, { message: 'You do not have the required role to access this dashboard' });
+            log.warn(`OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role ${cfg.requiredRoleId}`);
+            log.debug(`User is in ${botClient.guilds.cache.size} bot guild(s), but doesn't have required role`);
+            
+            // Get list of guild names for debugging
+            const guildNames = Array.from(botClient.guilds.cache.values()).map(g => g.name).join(', ');
+            log.debug(`Bot guilds: ${guildNames}`);
+            
+            return done(null, false, { 
+                message: 'You do not have the required role to access this dashboard',
+                details: `Required role ID: ${cfg.requiredRoleId}. User must have this role in at least one server where the bot is present. Bot is in: ${guildNames || 'no servers'}`
+            });
         }
 
         // Store user info in session
@@ -81,7 +105,7 @@ passport.use('discord', new OAuth2Strategy({
         log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
         return done(null, user);
     } catch (error) {
-        log.error(`Error during OAuth verification: ${error.message}`);
+        log.error(`Error during OAuth verification: ${error.message}`, { stack: error.stack });
         return done(error);
     }
 }));
@@ -116,15 +140,46 @@ router.get('/discord', passport.authenticate('discord'));
 
 // OAuth callback
 router.get('/discord/callback', 
-    passport.authenticate('discord', { failureRedirect: '/auth/error' }),
+    (req, res, next) => {
+        log.info('OAuth callback received', { query: req.query, sessionId: req.sessionID });
+        next();
+    },
+    passport.authenticate('discord', { 
+        failureRedirect: '/auth/error',
+        failureFlash: false 
+    }),
     (req, res) => {
-        // Set access flags in session
-        req.session.hasAccess = true;
-        req.session.lastVerified = Date.now();
-        
-        log.info(`User ${req.user.username} logged in successfully`);
-        const baseUrl = getBaseUrl(req);
-        res.redirect(`${baseUrl}/`);
+        if (!req.user) {
+            log.error('OAuth callback: req.user is missing after authentication');
+            return res.redirect('/auth/error');
+        }
+
+        try {
+            // Set access flags in session
+            req.session.hasAccess = true;
+            req.session.lastVerified = Date.now();
+            
+            // Save session before redirect
+            req.session.save((err) => {
+                if (err) {
+                    log.error(`Error saving session: ${err.message}`);
+                    return res.redirect('/auth/error');
+                }
+                
+                log.info(`User ${req.user.username} (${req.user.id}) logged in successfully`);
+                log.debug(`Session ID: ${req.sessionID}, Session data:`, {
+                    userId: req.user.id,
+                    hasAccess: req.session.hasAccess,
+                    lastVerified: req.session.lastVerified
+                });
+                
+                const baseUrl = getBaseUrl(req);
+                res.redirect(`${baseUrl}/`);
+            });
+        } catch (error) {
+            log.error(`Error in OAuth callback handler: ${error.message}`);
+            res.redirect('/auth/error');
+        }
     }
 );
 
@@ -206,8 +261,17 @@ router.get('/check', async (req, res) => {
     }
 });
 
-// Error page
+// Error page with detailed error info
 router.get('/error', (req, res) => {
+    const errorMessage = req.query.error || 'Unknown error occurred';
+    const errorDetails = req.query.details || '';
+    
+    log.warn(`OAuth error page accessed: ${errorMessage}`, { 
+        details: errorDetails,
+        query: req.query,
+        sessionId: req.sessionID 
+    });
+    
     res.status(403).send(`
         <!DOCTYPE html>
         <html>
@@ -227,20 +291,58 @@ router.get('/error', (req, res) => {
                 .error-container {
                     text-align: center;
                     padding: 2rem;
+                    max-width: 600px;
                 }
                 h1 { color: #ff4444; }
+                .error-details {
+                    background: #2a2a2a;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin: 1rem 0;
+                    font-family: monospace;
+                    font-size: 0.9rem;
+                    color: #aaa;
+                }
                 a { color: #5865f2; text-decoration: none; }
+                a:hover { text-decoration: underline; }
             </style>
         </head>
         <body>
             <div class="error-container">
                 <h1>Access Denied</h1>
-                <p>You do not have the required role to access this dashboard.</p>
-                <p><a href="/auth/discord">Try again</a></p>
+                <p>${errorMessage}</p>
+                ${errorDetails ? `<div class="error-details">${errorDetails}</div>` : ''}
+                <p>Possible reasons:</p>
+                <ul style="text-align: left; display: inline-block;">
+                    <li>You don't have the required role in any server where the bot is present</li>
+                    <li>The bot is not in the server where you have the role</li>
+                    <li>Role ID is incorrect</li>
+                    <li>Bot is not ready/connected</li>
+                </ul>
+                <p><a href="/auth/discord">Try again</a> | <a href="/">Go to dashboard</a></p>
             </div>
         </body>
         </html>
     `);
+});
+
+// Debug endpoint to check auth status
+router.get('/debug', (req, res) => {
+    res.json({
+        authenticated: req.isAuthenticated ? req.isAuthenticated() : false,
+        user: req.user || null,
+        session: {
+            id: req.sessionID,
+            hasAccess: req.session.hasAccess,
+            lastVerified: req.session.lastVerified,
+            cookie: req.session.cookie
+        },
+        headers: {
+            host: req.get('host'),
+            origin: req.get('origin'),
+            referer: req.get('referer')
+        }
+    });
 });
 
 module.exports = router;
