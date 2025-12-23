@@ -45,9 +45,9 @@ require('./handlers/commandHandler')(client);
 require('./handlers/eventHandler')(client);
 
 // Start Express server once bot is ready
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
     const port = config.dashboardPort;
-    server.start(client, port);
+    await server.start(client, port);
 });
 
 // Validate bot token

@@ -22,7 +22,7 @@ try {
     log.debug('Redis not available, will use file store for sessions');
 }
 
-function createServer() {
+async function createServer() {
     const app = express();
     const { loadConfig } = require('../utils/config');
     const config = loadConfig();
@@ -115,19 +115,29 @@ function createServer() {
                 log.info('Redis client ready');
             });
 
-            // Connect Redis client (non-blocking)
-            redisClient.connect().catch((err) => {
-                log.warn(`Failed to connect to Redis: ${err.message}, falling back to memory store`);
-            });
+            // Connect Redis client and wait for connection before creating store
+            // connect-redis v7 requires the client to be connected before passing it to RedisStore
+            try {
+                await redisClient.connect();
+                
+                // Create Redis session store after connection is established
+                sessionStore = new RedisStore({
+                    client: redisClient,
+                    prefix: 'rainbot:sess:',
+                    ttl: 7 * 24 * 60 * 60, // 7 days
+                });
 
-            // Create Redis session store
-            sessionStore = new RedisStore({
-                client: redisClient,
-                prefix: 'rainbot:sess:',
-                ttl: 7 * 24 * 60 * 60, // 7 days
-            });
-
-            log.info('✓ Using Redis for session storage (sessions will persist across deployments)');
+                log.info('✓ Using Redis for session storage (sessions will persist across deployments)');
+            } catch (connectError) {
+                log.warn(`Failed to connect to Redis: ${connectError.message}, falling back to memory store`);
+                // Close the client if connection failed
+                try {
+                    await redisClient.quit();
+                } catch (quitError) {
+                    // Ignore quit errors
+                }
+                sessionStore = null;
+            }
         } catch (error) {
             log.warn(`Failed to initialize Redis store: ${error.message}, falling back to memory store`);
             sessionStore = null;
@@ -216,9 +226,9 @@ function createServer() {
     return app;
 }
 
-function start(client, port = 3000) {
+async function start(client, port = 3000) {
     clientStore.setClient(client);
-    const app = createServer();
+    const app = await createServer();
     const { loadConfig } = require('../utils/config');
     const config = loadConfig();
 
