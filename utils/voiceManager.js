@@ -263,6 +263,8 @@ async function playNext(guildId) {
         state.currentTrack = nextTrack; // Store full track object for embeds
         // Store current track source for potential overlay mixing
         state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url;
+        // Track when playback started for overlay seeking
+        state.playbackStartTime = Date.now();
         log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
         log.info(`Now playing: ${nextTrack.title}`);
         
@@ -395,6 +397,13 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         // Get the music stream URL (from cache ideally)
         const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
         
+        // Calculate current playback position in seconds
+        const playbackPosition = state.playbackStartTime 
+            ? Math.floor((Date.now() - state.playbackStartTime) / 1000)
+            : 0;
+        
+        log.debug(`Seeking music to position: ${playbackPosition}s`);
+        
         // Get the soundboard stream from S3
         // Pipe the stream to FFmpeg
         const soundInput = 'pipe:3'; // We'll pipe soundboard on fd 3
@@ -402,10 +411,12 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         // Create FFmpeg process for mixing
         // Both music and soundboard play at full volume simultaneously
         // Music continues after soundboard ends
+        // Seek music to current playback position
         const ffmpegArgs = [
             '-reconnect', '1',
             '-reconnect_streamed', '1', 
             '-reconnect_delay_max', '5',
+            '-ss', playbackPosition.toString(),      // Seek music to current position
             '-i', musicStreamUrl,                    // Input 0: Music stream
             '-i', soundInput,                          // Input 1: Soundboard (piped from S3)
             '-filter_complex',
@@ -456,6 +467,8 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         state.player.play(resource);
         state.nowPlaying = `${state.nowPlaying} 🔊`;
         state.overlayProcess = ffmpeg;
+        // Update playback start time to account for the seek position
+        state.playbackStartTime = Date.now() - (playbackPosition * 1000);
 
         log.info(`Soundboard "${soundName}" overlaid on music`);
 
