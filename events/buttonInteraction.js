@@ -38,7 +38,8 @@ module.exports = {
                 // Send player message to channel
                 const channel = interaction.channel;
                 if (channel) {
-                    await channel.send(createPlayerMessage(nowPlaying, queue, false, currentTrack));
+                    const queueInfo = voiceManager.getQueue(interaction.guildId);
+                    await channel.send(createPlayerMessage(nowPlaying, queue, false, currentTrack, queueInfo));
                 }
             } catch (error) {
                 log.error(`Resume error: ${error.message}`);
@@ -92,8 +93,9 @@ module.exports = {
             switch (action) {
                 case 'pause': {
                     const result = voiceManager.togglePause(guildId);
-                    const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
-                    await interaction.update(createPlayerMessage(nowPlaying, queue, result.paused, currentTrack));
+                    const queueInfo = voiceManager.getQueue(guildId);
+                    const { nowPlaying, queue, currentTrack } = queueInfo;
+                    await interaction.update(createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo));
                     break;
                 }
 
@@ -101,8 +103,11 @@ module.exports = {
                     const skipped = voiceManager.skip(guildId);
                     // Small delay to let next track start
                     await new Promise(r => setTimeout(r, 500));
-                    const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
-                    await interaction.update(createPlayerMessage(nowPlaying, queue, false, currentTrack));
+                    const queueInfo = voiceManager.getQueue(guildId);
+                    const { nowPlaying, queue, currentTrack } = queueInfo;
+                    const status = voiceManager.getStatus(guildId);
+                    const isPaused = status ? !status.isPlaying : false;
+                    await interaction.update(createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo));
                     break;
                 }
 

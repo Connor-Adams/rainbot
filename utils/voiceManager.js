@@ -1323,12 +1323,26 @@ async function processSpotifyPlaylistTracks(spotifyTracks, guildId, state) {
 }
 
 /**
- * Get the current queue
+ * Get the current queue with stateful information
  */
 function getQueue(guildId) {
     const state = voiceStates.get(guildId);
     if (!state) {
-        return { nowPlaying: null, queue: [], currentTrack: null };
+        return { nowPlaying: null, queue: [], currentTrack: null, playbackPosition: 0, hasOverlay: false };
+    }
+
+    // Calculate current playback position
+    let playbackPosition = 0;
+    if (state.playbackStartTime && state.currentTrack) {
+        const elapsed = Date.now() - state.playbackStartTime;
+        const pausedTime = state.totalPausedTime || 0;
+        const currentPauseTime = state.pauseStartTime ? (Date.now() - state.pauseStartTime) : 0;
+        playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
+        
+        // Don't exceed track duration
+        if (state.currentTrack.duration && playbackPosition > state.currentTrack.duration) {
+            playbackPosition = state.currentTrack.duration;
+        }
     }
 
     return {
@@ -1336,6 +1350,10 @@ function getQueue(guildId) {
         queue: state.queue.slice(0, 20), // Return first 20
         totalInQueue: state.queue.length,
         currentTrack: state.currentTrack || null,
+        playbackPosition: playbackPosition,
+        hasOverlay: !!state.overlayProcess,
+        isPaused: state.player.state.status === AudioPlayerStatus.Paused,
+        channelName: state.channelName,
     };
 }
 

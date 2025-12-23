@@ -30,49 +30,91 @@ function getYouTubeThumbnail(url) {
 /**
  * Create a now playing embed with control buttons
  */
-function createPlayerEmbed(nowPlaying, queue, isPaused = false, currentTrack = null) {
+function createPlayerEmbed(nowPlaying, queue, isPaused = false, currentTrack = null, queueInfo = {}) {
+    const {
+        playbackPosition = 0,
+        hasOverlay = false,
+        totalInQueue = queue.length,
+        channelName = null,
+    } = queueInfo;
+
+    // Determine embed color based on state
+    let embedColor = 0x6366f1; // Default blue
+    if (hasOverlay) {
+        embedColor = 0x8b5cf6; // Purple when overlay active
+    } else if (isPaused) {
+        embedColor = 0xf59e0b; // Orange when paused
+    }
+
     const embed = new EmbedBuilder()
-        .setColor(isPaused ? 0xf59e0b : 0x6366f1)
-        .setTitle(isPaused ? '⏸️ Paused' : '🎵 Now Playing')
+        .setColor(embedColor)
         .setTimestamp();
 
     // Get current track info if available
     let trackTitle = nowPlaying || 'Nothing playing';
     let trackDuration = null;
     let trackUrl = null;
+    let isSoundboard = false;
     
     if (currentTrack) {
         trackTitle = currentTrack.title || trackTitle;
         trackDuration = currentTrack.duration;
         trackUrl = currentTrack.url;
+        isSoundboard = currentTrack.isSoundboard || trackTitle.startsWith('🔊');
     } else if (queue.length > 0 && queue[0]) {
         // Try to get info from first queue item if it matches
         trackUrl = queue[0].url;
     }
 
+    // Set title based on state
+    let title = '🎵 Now Playing';
+    if (hasOverlay) {
+        title = '🔊 Soundboard Overlay Active';
+    } else if (isPaused) {
+        title = '⏸️ Paused';
+    } else if (isSoundboard) {
+        title = '🔊 Soundboard';
+    }
+    embed.setTitle(title);
+
     // Set thumbnail if YouTube URL
     const thumbnail = getYouTubeThumbnail(trackUrl);
-    if (thumbnail) {
+    if (thumbnail && !isSoundboard) {
         embed.setThumbnail(thumbnail);
     }
 
-    // Format duration
-    const durationText = trackDuration ? ` • ${formatDuration(trackDuration)}` : '';
+    // Build description with position and duration
+    let description = `**${trackTitle}**`;
     
-    embed.setDescription(`**${trackTitle}**${durationText}`);
+    if (trackDuration && playbackPosition > 0) {
+        // Show progress: current / total
+        const currentTime = formatDuration(playbackPosition);
+        const totalTime = formatDuration(trackDuration);
+        description += `\n\`${currentTime} / ${totalTime}\``;
+    } else if (trackDuration) {
+        description += ` • \`${formatDuration(trackDuration)}\``;
+    }
+
+    // Add overlay indicator
+    if (hasOverlay) {
+        description += '\n\n🔊 *Soundboard overlay active*';
+    }
+
+    embed.setDescription(description);
 
     // Add queue preview
     if (queue.length > 0) {
         const upNext = queue.slice(0, 5).map((t, i) => {
             const num = (i + 1).toString().padStart(2, '0');
             const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
-            return `\`${num}\` ${t.title}${duration}`;
+            const source = t.isLocal ? '🔊' : '';
+            return `\`${num}\` ${source}${t.title}${duration}`;
         }).join('\n');
         
-        const moreText = queue.length > 5 ? `\n*...and ${queue.length - 5} more*` : '';
+        const moreText = totalInQueue > 5 ? `\n*...and ${totalInQueue - 5} more*` : '';
         
         embed.addFields({
-            name: `📋 Queue — ${queue.length} track${queue.length === 1 ? '' : 's'}`,
+            name: `📋 Queue — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
             value: upNext + moreText,
             inline: false,
         });
@@ -84,11 +126,14 @@ function createPlayerEmbed(nowPlaying, queue, isPaused = false, currentTrack = n
         });
     }
 
-    // Add footer with status
-    const statusEmoji = isPaused ? '⏸️' : '▶️';
-    embed.setFooter({ 
-        text: `${statusEmoji} ${isPaused ? 'Paused' : 'Playing'} • Use /play to add more tracks`
-    });
+    // Add footer with status and channel info
+    const statusEmoji = hasOverlay ? '🔊' : (isPaused ? '⏸️' : '▶️');
+    let footerText = `${statusEmoji} ${hasOverlay ? 'Overlay Active' : (isPaused ? 'Paused' : 'Playing')}`;
+    if (channelName) {
+        footerText += ` • ${channelName}`;
+    }
+    footerText += ' • Use /play to add tracks';
+    embed.setFooter({ text: footerText });
 
     return embed;
 }
@@ -128,10 +173,11 @@ function createControlButtons(isPaused = false, hasQueue = false) {
 /**
  * Create full player message components
  */
-function createPlayerMessage(nowPlaying, queue, isPaused = false, currentTrack = null) {
+function createPlayerMessage(nowPlaying, queue, isPaused = false, currentTrack = null, queueInfo = {}) {
+    const hasQueue = (queueInfo.totalInQueue || queue.length) > 0;
     return {
-        embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack)],
-        components: [createControlButtons(isPaused, queue.length > 0)],
+        embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack, queueInfo)],
+        components: [createControlButtons(isPaused, hasQueue)],
     };
 }
 

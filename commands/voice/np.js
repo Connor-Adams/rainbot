@@ -26,10 +26,11 @@ module.exports = {
             });
         }
 
-        const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(guildId);
+        const queueInfo = voiceManager.getQueue(guildId);
+        const { nowPlaying, queue, currentTrack } = queueInfo;
         const isPaused = !status.isPlaying;
 
-        await interaction.reply(createPlayerMessage(nowPlaying, queue, isPaused, currentTrack));
+        await interaction.reply(createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo));
     },
 };
 

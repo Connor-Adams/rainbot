@@ -17,12 +17,8 @@ module.exports = {
             });
         }
 
-        const { nowPlaying, queue, totalInQueue, currentTrack } = voiceManager.getQueue(guildId);
-
-        const embed = new EmbedBuilder()
-            .setTitle('🎵 Music Queue')
-            .setColor(0x6366f1)
-            .setTimestamp();
+        const queueInfo = voiceManager.getQueue(guildId);
+        const { nowPlaying, queue, totalInQueue, currentTrack, playbackPosition, hasOverlay, isPaused, channelName } = queueInfo;
 
         // Format duration helper
         const formatDuration = (seconds) => {
@@ -46,16 +42,45 @@ module.exports = {
             return null;
         };
 
-        // Now Playing section
+        // Determine embed color based on state
+        let embedColor = 0x6366f1; // Default blue
+        if (hasOverlay) {
+            embedColor = 0x8b5cf6; // Purple when overlay active
+        } else if (isPaused) {
+            embedColor = 0xf59e0b; // Orange when paused
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎵 Music Queue')
+            .setColor(embedColor)
+            .setTimestamp();
+
+        // Now Playing section with playback position
         if (nowPlaying && currentTrack) {
-            const durationText = currentTrack.duration ? ` • \`${formatDuration(currentTrack.duration)}\`` : '';
-            const thumbnail = getYouTubeThumbnail(currentTrack.url);
+            let description = `**${nowPlaying}**`;
             
-            if (thumbnail) {
+            // Show playback progress if available
+            if (currentTrack.duration && playbackPosition > 0) {
+                const currentTime = formatDuration(playbackPosition);
+                const totalTime = formatDuration(currentTrack.duration);
+                description += `\n\`${currentTime} / ${totalTime}\``;
+            } else if (currentTrack.duration) {
+                description += ` • \`${formatDuration(currentTrack.duration)}\``;
+            }
+            
+            // Add state indicators
+            if (hasOverlay) {
+                description += '\n\n🔊 *Soundboard overlay active*';
+            } else if (isPaused) {
+                description += '\n\n⏸️ *Paused*';
+            }
+            
+            const thumbnail = getYouTubeThumbnail(currentTrack.url);
+            if (thumbnail && !currentTrack.isSoundboard) {
                 embed.setThumbnail(thumbnail);
             }
             
-            embed.setDescription(`**${nowPlaying}**${durationText}`);
+            embed.setDescription(description);
         } else if (nowPlaying) {
             embed.setDescription(`**${nowPlaying}**`);
         } else {
@@ -87,9 +112,18 @@ module.exports = {
             });
         }
 
-        embed.setFooter({ 
-            text: `Total: ${totalInQueue} track${totalInQueue === 1 ? '' : 's'} in queue`
-        });
+        // Build footer with state info
+        let footerText = `Total: ${totalInQueue} track${totalInQueue === 1 ? '' : 's'} in queue`;
+        if (channelName) {
+            footerText += ` • ${channelName}`;
+        }
+        if (hasOverlay) {
+            footerText += ' • 🔊 Overlay Active';
+        } else if (isPaused) {
+            footerText += ' • ⏸️ Paused';
+        }
+        
+        embed.setFooter({ text: footerText });
 
         await interaction.reply({ embeds: [embed] });
     },
