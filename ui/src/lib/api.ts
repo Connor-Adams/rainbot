@@ -76,6 +76,8 @@ export const botApi = {
 export const playbackApi = {
   play: (guildId: string, source: string) =>
     api.post('/play', { guildId, source }),
+  soundboard: (guildId: string, sound: string) =>
+    api.post('/soundboard', { guildId, sound }),
   stop: (guildId: string) => api.post('/stop', { guildId }),
   skip: (guildId: string) => api.post('/skip', { guildId }),
   pause: (guildId: string) => api.post('/pause', { guildId }),

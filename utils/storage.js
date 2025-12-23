@@ -77,6 +77,11 @@ function initStorage() {
  * List all sound files from S3
  */
 async function listSounds() {
+    if (!s3Client || !bucketName) {
+        log.warn('Storage not configured - cannot list sounds');
+        return [];
+    }
+    
     const sounds = [];
     const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
     
@@ -112,6 +117,10 @@ async function listSounds() {
  * Get a readable stream for a sound file from S3
  */
 async function getSoundStream(filename) {
+    if (!s3Client || !bucketName) {
+        throw new Error('Storage not configured');
+    }
+    
     const { GetObjectCommand } = require('@aws-sdk/client-s3');
     const { Readable } = require('stream');
     
@@ -150,6 +159,10 @@ async function getSoundStream(filename) {
  * Upload a sound file to S3
  */
 async function uploadSound(fileStream, filename) {
+    if (!s3Client || !bucketName) {
+        throw new Error('Storage not configured');
+    }
+    
     const { PutObjectCommand } = require('@aws-sdk/client-s3');
     
     // Sanitize filename
@@ -178,6 +191,10 @@ async function uploadSound(fileStream, filename) {
  * Delete a sound file from S3
  */
 async function deleteSound(filename) {
+    if (!s3Client || !bucketName) {
+        throw new Error('Storage not configured');
+    }
+    
     const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
     
     const command = new DeleteObjectCommand({
@@ -194,6 +211,10 @@ async function deleteSound(filename) {
  * Check if a sound file exists in S3
  */
 async function soundExists(filename) {
+    if (!s3Client || !bucketName) {
+        return false;
+    }
+    
     const { HeadObjectCommand } = require('@aws-sdk/client-s3');
     
     try {
@@ -228,6 +249,13 @@ function getContentType(filename) {
     return types[ext] || 'application/octet-stream';
 }
 
+/**
+ * Check if storage is configured and available
+ */
+function isStorageConfigured() {
+    return s3Client !== null && bucketName !== null;
+}
+
 // Initialize storage on module load
 initStorage();
 
@@ -238,5 +266,6 @@ module.exports = {
     deleteSound,
     soundExists,
     getStorageType: () => 's3',
+    isStorageConfigured,
 };
 

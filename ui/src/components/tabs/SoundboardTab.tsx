@@ -37,6 +37,11 @@ export default function SoundboardTab() {
       queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] })
       queryClient.invalidateQueries({ queryKey: ['bot-status'] })
     },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      const message = error.response?.data?.error || error.message || 'Failed to play sound'
+      alert(`Error: ${message}`)
+      console.error('Play error:', error)
+    },
   })
 
   const filteredSounds = sounds.filter((sound: Sound) =>
