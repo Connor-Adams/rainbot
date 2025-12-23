@@ -46,6 +46,7 @@ export default function UsersStats() {
             const lastActive = user.last_active ? new Date(user.last_active).toLocaleString() : 'Never'
             return (
               <tr key={`${user.user_id}-${user.guild_id}`} className="hover:bg-gray-700/50 transition-colors">
+                <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(user.username)}</td>
                 <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(user.user_id)}</td>
                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{escapeHtml(user.guild_id)}</td>
                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{commandCount.toLocaleString()}</td>

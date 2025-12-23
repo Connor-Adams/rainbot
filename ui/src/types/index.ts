@@ -87,6 +87,7 @@ export interface SoundboardBreakdown {
 
 export interface UserStat {
   user_id: string;
+  username: string;
   guild_id: string;
   command_count: string;
   sound_count: string;
