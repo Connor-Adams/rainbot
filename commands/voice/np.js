@@ -18,7 +18,7 @@ module.exports = {
             });
         }
 
-        await interaction.reply(result.playerMessage!);
+        await interaction.reply(result.playerMessage);
     },
 };
 

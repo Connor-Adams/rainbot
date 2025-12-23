@@ -26,7 +26,7 @@ module.exports = {
             });
         }
 
-        const message = formatSkipMessage(result.result!);
+        const message = formatSkipMessage(result.result);
         await interaction.reply(message);
     },
 };

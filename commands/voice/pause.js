@@ -18,7 +18,7 @@ module.exports = {
             });
         }
 
-        const message = formatPauseMessage(result.result!);
+        const message = formatPauseMessage(result.result);
         await interaction.reply(message);
     },
 };
