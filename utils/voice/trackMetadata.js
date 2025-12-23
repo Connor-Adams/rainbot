@@ -124,6 +124,20 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
 }
 
 /**
+ * Check if hostname matches expected domain
+ * @param {string} hostname - URL hostname
+ * @param {string} expectedDomain - Expected domain (e.g., 'youtube.com')
+ * @returns {boolean} True if hostname matches or is a subdomain of expectedDomain
+ */
+function isValidHostname(hostname, expectedDomain) {
+    // Exact match
+    if (hostname === expectedDomain) return true;
+    // Subdomain match (e.g., www.youtube.com, m.youtube.com)
+    if (hostname.endsWith('.' + expectedDomain)) return true;
+    return false;
+}
+
+/**
  * Detect URL type quickly (YouTube, Spotify)
  * @param {string} source - URL or search query
  * @returns {string|null} URL type or null
@@ -131,17 +145,22 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
 function detectUrlType(source) {
     try {
         const url = new URL(source);
+        const hostname = url.hostname.toLowerCase();
         
-        // YouTube detection
-        if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
+        // YouTube detection - check hostname properly
+        if (isValidHostname(hostname, 'youtube.com') || 
+            isValidHostname(hostname, 'youtu.be') ||
+            isValidHostname(hostname, 'www.youtube.com') ||
+            isValidHostname(hostname, 'm.youtube.com')) {
             if (url.searchParams.has('list')) {
                 return 'yt_playlist';
             }
             return 'yt_video';
         }
         
-        // Spotify detection
-        if (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com')) {
+        // Spotify detection - check hostname properly
+        if (isValidHostname(hostname, 'spotify.com') || 
+            isValidHostname(hostname, 'open.spotify.com')) {
             const pathParts = url.pathname.split('/').filter(p => p);
             if (pathParts[0] === 'track') return 'sp_track';
             if (pathParts[0] === 'playlist') return 'sp_playlist';
