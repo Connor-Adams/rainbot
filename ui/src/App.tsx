@@ -12,7 +12,30 @@ function App() {
   useEffect(() => {
     // Check auth on mount
     // After OAuth callback (/auth/discord/callback), server redirects to / and we check auth again
-    checkAuth()
+    // Add a small delay to ensure session cookie is set after OAuth redirect
+    const checkAuthWithDelay = async () => {
+      // If we just came from OAuth (check URL params or referrer), wait a bit
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromOAuth = document.referrer.includes('/auth/discord') || urlParams.has('code');
+      
+      if (fromOAuth) {
+        console.log('[App] Detected OAuth redirect, waiting for session cookie...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms for cookie
+      }
+      
+      console.log('[App] Checking auth...');
+      const authenticated = await checkAuth();
+      console.log('[App] Auth check result:', authenticated);
+      
+      // If still not authenticated after OAuth redirect, retry once
+      if (!authenticated && fromOAuth) {
+        console.log('[App] Retrying auth check after OAuth...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await checkAuth();
+      }
+    };
+    
+    checkAuthWithDelay();
   }, [checkAuth])
 
   if (isLoading) {

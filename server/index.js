@@ -223,14 +223,15 @@ async function createServer() {
         log.warn('React build not found at ui/dist. Run "npm run build:ui" to build the UI.');
     }
 
-    // Serve dashboard for all other routes (protected)
-    // This must be last to catch all unmatched routes
-    app.use(requireAuth, (req, res) => {
+    // Serve React app for all other routes (SPA fallback)
+    // IMPORTANT: Don't require auth here - let React app handle auth client-side
+    // The React app will check auth via /auth/check API endpoint
+    app.use((req, res) => {
         // Skip if it's an API or auth route (shouldn't reach here, but safety check)
         if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
             return res.status(404).json({ error: 'Not found' });
         }
-        // Serve React app (SPA fallback)
+        // Serve React app (SPA fallback) - no auth required, React handles it
         const reactIndex = path.join(reactBuildPath, 'index.html');
         if (fs.existsSync(reactIndex)) {
             res.sendFile(reactIndex);

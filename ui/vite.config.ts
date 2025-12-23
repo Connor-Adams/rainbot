@@ -15,6 +15,9 @@ export default defineConfig({
       '/auth': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        secure: false,
+        // Important: preserve cookies for auth
+        cookieDomainRewrite: '',
       },
     },
   },

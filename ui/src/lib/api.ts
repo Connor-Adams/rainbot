@@ -11,11 +11,50 @@ const api = axios.create({
 // Auth API - uses root path, not /api (auth routes are at /auth/*, not /api/auth/*)
 const authApiClient = axios.create({
   baseURL: '/',
-  withCredentials: true,
+  withCredentials: true, // Critical: send cookies with requests for session auth
   headers: {
     'Content-Type': 'application/json',
   },
+  // Ensure cookies are sent even on cross-origin requests
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 });
+
+// Add request interceptor to log cookie info
+authApiClient.interceptors.request.use(
+  (config) => {
+    console.log('[Auth API] Request:', {
+      url: config.url,
+      method: config.method,
+      withCredentials: config.withCredentials,
+      cookies: document.cookie ? 'present' : 'missing',
+    });
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor for debugging
+authApiClient.interceptors.response.use(
+  (response) => {
+    console.log('[Auth API] Response:', {
+      url: response.config.url,
+      status: response.status,
+      hasCookies: document.cookie ? 'yes' : 'no',
+    });
+    return response;
+  },
+  (error) => {
+    console.error('[Auth API] Request failed:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
+    return Promise.reject(error);
+  }
+);
 
 // Auth API
 export const authApi = {
