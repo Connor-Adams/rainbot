@@ -36,6 +36,22 @@ router.get('/sounds', async (req, res) => {
     }
 });
 
+// GET /api/sounds/:name/download - Download a sound file
+router.get('/sounds/:name/download', async (req, res) => {
+    try {
+        const filename = req.params.name;
+        const stream = await storage.getSoundStream(filename);
+        
+        // Set headers for download
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+        
+        stream.pipe(res);
+    } catch (error) {
+        res.status(404).json({ error: error.message });
+    }
+});
+
 // POST /api/sounds - Upload one or more sounds
 router.post('/sounds', requireAuth, upload.array('sound', 50), async (req, res) => {
     if (!req.files || req.files.length === 0) {

@@ -291,6 +291,17 @@ export default function SoundboardTab() {
                     >
                       ✏️ Customize
                     </button>
+                    <a
+                      href={soundsApi.downloadUrl(sound.name)}
+                      download={sound.name}
+                      className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setOpenMenuId(null)
+                      }}
+                    >
+                      ⬇️ Download
+                    </a>
                     <button
                       className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2 transition-colors"
                       onClick={(e) => {

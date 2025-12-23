@@ -100,6 +100,7 @@ export const soundsApi = {
     });
   },
   delete: (name: string) => api.delete(`/sounds/${encodeURIComponent(name)}`),
+  downloadUrl: (name: string) => `/api/sounds/${encodeURIComponent(name)}/download`,
 };
 
 // Stats API
