@@ -121,4 +121,7 @@ export interface ListeningHistoryEntry {
   queued_by?: string;
   played_at: string;
   is_soundboard?: boolean;
+  user_id?: string;
+  username?: string;
+  discriminator?: string;
 }

@@ -126,7 +126,7 @@ async function trackPlayed(userId, guildId, track, queuedBy = null) {
 
 /**
  * Get listening history from database
- * @param {string} userId - User ID
+ * @param {string} userId - Optional user ID to filter by (null for all users)
  * @param {string} guildId - Optional guild ID to filter by
  * @param {number} limit - Maximum number of tracks to return (default: 100)
  * @param {Date} startDate - Optional start date filter
@@ -134,40 +134,46 @@ async function trackPlayed(userId, guildId, track, queuedBy = null) {
  * @returns {Promise<Array>} Array of history entries
  */
 async function getListeningHistory(
-  userId,
+  userId = null,
   guildId = null,
   limit = 100,
   startDate = null,
   endDate = null
 ) {
-  if (!userId) return [];
-
   try {
-    const params = [userId];
-    let whereClause = 'WHERE user_id = $1';
-    let paramIndex = 2;
+    const params = [];
+    const conditions = [];
+    let paramIndex = 1;
+
+    if (userId) {
+      conditions.push(`lh.user_id = $${paramIndex++}`);
+      params.push(userId);
+    }
 
     if (guildId) {
-      whereClause += ` AND guild_id = $${paramIndex++}`;
+      conditions.push(`lh.guild_id = $${paramIndex++}`);
       params.push(guildId);
     }
 
     if (startDate) {
-      whereClause += ` AND played_at >= $${paramIndex++}`;
+      conditions.push(`lh.played_at >= $${paramIndex++}`);
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND played_at <= $${paramIndex++}`;
+      conditions.push(`lh.played_at <= $${paramIndex++}`);
       params.push(endDate);
     }
 
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     params.push(limit);
 
     const result = await query(
-      `SELECT * FROM listening_history 
+      `SELECT lh.*, up.username, up.discriminator
+            FROM listening_history lh
+            LEFT JOIN user_profiles up ON lh.user_id = up.user_id
             ${whereClause}
-            ORDER BY played_at DESC
+            ORDER BY lh.played_at DESC
             LIMIT $${paramIndex}`,
       params
     );

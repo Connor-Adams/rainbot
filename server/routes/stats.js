@@ -542,18 +542,14 @@ router.get('/queue', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/stats/history - Get listening history
+// GET /api/stats/history - Get listening history (all users or filtered by userId)
 router.get('/history', requireAuth, async (req, res) => {
   try {
-    const userId = req.query.userId || req.user?.id;
+    const userId = req.query.userId || null; // null means all users
     const guildId = req.query.guildId || null;
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const startDate = parseValidDate(req.query.startDate);
     const endDate = parseValidDate(req.query.endDate);
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
 
     const listeningHistory = require('../../utils/listeningHistory');
     const history = await listeningHistory.getListeningHistory(
