@@ -5,7 +5,6 @@ const FileStore = require('session-file-store')(session);
 const passport = require('passport');
 const { createLogger } = require('../utils/logger');
 const requestLogger = require('./middleware/requestLogger');
-const { requireAuth } = require('./middleware/auth');
 
 const log = createLogger('SERVER');
 const clientStore = require('./client');
@@ -17,7 +16,7 @@ try {
     const redisLib = require('redis');
     RedisStore = require('connect-redis').default;
     redis = redisLib;
-} catch (e) {
+} catch {
     // Redis not available, will use file store
     log.debug('Redis not available, will use file store for sessions');
 }
@@ -133,7 +132,7 @@ async function createServer() {
                 // Close the client if connection failed
                 try {
                     await redisClient.quit();
-                } catch (quitError) {
+                } catch {
                     // Ignore quit errors
                 }
                 sessionStore = null;

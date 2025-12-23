@@ -14,21 +14,86 @@ const path = require('path');
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
-const fs = require('fs');
 const { spawn } = require('child_process');
 const { createLogger } = require('./logger');
 const stats = require('./statistics');
 
 const log = createLogger('VOICE');
 
-// Map of guildId -> { connection, player, nowPlaying, queue, preBuffered, currentTrackSource }
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Cache expiration time for stream URLs (2 hours) */
+const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000;
+
+/** Maximum number of cached stream URLs before LRU eviction */
+const MAX_CACHE_SIZE = 500;
+
+/** Timeout for fetch operations */
+const FETCH_TIMEOUT_MS = 10000;
+
+
+// ============================================================================
+// TYPE DEFINITIONS (JSDoc)
+// ============================================================================
+
+/**
+ * @typedef {Object} Track
+ * @property {string} title - Track title
+ * @property {string} [url] - Source URL (YouTube, Spotify, SoundCloud, etc.)
+ * @property {number} [duration] - Duration in seconds
+ * @property {boolean} [isLocal] - Whether this is a local soundboard file
+ * @property {boolean} [isStream] - Whether this is a stream vs file
+ * @property {string} [source] - Request source ('discord' or 'api')
+ * @property {string} [userId] - Discord ID of user who queued it
+ * @property {string} [username] - Discord username
+ * @property {string} [discriminator] - Discord discriminator
+ * @property {string} [spotifyId] - Spotify track ID (if applicable)
+ * @property {string} [spotifyUrl] - Spotify URL (if applicable)
+ * @property {string} [sourceType] - Type: 'youtube', 'spotify', 'soundcloud', 'local', 'other'
+ */
+
+/**
+ * @typedef {Object} VoiceState
+ * @property {import('@discordjs/voice').VoiceConnection} connection - Discord voice connection
+ * @property {import('@discordjs/voice').AudioPlayer} player - Audio player instance
+ * @property {string|null} nowPlaying - Current track title
+ * @property {Track|null} currentTrack - Full current track object
+ * @property {import('@discordjs/voice').AudioResource|null} currentResource - Current audio resource
+ * @property {Track[]} queue - Queue of pending tracks
+ * @property {string} channelId - Voice channel ID
+ * @property {string} channelName - Voice channel name
+ * @property {string|null} lastUserId - Last user who played music
+ * @property {string|null} lastUsername - Last user's username
+ * @property {string|null} lastDiscriminator - Last user's discriminator
+ * @property {Object|null} pausedMusic - Paused music state for soundboard overlay
+ * @property {number|null} playbackStartTime - When playback started (Date.now())
+ * @property {number|null} pauseStartTime - When pause started (Date.now())
+ * @property {number} totalPausedTime - Cumulative pause duration (ms)
+ * @property {import('child_process').ChildProcess|null} overlayProcess - FFmpeg overlay process
+ * @property {number} volume - Volume level (1-100)
+ * @property {Object|null} preBuffered - Pre-buffered next track
+ * @property {string|null} currentTrackSource - Current track URL for overlay mixing
+ */
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+/** @type {Map<string, VoiceState>} Map of guildId -> voice state */
 const voiceStates = new Map();
+
+/** @type {Map<string, {url: string, expires: number}>} Cache of video URL -> stream URL */
+const urlCache = new Map();
 
 const storage = require('./storage');
 const listeningHistory = require('./listeningHistory');
 const { query } = require('./database');
 
-// Storage is always S3 - no local file paths needed
+// ============================================================================
+// HELPERS
+// ============================================================================
 
 /**
  * Helper to create audio resource with inline volume support
@@ -53,13 +118,45 @@ function playWithVolume(state, resource) {
 }
 
 /**
- * Create a resource for a track (YouTube or other)
+ * Track soundboard usage in statistics and listening history
+ * @param {string} soundName - Name of the sound file
+ * @param {string} userId - User ID who triggered the soundboard
+ * @param {string} guildId - Guild ID
+ * @param {string} source - Request source ('discord' or 'api')
+ * @param {string} [username] - Discord username
+ * @param {string} [discriminator] - Discord discriminator
  */
+function trackSoundboardUsage(soundName, userId, guildId, source, username = null, discriminator = null) {
+    if (!userId) return;
+
+    stats.trackSound(
+        soundName,
+        userId,
+        guildId,
+        'local',
+        true, // isSoundboard
+        null, // duration
+        source,
+        username,
+        discriminator
+    );
+
+    listeningHistory.trackPlayed(userId, guildId, {
+        title: soundName,
+        url: null,
+        duration: null,
+        isLocal: true,
+        sourceType: 'local',
+        source,
+        isSoundboard: true,
+    }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+}
+
 /**
  * Get direct stream URL from yt-dlp (cached for speed)
+ * @param {string} videoUrl - YouTube video URL
+ * @returns {Promise<string>} Direct stream URL
  */
-const urlCache = new Map();
-
 async function getStreamUrl(videoUrl) {
     // Check cache first (URLs are valid for a few hours)
     const cached = urlCache.get(videoUrl);
@@ -67,7 +164,7 @@ async function getStreamUrl(videoUrl) {
         log.debug(`Using cached stream URL for ${videoUrl}`);
         return cached.url;
     }
-    
+
     // Get direct URL from yt-dlp
     const result = await youtubedl(videoUrl, {
         format: 'bestaudio[acodec=opus]/bestaudio/best',
@@ -77,11 +174,18 @@ async function getStreamUrl(videoUrl) {
         quiet: true,
         noCheckCertificates: true,
     });
-    
+
     const streamUrl = typeof result === 'string' ? result.trim() : result;
-    
-    // Cache for 2 hours
-    urlCache.set(videoUrl, { url: streamUrl, expires: Date.now() + 2 * 60 * 60 * 1000 });
+
+    // LRU eviction if cache is too large
+    if (urlCache.size >= MAX_CACHE_SIZE) {
+        const oldestKey = urlCache.keys().next().value;
+        urlCache.delete(oldestKey);
+        log.debug(`Evicted oldest cache entry: ${oldestKey}`);
+    }
+
+    // Cache with expiration
+    urlCache.set(videoUrl, { url: streamUrl, expires: Date.now() + CACHE_EXPIRATION_MS });
     
     return streamUrl;
 }
@@ -96,7 +200,7 @@ async function createTrackResourceAsync(track) {
             // Stream directly with fetch (much faster than yt-dlp piping)
             // Add timeout to prevent hanging
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
             
             try {
                 const response = await fetch(streamUrl, {
@@ -395,7 +499,6 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         throw new Error(`Sound file not found: ${soundName}`);
     }
 
-    const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
     const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
     const hasMusicSource = state.currentTrackSource;
 
@@ -540,31 +643,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         const trackUserId = userId || state.lastUserId;
         const trackUsername = username || state.lastUsername;
         const trackDiscriminator = discriminator || state.lastDiscriminator;
-        if (trackUserId) {
-            stats.trackSound(
-                soundName,
-                trackUserId,
-                guildId,
-                'local',
-                true,
-                null,
-                source,
-                trackUsername,
-                trackDiscriminator
-            );
-            
-            // Track in listening history
-            // For soundboard sounds, queued_by is the same as trackUserId (person who triggered it)
-            listeningHistory.trackPlayed(trackUserId, guildId, {
-                title: soundName,
-                url: null,
-                duration: null,
-                isLocal: true,
-                sourceType: 'local',
-                source,
-                isSoundboard: true,
-            }, trackUserId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
-        }
+        trackSoundboardUsage(soundName, trackUserId, guildId, source, trackUsername, trackDiscriminator);
 
         return {
             overlaid: true,
@@ -574,7 +653,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
 
     } catch (error) {
         log.error(`Failed to overlay soundboard: ${error.message}`);
-        
+
         // Fallback: just play the soundboard normally (interrupts music)
         log.info('Falling back to normal soundboard playback');
         const soundStream = await storage.getSoundStream(soundName);
@@ -582,37 +661,13 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         state.player.play(resource);
         state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
         state.currentTrackSource = null;
-        
+
         // Track soundboard usage (fallback case)
         const trackUserId = userId || state.lastUserId;
         const trackUsername = username || state.lastUsername;
         const trackDiscriminator = discriminator || state.lastDiscriminator;
-        if (trackUserId) {
-            stats.trackSound(
-                soundName,
-                trackUserId,
-                guildId,
-                'local',
-                true,
-                null,
-                source,
-                trackUsername,
-                trackDiscriminator
-            );
-            
-            // Track in listening history
-            // For soundboard sounds, queued_by is the same as trackUserId (person who triggered it)
-            listeningHistory.trackPlayed(trackUserId, guildId, {
-                title: soundName,
-                url: null,
-                duration: null,
-                isLocal: true,
-                sourceType: 'local',
-                source,
-                isSoundboard: true,
-            }, trackUserId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
-        }
-        
+        trackSoundboardUsage(soundName, trackUserId, guildId, source, trackUsername, trackDiscriminator);
+
         return {
             overlaid: false,
             sound: soundName,
@@ -647,7 +702,7 @@ async function joinChannel(channel) {
                 entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
             ]);
             log.debug(`Reconnecting to voice in guild ${guildId}`);
-        } catch (error) {
+        } catch {
             log.info(`Disconnected from voice in guild ${guildId}`);
             connection.destroy();
             voiceStates.delete(guildId);
@@ -658,12 +713,12 @@ async function joinChannel(channel) {
     player.on(AudioPlayerStatus.Idle, () => {
         const state = voiceStates.get(guildId);
         if (!state) return;
-        
+
         // Clean up overlay process if it exists
         if (state.overlayProcess) {
             try {
                 state.overlayProcess.kill();
-            } catch (err) {
+            } catch {
                 // Ignore errors when killing
             }
             state.overlayProcess = null;
@@ -792,7 +847,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
         let url;
         try {
             url = new URL(source);
-        } catch (e) {
+        } catch {
             throw new Error('Invalid URL format');
         }
 
@@ -862,8 +917,6 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                     // Skip first video if we already queued it
                     if (firstVideoId && video.id === firstVideoId) {
                         // Update the placeholder track's title
-                        const existingTrack = state.queue.find(t => t.url.includes(firstVideoId)) || 
-                            (state.nowPlaying?.includes(firstVideoId) ? null : null);
                         if (tracks[0] && tracks[0].url.includes(firstVideoId)) {
                             tracks[0].title = video.title || 'Unknown Track';
                             tracks[0].duration = video.duration;
@@ -1055,32 +1108,8 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 // Use the overlay function to play soundboard over music (works even if paused)
                 try {
                     const overlayResult = await playSoundboardOverlay(guildId, source, userId, requestSource, username, discriminator);
-                    
-                    // Track soundboard usage (already done in overlay function, but ensure it's tracked)
-                    if (userId) {
-                        stats.trackSound(
-                            source,
-                            userId,
-                            guildId,
-                            'local',
-                            true,
-                            null,
-                            requestSource,
-                            username,
-                            discriminator
-                        );
-                        
-                        listeningHistory.trackPlayed(userId, guildId, {
-                            title: source,
-                            url: null,
-                            duration: null,
-                            isLocal: true,
-                            sourceType: 'local',
-                            source: requestSource,
-                            isSoundboard: true,
-                        }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
-                    }
-                    
+                    // Note: soundboard usage already tracked in playSoundboardOverlay
+
                     return {
                         added: 1,
                         tracks: [{
@@ -1095,34 +1124,23 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                     // Fallback: play soundboard directly (interrupts everything)
                     const soundStream = await storage.getSoundStream(source);
                     const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-                    
+
                     // Kill any existing overlay
                     if (state.overlayProcess) {
                         try {
                             state.overlayProcess.kill('SIGKILL');
-                        } catch (err) {
+                        } catch {
                             // Process may already be dead, ignore error
                         }
                         state.overlayProcess = null;
                     }
-                    
+
                     state.player.play(resource);
                     state.nowPlaying = `🔊 ${path.basename(source, path.extname(source))}`;
-                    
+
                     // Track soundboard usage
-                    if (userId) {
-                        stats.trackSound(source, userId, guildId, 'local', true, null, requestSource, username, discriminator);
-                        listeningHistory.trackPlayed(userId, guildId, {
-                            title: source,
-                            url: null,
-                            duration: null,
-                            isLocal: true,
-                            sourceType: 'local',
-                            source: requestSource,
-                            isSoundboard: true,
-                        }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
-                    }
-                    
+                    trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
+
                     return {
                         added: 1,
                         tracks: [{
@@ -1138,34 +1156,23 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 log.info(`Soundboard file detected, playing immediately (no music): ${source}`);
                 const soundStream = await storage.getSoundStream(source);
                 const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-                
+
                 // Kill any existing overlay
                 if (state.overlayProcess) {
                     try {
                         state.overlayProcess.kill('SIGKILL');
-                    } catch (err) {
+                    } catch {
                         // Process may already be dead, ignore error
                     }
                     state.overlayProcess = null;
                 }
-                
+
                 state.player.play(resource);
                 state.nowPlaying = `🔊 ${path.basename(source, path.extname(source))}`;
-                
+
                 // Track soundboard usage
-                if (userId) {
-                    stats.trackSound(source, userId, guildId, 'local', true, null, requestSource, username, discriminator);
-                    listeningHistory.trackPlayed(userId, guildId, {
-                        title: source,
-                        url: null,
-                        duration: null,
-                        isLocal: true,
-                        sourceType: 'local',
-                        source: requestSource,
-                        isSoundboard: true,
-                    }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
-                }
-                
+                trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
+
                 return {
                     added: 1,
                     tracks: [{

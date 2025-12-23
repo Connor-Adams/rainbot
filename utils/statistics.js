@@ -13,6 +13,14 @@ const soundBuffer = [];
 const queueBuffer = [];
 const voiceBuffer = [];
 
+/** @type {Object<string, Array>} Map buffer type to buffer array */
+const bufferMap = {
+    commands: commandBuffer,
+    sounds: soundBuffer,
+    queue: queueBuffer,
+    voice: voiceBuffer,
+};
+
 let batchTimer = null;
 
 /**
@@ -29,7 +37,7 @@ function startBatchProcessor() {
 }
 
 /**
- * Flush all buffered events to database
+ * Flush all buffered events to database (parallel inserts)
  */
 async function flushBatches() {
     const batches = [
@@ -39,11 +47,18 @@ async function flushBatches() {
         { name: 'voice', buffer: voiceBuffer, table: 'voice_events' },
     ];
 
+    // Collect non-empty batches
+    const insertPromises = [];
     for (const { name, buffer, table } of batches) {
         if (buffer.length === 0) continue;
 
         const events = buffer.splice(0, BATCH_SIZE);
-        await insertBatch(name, table, events);
+        insertPromises.push(insertBatch(name, table, events));
+    }
+
+    // Run all inserts in parallel
+    if (insertPromises.length > 0) {
+        await Promise.all(insertPromises);
     }
 }
 
@@ -143,10 +158,8 @@ async function insertBatch(type, table, events) {
     } catch (error) {
         log.error(`Failed to insert ${type} batch: ${error.message}`);
         // Put events back in buffer to retry later (but limit buffer size)
-        const buffer = type === 'commands' ? commandBuffer : 
-                      type === 'sounds' ? soundBuffer :
-                      type === 'queue' ? queueBuffer : voiceBuffer;
-        if (buffer.length < BATCH_SIZE * 10) {
+        const buffer = bufferMap[type];
+        if (buffer && buffer.length < BATCH_SIZE * 10) {
             buffer.unshift(...events);
         }
     }

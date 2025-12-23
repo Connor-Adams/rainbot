@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const voiceManager = require('../../utils/voiceManager');
 const storage = require('../../utils/storage');
 const clientStore = require('../client');
@@ -419,7 +418,7 @@ router.delete('/queue/:guildId/:index', requireAuth, (req, res) => {
 });
 
 // Error handling for multer
-router.use((error, req, res, next) => {
+router.use((error, req, res, _next) => {
     if (error instanceof multer.MulterError) {
         if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({ error: 'File too large. Max size is 50MB.' });

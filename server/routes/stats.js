@@ -16,7 +16,7 @@ function parseDateRange(req) {
 /**
  * Build WHERE clause for date filtering
  */
-function buildDateFilter(startDate, endDate, dateColumn = 'executed_at') {
+function _buildDateFilter(startDate, endDate, dateColumn = 'executed_at') {
     const conditions = [];
     if (startDate) {
         conditions.push(`${dateColumn} >= $${conditions.length + 1}`);
