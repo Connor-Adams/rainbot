@@ -30,6 +30,28 @@ const listeningHistory = require('./listeningHistory');
 // Storage is always S3 - no local file paths needed
 
 /**
+ * Helper to create audio resource with inline volume support
+ */
+function createVolumeResource(input, options = {}) {
+    return createAudioResource(input, {
+        ...options,
+        inlineVolume: true,
+    });
+}
+
+/**
+ * Helper to play a resource with volume applied
+ */
+function playWithVolume(state, resource) {
+    // Apply current volume
+    if (resource.volume) {
+        resource.volume.setVolume((state.volume || 100) / 100);
+    }
+    state.currentResource = resource;
+    state.player.play(resource);
+}
+
+/**
  * Create a resource for a track (YouTube or other)
  */
 /**
@@ -203,10 +225,10 @@ async function playNext(guildId) {
             // Handle both file paths and streams
             if (nextTrack.isStream) {
                 // Stream from storage (S3 or local stream)
-                resource = createAudioResource(nextTrack.source, { inputType: StreamType.Arbitrary });
+                resource = createVolumeResource(nextTrack.source, { inputType: StreamType.Arbitrary });
             } else {
                 // File path (backward compatibility)
-                resource = createAudioResource(nextTrack.source);
+                resource = createVolumeResource(nextTrack.source);
             }
         } else {
             // Check if we have this track pre-buffered
@@ -234,7 +256,7 @@ async function playNext(guildId) {
                         log.warn(`yt-dlp methods failed for ${nextTrack.title}, trying play-dl...`);
                         try {
                             const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-                            resource = createAudioResource(streamInfo.stream, {
+                            resource = createVolumeResource(streamInfo.stream, {
                                 inputType: streamInfo.type,
                             });
                         } catch (playDlError) {
@@ -247,7 +269,7 @@ async function playNext(guildId) {
                     const urlType = await play.validate(nextTrack.url);
                     if (urlType) {
                         const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-                        resource = createAudioResource(streamInfo.stream, {
+                        resource = createVolumeResource(streamInfo.stream, {
                             inputType: streamInfo.type,
                         });
                     } else {
@@ -258,7 +280,7 @@ async function playNext(guildId) {
         }
 
         log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
-        state.player.play(resource);
+        playWithVolume(state, resource);
         state.nowPlaying = nextTrack.title;
         state.currentTrack = nextTrack; // Store full track object for embeds
         // Store current track source for potential overlay mixing
@@ -666,6 +688,7 @@ async function joinChannel(channel) {
         player,
         nowPlaying: null,
         currentTrack: null,
+        currentResource: null, // Store current audio resource for volume control
         queue: [],
         channelId: channel.id,
         channelName: channel.name,
@@ -675,6 +698,7 @@ async function joinChannel(channel) {
         pauseStartTime: null, // Track when pause started
         totalPausedTime: 0, // Total time paused for accurate position tracking
         overlayProcess: null, // FFmpeg process for overlay mixing
+        volume: 100, // Volume level 1-100
     });
 
     log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
@@ -1443,7 +1467,29 @@ function getStatus(guildId) {
         nowPlaying: state.nowPlaying,
         isPlaying: state.player.state.status === AudioPlayerStatus.Playing,
         queueLength: state.queue.length,
+        volume: state.volume || 100,
     };
+}
+
+/**
+ * Set volume for a guild (1-100)
+ */
+function setVolume(guildId, level) {
+    const state = voiceStates.get(guildId);
+    if (!state) {
+        throw new Error('Bot is not connected to a voice channel');
+    }
+
+    // Clamp volume between 1 and 100
+    const volume = Math.max(1, Math.min(100, level));
+    state.volume = volume;
+
+    // Apply to current resource if it has inline volume
+    if (state.currentResource && state.currentResource.volume) {
+        state.currentResource.volume.setVolume(volume / 100);
+    }
+
+    return volume;
 }
 
 /**
@@ -1531,6 +1577,7 @@ module.exports = {
     removeTrackFromQueue,
     stopSound,
     getStatus,
+    setVolume,
     getAllConnections,
     listSounds,
     deleteSound,

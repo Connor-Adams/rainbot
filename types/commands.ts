@@ -68,3 +68,13 @@ export interface PingResult {
   websocket: number;
 }
 
+export interface VolParams {
+  guildId: string;
+  level: number | null;
+  userId?: string;
+}
+
+export interface VolResult {
+  volume: number;
+}
+

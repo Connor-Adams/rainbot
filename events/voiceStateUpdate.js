@@ -93,6 +93,7 @@ module.exports = {
                         components: [row],
                     });
                 }
+                throw new Error(error);
             }
         } catch (error) {
             log.error(`Failed to send resume prompt: ${error.message}`);
