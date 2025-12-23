@@ -11,15 +11,15 @@
  * @returns {'youtube'|'spotify'|'soundcloud'|'local'|'other'} Source type
  */
 function detectSourceType(track) {
-    if (track.isLocal) return 'local';
-    if (!track.url) return 'other';
+  if (track.isLocal) return 'local';
+  if (!track.url) return 'other';
 
-    const url = track.url.toLowerCase();
-    if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
-    if (url.includes('spotify.com') || track.spotifyId) return 'spotify';
-    if (url.includes('soundcloud.com')) return 'soundcloud';
+  const url = track.url.toLowerCase();
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('spotify.com') || track.spotifyId) return 'spotify';
+  if (url.includes('soundcloud.com')) return 'soundcloud';
 
-    return 'other';
+  return 'other';
 }
 
 module.exports = { detectSourceType };

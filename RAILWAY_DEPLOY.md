@@ -5,10 +5,12 @@ Railway is perfect for deploying both your Discord bot and web dashboard togethe
 ## Quick Start
 
 ### 1. Create Railway Account
+
 1. Go to [railway.app](https://railway.app)
 2. Sign up with GitHub (recommended for easy deployment)
 
 ### 2. Create New Project
+
 1. Click "New Project"
 2. Select "Deploy from GitHub repo"
 3. Choose your `rainbot` repository
@@ -20,13 +22,15 @@ Railway is perfect for deploying both your Discord bot and web dashboard togethe
 In your Railway project settings, go to "Variables" and add:
 
 **Required:**
+
 - `DISCORD_BOT_TOKEN` - Your Discord bot token
-- `DISCORD_CLIENT_ID` - Your Discord bot's Client ID  
+- `DISCORD_CLIENT_ID` - Your Discord bot's Client ID
 - `DISCORD_CLIENT_SECRET` - Your Discord OAuth Client Secret
 - `SESSION_SECRET` - A random secret string for session encryption (generate a secure random string)
 - `REQUIRED_ROLE_ID` - The Discord role ID users must have to access the dashboard
 
 **Optional:**
+
 - `DISCORD_GUILD_ID` - Guild ID for faster command deployment (deploys to specific guild instead of globally)
 - `DISABLE_AUTO_DEPLOY` - Set to `true` to disable automatic command deployment on startup
 - `CALLBACK_URL` - OAuth callback URL (auto-detected from Railway domain, but you can set manually: `https://rainbot-production.up.railway.app/auth/discord/callback`)
@@ -78,12 +82,14 @@ In your Railway project settings, go to "Variables" and add:
 ### 7. Deploy
 
 Railway will automatically:
+
 - Build the Docker image (installs Python3, FFmpeg, yt-dlp, and Node.js dependencies)
 - Start your app (`npm start`)
 - **Auto-deploy Discord commands** (no need to run `deploy-commands.js` manually!)
 - Provide a public URL for your dashboard
 
-**Note**: 
+**Note**:
+
 - The build uses a Dockerfile to install system dependencies (Python3, FFmpeg, yt-dlp) required for YouTube audio extraction
 - Commands are automatically deployed when the bot starts. If you set `DISCORD_GUILD_ID`, commands deploy to that guild (faster, updates immediately). Otherwise, commands deploy globally (takes up to 1 hour to propagate).
 
@@ -98,21 +104,21 @@ Railway will automatically:
 
 ## Environment Variables Reference
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DISCORD_BOT_TOKEN` | Bot token from Discord Developer Portal | Yes |
-| `DISCORD_CLIENT_ID` | Bot Client ID | Yes |
-| `DISCORD_CLIENT_SECRET` | OAuth Client Secret | Yes |
-| `SESSION_SECRET` | Random secret for sessions (MUST be consistent across deployments for sessions to persist) | Yes |
-| `REQUIRED_ROLE_ID` | Discord role ID for dashboard access | Yes |
-| `DISCORD_GUILD_ID` | Guild ID for faster command deployment (optional) | No |
-| `DISABLE_AUTO_DEPLOY` | Set to `true` to disable auto-deploy (optional) | No |
-| `CALLBACK_URL` | OAuth callback URL (auto-detected if not set) | No |
-| `DATABASE_URL` | PostgreSQL connection URL (auto-set when PostgreSQL addon is added) | No (required for statistics) |
-| `REDIS_URL` | Redis connection URL (auto-set when Redis addon is added) | No |
-| `SESSION_STORE_PATH` | Path for session files (fallback if Redis not available) | No |
-| `SPOTIFY_CLIENT_ID` | Spotify Client ID for Spotify URL support | No (required for Spotify links) |
-| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support | No (required for Spotify links) |
+| Variable                | Description                                                                                | Required                        |
+| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
+| `DISCORD_BOT_TOKEN`     | Bot token from Discord Developer Portal                                                    | Yes                             |
+| `DISCORD_CLIENT_ID`     | Bot Client ID                                                                              | Yes                             |
+| `DISCORD_CLIENT_SECRET` | OAuth Client Secret                                                                        | Yes                             |
+| `SESSION_SECRET`        | Random secret for sessions (MUST be consistent across deployments for sessions to persist) | Yes                             |
+| `REQUIRED_ROLE_ID`      | Discord role ID for dashboard access                                                       | Yes                             |
+| `DISCORD_GUILD_ID`      | Guild ID for faster command deployment (optional)                                          | No                              |
+| `DISABLE_AUTO_DEPLOY`   | Set to `true` to disable auto-deploy (optional)                                            | No                              |
+| `CALLBACK_URL`          | OAuth callback URL (auto-detected if not set)                                              | No                              |
+| `DATABASE_URL`          | PostgreSQL connection URL (auto-set when PostgreSQL addon is added)                        | No (required for statistics)    |
+| `REDIS_URL`             | Redis connection URL (auto-set when Redis addon is added)                                  | No                              |
+| `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                   | No                              |
+| `SPOTIFY_CLIENT_ID`     | Spotify Client ID for Spotify URL support                                                  | No (required for Spotify links) |
+| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support                                              | No (required for Spotify links) |
 
 ## Generating Session Secret
 
@@ -140,6 +146,7 @@ For sessions to persist across app reloads and deployments:
    - Without Redis, sessions are stored in memory and will be lost on restart
 
 To add Redis on Railway:
+
 - Go to your Railway project
 - Click "New" → "Database" → "Add Redis"
 - Railway will automatically set the `REDIS_URL` environment variable
@@ -153,6 +160,7 @@ To add Redis on Railway:
 ## Monitoring
 
 Railway provides:
+
 - **Logs**: View real-time logs in the Railway dashboard
 - **Metrics**: CPU, Memory, Network usage
 - **Deployments**: View deployment history
@@ -160,15 +168,18 @@ Railway provides:
 ## Troubleshooting
 
 ### Bot not connecting
+
 - Check `DISCORD_BOT_TOKEN` is set correctly
 - Check logs in Railway dashboard for errors
 
 ### OAuth not working
+
 - Verify `CALLBACK_URL` matches your Railway public domain
 - Check Discord OAuth redirect URL is correct
 - Ensure `DISCORD_CLIENT_SECRET` is set
 
 ### Sessions not persisting across deployments
+
 - **Solution:** Add Redis addon to your Railway project (see step 4)
 - Redis sessions persist across deployments, file-based sessions do not
 - The app automatically detects Redis and uses it if available
@@ -188,7 +199,7 @@ Railway provides:
 ✅ Easy environment variable management  
 ✅ Automatic HTTPS  
 ✅ GitHub integration  
-✅ Supports multiple languages (Node.js + Python for yt-dlp)  
+✅ Supports multiple languages (Node.js + Python for yt-dlp)
 
 ## Local Development
 
@@ -207,4 +218,3 @@ npm start
 ```
 
 The code automatically detects Railway vs local environment and uses appropriate settings.
-

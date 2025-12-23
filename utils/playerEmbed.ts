@@ -9,7 +9,7 @@ export function formatDuration(seconds: number | null | undefined): string | nul
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
@@ -53,24 +53,22 @@ export function createPlayerEmbed(
     embedColor = 0xf59e0b; // Orange when paused
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(embedColor)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setColor(embedColor).setTimestamp();
 
   // Get current track info if available
   let trackTitle = nowPlaying || 'Nothing playing';
   let trackDuration: number | null = null;
   let trackUrl: string | null = null;
   let isSoundboard = false;
-  
+
   if (currentTrack) {
     trackTitle = currentTrack.title || trackTitle;
     trackDuration = currentTrack.duration ?? null;
-    trackUrl = currentTrack.url;
+    trackUrl = currentTrack.url ?? null;
     isSoundboard = currentTrack.isSoundboard || trackTitle.startsWith('🔊');
   } else if (queue.length > 0 && queue[0]) {
     // Try to get info from first queue item if it matches
-    trackUrl = queue[0].url;
+    trackUrl = queue[0].url ?? null;
   }
 
   // Set title based on state
@@ -92,7 +90,7 @@ export function createPlayerEmbed(
 
   // Build description with position and duration
   let description = `**${trackTitle}**`;
-  
+
   if (trackDuration && playbackPosition > 0) {
     // Show progress: current / total
     const currentTime = formatDuration(playbackPosition);
@@ -111,15 +109,18 @@ export function createPlayerEmbed(
 
   // Add queue preview
   if (queue.length > 0) {
-    const upNext = queue.slice(0, 5).map((t, i) => {
-      const num = (i + 1).toString().padStart(2, '0');
-      const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
-      const source = t.isLocal ? '🔊' : '';
-      return `\`${num}\` ${source}${t.title}${duration}`;
-    }).join('\n');
-    
+    const upNext = queue
+      .slice(0, 5)
+      .map((t, i) => {
+        const num = (i + 1).toString().padStart(2, '0');
+        const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
+        const source = t.isLocal ? '🔊' : '';
+        return `\`${num}\` ${source}${t.title}${duration}`;
+      })
+      .join('\n');
+
     const moreText = totalInQueue > 5 ? `\n*...and ${totalInQueue - 5} more*` : '';
-    
+
     embed.addFields({
       name: `📋 Queue — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
       value: upNext + moreText,
@@ -134,8 +135,8 @@ export function createPlayerEmbed(
   }
 
   // Add footer with status and channel info
-  const statusEmoji = hasOverlay ? '🔊' : (isPaused ? '⏸️' : '▶️');
-  let footerText = `${statusEmoji} ${hasOverlay ? 'Overlay Active' : (isPaused ? 'Paused' : 'Playing')}`;
+  const statusEmoji = hasOverlay ? '🔊' : isPaused ? '⏸️' : '▶️';
+  let footerText = `${statusEmoji} ${hasOverlay ? 'Overlay Active' : isPaused ? 'Paused' : 'Playing'}`;
   if (channelName) {
     footerText += ` • ${channelName}`;
   }
@@ -148,31 +149,33 @@ export function createPlayerEmbed(
 /**
  * Create control buttons row
  */
-export function createControlButtons(isPaused: boolean = false, hasQueue: boolean = false): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('player_pause')
-        .setLabel(isPaused ? 'Resume' : 'Pause')
-        .setEmoji(isPaused ? '▶️' : '⏸️')
-        .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId('player_skip')
-        .setLabel('Skip')
-        .setEmoji('⏭️')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(!hasQueue),
-      new ButtonBuilder()
-        .setCustomId('player_stop')
-        .setLabel('Stop')
-        .setEmoji('⏹️')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('player_queue')
-        .setLabel('View Queue')
-        .setEmoji('📋')
-        .setStyle(ButtonStyle.Secondary),
-    );
+export function createControlButtons(
+  isPaused: boolean = false,
+  hasQueue: boolean = false
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('player_pause')
+      .setLabel(isPaused ? 'Resume' : 'Pause')
+      .setEmoji(isPaused ? '▶️' : '⏸️')
+      .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('player_skip')
+      .setLabel('Skip')
+      .setEmoji('⏭️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!hasQueue),
+    new ButtonBuilder()
+      .setCustomId('player_stop')
+      .setLabel('Stop')
+      .setEmoji('⏹️')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('player_queue')
+      .setLabel('View Queue')
+      .setEmoji('📋')
+      .setStyle(ButtonStyle.Secondary)
+  );
 
   return row;
 }
@@ -193,4 +196,3 @@ export function createPlayerMessage(
     components: [createControlButtons(isPaused, hasQueue)],
   };
 }
-

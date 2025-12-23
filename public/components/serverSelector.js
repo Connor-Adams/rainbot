@@ -2,32 +2,32 @@
 // Provides a reusable server selector with localStorage persistence
 
 class ServerSelector {
-    constructor(containerId, options = {}) {
-        this.containerId = containerId;
-        this.container = document.getElementById(containerId);
-        this.onChange = options.onChange || null;
-        this.guilds = [];
-        this.selectedGuildId = null;
-        this.storageKey = 'rainbot_selected_guild_id';
-        
-        this.init();
-    }
+  constructor(containerId, options = {}) {
+    this.containerId = containerId;
+    this.container = document.getElementById(containerId);
+    this.onChange = options.onChange || null;
+    this.guilds = [];
+    this.selectedGuildId = null;
+    this.storageKey = 'rainbot_selected_guild_id';
 
-    init() {
-        // Load persisted selection
-        this.selectedGuildId = localStorage.getItem(this.storageKey) || null;
-        
-        // Create the component HTML
-        this.render();
-    }
+    this.init();
+  }
 
-    render() {
-        if (!this.container) return;
-        
-        const hasGuilds = this.guilds.length > 0;
-        const selectedGuild = this.guilds.find(g => g.id === this.selectedGuildId);
-        
-        this.container.innerHTML = `
+  init() {
+    // Load persisted selection
+    this.selectedGuildId = localStorage.getItem(this.storageKey) || null;
+
+    // Create the component HTML
+    this.render();
+  }
+
+  render() {
+    if (!this.container) return;
+
+    const hasGuilds = this.guilds.length > 0;
+    const selectedGuild = this.guilds.find((g) => g.id === this.selectedGuildId);
+
+    this.container.innerHTML = `
             <div class="server-selector-wrapper bg-gray-800 rounded-2xl border border-gray-700 p-6">
                 <label for="server-selector" class="block text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
@@ -42,23 +42,31 @@ class ServerSelector {
                     ${!hasGuilds ? 'disabled' : ''}
                 >
                     <option value="">${hasGuilds ? 'Select a server...' : 'Loading servers...'}</option>
-                    ${this.guilds.map(guild => `
+                    ${this.guilds
+                      .map(
+                        (guild) => `
                         <option value="${guild.id}" ${guild.id === this.selectedGuildId ? 'selected' : ''}>
                             ${this.escapeHtml(guild.name)}
                         </option>
-                    `).join('')}
+                    `
+                      )
+                      .join('')}
                 </select>
-                ${selectedGuild ? `
+                ${
+                  selectedGuild
+                    ? `
                     <p class="mt-3 text-xs text-gray-400">
                         Selected: <span class="text-blue-400 font-medium">${this.escapeHtml(selectedGuild.name)}</span>
                     </p>
-                ` : ''}
+                `
+                    : ''
+                }
             </div>
         `;
 
-        // Add custom dropdown arrow styling
-        const style = document.createElement('style');
-        style.textContent = `
+    // Add custom dropdown arrow styling
+    const style = document.createElement('style');
+    style.textContent = `
             #server-selector {
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a1a1b0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
                 background-repeat: no-repeat;
@@ -70,80 +78,79 @@ class ServerSelector {
                 cursor: not-allowed;
             }
         `;
-        if (!document.getElementById('server-selector-styles')) {
-            style.id = 'server-selector-styles';
-            document.head.appendChild(style);
-        }
-
-        // Add event listener
-        const select = this.container.querySelector('#server-selector');
-        if (select) {
-            select.addEventListener('change', (e) => {
-                this.handleChange(e.target.value);
-            });
-        }
+    if (!document.getElementById('server-selector-styles')) {
+      style.id = 'server-selector-styles';
+      document.head.appendChild(style);
     }
 
-    handleChange(guildId) {
-        this.selectedGuildId = guildId || null;
-        
-        // Persist to localStorage
-        if (guildId) {
-            localStorage.setItem(this.storageKey, guildId);
-        } else {
-            localStorage.removeItem(this.storageKey);
-        }
+    // Add event listener
+    const select = this.container.querySelector('#server-selector');
+    if (select) {
+      select.addEventListener('change', (e) => {
+        this.handleChange(e.target.value);
+      });
+    }
+  }
 
-        // Call onChange callback if provided
-        if (this.onChange) {
-            this.onChange(guildId);
-        }
+  handleChange(guildId) {
+    this.selectedGuildId = guildId || null;
 
-        // Re-render to update display
-        this.render();
+    // Persist to localStorage
+    if (guildId) {
+      localStorage.setItem(this.storageKey, guildId);
+    } else {
+      localStorage.removeItem(this.storageKey);
     }
 
-    setGuilds(guilds) {
-        this.guilds = guilds || [];
-        
-        // If we have a persisted selection, verify it still exists
-        if (this.selectedGuildId && !this.guilds.find(g => g.id === this.selectedGuildId)) {
-            this.selectedGuildId = null;
-            localStorage.removeItem(this.storageKey);
-        }
-        
-        this.render();
+    // Call onChange callback if provided
+    if (this.onChange) {
+      this.onChange(guildId);
     }
 
-    getSelectedGuildId() {
-        return this.selectedGuildId;
+    // Re-render to update display
+    this.render();
+  }
+
+  setGuilds(guilds) {
+    this.guilds = guilds || [];
+
+    // If we have a persisted selection, verify it still exists
+    if (this.selectedGuildId && !this.guilds.find((g) => g.id === this.selectedGuildId)) {
+      this.selectedGuildId = null;
+      localStorage.removeItem(this.storageKey);
     }
 
-    setSelectedGuildId(guildId) {
-        this.handleChange(guildId);
-    }
+    this.render();
+  }
 
-    show() {
-        if (this.container) {
-            this.container.style.display = 'block';
-        }
-    }
+  getSelectedGuildId() {
+    return this.selectedGuildId;
+  }
 
-    hide() {
-        if (this.container) {
-            this.container.style.display = 'none';
-        }
-    }
+  setSelectedGuildId(guildId) {
+    this.handleChange(guildId);
+  }
 
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+  show() {
+    if (this.container) {
+      this.container.style.display = 'block';
     }
+  }
+
+  hide() {
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 }
 
 // Export for use in other files
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ServerSelector;
+  module.exports = ServerSelector;
 }
-

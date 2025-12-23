@@ -1,7 +1,4 @@
-
 import { EmbedBuilder } from 'discord.js';
-import type { PingResult } from '../../types/commands';
-
 export interface PingExecuteResult {
   roundtrip: number;
   websocket: number;
@@ -24,4 +21,3 @@ export function createPingEmbed(result: PingExecuteResult): EmbedBuilder {
     )
     .setTimestamp();
 }
-

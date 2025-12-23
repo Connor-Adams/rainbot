@@ -18,6 +18,7 @@ rainbot/                    # Project root
 ```
 
 **Why this structure?**
+
 - ✅ Clear separation of concerns (frontend vs backend)
 - ✅ Independent dependency management
 - ✅ Can deploy frontend/backend separately if needed

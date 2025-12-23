@@ -44,6 +44,7 @@ STORAGE_REGION=us-east-1
 ## Step 4: Deploy
 
 After setting the environment variables, Railway will automatically:
+
 - Install `@aws-sdk/client-s3` package
 - Initialize storage with Railway bucket
 - Use S3 storage instead of local filesystem
@@ -60,6 +61,7 @@ The code automatically detects if Railway storage is configured:
 ### Storage Operations
 
 All storage operations work the same way:
+
 - **Upload** - Files are uploaded to `sounds/` prefix in bucket
 - **List** - Lists all files in `sounds/` prefix
 - **Delete** - Removes files from bucket
@@ -68,6 +70,7 @@ All storage operations work the same way:
 ### Backward Compatibility
 
 The code maintains backward compatibility:
+
 - Local storage still works if Railway storage isn't configured
 - Existing local files continue to work
 - No code changes needed - just set environment variables
@@ -89,16 +92,19 @@ If you have existing sounds in local storage:
 ### Storage Not Working
 
 **Check logs for:**
+
 ```
 [STORAGE] Storage initialized: Railway S3 bucket "rainbot-sounds"
 ```
 
 **If you see:**
+
 ```
 [STORAGE] Storage initialized: Local filesystem
 ```
 
 Then Railway storage isn't configured. Check:
+
 - Environment variables are set correctly
 - Storage bucket exists in Railway
 - Credentials are valid
@@ -106,6 +112,7 @@ Then Railway storage isn't configured. Check:
 ### Upload Failures
 
 **Common issues:**
+
 - **Invalid credentials** - Check `STORAGE_ACCESS_KEY` and `STORAGE_SECRET_KEY`
 - **Wrong endpoint** - Verify `STORAGE_ENDPOINT` matches Railway's endpoint
 - **Bucket doesn't exist** - Ensure bucket name matches exactly
@@ -114,18 +121,19 @@ Then Railway storage isn't configured. Check:
 ### File Not Found Errors
 
 **If files were uploaded to local storage but now using Railway:**
+
 - Files need to be re-uploaded to Railway storage
 - Local files won't be accessible when using Railway storage
 
 ## Environment Variables Reference
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `STORAGE_BUCKET_NAME` | Name of Railway storage bucket | Yes (for Railway storage) |
-| `STORAGE_ACCESS_KEY` | Access key ID from Railway | Yes (for Railway storage) |
-| `STORAGE_SECRET_KEY` | Secret access key from Railway | Yes (for Railway storage) |
-| `STORAGE_ENDPOINT` | S3 endpoint URL from Railway | Yes (for Railway storage) |
-| `STORAGE_REGION` | AWS region (default: `us-east-1`) | No |
+| Variable              | Description                       | Required                  |
+| --------------------- | --------------------------------- | ------------------------- |
+| `STORAGE_BUCKET_NAME` | Name of Railway storage bucket    | Yes (for Railway storage) |
+| `STORAGE_ACCESS_KEY`  | Access key ID from Railway        | Yes (for Railway storage) |
+| `STORAGE_SECRET_KEY`  | Secret access key from Railway    | Yes (for Railway storage) |
+| `STORAGE_ENDPOINT`    | S3 endpoint URL from Railway      | Yes (for Railway storage) |
+| `STORAGE_REGION`      | AWS region (default: `us-east-1`) | No                        |
 
 ## Local Development
 
@@ -141,7 +149,6 @@ For local development, you can:
 ✅ **Scalable** - No disk space limits  
 ✅ **Fast** - Optimized for Railway infrastructure  
 ✅ **Reliable** - Backed by Railway's infrastructure  
-✅ **Easy** - No external services needed  
+✅ **Easy** - No external services needed
 
 That's it! Once configured, all sound uploads will automatically use Railway storage.
-

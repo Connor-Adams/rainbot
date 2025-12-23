@@ -37,8 +37,17 @@ export function executeQueue(guildId: string): QueueCommandResult {
 }
 
 export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
-  const { queueInfo, status } = result;
-  const { nowPlaying, queue, totalInQueue, currentTrack, playbackPosition, hasOverlay, isPaused, channelName } = queueInfo;
+  const { queueInfo } = result;
+  const {
+    nowPlaying,
+    queue,
+    totalInQueue = 0,
+    currentTrack,
+    playbackPosition = 0,
+    hasOverlay = false,
+    isPaused = false,
+    channelName,
+  } = queueInfo;
 
   // Determine embed color based on state
   let embedColor = 0x6366f1; // Default blue
@@ -48,15 +57,12 @@ export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
     embedColor = 0xf59e0b; // Orange when paused
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle('🎵 Music Queue')
-    .setColor(embedColor)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle('🎵 Music Queue').setColor(embedColor).setTimestamp();
 
   // Now Playing section with playback position
   if (nowPlaying && currentTrack) {
     let description = `**${nowPlaying}**`;
-    
+
     // Show playback progress if available
     if (currentTrack.duration && playbackPosition > 0) {
       const currentTime = formatDuration(playbackPosition);
@@ -65,19 +71,19 @@ export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
     } else if (currentTrack.duration) {
       description += ` • \`${formatDuration(currentTrack.duration)}\``;
     }
-    
+
     // Add state indicators
     if (hasOverlay) {
       description += '\n\n🔊 *Soundboard overlay active*';
     } else if (isPaused) {
       description += '\n\n⏸️ *Paused*';
     }
-    
+
     const thumbnail = getYouTubeThumbnail(currentTrack.url);
     if (thumbnail && !currentTrack.isSoundboard) {
       embed.setThumbnail(thumbnail);
     }
-    
+
     embed.setDescription(description);
   } else if (nowPlaying) {
     embed.setDescription(`**${nowPlaying}**`);
@@ -94,9 +100,12 @@ export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
         return `\`${num}\` ${track.title}${duration}`;
       })
       .join('\n');
-    
-    const moreText = totalInQueue > 20 ? `\n\n*...and ${totalInQueue - 20} more track${totalInQueue - 20 === 1 ? '' : 's'}*` : '';
-    
+
+    const moreText =
+      totalInQueue > 20
+        ? `\n\n*...and ${totalInQueue - 20} more track${totalInQueue - 20 === 1 ? '' : 's'}*`
+        : '';
+
     embed.addFields({
       name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
       value: queueList + moreText,
@@ -120,9 +129,8 @@ export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
   } else if (isPaused) {
     footerText += ' • ⏸️ Paused';
   }
-  
+
   embed.setFooter({ text: footerText });
 
   return embed;
 }
-

@@ -5,6 +5,7 @@ This guide walks you through setting up Discord OAuth for the web dashboard auth
 ## Overview
 
 The dashboard uses Discord OAuth2 to authenticate users. Users must:
+
 1. Be a member of at least one server where your bot is present
 2. Have a specific role in that server
 
@@ -32,17 +33,21 @@ The dashboard uses Discord OAuth2 to authenticate users. Users must:
 4. Add your callback URLs:
 
    **For Local Development:**
+
    ```
    http://localhost:3000/auth/discord/callback
    ```
 
    **For Railway Deployment:**
+
    ```
    https://rainbot-production.up.railway.app/auth/discord/callback
    ```
+
    (This is the callback URL for the production deployment)
 
    **For Custom Domain:**
+
    ```
    https://yourdomain.com/auth/discord/callback
    ```
@@ -52,6 +57,7 @@ The dashboard uses Discord OAuth2 to authenticate users. Users must:
 ### 4. Required OAuth2 Scopes
 
 The application uses these scopes (already configured in code):
+
 - `identify` - Get user's basic information (username, avatar, etc.)
 - `guilds` - Get list of servers user is in (for verification)
 
@@ -72,6 +78,7 @@ You need to create or identify a Discord role that users must have to access the
 Set these in Railway (or your `.env` file for local development):
 
 **Required:**
+
 ```bash
 DISCORD_CLIENT_ID=your_application_id_here
 DISCORD_CLIENT_SECRET=your_client_secret_here
@@ -79,6 +86,7 @@ REQUIRED_ROLE_ID=your_role_id_here
 ```
 
 **Optional:**
+
 ```bash
 CALLBACK_URL=https://rainbot-production.up.railway.app/auth/discord/callback
 # (Auto-detected on Railway, but you can set it manually)
@@ -87,6 +95,7 @@ CALLBACK_URL=https://rainbot-production.up.railway.app/auth/discord/callback
 ### 7. Verify Bot Permissions
 
 Make sure your bot has these permissions in servers where users need access:
+
 - **View Channels** - To see the server
 - **Manage Roles** - To check if users have the required role
 - **Read Member List** - To verify user membership
@@ -153,16 +162,17 @@ Make sure your bot has these permissions in servers where users need access:
 
 ## Quick Reference
 
-| Setting | Where to Find |
-|---------|---------------|
-| `DISCORD_CLIENT_ID` | Developer Portal → General Information → Application ID |
-| `DISCORD_CLIENT_SECRET` | Developer Portal → OAuth2 → Client Secret |
-| `REQUIRED_ROLE_ID` | Discord Server → Right-click role → Copy ID (Developer Mode) |
-| Callback URL | `https://your-domain.com/auth/discord/callback` |
+| Setting                 | Where to Find                                                |
+| ----------------------- | ------------------------------------------------------------ |
+| `DISCORD_CLIENT_ID`     | Developer Portal → General Information → Application ID      |
+| `DISCORD_CLIENT_SECRET` | Developer Portal → OAuth2 → Client Secret                    |
+| `REQUIRED_ROLE_ID`      | Discord Server → Right-click role → Copy ID (Developer Mode) |
+| Callback URL            | `https://your-domain.com/auth/discord/callback`              |
 
 ## Example Configuration
 
 **Railway Environment Variables:**
+
 ```
 DISCORD_CLIENT_ID=123456789012345678
 DISCORD_CLIENT_SECRET=abcdefghijklmnopqrstuvwxyz123456
@@ -171,14 +181,15 @@ SESSION_SECRET=your_random_secret_here
 ```
 
 **Discord OAuth Redirects:**
+
 ```
 https://rainbot-production.up.railway.app/auth/discord/callback
 http://localhost:3000/auth/discord/callback
 ```
 
 **Production Dashboard URL:**
+
 - Dashboard: [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
 - OAuth Callback: `https://rainbot-production.up.railway.app/auth/discord/callback`
 
 That's it! Once configured, users can authenticate with Discord and access the dashboard if they have the required role.
-

@@ -8,18 +8,17 @@ const { loadConfig } = require('./utils/config');
 const config = loadConfig();
 
 if (!config.token || !config.clientId) {
-    console.error('Error: Missing DISCORD_BOT_TOKEN or DISCORD_CLIENT_ID');
-    console.error('Set environment variables (DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID)');
-    process.exit(1);
+  console.error('Error: Missing DISCORD_BOT_TOKEN or DISCORD_CLIENT_ID');
+  console.error('Set environment variables (DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID)');
+  process.exit(1);
 }
 
 (async () => {
-    try {
-        await deployCommands(config.token, config.clientId, config.guildId || null);
-        process.exit(0);
-    } catch (error) {
-        console.error('Failed to deploy commands:', error);
-        process.exit(1);
-    }
+  try {
+    await deployCommands(config.token, config.clientId, config.guildId || null);
+    process.exit(0);
+  } catch (error) {
+    console.error('Failed to deploy commands:', error);
+    process.exit(1);
+  }
 })();
-

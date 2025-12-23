@@ -68,21 +68,17 @@ export const botApi = {
   getStatus: () => api.get('/status'),
   getQueue: (guildId: string) => api.get(`/queue/${guildId}`),
   clearQueue: (guildId: string) => api.post(`/queue/${guildId}/clear`),
-  removeFromQueue: (guildId: string, index: number) =>
-    api.delete(`/queue/${guildId}/${index}`),
+  removeFromQueue: (guildId: string, index: number) => api.delete(`/queue/${guildId}/${index}`),
 };
 
 // Playback API
 export const playbackApi = {
-  play: (guildId: string, source: string) =>
-    api.post('/play', { guildId, source }),
-  soundboard: (guildId: string, sound: string) =>
-    api.post('/soundboard', { guildId, sound }),
+  play: (guildId: string, source: string) => api.post('/play', { guildId, source }),
+  soundboard: (guildId: string, sound: string) => api.post('/soundboard', { guildId, sound }),
   stop: (guildId: string) => api.post('/stop', { guildId }),
   skip: (guildId: string) => api.post('/skip', { guildId }),
   pause: (guildId: string) => api.post('/pause', { guildId }),
-  volume: (guildId: string, level: number) =>
-    api.post('/volume', { guildId, level }),
+  volume: (guildId: string, level: number) => api.post('/volume', { guildId, level }),
 };
 
 // Sounds API
@@ -122,17 +118,10 @@ export const statsApi = {
     startDate?: string;
     endDate?: string;
   }) => api.get('/stats/sounds', { params }),
-  users: (params?: {
-    limit?: number;
-    guildId?: string;
-    startDate?: string;
-    endDate?: string;
-  }) => api.get('/stats/users', { params }),
-  guilds: (params?: {
-    limit?: number;
-    startDate?: string;
-    endDate?: string;
-  }) => api.get('/stats/guilds', { params }),
+  users: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
+    api.get('/stats/users', { params }),
+  guilds: (params?: { limit?: number; startDate?: string; endDate?: string }) =>
+    api.get('/stats/guilds', { params }),
   queue: (params?: {
     limit?: number;
     guildId?: string;
@@ -156,4 +145,3 @@ export const statsApi = {
 };
 
 export default api;
-

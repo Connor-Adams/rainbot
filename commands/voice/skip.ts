@@ -18,13 +18,14 @@ export function executeSkip(params: SkipParams): SkipExecuteResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
   try {
     const skipped = voiceManager.skip(guildId, count);
-    
+
     if (skipped.length === 0) {
       return {
         success: false,
@@ -33,10 +34,10 @@ export function executeSkip(params: SkipParams): SkipExecuteResult {
     }
 
     log.info(`Skipped ${skipped.length} track(s)`);
-    
+
     const queue = voiceManager.getQueue(guildId);
     const nextUp = queue.queue[0]?.title || 'Nothing';
-    
+
     return {
       success: true,
       result: {
@@ -60,9 +61,8 @@ export function formatSkipMessage(result: SkipResult): string {
   } else {
     replyText = `⏭️ Skipped **${result.skipped.length}** tracks:\n${result.skipped.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
   }
-  
+
   replyText += `\n\n▶️ Up next: **${result.nextUp}**`;
-  
+
   return replyText;
 }
-

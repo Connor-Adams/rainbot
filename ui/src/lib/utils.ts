@@ -25,4 +25,3 @@ export function formatDurationLong(seconds: number | undefined): string {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
-

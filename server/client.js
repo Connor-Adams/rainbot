@@ -4,15 +4,14 @@
 let discordClient = null;
 
 function setClient(client) {
-    discordClient = client;
+  discordClient = client;
 }
 
 function getClient() {
-    return discordClient;
+  return discordClient;
 }
 
 module.exports = {
-    setClient,
-    getClient,
+  setClient,
+  getClient,
 };
-
