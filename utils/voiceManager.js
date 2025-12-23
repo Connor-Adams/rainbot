@@ -1047,7 +1047,9 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                     if (state.overlayProcess) {
                         try {
                             state.overlayProcess.kill('SIGKILL');
-                        } catch (err) {}
+                        } catch (err) {
+                            // Process may already be dead, ignore error
+                        }
                         state.overlayProcess = null;
                     }
                     
@@ -1088,7 +1090,9 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 if (state.overlayProcess) {
                     try {
                         state.overlayProcess.kill('SIGKILL');
-                    } catch (err) {}
+                    } catch (err) {
+                        // Process may already be dead, ignore error
+                    }
                     state.overlayProcess = null;
                 }
                 
