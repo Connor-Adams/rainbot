@@ -56,11 +56,12 @@ export const useAuthStore = create<AuthState>()(
           // Not authenticated or no access
           set({ isAuthenticated: false, user: null, isLoading: false });
           return false;
-        } catch (error: any) {
+        } catch (error) {
           // Handle network errors or other exceptions
           console.error('Auth check failed:', error);
           // If it's a 401/403, user is not authenticated
-          if (error.response?.status === 401 || error.response?.status === 403) {
+          const axiosError = error as { response?: { status?: number } };
+          if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
             set({ isAuthenticated: false, user: null, isLoading: false });
             return false;
           }

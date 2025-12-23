@@ -76,7 +76,7 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
       ? (currentTime / currentTrack.duration) * 100
       : 0
 
-  const handleProgressClick = (_e: React.MouseEvent<HTMLDivElement>) => {
+  const handleProgressClick = () => {
     // Would seek to position here if API supported it
   }
 

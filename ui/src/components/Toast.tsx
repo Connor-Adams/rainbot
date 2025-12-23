@@ -10,7 +10,11 @@ export default function Toast({ message, type = 'success', onClose }: ToastProps
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
-    setIsVisible(true)
+    // Use requestAnimationFrame to avoid synchronous setState in effect
+    requestAnimationFrame(() => {
+      setIsVisible(true)
+    })
+    
     const timer = setTimeout(() => {
       setIsVisible(false)
       setTimeout(onClose, 400)

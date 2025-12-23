@@ -4,6 +4,19 @@ This directory contains CI/CD workflows for the Rainbot project.
 
 ## Workflows
 
+### 🔍 `lint.yml` - Linting
+**Triggers:** Push/PR to main/master/develop, Manual dispatch
+
+**Jobs:**
+- **Backend**: Runs ESLint on Node.js backend code
+- **Frontend**: Runs ESLint + TypeScript type checking on React app
+- **Summary**: Reports overall lint status
+
+**Status Badge:**
+```markdown
+![Lint](https://github.com/YOUR_USERNAME/YOUR_REPO/workflows/Lint/badge.svg)
+```
+
 ### 🔄 `ci.yml` - Continuous Integration
 **Triggers:** Push/PR to main/master/develop
 

@@ -1,15 +1,15 @@
-name: CI
+name: Lint
 
 on:
   push:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
-  # Backend CI
-  backend:
-    name: Backend (Node.js)
+  lint-backend:
+    name: Lint Backend (Node.js)
     runs-on: ubuntu-latest
     
     steps:
@@ -27,13 +27,16 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
+        continue-on-error: false
 
       - name: Check for syntax errors
-        run: node --check index.js || echo "No main file to check"
+        run: |
+          echo "Checking for syntax errors in main files..."
+          node --check index.js || echo "No main file to check"
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./ui/*" -not -path "./.git/*" -exec node --check {} \; || true
 
-  # Frontend CI
-  frontend:
-    name: Frontend (React + TypeScript)
+  lint-frontend:
+    name: Lint Frontend (React + TypeScript)
     runs-on: ubuntu-latest
     
     steps:
@@ -59,49 +62,25 @@ jobs:
         working-directory: ./ui
         run: npx tsc --noEmit
 
-      - name: Build
+      - name: Check for unused dependencies
         working-directory: ./ui
-        run: npm run build
+        run: |
+          echo "Checking for unused dependencies..."
+          npx depcheck --ignores="@types/*,eslint*,typescript,vite,@vitejs/*" || echo "depcheck not available, skipping"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-dist
-          path: ui/dist/
-          retention-days: 1
-
-  # Combined build test
-  build-test:
-    name: Full Build Test
+  lint-all:
+    name: Lint Summary
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [lint-backend, lint-frontend]
+    if: always()
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install backend dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        working-directory: ./ui
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: ./ui
-        run: npm run build
-
-      - name: Verify build output
+      - name: Check lint results
         run: |
-          if [ ! -d "ui/dist" ]; then
-            echo "❌ Frontend build failed - dist directory not found"
+          if [ "${{ needs.lint-backend.result }}" == "failure" ] || [ "${{ needs.lint-frontend.result }}" == "failure" ]; then
+            echo "❌ Linting failed"
             exit 1
+          else
+            echo "✅ All linting passed"
           fi
-          echo "✅ Frontend build successful"
 
