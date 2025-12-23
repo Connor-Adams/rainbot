@@ -152,6 +152,20 @@ async function initializeSchema() {
         `);
 
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS guild_queue_snapshots (
+                guild_id VARCHAR(20) PRIMARY KEY,
+                channel_id VARCHAR(20) NOT NULL,
+                queue_data JSONB NOT NULL,
+                current_track JSONB,
+                position_ms BIGINT DEFAULT 0,
+                is_paused BOOLEAN DEFAULT FALSE,
+                volume INTEGER DEFAULT 100,
+                last_user_id VARCHAR(20),
+                saved_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS queue_operations (
                 id SERIAL PRIMARY KEY,
                 operation_type VARCHAR(20) NOT NULL CHECK (operation_type IN ('skip', 'pause', 'resume', 'clear', 'remove')),

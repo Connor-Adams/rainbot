@@ -26,6 +26,7 @@ const voiceStates = new Map();
 
 const storage = require('./storage');
 const listeningHistory = require('./listeningHistory');
+const { query } = require('./database');
 
 // Storage is always S3 - no local file paths needed
 
@@ -731,25 +732,33 @@ async function joinChannel(channel) {
 function leaveChannel(guildId) {
     const connection = getVoiceConnection(guildId);
     if (connection) {
-        // Save history before leaving
         const state = voiceStates.get(guildId);
+
+        // Save queue snapshot if there's content to preserve
+        if (state && (state.currentTrack || state.queue.length > 0)) {
+            saveQueueSnapshot(guildId).catch(e =>
+                log.error(`Failed to save queue snapshot on leave: ${e.message}`)
+            );
+        }
+
+        // Save history before leaving
         if (state && state.lastUserId) {
             const { nowPlaying, queue, currentTrack } = getQueue(guildId);
             listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
         }
-        
+
         const channelId = state?.channelId || null;
         const channelName = state?.channelName || null;
-        
+
         connection.destroy();
         voiceStates.delete(guildId);
         log.info(`Left voice channel in guild ${guildId}`);
-        
+
         // Track voice leave event
         if (channelId) {
             stats.trackVoiceEvent('leave', guildId, channelId, channelName, 'discord');
         }
-        
+
         return true;
     }
     return false;
@@ -1598,6 +1607,215 @@ async function resumeHistory(guildId, userId) {
     };
 }
 
+/**
+ * Save queue snapshot to database for persistence across restarts
+ * @param {string} guildId - Guild ID
+ */
+async function saveQueueSnapshot(guildId) {
+    const state = voiceStates.get(guildId);
+    if (!state || (!state.currentTrack && state.queue.length === 0)) return;
+
+    // Calculate current position in ms
+    let positionMs = 0;
+    if (state.playbackStartTime && state.currentTrack) {
+        const elapsed = Date.now() - state.playbackStartTime;
+        const pausedTime = state.totalPausedTime || 0;
+        const currentPause = state.pauseStartTime ? (Date.now() - state.pauseStartTime) : 0;
+        positionMs = Math.max(0, elapsed - pausedTime - currentPause);
+    }
+
+    try {
+        await query(`
+            INSERT INTO guild_queue_snapshots
+            (guild_id, channel_id, queue_data, current_track, position_ms, is_paused, volume, last_user_id, saved_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (guild_id) DO UPDATE SET
+                channel_id = EXCLUDED.channel_id,
+                queue_data = EXCLUDED.queue_data,
+                current_track = EXCLUDED.current_track,
+                position_ms = EXCLUDED.position_ms,
+                is_paused = EXCLUDED.is_paused,
+                volume = EXCLUDED.volume,
+                last_user_id = EXCLUDED.last_user_id,
+                saved_at = EXCLUDED.saved_at
+        `, [
+            guildId,
+            state.channelId,
+            JSON.stringify(state.queue),
+            state.currentTrack ? JSON.stringify(state.currentTrack) : null,
+            positionMs,
+            !!state.pauseStartTime,
+            state.volume || 100,
+            state.lastUserId
+        ]);
+        log.info(`Saved queue snapshot for guild ${guildId} (${state.queue.length} tracks, position: ${Math.floor(positionMs / 1000)}s)`);
+    } catch (error) {
+        log.error(`Failed to save queue snapshot for ${guildId}: ${error.message}`);
+    }
+}
+
+/**
+ * Save all active queue snapshots (for graceful shutdown)
+ */
+async function saveAllQueueSnapshots() {
+    const promises = [];
+    for (const guildId of voiceStates.keys()) {
+        promises.push(saveQueueSnapshot(guildId).catch(e =>
+            log.error(`Failed to save snapshot for ${guildId}: ${e.message}`)
+        ));
+    }
+    await Promise.all(promises);
+    log.info(`Saved ${promises.length} queue snapshot(s)`);
+}
+
+/**
+ * Play a track with seek position
+ * @param {Object} state - Voice state object
+ * @param {Object} track - Track object
+ * @param {number} seekSeconds - Position to seek to in seconds
+ * @param {boolean} startPaused - Whether to start in paused state
+ */
+async function playWithSeek(state, track, seekSeconds, startPaused = false) {
+    let resource;
+
+    if (track.isLocal) {
+        // Local files: use FFmpeg -ss for seeking
+        const soundStream = await storage.getSoundStream(track.source || track.title);
+        const ffmpeg = spawn('ffmpeg', [
+            '-ss', seekSeconds.toString(),
+            '-i', 'pipe:0',
+            '-acodec', 'libopus',
+            '-f', 'opus',
+            '-ar', '48000',
+            '-ac', '2',
+            'pipe:1'
+        ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+        soundStream.pipe(ffmpeg.stdin);
+        ffmpeg.stderr.on('data', () => {}); // Suppress stderr
+
+        resource = createAudioResource(ffmpeg.stdout, { inputType: StreamType.OggOpus });
+    } else {
+        // Streams: play-dl supports seek option
+        try {
+            const streamInfo = await play.stream(track.url, {
+                quality: 2,
+                seek: seekSeconds
+            });
+            resource = createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
+        } catch (error) {
+            log.error(`Failed to stream with seek for ${track.title}: ${error.message}`);
+            // Fall back to streaming from start
+            const streamInfo = await play.stream(track.url, { quality: 2 });
+            resource = createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
+            seekSeconds = 0;
+        }
+    }
+
+    state.currentTrack = track;
+    state.nowPlaying = track.title;
+    state.playbackStartTime = Date.now() - (seekSeconds * 1000); // Adjust for seek
+    state.totalPausedTime = 0;
+    state.pauseStartTime = null;
+
+    playWithVolume(state, resource);
+
+    if (startPaused) {
+        state.player.pause();
+        state.pauseStartTime = Date.now();
+    }
+
+    log.info(`Resumed playback of "${track.title}" at ${seekSeconds}s${startPaused ? ' (paused)' : ''}`);
+}
+
+/**
+ * Restore queue snapshot from database
+ * @param {string} guildId - Guild ID
+ * @param {Object} client - Discord client
+ * @returns {boolean} Whether restore was successful
+ */
+async function restoreQueueSnapshot(guildId, client) {
+    try {
+        const result = await query(
+            'SELECT * FROM guild_queue_snapshots WHERE guild_id = $1',
+            [guildId]
+        );
+        if (!result?.rows?.[0]) return false;
+
+        const snapshot = result.rows[0];
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            log.warn(`Guild ${guildId} not found, deleting snapshot`);
+            await query('DELETE FROM guild_queue_snapshots WHERE guild_id = $1', [guildId]);
+            return false;
+        }
+
+        const channel = guild.channels.cache.get(snapshot.channel_id);
+        if (!channel?.isVoiceBased()) {
+            log.warn(`Voice channel ${snapshot.channel_id} not found or invalid, deleting snapshot`);
+            await query('DELETE FROM guild_queue_snapshots WHERE guild_id = $1', [guildId]);
+            return false;
+        }
+
+        // Join channel
+        await joinChannel(channel);
+        const state = voiceStates.get(guildId);
+        if (!state) {
+            log.error(`Failed to join channel for restore in guild ${guildId}`);
+            return false;
+        }
+
+        // Restore state
+        state.queue = snapshot.queue_data || [];
+        state.volume = snapshot.volume || 100;
+        state.lastUserId = snapshot.last_user_id;
+
+        // Resume playback with seek
+        if (snapshot.current_track) {
+            const track = snapshot.current_track;
+            const seekSeconds = Math.floor((snapshot.position_ms || 0) / 1000);
+            await playWithSeek(state, track, seekSeconds, snapshot.is_paused);
+        } else if (state.queue.length > 0) {
+            await playNext(guildId);
+        }
+
+        // Delete snapshot after successful restore
+        await query('DELETE FROM guild_queue_snapshots WHERE guild_id = $1', [guildId]);
+        log.info(`Restored queue snapshot for guild ${guildId}: ${state.queue.length} tracks in queue`);
+        return true;
+    } catch (error) {
+        log.error(`Failed to restore queue snapshot for ${guildId}: ${error.message}`);
+        return false;
+    }
+}
+
+/**
+ * Restore all queue snapshots (called on bot startup)
+ * @param {Object} client - Discord client
+ * @returns {number} Number of successfully restored snapshots
+ */
+async function restoreAllQueueSnapshots(client) {
+    try {
+        const result = await query('SELECT guild_id FROM guild_queue_snapshots');
+        if (!result?.rows?.length) return 0;
+
+        let restored = 0;
+        for (const row of result.rows) {
+            try {
+                if (await restoreQueueSnapshot(row.guild_id, client)) {
+                    restored++;
+                }
+            } catch (error) {
+                log.error(`Failed to restore ${row.guild_id}: ${error.message}`);
+            }
+        }
+        return restored;
+    } catch (error) {
+        log.error(`Failed to query queue snapshots: ${error.message}`);
+        return 0;
+    }
+}
+
 module.exports = {
     joinChannel,
     leaveChannel,
@@ -1615,4 +1833,8 @@ module.exports = {
     listSounds,
     deleteSound,
     resumeHistory,
+    saveQueueSnapshot,
+    saveAllQueueSnapshots,
+    restoreQueueSnapshot,
+    restoreAllQueueSnapshots,
 };

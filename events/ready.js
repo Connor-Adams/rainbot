@@ -11,6 +11,17 @@ module.exports = {
     async execute(client) {
         log.info(`Logged in as ${client.user.tag}`);
 
+        // Restore saved queue snapshots from previous session
+        try {
+            const { restoreAllQueueSnapshots } = require('../utils/voiceManager');
+            const restored = await restoreAllQueueSnapshots(client);
+            if (restored > 0) {
+                log.info(`Restored ${restored} queue snapshot(s) from previous session`);
+            }
+        } catch (error) {
+            log.error(`Failed to restore queue snapshots: ${error.message}`);
+        }
+
         const config = loadConfig();
 
         // Skip deployment if DISABLE_AUTO_DEPLOY is set (useful for local dev)

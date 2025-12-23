@@ -79,9 +79,11 @@ if (!config.token) {
 
 client.login(config.token);
 
-// Graceful shutdown - flush statistics
+// Graceful shutdown - save queue snapshots and flush statistics
 process.on('SIGINT', async () => {
     log.info('Shutting down gracefully...');
+    const { saveAllQueueSnapshots } = require('./utils/voiceManager');
+    await saveAllQueueSnapshots();
     const { flushAll } = require('./utils/statistics');
     await flushAll();
     const { close } = require('./utils/database');
@@ -91,6 +93,8 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
     log.info('Shutting down gracefully...');
+    const { saveAllQueueSnapshots } = require('./utils/voiceManager');
+    await saveAllQueueSnapshots();
     const { flushAll } = require('./utils/statistics');
     await flushAll();
     const { close } = require('./utils/database');
