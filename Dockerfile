@@ -21,12 +21,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install Node.js dependencies
+# Install Node.js dependencies (including devDependencies for TypeScript compilation)
 # Skip youtube-dl-exec binary download - we use system yt-dlp
-RUN YOUTUBE_DL_SKIP_DOWNLOAD=true npm ci --only=production
+RUN YOUTUBE_DL_SKIP_DOWNLOAD=true npm ci
 
 # Copy application code
 COPY . .
+
+# Compile TypeScript during build
+RUN npm run build:ts
 
 # Build React UI
 WORKDIR /app/ui
@@ -38,6 +41,9 @@ RUN npm run build
 
 # Return to app root
 WORKDIR /app
+
+# Remove devDependencies to reduce image size (optional)
+RUN npm prune --production
 
 # Expose port (Railway sets PORT env var)
 EXPOSE 3000
