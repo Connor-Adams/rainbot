@@ -67,46 +67,42 @@ async function getStreamUrl(videoUrl) {
 async function createTrackResourceAsync(track) {
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
+    const streamUrl = await getStreamUrl(track.url);
+    log.debug(`Got stream URL, starting fetch...`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
     try {
-      const streamUrl = await getStreamUrl(track.url);
-      log.debug(`Got stream URL, starting fetch...`);
+      const response = await fetch(streamUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity',
+          Range: 'bytes=0-',
+          Referer: 'https://www.youtube.com/',
+          Origin: 'https://www.youtube.com',
+        },
+      });
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      clearTimeout(timeoutId);
 
-      try {
-        const response = await fetch(streamUrl, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'identity',
-            Range: 'bytes=0-',
-            Referer: 'https://www.youtube.com/',
-            Origin: 'https://www.youtube.com',
-          },
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`Stream fetch failed: ${response.status}`);
-        }
-
-        const { Readable } = require('stream');
-        const nodeStream = Readable.fromWeb(response.body);
-
-        return {
-          resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
-        };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
+      if (!response.ok) {
+        throw new Error(`Stream fetch failed: ${response.status}`);
       }
-    } catch (error) {
-      throw error;
+
+      const { Readable } = require('stream');
+      const nodeStream = Readable.fromWeb(response.body);
+
+      return {
+        resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
+      };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
     }
   }
   return null;
@@ -266,7 +262,7 @@ async function playNext(guildId) {
     state.playbackStartTime = Date.now();
     state.totalPausedTime = 0;
     state.pauseStartTime = null;
-    
+
     log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
     log.info(`Now playing: ${nextTrack.title}`);
 
@@ -432,7 +428,7 @@ async function playSoundboardOverlay(guildId, soundName) {
   log.info(`Playing soundboard: ${soundName}`);
   const soundStream = await storage.getSoundStream(soundName);
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-  
+
   playSoundImmediate(guildId, resource, `🔊 ${soundName}`);
 
   return {
