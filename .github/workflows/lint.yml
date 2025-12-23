@@ -19,10 +19,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: npm ci
 
       - name: Run ESLint
@@ -46,7 +48,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: ui/package-lock.json
 
