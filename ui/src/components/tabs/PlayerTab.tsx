@@ -8,7 +8,7 @@ export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore()
   const [urlInput, setUrlInput] = useState('')
   const [localVolume, setLocalVolume] = useState<number | null>(null) // Only set while dragging
-  const volumeDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
 
   const { data: queueData } = useQuery({
