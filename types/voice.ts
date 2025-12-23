@@ -19,6 +19,8 @@ export interface QueueInfo {
   playbackPosition?: number;
   hasOverlay?: boolean;
   channelName?: string | null;
+  currentTrack?: Track | null;
+  isPaused?: boolean;
 }
 
 export interface VoiceStatus {
@@ -27,4 +29,21 @@ export interface VoiceStatus {
   nowPlaying: string | null;
   isPlaying: boolean;
   queueLength: number;
+}
+
+export interface PlayResult {
+  added: number;
+  tracks: Track[];
+  totalInQueue: number;
+  overlaid?: boolean;
+}
+
+export interface LeaveResult {
+  success: boolean;
+  guildId: string;
+}
+
+export interface StopResult {
+  success: boolean;
+  cleared: number;
 }
