@@ -1,5 +1,5 @@
-// Register TypeScript loader (tsx) to enable require() of .ts files
-require('tsx/cjs/register');
+// Register TypeScript loader (ts-node) to enable require() of .ts files
+require('ts-node/register');
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
