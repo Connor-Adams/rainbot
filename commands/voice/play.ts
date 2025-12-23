@@ -22,7 +22,8 @@ export async function executePlay(params: PlayParams): Promise<PlayExecuteResult
     return {
       needsDefer: false,
       ephemeral: true,
-      content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      content:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
@@ -38,12 +39,19 @@ export async function executePlayDeferred(params: PlayParams): Promise<PlayExecu
   log.info(`Request: "${source}" by ${userId || 'unknown'} in ${guildId}`);
 
   try {
-    const result = await voiceManager.playSound(guildId, source, userId, 'discord', username, discriminator);
+    const result = await voiceManager.playSound(
+      guildId,
+      source,
+      userId,
+      'discord',
+      username,
+      discriminator
+    );
     const queueInfo = voiceManager.getQueue(guildId) as QueueInfo;
     const { nowPlaying, queue, currentTrack } = queueInfo;
     const status = voiceManager.getStatus(guildId);
     const isPaused = status ? !status.isPlaying : false;
-    
+
     if (result.added === 1) {
       log.info(`Playing: "${result.tracks[0].title}"`);
       return {
@@ -52,11 +60,11 @@ export async function executePlayDeferred(params: PlayParams): Promise<PlayExecu
       };
     } else {
       log.info(`Added ${result.added} tracks to queue`);
-      
+
       // Show playlist added message with player
       const playerMsg = createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo);
       playerMsg.content = `📋 Added **${result.added}** track${result.added === 1 ? '' : 's'} to queue!`;
-      
+
       return {
         needsDefer: false,
         playerMessage: playerMsg,

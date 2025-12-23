@@ -16,20 +16,21 @@ export function executePause(guildId: string): PauseExecuteResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
   try {
     const result = voiceManager.togglePause(guildId);
     const { nowPlaying } = voiceManager.getQueue(guildId);
-    
+
     if (result.paused) {
       log.info('Paused');
     } else {
       log.info('Resumed');
     }
-    
+
     return {
       success: true,
       result: {
@@ -54,4 +55,3 @@ export function formatPauseMessage(result: PauseResult): string {
     return `▶️ Resumed playback${trackInfo}.`;
   }
 }
-

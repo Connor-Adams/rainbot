@@ -15,7 +15,7 @@ export function validateJoinPermissions(
   const missingPerms: string[] = [];
   if (!hasConnect) missingPerms.push('Connect');
   if (!hasSpeak) missingPerms.push('Speak');
-  
+
   if (missingPerms.length > 0) {
     return {
       valid: false,
@@ -23,7 +23,7 @@ export function validateJoinPermissions(
       missingPerms,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -34,4 +34,3 @@ export function formatJoinSuccessMessage(channelName: string): string {
 export function formatJoinErrorMessage(error: Error): string {
   return `❌ Failed to join the voice channel: ${error.message}\n\n💡 Make sure I have the necessary permissions and try again.`;
 }
-

@@ -16,16 +16,17 @@ export function executeClear(guildId: string): ClearExecuteResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
   try {
     const cleared = voiceManager.clearQueue(guildId);
     const { nowPlaying } = voiceManager.getQueue(guildId);
-    
+
     log.info(`Cleared ${cleared} tracks`);
-    
+
     return {
       success: true,
       result: {
@@ -44,11 +45,10 @@ export function executeClear(guildId: string): ClearExecuteResult {
 
 export function formatClearMessage(result: ClearResult): string {
   const currentTrack = result.nowPlaying ? `\n\n▶️ Still playing: **${result.nowPlaying}**` : '';
-  
+
   if (result.cleared === 0) {
     return `📋 Queue was already empty.${currentTrack}`;
   } else {
     return `🗑️ Cleared **${result.cleared}** track${result.cleared === 1 ? '' : 's'} from the queue.${currentTrack}`;
   }
 }
-

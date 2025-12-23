@@ -70,11 +70,5 @@
     "events/**/*.ts",
     "scripts/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "ui",
-    "dist",
-    "**/*.spec.ts",
-    "**/*.test.ts"
-  ]
+  "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

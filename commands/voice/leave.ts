@@ -13,7 +13,8 @@ export function executeLeave(guildId: string): LeaveExecuteResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
@@ -38,4 +39,3 @@ export function formatLeaveMessage(channelName?: string): string {
   }
   return '👋 Left the voice channel! The queue has been cleared.';
 }
-

@@ -15,13 +15,14 @@ export function executeStop(guildId: string): StopExecuteResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
   try {
     const stopped = voiceManager.stopSound(guildId);
-    
+
     if (stopped) {
       log.info('Stopped');
       return {
@@ -41,4 +42,3 @@ export function executeStop(guildId: string): StopExecuteResult {
     };
   }
 }
-

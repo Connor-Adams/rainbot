@@ -3,6 +3,7 @@
 ## Overview
 
 Rainbot is a Discord music bot with web dashboard, featuring:
+
 - Multi-source music playback (YouTube, Spotify, SoundCloud)
 - Soundboard with overlay capability
 - Queue persistence across restarts
@@ -13,12 +14,14 @@ Rainbot is a Discord music bot with web dashboard, featuring:
 ## Technology Stack
 
 ### Core
+
 - **Runtime:** Node.js 22.12.0+
 - **Language:** JavaScript (CommonJS) with TypeScript type definitions
 - **Discord:** discord.js v14.25.1
 - **Voice:** @discordjs/voice v0.19.0
 
 ### Dependencies
+
 - **Audio Streaming:** play-dl, youtube-dl-exec
 - **Database:** PostgreSQL (via pg)
 - **Session Store:** Redis + express-session
@@ -27,6 +30,7 @@ Rainbot is a Discord music bot with web dashboard, featuring:
 - **Dependency Injection:** InversifyJS (in progress)
 
 ### Development
+
 - **TypeScript:** Compiler + type checking (strict mode)
 - **Linting:** ESLint with Prettier
 - **Testing:** Jest with ts-jest
@@ -68,11 +72,13 @@ rainbot/
 Large modules are split into focused sub-modules:
 
 **Before:**
+
 ```
 utils/voiceManager.js (72KB, 2000+ lines)
 ```
 
 **After:**
+
 ```
 utils/voice/
 ├── audioResource.js    (streaming logic)
@@ -86,6 +92,7 @@ utils/voice/
 ### 2. Type Safety
 
 Gradual TypeScript adoption:
+
 - Core types defined in `types/` directory
 - JSDoc comments for JavaScript files
 - Strict TypeScript config for new TS files
@@ -94,12 +101,14 @@ Gradual TypeScript adoption:
 ### 3. Dependency Injection
 
 Inversify container setup for:
+
 - Logger instances
 - Database connections
 - Storage adapters
 - Configuration providers
 
 Benefits:
+
 - Easier testing (mock dependencies)
 - Clearer dependency graphs
 - Better code organization
@@ -107,6 +116,7 @@ Benefits:
 ### 4. Thread Safety
 
 Critical sections protected with mutexes:
+
 - Queue modifications (async-mutex)
 - Database writes (connection pooling)
 - Redis operations (atomic commands)
@@ -140,6 +150,7 @@ See [`utils/voice/README.md`](utils/voice/README.md) for detailed documentation.
 Swagger UI available at `/api-docs` when server is running.
 
 **Endpoints:**
+
 - `GET /api/guilds` - List user's guilds
 - `GET /api/guilds/:id/queue` - Get queue for guild
 - `POST /api/guilds/:id/play` - Add track to queue
@@ -153,24 +164,29 @@ Swagger UI available at `/api-docs` when server is running.
 ### Key Tables
 
 **guild_queue_snapshots**
+
 - Stores queue state for persistence
 - Upserted on shutdown, deleted on restore
 
 **listening_history**
+
 - User's playback history
 - Track metadata and timestamps
 
 **soundboard_files**
+
 - Soundboard metadata
 - S3 keys, upload info
 
 **statistics**
+
 - Usage analytics
 - Aggregated in-memory, flushed periodically
 
 ## Development Workflow
 
 ### Setup
+
 ```bash
 npm install
 cp .env.example .env
@@ -179,12 +195,14 @@ npm run build:ts  # Compile TypeScript
 ```
 
 ### Development
+
 ```bash
 npm run dev:ui     # Start UI dev server
 npm run start      # Start bot
 ```
 
 ### Code Quality
+
 ```bash
 npm run lint       # Check linting
 npm run lint:fix   # Auto-fix issues
@@ -195,7 +213,9 @@ npm run validate   # Run all checks
 ```
 
 ### Pre-commit Hooks
+
 Automatically runs on `git commit`:
+
 - ESLint on changed files
 - Prettier formatting
 - TypeScript type checking
@@ -207,12 +227,14 @@ Automatically runs on `git commit`:
 See [`RAILWAY_DEPLOY.md`](RAILWAY_DEPLOY.md) for detailed setup.
 
 **Requirements:**
+
 - PostgreSQL database
 - Redis instance
 - S3-compatible storage (AWS S3 or Backblaze B2)
 - Environment variables configured
 
 **Build:**
+
 ```bash
 npm run build      # Builds UI + compiles TS
 npm start          # Production start
@@ -221,16 +243,19 @@ npm start          # Production start
 ## Testing Strategy
 
 ### Unit Tests
+
 - Individual module functions
 - Mock external dependencies
 - Focus on business logic
 
 ### Integration Tests
+
 - API endpoint testing
 - Database operations
 - Voice state management
 
 ### Test Organization
+
 ```
 __tests__/
 ├── unit/
@@ -247,18 +272,21 @@ __tests__/
 ## Contributing Guidelines
 
 ### Code Style
+
 - Use Prettier for formatting (config in `.prettierrc.json`)
 - Follow ESLint rules (config in `eslint.config.js`)
 - Write JSDoc comments for functions
 - Add TypeScript types where possible
 
 ### Module Guidelines
+
 - Keep files under 500 lines
 - Single responsibility principle
 - Export only what's needed
 - Document public APIs
 
 ### Commit Messages
+
 ```
 feat: Add new feature
 fix: Fix bug
@@ -269,6 +297,7 @@ chore: Maintenance tasks
 ```
 
 ### Pull Requests
+
 1. Create feature branch from `main`
 2. Make changes with clear commits
 3. Ensure all tests pass
@@ -278,16 +307,19 @@ chore: Maintenance tasks
 ## Performance Considerations
 
 ### Caching
+
 - Stream URLs cached (2hr expiration)
 - LRU eviction at 500 entries
 - In-memory statistics with periodic flush
 
 ### Concurrency
+
 - Mutex locks for queue operations
 - Connection pooling for database
 - Redis for session scaling
 
 ### Resource Management
+
 - FFmpeg processes killed on cleanup
 - Subprocess error handling
 - Graceful shutdown hooks
@@ -295,16 +327,19 @@ chore: Maintenance tasks
 ## Security
 
 ### Authentication
+
 - Discord OAuth2 for web dashboard
 - Session-based auth with Redis
 - CSRF protection (in progress)
 
 ### Input Validation
+
 - URL parsing and sanitization
 - File upload restrictions
 - Rate limiting (planned)
 
 ### Data Protection
+
 - Environment variables for secrets
 - Database credentials via config
 - S3 signed URLs for uploads
@@ -312,6 +347,7 @@ chore: Maintenance tasks
 ## Future Enhancements
 
 ### Planned Features
+
 - [ ] Complete DI container integration
 - [ ] Comprehensive test coverage (>80%)
 - [ ] Rate limiting for API
@@ -321,6 +357,7 @@ chore: Maintenance tasks
 - [ ] Advanced queue controls (shuffle, repeat)
 
 ### Technical Debt
+
 - [ ] Convert more JS files to TypeScript
 - [ ] Add error boundaries
 - [ ] Implement retry strategies

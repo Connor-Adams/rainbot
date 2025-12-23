@@ -29,10 +29,10 @@ export const useAuthStore = create<AuthState>()(
           console.log('[Auth] Checking authentication...');
           const res = await authApi.check();
           const data = res.data;
-          
+
           console.log('[Auth] Response status:', res.status);
           console.log('[Auth] Response data:', data);
-          
+
           // Handle error responses (401/403)
           if (res.status === 401 || res.status === 403) {
             console.log('[Auth] Not authenticated (401/403)');
@@ -70,7 +70,7 @@ export const useAuthStore = create<AuthState>()(
           const axiosError = error as { response?: { status?: number; data?: unknown } };
           console.error('[Auth] Error status:', axiosError.response?.status);
           console.error('[Auth] Error data:', axiosError.response?.data);
-          
+
           // If it's a 401/403, user is not authenticated
           if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
             console.log('[Auth] Not authenticated (error response 401/403)');
@@ -102,4 +102,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-

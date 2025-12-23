@@ -9,6 +9,7 @@ If OAuth redirects back but doesn't log you in, follow these steps:
 After attempting to log in, check your Railway logs for:
 
 **Success indicators:**
+
 ```
 [AUTH_ROUTES] OAuth callback received
 [AUTH_ROUTES] OAuth access granted for user YourUsername (123456789)
@@ -16,6 +17,7 @@ After attempting to log in, check your Railway logs for:
 ```
 
 **Failure indicators:**
+
 ```
 [AUTH_ROUTES] OAuth access denied for user... - missing required role
 [AUTH_ROUTES] Bot client not ready during OAuth verification
@@ -27,6 +29,7 @@ After attempting to log in, check your Railway logs for:
 Visit: `https://rainbot-production.up.railway.app/auth/debug`
 
 This will show:
+
 - Authentication status
 - User info
 - Session data
@@ -35,6 +38,7 @@ This will show:
 ### 3. Check Browser Console
 
 Open browser DevTools (F12) → Console tab, and look for:
+
 - Auth check responses
 - Any errors
 - Session cookie issues
@@ -44,10 +48,12 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Issue: "Bot is not ready"
 
 **Symptoms:**
+
 - Logs show "Bot client not ready during OAuth verification"
 - OAuth redirects but login fails
 
 **Solutions:**
+
 1. Check if bot is actually running and connected to Discord
 2. Check Railway logs for bot connection errors
 3. Verify `DISCORD_BOT_TOKEN` is set correctly
@@ -56,22 +62,21 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Issue: Role Verification Failing
 
 **Symptoms:**
+
 - Logs show "missing required role"
 - User has the role but still can't access
 
 **Check:**
+
 1. **Role ID is correct:**
    - Right-click role → Copy ID (with Developer Mode enabled)
    - Verify `REQUIRED_ROLE_ID` matches exactly
-   
 2. **Bot is in the server:**
    - Bot must be in the same server where user has the role
    - Check logs: "Bot is in X guild(s)"
-   
 3. **User has the role:**
    - User must have the exact role ID specified
    - Role name doesn't matter - only the ID
-   
 4. **Bot has permissions:**
    - Bot needs "View Channels"
    - Bot needs "Manage Roles" (to check roles)
@@ -80,19 +85,19 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Issue: Session Not Persisting
 
 **Symptoms:**
+
 - Login appears successful but immediately shows login screen again
 - Session cookie not being set
 
 **Check:**
+
 1. **Cookie settings:**
    - Railway uses HTTPS, so `secure: true` is correct
    - Check browser DevTools → Application → Cookies
    - Look for `rainbot.sid` cookie
-   
 2. **Session store:**
    - Sessions stored in `./sessions/` directory
    - Check if directory exists and is writable
-   
 3. **SameSite cookie issues:**
    - If using custom domain, ensure it matches exactly
    - Check browser console for cookie warnings
@@ -100,11 +105,13 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Issue: OAuth Redirects But No User
 
 **Symptoms:**
+
 - Redirects back to dashboard
 - No error shown
 - Still shows login button
 
 **Debug:**
+
 1. Check `/auth/debug` endpoint
 2. Check Railway logs for OAuth callback
 3. Verify `req.user` exists after Passport authentication
@@ -113,16 +120,17 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Issue: "Invalid Redirect URI"
 
 **Symptoms:**
+
 - Discord shows error when authorizing
 - Never reaches callback
 
 **Solutions:**
+
 1. **Exact URL match required:**
    - Discord OAuth redirects must match EXACTLY
    - Check: `https://rainbot-production.up.railway.app/auth/discord/callback`
    - No trailing slash
    - Must be HTTPS (not HTTP)
-   
 2. **Add to Discord:**
    - Go to Discord Developer Portal
    - OAuth2 → Redirects
@@ -133,6 +141,7 @@ Open browser DevTools (F12) → Console tab, and look for:
 ### Step 1: Verify Environment Variables
 
 Check Railway logs for:
+
 ```
 [CONFIG] Found X relevant environment variables: DISCORD_BOT_TOKEN, DISCORD_CLIENT_ID, ...
 ```
@@ -151,6 +160,7 @@ If missing, check Railway dashboard → Variables
 ### Step 3: Check Session Creation
 
 After OAuth callback, check logs for:
+
 ```
 [AUTH_ROUTES] User YourUsername logged in successfully
 [AUTH_ROUTES] Session ID: abc123, Session data: { userId: ..., hasAccess: true }
@@ -159,6 +169,7 @@ After OAuth callback, check logs for:
 ### Step 4: Verify Frontend Auth Check
 
 Check browser console for:
+
 ```
 Checking authentication status...
 Auth check response: 200 OK
@@ -190,11 +201,11 @@ Auth check data: { authenticated: true, hasAccess: true, user: {...} }
 ## Quick Test
 
 Run this in browser console after OAuth redirect:
+
 ```javascript
 fetch('/auth/debug', { credentials: 'include' })
-  .then(r => r.json())
+  .then((r) => r.json())
   .then(console.log);
 ```
 
 This will show your current authentication state.
-

@@ -14,7 +14,8 @@ export function executeNP(guildId: string): NPResult {
   if (!status) {
     return {
       success: false,
-      error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+      error:
+        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
     };
   }
 
@@ -34,4 +35,3 @@ export function executeNP(guildId: string): NPResult {
     playerMessage: createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo),
   };
 }
-

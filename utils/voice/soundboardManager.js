@@ -18,22 +18,33 @@ const log = createLogger('SOUNDBOARD');
  * @param {string} [username] - Discord username
  * @param {string} [discriminator] - Discord discriminator
  */
-function trackSoundboardUsage(soundName, userId, guildId, source, username = null, discriminator = null) {
-    if (!userId) return;
+function trackSoundboardUsage(
+  soundName,
+  userId,
+  guildId,
+  source,
+  username = null,
+  discriminator = null
+) {
+  if (!userId) return;
 
-    stats.trackSound(
-        soundName,
-        userId,
-        guildId,
-        'local',
-        true, // isSoundboard
-        null, // duration
-        source,
-        username,
-        discriminator
-    );
+  stats.trackSound(
+    soundName,
+    userId,
+    guildId,
+    'local',
+    true, // isSoundboard
+    null, // duration
+    source,
+    username,
+    discriminator
+  );
 
-    listeningHistory.trackPlayed(userId, guildId, {
+  listeningHistory
+    .trackPlayed(
+      userId,
+      guildId,
+      {
         title: soundName,
         url: null,
         duration: null,
@@ -41,7 +52,10 @@ function trackSoundboardUsage(soundName, userId, guildId, source, username = nul
         sourceType: 'local',
         source,
         isSoundboard: true,
-    }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+      },
+      userId
+    )
+    .catch((err) => log.error(`Failed to track soundboard history: ${err.message}`));
 }
 
 /**
@@ -55,30 +69,30 @@ function trackSoundboardUsage(soundName, userId, guildId, source, username = nul
  * @returns {Promise<Object>} Result object
  */
 async function playSoundboardDirect(state, soundName, userId, source, username, discriminator) {
-    const soundStream = await storage.getSoundStream(soundName);
-    const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+  const soundStream = await storage.getSoundStream(soundName);
+  const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
-    // Kill any existing overlay
-    if (state.overlayProcess) {
-        try {
-            state.overlayProcess.kill('SIGKILL');
-        } catch {
-            // Ignore errors
-        }
-        state.overlayProcess = null;
+  // Kill any existing overlay
+  if (state.overlayProcess) {
+    try {
+      state.overlayProcess.kill('SIGKILL');
+    } catch {
+      // Ignore errors
     }
+    state.overlayProcess = null;
+  }
 
-    state.player.play(resource);
-    state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
-    state.currentTrackSource = null;
+  state.player.play(resource);
+  state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
+  state.currentTrackSource = null;
 
-    trackSoundboardUsage(soundName, userId, state.channelId, source, username, discriminator);
+  trackSoundboardUsage(soundName, userId, state.channelId, source, username, discriminator);
 
-    return {
-        overlaid: false,
-        sound: soundName,
-        message: 'Playing soundboard'
-    };
+  return {
+    overlaid: false,
+    sound: soundName,
+    message: 'Playing soundboard',
+  };
 }
 
 /**
@@ -93,137 +107,156 @@ async function playSoundboardDirect(state, soundName, userId, source, username, 
  * @param {string} discriminator - Discord discriminator
  * @returns {Promise<Object>} Result object
  */
-async function playSoundboardOverlay(state, guildId, soundName, userId, source, username, discriminator) {
-    // Check if sound exists
-    const exists = await storage.soundExists(soundName);
-    if (!exists) {
-        throw new Error(`Sound file not found: ${soundName}`);
+async function playSoundboardOverlay(
+  state,
+  guildId,
+  soundName,
+  userId,
+  source,
+  username,
+  discriminator
+) {
+  // Check if sound exists
+  const exists = await storage.soundExists(soundName);
+  if (!exists) {
+    throw new Error(`Sound file not found: ${soundName}`);
+  }
+
+  const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
+  const hasMusicSource = state.currentTrackSource;
+
+  // If no music source, play directly
+  if (!hasMusicSource) {
+    log.debug('No music source, playing soundboard normally');
+    return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
+  }
+
+  log.info(`Overlaying soundboard "${soundName}" on music`);
+
+  try {
+    // Clean up any existing overlay process
+    if (state.overlayProcess) {
+      log.debug('Killing existing overlay process for new soundboard');
+      try {
+        state.overlayProcess.kill('SIGKILL');
+        state.player.stop();
+      } catch (err) {
+        log.debug(`Error killing old overlay: ${err.message}`);
+      }
+      state.overlayProcess = null;
     }
 
-    const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
-    const hasMusicSource = state.currentTrackSource;
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // If no music source, play directly
-    if (!hasMusicSource) {
-        log.debug('No music source, playing soundboard normally');
-        return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
+    // Get the music stream URL
+    const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
+
+    // Calculate current playback position
+    let playbackPosition = 0;
+    if (state.playbackStartTime) {
+      const elapsed = Date.now() - state.playbackStartTime;
+      const pausedTime = state.totalPausedTime || 0;
+      const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+      playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
     }
 
-    log.info(`Overlaying soundboard "${soundName}" on music`);
+    log.debug(`Seeking music to position: ${playbackPosition}s (paused: ${isPaused})`);
 
-    try {
-        // Clean up any existing overlay process
-        if (state.overlayProcess) {
-            log.debug('Killing existing overlay process for new soundboard');
-            try {
-                state.overlayProcess.kill('SIGKILL');
-                state.player.stop();
-            } catch (err) {
-                log.debug(`Error killing old overlay: ${err.message}`);
-            }
-            state.overlayProcess = null;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Get the music stream URL
-        const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
-        
-        // Calculate current playback position
-        let playbackPosition = 0;
-        if (state.playbackStartTime) {
-            const elapsed = Date.now() - state.playbackStartTime;
-            const pausedTime = state.totalPausedTime || 0;
-            const currentPauseTime = state.pauseStartTime ? (Date.now() - state.pauseStartTime) : 0;
-            playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
-        }
-        
-        log.debug(`Seeking music to position: ${playbackPosition}s (paused: ${isPaused})`);
-        
-        const soundInput = 'pipe:3';
+    const soundInput = 'pipe:3';
 
-        const ffmpegArgs = [
-            '-reconnect', '1',
-            '-reconnect_streamed', '1', 
-            '-reconnect_delay_max', '5',
-            '-ss', playbackPosition.toString(),
-            '-i', musicStreamUrl,
-            '-i', soundInput,
-            '-filter_complex',
-            '[0:a]volume=1.0[music];[1:a]volume=1.0[sound];[music][sound]amix=inputs=2:duration=longest:dropout_transition=0.5:normalize=0[out]',
-            '-map', '[out]',
-            '-acodec', 'libopus',
-            '-b:a', '128k',
-            '-f', 'opus',
-            '-ar', '48000',
-            '-ac', '2',
-            'pipe:1'
-        ];
+    const ffmpegArgs = [
+      '-reconnect',
+      '1',
+      '-reconnect_streamed',
+      '1',
+      '-reconnect_delay_max',
+      '5',
+      '-ss',
+      playbackPosition.toString(),
+      '-i',
+      musicStreamUrl,
+      '-i',
+      soundInput,
+      '-filter_complex',
+      '[0:a]volume=1.0[music];[1:a]volume=1.0[sound];[music][sound]amix=inputs=2:duration=longest:dropout_transition=0.5:normalize=0[out]',
+      '-map',
+      '[out]',
+      '-acodec',
+      'libopus',
+      '-b:a',
+      '128k',
+      '-f',
+      'opus',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      'pipe:1',
+    ];
 
-        log.debug(`FFmpeg args: ${ffmpegArgs.join(' ')}`);
+    log.debug(`FFmpeg args: ${ffmpegArgs.join(' ')}`);
 
-        const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-            stdio: ['pipe', 'pipe', 'pipe', 'pipe']
-        });
+    const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
+      stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+    });
 
-        // Pipe soundboard stream
-        const soundStream = await storage.getSoundStream(soundName);
-        soundStream.pipe(ffmpeg.stdio[3]);
+    // Pipe soundboard stream
+    const soundStream = await storage.getSoundStream(soundName);
+    soundStream.pipe(ffmpeg.stdio[3]);
 
-        ffmpeg.stderr.on('data', (data) => {
-            const msg = data.toString().trim();
-            if (msg && !msg.includes('frame=') && !msg.includes('size=')) {
-                log.debug(`FFmpeg overlay: ${msg}`);
-            }
-        });
+    ffmpeg.stderr.on('data', (data) => {
+      const msg = data.toString().trim();
+      if (msg && !msg.includes('frame=') && !msg.includes('size=')) {
+        log.debug(`FFmpeg overlay: ${msg}`);
+      }
+    });
 
-        ffmpeg.on('error', (err) => {
-            log.error(`FFmpeg overlay error: ${err.message}`);
-        });
+    ffmpeg.on('error', (err) => {
+      log.error(`FFmpeg overlay error: ${err.message}`);
+    });
 
-        ffmpeg.on('close', (code) => {
-            if (state.overlayProcess === ffmpeg) {
-                state.overlayProcess = null;
-            }
-            
-            if (code !== 0 && code !== 255) {
-                log.warn(`FFmpeg overlay exited with code ${code}`);
-            } else {
-                log.debug(`FFmpeg overlay completed successfully`);
-            }
-        });
+    ffmpeg.on('close', (code) => {
+      if (state.overlayProcess === ffmpeg) {
+        state.overlayProcess = null;
+      }
 
-        // Create audio resource from FFmpeg output
-        const resource = createAudioResource(ffmpeg.stdout, {
-            inputType: StreamType.OggOpus,
-        });
+      if (code !== 0 && code !== 255) {
+        log.warn(`FFmpeg overlay exited with code ${code}`);
+      } else {
+        log.debug(`FFmpeg overlay completed successfully`);
+      }
+    });
 
-        // Play the mixed audio
-        state.player.play(resource);
-        state.nowPlaying = `${state.nowPlaying} 🔊`;
-        state.overlayProcess = ffmpeg;
-        state.playbackStartTime = Date.now() - (playbackPosition * 1000);
-        state.totalPausedTime = 0;
+    // Create audio resource from FFmpeg output
+    const resource = createAudioResource(ffmpeg.stdout, {
+      inputType: StreamType.OggOpus,
+    });
 
-        log.info(`Soundboard "${soundName}" overlaid on music`);
+    // Play the mixed audio
+    state.player.play(resource);
+    state.nowPlaying = `${state.nowPlaying} 🔊`;
+    state.overlayProcess = ffmpeg;
+    state.playbackStartTime = Date.now() - playbackPosition * 1000;
+    state.totalPausedTime = 0;
 
-        trackSoundboardUsage(soundName, userId, guildId, source, username, discriminator);
+    log.info(`Soundboard "${soundName}" overlaid on music`);
 
-        return {
-            overlaid: true,
-            sound: soundName,
-            message: 'Soundboard playing over music'
-        };
+    trackSoundboardUsage(soundName, userId, guildId, source, username, discriminator);
 
-    } catch (error) {
-        log.error(`Failed to overlay soundboard: ${error.message}`);
-        // Fallback to direct playback
-        return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
-    }
+    return {
+      overlaid: true,
+      sound: soundName,
+      message: 'Soundboard playing over music',
+    };
+  } catch (error) {
+    log.error(`Failed to overlay soundboard: ${error.message}`);
+    // Fallback to direct playback
+    return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
+  }
 }
 
 module.exports = {
-    trackSoundboardUsage,
-    playSoundboardDirect,
-    playSoundboardOverlay,
+  trackSoundboardUsage,
+  playSoundboardDirect,
+  playSoundboardOverlay,
 };

@@ -15,10 +15,10 @@ const queueMutexes = new Map();
  * @returns {Mutex} Mutex for the guild
  */
 function getQueueMutex(guildId) {
-    if (!queueMutexes.has(guildId)) {
-        queueMutexes.set(guildId, new Mutex());
-    }
-    return queueMutexes.get(guildId);
+  if (!queueMutexes.has(guildId)) {
+    queueMutexes.set(guildId, new Mutex());
+  }
+  return queueMutexes.get(guildId);
 }
 
 /**
@@ -28,13 +28,13 @@ function getQueueMutex(guildId) {
  * @returns {Promise<any>} Result of the function
  */
 async function withQueueLock(guildId, fn) {
-    const mutex = getQueueMutex(guildId);
-    const release = await mutex.acquire();
-    try {
-        return await fn();
-    } finally {
-        release();
-    }
+  const mutex = getQueueMutex(guildId);
+  const release = await mutex.acquire();
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -43,7 +43,7 @@ async function withQueueLock(guildId, fn) {
  * @param {Array} tracks - Tracks to add
  */
 function addToQueue(state, tracks) {
-    state.queue.push(...tracks);
+  state.queue.push(...tracks);
 }
 
 /**
@@ -52,9 +52,9 @@ function addToQueue(state, tracks) {
  * @returns {number} Number of cleared tracks
  */
 function clearQueue(state) {
-    const cleared = state.queue.length;
-    state.queue = [];
-    return cleared;
+  const cleared = state.queue.length;
+  state.queue = [];
+  return cleared;
 }
 
 /**
@@ -64,10 +64,10 @@ function clearQueue(state) {
  * @returns {Object} Removed track
  */
 function removeTrack(state, index) {
-    if (index < 0 || index >= state.queue.length) {
-        throw new Error('Invalid queue index');
-    }
-    return state.queue.splice(index, 1)[0];
+  if (index < 0 || index >= state.queue.length) {
+    throw new Error('Invalid queue index');
+  }
+  return state.queue.splice(index, 1)[0];
 }
 
 /**
@@ -76,7 +76,7 @@ function removeTrack(state, index) {
  * @returns {Object|null} Next track or null
  */
 function getNextTrack(state) {
-    return state.queue.shift() || null;
+  return state.queue.shift() || null;
 }
 
 /**
@@ -86,23 +86,23 @@ function getNextTrack(state) {
  * @returns {Array<string>} Skipped track titles
  */
 function skipTracks(state, count) {
-    const skipped = [];
-    
-    // Current track
-    if (state.nowPlaying) {
-        skipped.push(state.nowPlaying);
+  const skipped = [];
+
+  // Current track
+  if (state.nowPlaying) {
+    skipped.push(state.nowPlaying);
+  }
+
+  // Queue tracks
+  const tracksToRemove = Math.min(count - 1, state.queue.length);
+  for (let i = 0; i < tracksToRemove; i++) {
+    if (state.queue.length > 0) {
+      skipped.push(state.queue[0].title);
+      state.queue.shift();
     }
-    
-    // Queue tracks
-    const tracksToRemove = Math.min(count - 1, state.queue.length);
-    for (let i = 0; i < tracksToRemove; i++) {
-        if (state.queue.length > 0) {
-            skipped.push(state.queue[0].title);
-            state.queue.shift();
-        }
-    }
-    
-    return skipped;
+  }
+
+  return skipped;
 }
 
 /**
@@ -112,21 +112,21 @@ function skipTracks(state, count) {
  * @returns {Object} Queue info
  */
 function getQueueSnapshot(state, limit = 20) {
-    return {
-        queue: state.queue.slice(0, limit),
-        totalInQueue: state.queue.length,
-        nowPlaying: state.nowPlaying,
-        currentTrack: state.currentTrack || null,
-    };
+  return {
+    queue: state.queue.slice(0, limit),
+    totalInQueue: state.queue.length,
+    nowPlaying: state.nowPlaying,
+    currentTrack: state.currentTrack || null,
+  };
 }
 
 module.exports = {
-    getQueueMutex,
-    withQueueLock,
-    addToQueue,
-    clearQueue,
-    removeTrack,
-    getNextTrack,
-    skipTracks,
-    getQueueSnapshot,
+  getQueueMutex,
+  withQueueLock,
+  addToQueue,
+  clearQueue,
+  removeTrack,
+  getNextTrack,
+  skipTracks,
+  getQueueSnapshot,
 };

@@ -11,84 +11,88 @@ let schemaInitialized = false;
  * Initialize PostgreSQL connection pool
  */
 function initDatabase() {
-    const config = loadConfig();
-    
-    if (!config.databaseUrl) {
-        log.warn('DATABASE_URL not configured. Statistics tracking will be disabled.');
-        return null;
+  const config = loadConfig();
+
+  if (!config.databaseUrl) {
+    log.warn('DATABASE_URL not configured. Statistics tracking will be disabled.');
+    return null;
+  }
+
+  try {
+    // Parse connection string to handle SSL requirements (common in Railway/cloud providers)
+    const poolConfig = {
+      connectionString: config.databaseUrl,
+      max: 10, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+    };
+
+    // For production databases (Railway, Heroku, etc.), SSL is usually required
+    // Parse URL to check if it's a cloud provider
+    if (
+      config.databaseUrl &&
+      (config.databaseUrl.includes('railway.app') ||
+        config.databaseUrl.includes('herokuapp.com') ||
+        config.databaseUrl.includes('amazonaws.com'))
+    ) {
+      poolConfig.ssl = {
+        rejectUnauthorized: false, // Required for Railway/Heroku PostgreSQL
+      };
     }
 
-    try {
-        // Parse connection string to handle SSL requirements (common in Railway/cloud providers)
-        const poolConfig = {
-            connectionString: config.databaseUrl,
-            max: 10, // Maximum number of clients in the pool
-            idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-            connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
-        };
+    pool = new Pool(poolConfig);
 
-        // For production databases (Railway, Heroku, etc.), SSL is usually required
-        // Parse URL to check if it's a cloud provider
-        if (config.databaseUrl && (config.databaseUrl.includes('railway.app') || 
-                                   config.databaseUrl.includes('herokuapp.com') ||
-                                   config.databaseUrl.includes('amazonaws.com'))) {
-            poolConfig.ssl = {
-                rejectUnauthorized: false, // Required for Railway/Heroku PostgreSQL
-            };
-        }
+    // Handle pool errors
+    pool.on('error', (err) => {
+      log.error(`Unexpected error on idle database client: ${err.message}`);
+    });
 
-        pool = new Pool(poolConfig);
+    // Test connection and initialize schema asynchronously
+    pool
+      .query('SELECT NOW()')
+      .then(async () => {
+        log.info('✓ Database connection pool initialized');
+        // Automatically setup schema if not already initialized
+        // Wait a bit to ensure connection is fully ready
+        setTimeout(async () => {
+          await initializeSchema();
+        }, 1000);
+      })
+      .catch((err) => {
+        log.error(`Database connection test failed: ${err.message}`);
+        pool = null;
+      });
 
-        // Handle pool errors
-        pool.on('error', (err) => {
-            log.error(`Unexpected error on idle database client: ${err.message}`);
-        });
-
-        // Test connection and initialize schema asynchronously
-        pool.query('SELECT NOW()')
-            .then(async () => {
-                log.info('✓ Database connection pool initialized');
-                // Automatically setup schema if not already initialized
-                // Wait a bit to ensure connection is fully ready
-                setTimeout(async () => {
-                    await initializeSchema();
-                }, 1000);
-            })
-            .catch((err) => {
-                log.error(`Database connection test failed: ${err.message}`);
-                pool = null;
-            });
-
-        return pool;
-    } catch (error) {
-        log.error(`Failed to initialize database pool: ${error.message}`);
-        return null;
-    }
+    return pool;
+  } catch (error) {
+    log.error(`Failed to initialize database pool: ${error.message}`);
+    return null;
+  }
 }
 
 /**
  * Get the database pool (returns null if not initialized)
  */
 function getPool() {
-    return pool;
+  return pool;
 }
 
 /**
  * Execute a query safely (handles errors gracefully)
  */
 async function query(text, params) {
-    if (!pool) {
-        log.debug('Database pool not available, skipping query');
-        return null;
-    }
+  if (!pool) {
+    log.debug('Database pool not available, skipping query');
+    return null;
+  }
 
-    try {
-        const result = await pool.query(text, params);
-        return result;
-    } catch (error) {
-        log.error(`Database query error: ${error.message}`, { query: text.substring(0, 100) });
-        return null;
-    }
+  try {
+    const result = await pool.query(text, params);
+    return result;
+  } catch (error) {
+    log.error(`Database query error: ${error.message}`, { query: text.substring(0, 100) });
+    return null;
+  }
 }
 
 /**
@@ -97,21 +101,21 @@ async function query(text, params) {
  * Can also be called manually to ensure schema is set up
  */
 async function initializeSchema() {
-    if (!pool) {
-        log.warn('Cannot initialize schema: database pool not available');
-        return false;
-    }
+  if (!pool) {
+    log.warn('Cannot initialize schema: database pool not available');
+    return false;
+  }
 
-    if (schemaInitialized) {
-        log.debug('Schema already initialized, skipping');
-        return true;
-    }
+  if (schemaInitialized) {
+    log.debug('Schema already initialized, skipping');
+    return true;
+  }
 
-    try {
-        log.info('Initializing database schema...');
+  try {
+    log.info('Initializing database schema...');
 
-        // Create tables
-        await pool.query(`
+    // Create tables
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS command_stats (
                 id SERIAL PRIMARY KEY,
                 command_name VARCHAR(100) NOT NULL,
@@ -126,7 +130,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS sound_stats (
                 id SERIAL PRIMARY KEY,
                 sound_name VARCHAR(255) NOT NULL,
@@ -142,7 +146,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id VARCHAR(20) PRIMARY KEY,
                 username VARCHAR(100),
@@ -151,7 +155,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS guild_queue_snapshots (
                 guild_id VARCHAR(20) PRIMARY KEY,
                 channel_id VARCHAR(20) NOT NULL,
@@ -165,7 +169,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS queue_operations (
                 id SERIAL PRIMARY KEY,
                 operation_type VARCHAR(20) NOT NULL CHECK (operation_type IN ('skip', 'pause', 'resume', 'clear', 'remove')),
@@ -177,7 +181,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS voice_events (
                 id SERIAL PRIMARY KEY,
                 event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('join', 'leave')),
@@ -189,7 +193,7 @@ async function initializeSchema() {
             )
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS listening_history (
                 id SERIAL PRIMARY KEY,
                 user_id VARCHAR(20) NOT NULL,
@@ -206,8 +210,8 @@ async function initializeSchema() {
             )
         `);
 
-        // Add queued_by column if it doesn't exist (migration for existing databases)
-        await pool.query(`
+    // Add queued_by column if it doesn't exist (migration for existing databases)
+    await pool.query(`
             DO $$ 
             BEGIN
                 IF NOT EXISTS (
@@ -219,8 +223,8 @@ async function initializeSchema() {
             END $$;
         `);
 
-        // Add username/discriminator columns if they don't exist (migration)
-        await pool.query(`
+    // Add username/discriminator columns if they don't exist (migration)
+    await pool.query(`
             DO $$ 
             BEGIN
                 IF NOT EXISTS (
@@ -250,34 +254,70 @@ async function initializeSchema() {
             END $$;
         `);
 
-        // Create indexes
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_guild_id ON command_stats(guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_user_id ON command_stats(user_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_executed_at ON command_stats(executed_at)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_command_name ON command_stats(command_name)`);
+    // Create indexes
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_guild_id ON command_stats(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_user_id ON command_stats(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_executed_at ON command_stats(executed_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_command_name ON command_stats(command_name)`
+    );
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_stats_guild_id ON sound_stats(guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_stats_user_id ON sound_stats(user_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_stats_played_at ON sound_stats(played_at)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_stats_sound_name ON sound_stats(sound_name)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_stats_guild_id ON sound_stats(guild_id)`
+    );
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_stats_user_id ON sound_stats(user_id)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_stats_played_at ON sound_stats(played_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_stats_sound_name ON sound_stats(sound_name)`
+    );
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_queue_ops_guild_id ON queue_operations(guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_queue_ops_user_id ON queue_operations(user_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_queue_ops_executed_at ON queue_operations(executed_at)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_queue_ops_guild_id ON queue_operations(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_queue_ops_user_id ON queue_operations(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_queue_ops_executed_at ON queue_operations(executed_at)`
+    );
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_voice_events_guild_id ON voice_events(guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_voice_events_executed_at ON voice_events(executed_at)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_voice_events_guild_id ON voice_events(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_voice_events_executed_at ON voice_events(executed_at)`
+    );
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)`
+    );
 
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_user_guild ON listening_history(user_id, guild_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_queued_by ON listening_history(queued_by)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_user_guild ON listening_history(user_id, guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_queued_by ON listening_history(queued_by)`
+    );
 
-        // Create views
-        await pool.query(`
+    // Create views
+    await pool.query(`
             CREATE OR REPLACE VIEW user_stats_view AS
             SELECT 
                 COALESCE(c.user_id, s.user_id) AS user_id,
@@ -293,7 +333,7 @@ async function initializeSchema() {
             GROUP BY COALESCE(c.user_id, s.user_id), COALESCE(c.guild_id, s.guild_id)
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE OR REPLACE VIEW guild_stats_view AS
             SELECT 
                 COALESCE(c.guild_id, s.guild_id) AS guild_id,
@@ -306,7 +346,7 @@ async function initializeSchema() {
             GROUP BY COALESCE(c.guild_id, s.guild_id)
         `);
 
-        await pool.query(`
+    await pool.query(`
             CREATE OR REPLACE VIEW daily_stats_view AS
             SELECT 
                 COALESCE(c.date, s.date) AS date,
@@ -334,32 +374,32 @@ async function initializeSchema() {
             ) s ON c.date = s.date
         `);
 
-        schemaInitialized = true;
-        log.info('✓ Database schema initialized');
-        return true;
-    } catch (error) {
-        log.error(`Failed to initialize database schema: ${error.message}`, { stack: error.stack });
-        // Don't throw - allow app to continue without schema
-        return false;
-    }
+    schemaInitialized = true;
+    log.info('✓ Database schema initialized');
+    return true;
+  } catch (error) {
+    log.error(`Failed to initialize database schema: ${error.message}`, { stack: error.stack });
+    // Don't throw - allow app to continue without schema
+    return false;
+  }
 }
 
 /**
  * Close the database pool
  */
 async function close() {
-    if (pool) {
-        await pool.end();
-        pool = null;
-        schemaInitialized = false;
-        log.info('Database pool closed');
-    }
+  if (pool) {
+    await pool.end();
+    pool = null;
+    schemaInitialized = false;
+    log.info('Database pool closed');
+  }
 }
 
 module.exports = {
-    initDatabase,
-    getPool,
-    query,
-    close,
-    initializeSchema,
+  initDatabase,
+  getPool,
+  query,
+  close,
+  initializeSchema,
 };

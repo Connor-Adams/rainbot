@@ -19,7 +19,7 @@ export async function executeVol(params: VolParams): Promise<VolExecuteResult> {
     return {
       needsDefer: false,
       ephemeral: true,
-      content: '❌ I\'m not in a voice channel.',
+      content: "❌ I'm not in a voice channel.",
     };
   }
 
@@ -37,9 +37,7 @@ export async function executeVol(params: VolParams): Promise<VolExecuteResult> {
   };
 }
 
-export async function executeVolDeferred(
-  params: VolParams
-): Promise<VolExecuteResult> {
+export async function executeVolDeferred(params: VolParams): Promise<VolExecuteResult> {
   const { guildId, level, userId } = params;
 
   try {

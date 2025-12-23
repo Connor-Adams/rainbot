@@ -13,25 +13,25 @@ const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
  * @returns {Promise<Object>} Video metadata
  */
 async function fetchYouTubeMetadata(url) {
-    try {
-        const info = await youtubedl(url, {
-            dumpSingleJson: true,
-            noPlaylist: true,
-            noWarnings: true,
-            quiet: true,
-        });
-        return {
-            title: info.title || 'Unknown Track',
-            duration: info.duration,
-            url: url,
-        };
-    } catch (error) {
-        log.warn(`Could not fetch video info: ${error.message}`);
-        return {
-            title: 'Unknown Track',
-            url: url,
-        };
-    }
+  try {
+    const info = await youtubedl(url, {
+      dumpSingleJson: true,
+      noPlaylist: true,
+      noWarnings: true,
+      quiet: true,
+    });
+    return {
+      title: info.title || 'Unknown Track',
+      duration: info.duration,
+      url: url,
+    };
+  } catch (error) {
+    log.warn(`Could not fetch video info: ${error.message}`);
+    return {
+      title: 'Unknown Track',
+      url: url,
+    };
+  }
 }
 
 /**
@@ -40,16 +40,16 @@ async function fetchYouTubeMetadata(url) {
  * @returns {Promise<Object>} Playlist info with entries
  */
 async function fetchYouTubePlaylist(url) {
-    const info = await youtubedl(url, {
-        dumpSingleJson: true,
-        flatPlaylist: true,
-        noWarnings: true,
-        quiet: true,
-    });
-    return {
-        title: info.title,
-        entries: info.entries || [],
-    };
+  const info = await youtubedl(url, {
+    dumpSingleJson: true,
+    flatPlaylist: true,
+    noWarnings: true,
+    quiet: true,
+  });
+  return {
+    title: info.title,
+    entries: info.entries || [],
+  };
 }
 
 /**
@@ -59,12 +59,12 @@ async function fetchYouTubePlaylist(url) {
  * @returns {Promise<Array>} Search results
  */
 async function searchYouTube(query, limit = 1) {
-    const results = await play.search(query, { limit });
-    return results.map(result => ({
-        title: result.title || query,
-        url: result.url,
-        duration: result.durationInSec || null,
-    }));
+  const results = await play.search(query, { limit });
+  return results.map((result) => ({
+    title: result.title || query,
+    url: result.url,
+    duration: result.durationInSec || null,
+  }));
 }
 
 /**
@@ -73,20 +73,20 @@ async function searchYouTube(query, limit = 1) {
  * @returns {Promise<Object>} Track info
  */
 async function spotifyToYouTube(spotifyTrack) {
-    const searchQuery = `${spotifyTrack.name} ${spotifyTrack.artists[0]?.name || ''}`;
-    log.debug(`Searching YouTube for Spotify track: ${searchQuery}`);
-    
-    const ytResults = await play.search(searchQuery, { limit: 1 });
-    if (ytResults && ytResults.length > 0) {
-        return {
-            title: `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown Artist'}`,
-            url: ytResults[0].url,
-            duration: Math.floor((spotifyTrack.durationInMs || 0) / 1000),
-            spotifyId: spotifyTrack.id,
-            spotifyUrl: spotifyTrack.url,
-        };
-    }
-    throw new Error(`Could not find YouTube equivalent for: ${spotifyTrack.name}`);
+  const searchQuery = `${spotifyTrack.name} ${spotifyTrack.artists[0]?.name || ''}`;
+  log.debug(`Searching YouTube for Spotify track: ${searchQuery}`);
+
+  const ytResults = await play.search(searchQuery, { limit: 1 });
+  if (ytResults && ytResults.length > 0) {
+    return {
+      title: `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown Artist'}`,
+      url: ytResults[0].url,
+      duration: Math.floor((spotifyTrack.durationInMs || 0) / 1000),
+      spotifyId: spotifyTrack.id,
+      spotifyUrl: spotifyTrack.url,
+    };
+  }
+  throw new Error(`Could not find YouTube equivalent for: ${spotifyTrack.name}`);
 }
 
 /**
@@ -96,31 +96,31 @@ async function spotifyToYouTube(spotifyTrack) {
  * @param {string} guildId - Guild ID
  */
 async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
-    let added = 0;
-    let failed = 0;
-    
-    for (const spotifyTrack of spotifyTracks) {
-        try {
-            const track = await spotifyToYouTube(spotifyTrack);
-            state.queue.push({
-                ...track,
-                isLocal: false,
-                userId: state.lastUserId || null,
-                username: state.lastUsername || null,
-                discriminator: state.lastDiscriminator || null,
-                source: 'discord',
-            });
-            added++;
-            
-            // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-            failed++;
-            log.error(`Error processing Spotify track ${spotifyTrack.name}: ${error.message}`);
-        }
+  let added = 0;
+  let failed = 0;
+
+  for (const spotifyTrack of spotifyTracks) {
+    try {
+      const track = await spotifyToYouTube(spotifyTrack);
+      state.queue.push({
+        ...track,
+        isLocal: false,
+        userId: state.lastUserId || null,
+        username: state.lastUsername || null,
+        discriminator: state.lastDiscriminator || null,
+        source: 'discord',
+      });
+      added++;
+
+      // Small delay to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      failed++;
+      log.error(`Error processing Spotify track ${spotifyTrack.name}: ${error.message}`);
     }
-    
-    log.info(`Added ${added} tracks from Spotify (${failed} failed)`);
+  }
+
+  log.info(`Added ${added} tracks from Spotify (${failed} failed)`);
 }
 
 /**
@@ -130,11 +130,11 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
  * @returns {boolean} True if hostname matches or is a subdomain of expectedDomain
  */
 function isValidHostname(hostname, expectedDomain) {
-    // Exact match
-    if (hostname === expectedDomain) return true;
-    // Subdomain match (e.g., www.youtube.com, m.youtube.com)
-    if (hostname.endsWith('.' + expectedDomain)) return true;
-    return false;
+  // Exact match
+  if (hostname === expectedDomain) return true;
+  // Subdomain match (e.g., www.youtube.com, m.youtube.com)
+  if (hostname.endsWith('.' + expectedDomain)) return true;
+  return false;
 }
 
 /**
@@ -143,41 +143,42 @@ function isValidHostname(hostname, expectedDomain) {
  * @returns {string|null} URL type or null
  */
 function detectUrlType(source) {
-    try {
-        const url = new URL(source);
-        const hostname = url.hostname.toLowerCase();
-        
-        // YouTube detection - check hostname properly
-        if (isValidHostname(hostname, 'youtube.com') || 
-            isValidHostname(hostname, 'youtu.be') ||
-            isValidHostname(hostname, 'www.youtube.com') ||
-            isValidHostname(hostname, 'm.youtube.com')) {
-            if (url.searchParams.has('list')) {
-                return 'yt_playlist';
-            }
-            return 'yt_video';
-        }
-        
-        // Spotify detection - check hostname properly
-        if (isValidHostname(hostname, 'spotify.com') || 
-            isValidHostname(hostname, 'open.spotify.com')) {
-            const pathParts = url.pathname.split('/').filter(p => p);
-            if (pathParts[0] === 'track') return 'sp_track';
-            if (pathParts[0] === 'playlist') return 'sp_playlist';
-            if (pathParts[0] === 'album') return 'sp_album';
-        }
-        
-        return null;
-    } catch {
-        return null;
+  try {
+    const url = new URL(source);
+    const hostname = url.hostname.toLowerCase();
+
+    // YouTube detection - check hostname properly
+    if (
+      isValidHostname(hostname, 'youtube.com') ||
+      isValidHostname(hostname, 'youtu.be') ||
+      isValidHostname(hostname, 'www.youtube.com') ||
+      isValidHostname(hostname, 'm.youtube.com')
+    ) {
+      if (url.searchParams.has('list')) {
+        return 'yt_playlist';
+      }
+      return 'yt_video';
     }
+
+    // Spotify detection - check hostname properly
+    if (isValidHostname(hostname, 'spotify.com') || isValidHostname(hostname, 'open.spotify.com')) {
+      const pathParts = url.pathname.split('/').filter((p) => p);
+      if (pathParts[0] === 'track') return 'sp_track';
+      if (pathParts[0] === 'playlist') return 'sp_playlist';
+      if (pathParts[0] === 'album') return 'sp_album';
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 module.exports = {
-    fetchYouTubeMetadata,
-    fetchYouTubePlaylist,
-    searchYouTube,
-    spotifyToYouTube,
-    processSpotifyPlaylistTracks,
-    detectUrlType,
+  fetchYouTubeMetadata,
+  fetchYouTubePlaylist,
+  searchYouTube,
+  spotifyToYouTube,
+  processSpotifyPlaylistTracks,
+  detectUrlType,
 };

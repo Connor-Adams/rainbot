@@ -1,4 +1,3 @@
-
 import { EmbedBuilder } from 'discord.js';
 import type { PingResult } from '../../types/commands';
 
@@ -24,4 +23,3 @@ export function createPingEmbed(result: PingExecuteResult): EmbedBuilder {
     )
     .setTimestamp();
 }
-

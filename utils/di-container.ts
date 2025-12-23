@@ -49,45 +49,57 @@ export class DIContainer {
 
     // Bind services (these will be implemented progressively)
     // For now, we'll use lazy loading to maintain backward compatibility
-    
+
     // Config Service
-    container.bind<IConfigService>(TYPES.ConfigService).toDynamicValue(() => {
-      const { loadConfig } = require('./config');
-      return {
-        get: (key: string) => loadConfig()[key],
-        getAll: () => loadConfig(),
-        validate: () => true,
-      };
-    }).inSingletonScope();
+    container
+      .bind<IConfigService>(TYPES.ConfigService)
+      .toDynamicValue(() => {
+        const { loadConfig } = require('./config');
+        return {
+          get: (key: string) => loadConfig()[key],
+          getAll: () => loadConfig(),
+          validate: () => true,
+        };
+      })
+      .inSingletonScope();
 
     // Logger Service
-    container.bind<ILoggerService>(TYPES.Logger).toDynamicValue((context) => {
-      const { createLogger } = require('./logger');
-      return createLogger('DIContainer');
-    }).inSingletonScope();
+    container
+      .bind<ILoggerService>(TYPES.Logger)
+      .toDynamicValue((context) => {
+        const { createLogger } = require('./logger');
+        return createLogger('DIContainer');
+      })
+      .inSingletonScope();
 
     // Database Service
-    container.bind<IDatabaseService>(TYPES.DatabaseService).toDynamicValue(() => {
-      const database = require('./database');
-      return {
-        getPool: () => database.getPool(),
-        query: database.query,
-        transaction: database.transaction,
-        close: database.close,
-      };
-    }).inSingletonScope();
+    container
+      .bind<IDatabaseService>(TYPES.DatabaseService)
+      .toDynamicValue(() => {
+        const database = require('./database');
+        return {
+          getPool: () => database.getPool(),
+          query: database.query,
+          transaction: database.transaction,
+          close: database.close,
+        };
+      })
+      .inSingletonScope();
 
     // Cache Service (Redis)
-    container.bind<ICacheService>(TYPES.CacheService).toDynamicValue(() => {
-      // This will be implemented when we add Redis caching
-      return {
-        get: async () => null,
-        set: async () => {},
-        delete: async () => {},
-        clear: async () => {},
-        exists: async () => false,
-      };
-    }).inSingletonScope();
+    container
+      .bind<ICacheService>(TYPES.CacheService)
+      .toDynamicValue(() => {
+        // This will be implemented when we add Redis caching
+        return {
+          get: async () => null,
+          set: async () => {},
+          delete: async () => {},
+          clear: async () => {},
+          exists: async () => false,
+        };
+      })
+      .inSingletonScope();
   }
 
   /**
