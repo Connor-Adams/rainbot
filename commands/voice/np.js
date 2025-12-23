@@ -1,7 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const voiceManager = require('../../utils/voiceManager');
-const { createPlayerMessage } = require('../../utils/playerEmbed');
-const { AudioPlayerStatus } = require('@discordjs/voice');
+const { executeNP } = require('./np.ts');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -11,26 +9,16 @@ module.exports = {
     async execute(interaction) {
         const guildId = interaction.guildId;
 
-        const status = voiceManager.getStatus(guildId);
-        if (!status) {
+        const result = executeNP(guildId);
+
+        if (!result.success) {
             return interaction.reply({
-                content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+                content: result.error || 'An error occurred',
                 ephemeral: true,
             });
         }
 
-        if (!status.nowPlaying) {
-            return interaction.reply({
-                content: '❌ Nothing is playing right now. Use `/play` to start playing music.',
-                ephemeral: true,
-            });
-        }
-
-        const queueInfo = voiceManager.getQueue(guildId);
-        const { nowPlaying, queue, currentTrack } = queueInfo;
-        const isPaused = !status.isPlaying;
-
-        await interaction.reply(createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo));
+        await interaction.reply(result.playerMessage!);
     },
 };
 

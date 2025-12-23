@@ -1,3 +1,6 @@
+// Register TypeScript loader (tsx) to enable require() of .ts files
+require('tsx/cjs/register');
+
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
 const dotenvResult = require('dotenv').config();

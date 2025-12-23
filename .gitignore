@@ -44,6 +44,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# TypeScript compiled output (if we switch to compilation later)
+commands/**/*.js.map
+utils/**/*.js.map
+
 # React UI build output (source is tracked, build is not)
 ui/dist/
 ui/node_modules/

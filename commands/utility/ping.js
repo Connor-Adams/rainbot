@@ -1,4 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { executePing, createPingEmbed } = require('./ping.ts');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -9,14 +10,8 @@ module.exports = {
         const roundtrip = sent.createdTimestamp - interaction.createdTimestamp;
         const websocket = interaction.client.ws.ping;
 
-        const embed = new EmbedBuilder()
-            .setTitle('🏓 Pong!')
-            .setColor(0x6366f1)
-            .addFields(
-                { name: '⏱️ Roundtrip', value: `${roundtrip}ms`, inline: true },
-                { name: '💓 WebSocket', value: `${websocket}ms`, inline: true }
-            )
-            .setTimestamp();
+        const result = executePing(roundtrip, websocket);
+        const embed = createPingEmbed(result);
 
         await interaction.editReply({ content: '', embeds: [embed] });
     }

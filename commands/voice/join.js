@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const voiceManager = require('../../utils/voiceManager');
+const { validateJoinPermissions, formatJoinSuccessMessage, formatJoinErrorMessage } = require('./join.ts');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -19,24 +20,26 @@ module.exports = {
 
         // Check bot permissions
         const permissions = voiceChannel.permissionsFor(interaction.client.user);
-        const missingPerms = [];
-        if (!permissions.has('Connect')) missingPerms.push('Connect');
-        if (!permissions.has('Speak')) missingPerms.push('Speak');
+        const validation = validateJoinPermissions(
+            permissions.has('Connect'),
+            permissions.has('Speak'),
+            voiceChannel.name
+        );
         
-        if (missingPerms.length > 0) {
+        if (!validation.valid) {
             return interaction.reply({
-                content: `❌ I need the following permissions in **${voiceChannel.name}**: ${missingPerms.join(', ')}\n\n💡 Ask a server administrator to grant these permissions.`,
+                content: validation.error || 'Permission error',
                 ephemeral: true,
             });
         }
 
         try {
             await voiceManager.joinChannel(voiceChannel);
-            await interaction.reply(`🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`);
+            await interaction.reply(formatJoinSuccessMessage(voiceChannel.name));
         } catch (error) {
             console.error('Error joining voice channel:', error);
             await interaction.reply({
-                content: `❌ Failed to join the voice channel: ${error.message}\n\n💡 Make sure I have the necessary permissions and try again.`,
+                content: formatJoinErrorMessage(error),
                 ephemeral: true,
             });
         }

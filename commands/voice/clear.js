@@ -1,8 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const voiceManager = require('../../utils/voiceManager');
-const { createLogger } = require('../../utils/logger');
-
-const log = createLogger('CLEAR');
+const { executeClear, formatClearMessage } = require('./clear.ts');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,33 +9,17 @@ module.exports = {
     async execute(interaction) {
         const guildId = interaction.guildId;
 
-        const status = voiceManager.getStatus(guildId);
-        if (!status) {
+        const result = executeClear(guildId);
+
+        if (!result.success) {
             return interaction.reply({
-                content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+                content: result.error || 'An error occurred',
                 ephemeral: true,
             });
         }
 
-        try {
-            const cleared = voiceManager.clearQueue(guildId);
-            log.info(`Cleared ${cleared} tracks by ${interaction.user.tag}`);
-            
-            const { nowPlaying } = voiceManager.getQueue(guildId);
-            const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
-            
-            if (cleared === 0) {
-                await interaction.reply(`📋 Queue was already empty.${currentTrack}`);
-            } else {
-                await interaction.reply(`🗑️ Cleared **${cleared}** track${cleared === 1 ? '' : 's'} from the queue.${currentTrack}`);
-            }
-        } catch (error) {
-            log.error(`Clear error: ${error.message}`);
-            await interaction.reply({
-                content: `❌ ${error.message}`,
-                ephemeral: true,
-            });
-        }
+        const message = formatClearMessage(result.result);
+        await interaction.reply(message);
     },
 };
 
