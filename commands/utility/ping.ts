@@ -1,6 +1,4 @@
 import { EmbedBuilder } from 'discord.js';
-import type { PingResult } from '../../types/commands';
-
 export interface PingExecuteResult {
   roundtrip: number;
   websocket: number;
