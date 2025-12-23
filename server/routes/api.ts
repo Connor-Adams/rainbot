@@ -125,9 +125,9 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
 });
 
 // POST /api/sounds - Upload one or more sounds
-  uploadRateLimiter,
 router.post(
   '/sounds',
+  uploadRateLimiter,
   requireAuth,
   upload.array('sound', 50),
   async (req: Request, res: Response): Promise<void> => {
