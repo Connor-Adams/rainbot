@@ -48,6 +48,12 @@ build/
 ui/dist/
 ui/node_modules/
 ui/.vite/
+ui/.vite-cache/
+
+# React UI build output (source is tracked, build is not)
+ui/dist/
+ui/node_modules/
+ui/.vite/
 
 # Temporary files
 *.tmp

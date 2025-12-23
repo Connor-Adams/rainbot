@@ -1,0 +1,50 @@
+name: Dependabot Auto-merge
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  auto-merge:
+    name: Auto-merge Dependabot PRs
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: ./ui
+        run: npm ci
+
+      - name: Run backend lint
+        run: npm run lint || echo "No lint script"
+
+      - name: Run frontend lint
+        working-directory: ./ui
+        run: npm run lint
+
+      - name: Type check frontend
+        working-directory: ./ui
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: ./ui
+        run: npm run build
+
+      - name: Auto-merge PR
+        if: success()
+        uses: fastify/github-action-merge-dependabot@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+

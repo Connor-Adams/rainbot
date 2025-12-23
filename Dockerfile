@@ -28,6 +28,17 @@ RUN YOUTUBE_DL_SKIP_DOWNLOAD=true npm ci --only=production
 # Copy application code
 COPY . .
 
+# Build React UI
+WORKDIR /app/ui
+COPY ui/package*.json ./
+# Install all dependencies (including devDependencies) to build
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+# Return to app root
+WORKDIR /app
+
 # Expose port (Railway sets PORT env var)
 EXPOSE 3000
 

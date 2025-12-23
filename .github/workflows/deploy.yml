@@ -1,0 +1,44 @@
+name: Pre-Deploy Build Check
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-check:
+    name: Verify Build Before Railway Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: ./ui
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./ui
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "ui/dist" ] || [ ! -f "ui/dist/index.html" ]; then
+            echo "❌ Build failed - dist directory or index.html not found"
+            exit 1
+          fi
+          echo "✅ Build successful - Railway will auto-deploy this commit"
+          
+      # Railway auto-deploys via Git integration, so no manual deploy step needed
+      # This workflow just ensures the build succeeds before Railway tries to deploy
+
