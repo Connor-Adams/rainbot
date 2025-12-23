@@ -44,9 +44,10 @@ dist/
 build/
 *.tsbuildinfo
 
-# TypeScript compiled output (if we switch to compilation later)
-commands/**/*.js.map
-utils/**/*.js.map
+# TypeScript compiled output
+commands/voice/*.js
+commands/utility/*.js
+utils/playerEmbed.js
 
 # React UI build output (source is tracked, build is not)
 ui/dist/

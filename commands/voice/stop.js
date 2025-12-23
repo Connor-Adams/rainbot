@@ -1,24 +1,37 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { executeStop } = require('./stop.ts');
-
-module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('stop')
-        .setDescription('Stop playback immediately and clear the entire queue (use /clear to keep current track)'),
-
-    async execute(interaction) {
-        const guildId = interaction.guildId;
-
-        const result = executeStop(guildId);
-
-        if (!result.success) {
-            return interaction.reply({
-                content: result.error || 'An error occurred',
-                ephemeral: true,
-            });
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.executeStop = executeStop;
+const voiceManager = require('../../utils/voiceManager');
+const { createLogger } = require('../../utils/logger');
+const log = createLogger('STOP');
+function executeStop(guildId) {
+    const status = voiceManager.getStatus(guildId);
+    if (!status) {
+        return {
+            success: false,
+            error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+        };
+    }
+    try {
+        const stopped = voiceManager.stopSound(guildId);
+        if (stopped) {
+            log.info('Stopped');
+            return {
+                success: true,
+            };
         }
-
-        await interaction.reply('⏹️ Stopped playback and cleared the queue.');
-    },
-};
-
+        else {
+            return {
+                success: false,
+                error: '❌ Nothing is playing. Use `/play` to start playback.',
+            };
+        }
+    }
+    catch (error) {
+        log.error(`Stop error: ${error.message}`);
+        return {
+            success: false,
+            error: `❌ ${error.message}`,
+        };
+    }
+}

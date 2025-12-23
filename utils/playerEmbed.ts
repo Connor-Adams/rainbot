@@ -186,7 +186,7 @@ export function createPlayerMessage(
   isPaused: boolean = false,
   currentTrack: Track | null = null,
   queueInfo: Partial<QueueInfo> = {}
-): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] } {
+): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[]; content?: string } {
   const hasQueue = (queueInfo.totalInQueue ?? queue.length) > 0;
   return {
     embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack, queueInfo)],

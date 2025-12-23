@@ -3,8 +3,6 @@
     "target": "ES2022",
     "module": "CommonJS",
     "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -12,13 +10,16 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "allowJs": true,
-    "noEmit": true,
-    "types": ["node"]
+    "noEmit": false,
+    "types": ["node"],
+    "moduleDetection": "force",
+    "declaration": false,
+    "sourceMap": false
   },
   "include": [
-    "commands/**/*",
-    "utils/**/*",
-    "types/**/*"
+    "commands/**/*.ts",
+    "utils/playerEmbed.ts",
+    "types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

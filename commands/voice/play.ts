@@ -11,7 +11,7 @@ export interface PlayExecuteResult {
   needsDefer: boolean;
   ephemeral?: boolean;
   content?: string;
-  playerMessage?: ReturnType<typeof createPlayerMessage>;
+  playerMessage?: ReturnType<typeof createPlayerMessage> & { content?: string };
 }
 
 export async function executePlay(params: PlayParams): Promise<PlayExecuteResult> {

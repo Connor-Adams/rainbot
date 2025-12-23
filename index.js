@@ -1,5 +1,4 @@
-// Register TypeScript loader (ts-node) to enable require() of .ts files
-require('ts-node/register');
+// Using tsx to run TypeScript files directly
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env

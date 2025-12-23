@@ -10,7 +10,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "start": "node index.js",
+    "build:ts": "tsc",
+    "start": "npm run build:ts && node index.js",
     "dev:ui": "node dev-server.js",
     "build:ui": "cd ui && npm install && npm run build",
     "build": "npm run build:ui && npm run start",
@@ -42,7 +43,7 @@
     "@types/node": "^24.10.1",
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }
 }
