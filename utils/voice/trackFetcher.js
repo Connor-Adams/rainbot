@@ -9,6 +9,20 @@ const log = createLogger('TRACK_FETCHER');
 const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
 
 /**
+ * Check if hostname matches expected domain
+ * @param {string} hostname - URL hostname
+ * @param {string} expectedDomain - Expected domain (e.g., 'youtube.com')
+ * @returns {boolean} True if hostname matches or is a subdomain of expectedDomain
+ */
+function isValidHostname(hostname, expectedDomain) {
+    // Exact match
+    if (hostname === expectedDomain) return true;
+    // Subdomain match (e.g., www.youtube.com, m.youtube.com)
+    if (hostname.endsWith('.' + expectedDomain)) return true;
+    return false;
+}
+
+/**
  * Fetch YouTube video metadata
  * @param {string} url - YouTube URL
  * @returns {Promise<Object>} Video info
@@ -171,17 +185,22 @@ async function searchYouTube(query) {
 async function detectUrlType(url) {
     try {
         const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
         
-        // YouTube detection
-        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+        // YouTube detection - check hostname properly
+        if (isValidHostname(hostname, 'youtube.com') || 
+            isValidHostname(hostname, 'youtu.be') ||
+            isValidHostname(hostname, 'www.youtube.com') ||
+            isValidHostname(hostname, 'm.youtube.com')) {
             if (urlObj.searchParams.has('list')) {
                 return 'yt_playlist';
             }
             return 'yt_video';
         }
         
-        // Spotify detection
-        if (urlObj.hostname.includes('spotify.com') || urlObj.hostname.includes('open.spotify.com')) {
+        // Spotify detection - check hostname properly
+        if (isValidHostname(hostname, 'spotify.com') || 
+            isValidHostname(hostname, 'open.spotify.com')) {
             const pathParts = urlObj.pathname.split('/').filter(p => p);
             if (pathParts[0] === 'track') return 'sp_track';
             if (pathParts[0] === 'playlist') return 'sp_playlist';
