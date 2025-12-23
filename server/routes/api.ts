@@ -7,8 +7,14 @@ import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '../../utils/statistics';
 import type { GuildMember } from 'discord.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+
+const uploadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+});
 
 interface AuthUser {
   id: string | null;
@@ -119,6 +125,7 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
 });
 
 // POST /api/sounds - Upload one or more sounds
+  uploadRateLimiter,
 router.post(
   '/sounds',
   requireAuth,
