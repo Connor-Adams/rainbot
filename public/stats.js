@@ -417,6 +417,7 @@ async function loadUsersStats() {
                 <table class="stats-table w-full">
                     <thead>
                         <tr>
+                            <th>Username</th>
                             <th>User ID</th>
                             <th>Guild ID</th>
                             <th>Commands</th>
@@ -446,9 +447,13 @@ function renderUsersTable(users) {
         const soundCount = parseInt(user.sound_count || 0);
         const total = commandCount + soundCount;
         const lastActive = user.last_active ? new Date(user.last_active).toLocaleString() : 'Never';
+        const username = user.username
+            ? `${user.username}${user.discriminator && user.discriminator !== '0' ? `#${user.discriminator}` : ''}`
+            : 'Unknown';
         
         return `
             <tr class="hover:bg-gray-700/50 transition-colors">
+                <td class="px-4 py-3 text-sm text-white font-mono">${escapeHtml(username)}</td>
                 <td class="px-4 py-3 text-sm text-white font-mono">${escapeHtml(user.user_id)}</td>
                 <td class="px-4 py-3 text-sm text-gray-400 font-mono">${escapeHtml(user.guild_id)}</td>
                 <td class="px-4 py-3 text-sm text-gray-400 font-mono">${commandCount.toLocaleString()}</td>
@@ -812,4 +817,3 @@ if (document.readyState === 'loading') {
 } else {
     initStats();
 }
-

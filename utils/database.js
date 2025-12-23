@@ -143,6 +143,15 @@ async function initializeSchema() {
         `);
 
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id VARCHAR(20) PRIMARY KEY,
+                username VARCHAR(100),
+                discriminator VARCHAR(10),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS queue_operations (
                 id SERIAL PRIMARY KEY,
                 operation_type VARCHAR(20) NOT NULL CHECK (operation_type IN ('skip', 'pause', 'resume', 'clear', 'remove')),
@@ -245,6 +254,8 @@ async function initializeSchema() {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_voice_events_guild_id ON voice_events(guild_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_voice_events_executed_at ON voice_events(executed_at)`);
 
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)`);
+
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`);
@@ -257,13 +268,14 @@ async function initializeSchema() {
             SELECT 
                 COALESCE(c.user_id, s.user_id) AS user_id,
                 COALESCE(c.guild_id, s.guild_id) AS guild_id,
-                COALESCE(MAX(c.username), MAX(s.username)) AS username,
-                COALESCE(MAX(c.discriminator), MAX(s.discriminator)) AS discriminator,
+                COALESCE(MAX(u.username), MAX(c.username), MAX(s.username)) AS username,
+                COALESCE(MAX(u.discriminator), MAX(c.discriminator), MAX(s.discriminator)) AS discriminator,
                 COUNT(DISTINCT c.id) AS command_count,
                 COUNT(DISTINCT s.id) AS sound_count,
                 GREATEST(MAX(c.executed_at), MAX(s.played_at)) AS last_active
             FROM command_stats c
             FULL OUTER JOIN sound_stats s ON c.user_id = s.user_id AND c.guild_id = s.guild_id
+            LEFT JOIN user_profiles u ON u.user_id = COALESCE(c.user_id, s.user_id)
             GROUP BY COALESCE(c.user_id, s.user_id), COALESCE(c.guild_id, s.guild_id)
         `);
 

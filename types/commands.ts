@@ -8,6 +8,8 @@ export interface PlayParams {
   guildId: string;
   source: string;
   userId: string | null;
+  username?: string;
+  discriminator?: string;
 }
 
 export interface PlayCommandResult {
@@ -77,4 +79,3 @@ export interface VolParams {
 export interface VolResult {
   volume: number;
 }
-

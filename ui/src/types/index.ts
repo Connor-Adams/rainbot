@@ -87,7 +87,8 @@ export interface SoundboardBreakdown {
 
 export interface UserStat {
   user_id: string;
-  discriminator: string;
+  username?: string;
+  discriminator?: string;
   guild_id: string;
   command_count: string;
   sound_count: string;
@@ -121,4 +122,3 @@ export interface ListeningHistoryEntry {
   played_at: string;
   is_soundboard?: boolean;
 }
-

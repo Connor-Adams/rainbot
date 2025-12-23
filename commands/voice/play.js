@@ -35,7 +35,14 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            const result = await voiceManager.playSound(guildId, source, interaction.user.id);
+            const result = await voiceManager.playSound(
+                guildId,
+                source,
+                interaction.user.id,
+                'discord',
+                interaction.user.username,
+                interaction.user.discriminator
+            );
             const queueInfo = voiceManager.getQueue(guildId);
             const { nowPlaying, queue, currentTrack } = queueInfo;
             const status = voiceManager.getStatus(guildId);

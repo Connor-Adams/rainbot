@@ -33,12 +33,12 @@ export async function executePlay(params: PlayParams): Promise<PlayExecuteResult
 }
 
 export async function executePlayDeferred(params: PlayParams): Promise<PlayExecuteResult> {
-  const { guildId, source, userId } = params;
+  const { guildId, source, userId, username, discriminator } = params;
 
   log.info(`Request: "${source}" by ${userId || 'unknown'} in ${guildId}`);
 
   try {
-    const result = await voiceManager.playSound(guildId, source, userId);
+    const result = await voiceManager.playSound(guildId, source, userId, 'discord', username, discriminator);
     const queueInfo = voiceManager.getQueue(guildId) as QueueInfo;
     const { nowPlaying, queue, currentTrack } = queueInfo;
     const status = voiceManager.getStatus(guildId);
@@ -70,4 +70,3 @@ export async function executePlayDeferred(params: PlayParams): Promise<PlayExecu
     };
   }
 }
-

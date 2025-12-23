@@ -75,6 +75,8 @@ async function insertBatch(type, table, events) {
                 `INSERT INTO command_stats (command_name, user_id, username, discriminator, guild_id, source, executed_at, success, error_message) VALUES ${values}`,
                 params
             );
+
+            await upsertUserProfiles(events);
         } else if (table === 'sound_stats') {
             const values = events.map((_, i) => 
                 `($${i * 10 + 1}, $${i * 10 + 2}, $${i * 10 + 3}, $${i * 10 + 4}, $${i * 10 + 5}, $${i * 10 + 6}, $${i * 10 + 7}, $${i * 10 + 8}, $${i * 10 + 9}, $${i * 10 + 10})`
@@ -97,6 +99,8 @@ async function insertBatch(type, table, events) {
                 `INSERT INTO sound_stats (sound_name, user_id, username, discriminator, guild_id, source_type, is_soundboard, played_at, duration, source) VALUES ${values}`,
                 params
             );
+
+            await upsertUserProfiles(events);
         } else if (table === 'queue_operations') {
             const values = events.map((_, i) => 
                 `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`
@@ -145,6 +149,51 @@ async function insertBatch(type, table, events) {
         if (buffer.length < BATCH_SIZE * 10) {
             buffer.unshift(...events);
         }
+    }
+}
+
+/**
+ * Upsert user profiles for username lookup
+ */
+async function upsertUserProfiles(events) {
+    const profilesById = new Map();
+
+    for (const event of events) {
+        if (!event.user_id) continue;
+        if (!event.username && !event.discriminator) continue;
+
+        profilesById.set(event.user_id, {
+            user_id: event.user_id,
+            username: event.username || null,
+            discriminator: event.discriminator || null,
+        });
+    }
+
+    if (profilesById.size === 0) return;
+
+    const profiles = Array.from(profilesById.values());
+    const values = profiles.map((_, i) =>
+        `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
+    ).join(', ');
+
+    const params = profiles.flatMap(profile => [
+        profile.user_id,
+        profile.username,
+        profile.discriminator,
+        new Date(),
+    ]);
+
+    try {
+        await query(
+            `INSERT INTO user_profiles (user_id, username, discriminator, updated_at) VALUES ${values}
+             ON CONFLICT (user_id) DO UPDATE SET
+                 username = COALESCE(EXCLUDED.username, user_profiles.username),
+                 discriminator = COALESCE(EXCLUDED.discriminator, user_profiles.discriminator),
+                 updated_at = EXCLUDED.updated_at`,
+            params
+        );
+    } catch (error) {
+        log.error(`Failed to upsert user profiles: ${error.message}`);
     }
 }
 

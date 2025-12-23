@@ -217,6 +217,8 @@ async function playNext(guildId) {
     
     // Get userId from track (if stored) or fall back to lastUserId
     const trackUserId = nextTrack.userId || state.lastUserId;
+    const trackUsername = nextTrack.username || state.lastUsername;
+    const trackDiscriminator = nextTrack.discriminator || state.lastDiscriminator;
     
     try {
         let resource;
@@ -315,7 +317,9 @@ async function playNext(guildId) {
                 sourceType,
                 false,
                 nextTrack.duration || null,
-                source
+                source,
+                trackUsername,
+                trackDiscriminator
             );
             
             // Track in listening history
@@ -375,8 +379,10 @@ async function playNext(guildId) {
  * @param {string} soundName - Name of the sound file
  * @param {string} userId - User ID who triggered the soundboard (optional)
  * @param {string} source - Source of the request ('discord' or 'api', default: 'discord')
+ * @param {string} username - Discord username (optional)
+ * @param {string} discriminator - Discord discriminator (optional)
  */
-async function playSoundboardOverlay(guildId, soundName, userId = null, source = 'discord') {
+async function playSoundboardOverlay(guildId, soundName, userId = null, source = 'discord', username = null, discriminator = null) {
     const state = voiceStates.get(guildId);
     if (!state) {
         throw new Error('Bot is not connected to a voice channel');
@@ -531,6 +537,8 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
 
         // Track soundboard usage
         const trackUserId = userId || state.lastUserId;
+        const trackUsername = username || state.lastUsername;
+        const trackDiscriminator = discriminator || state.lastDiscriminator;
         if (trackUserId) {
             stats.trackSound(
                 soundName,
@@ -539,7 +547,9 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
                 'local',
                 true,
                 null,
-                source
+                source,
+                trackUsername,
+                trackDiscriminator
             );
             
             // Track in listening history
@@ -574,6 +584,8 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         
         // Track soundboard usage (fallback case)
         const trackUserId = userId || state.lastUserId;
+        const trackUsername = username || state.lastUsername;
+        const trackDiscriminator = discriminator || state.lastDiscriminator;
         if (trackUserId) {
             stats.trackSound(
                 soundName,
@@ -582,7 +594,9 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
                 'local',
                 true,
                 null,
-                source
+                source,
+                trackUsername,
+                trackDiscriminator
             );
             
             // Track in listening history
@@ -693,6 +707,8 @@ async function joinChannel(channel) {
         channelId: channel.id,
         channelName: channel.name,
         lastUserId: null, // Track last user who played music
+        lastUsername: null,
+        lastDiscriminator: null,
         pausedMusic: null, // Store paused music when soundboard interrupts
         playbackStartTime: null, // Track when playback started for position calculation
         pauseStartTime: null, // Track when pause started
@@ -745,8 +761,10 @@ function leaveChannel(guildId) {
  * @param {string} source - Source URL or sound name
  * @param {string} userId - User ID who initiated playback (optional, for history tracking)
  * @param {string} requestSource - Source of the request ('discord' or 'api', default: 'discord')
+ * @param {string} username - Discord username (optional)
+ * @param {string} discriminator - Discord discriminator (optional)
  */
-async function playSound(guildId, source, userId = null, requestSource = 'discord') {
+async function playSound(guildId, source, userId = null, requestSource = 'discord', username = null, discriminator = null) {
     const startTime = Date.now();
     const state = voiceStates.get(guildId);
     if (!state) {
@@ -1027,7 +1045,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 
                 // Use the overlay function to play soundboard over music (works even if paused)
                 try {
-                    const overlayResult = await playSoundboardOverlay(guildId, source, userId, requestSource);
+                    const overlayResult = await playSoundboardOverlay(guildId, source, userId, requestSource, username, discriminator);
                     
                     // Track soundboard usage (already done in overlay function, but ensure it's tracked)
                     if (userId) {
@@ -1038,7 +1056,9 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                             'local',
                             true,
                             null,
-                            requestSource
+                            requestSource,
+                            username,
+                            discriminator
                         );
                         
                         listeningHistory.trackPlayed(userId, guildId, {
@@ -1082,7 +1102,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                     
                     // Track soundboard usage
                     if (userId) {
-                        stats.trackSound(source, userId, guildId, 'local', true, null, requestSource);
+                        stats.trackSound(source, userId, guildId, 'local', true, null, requestSource, username, discriminator);
                         listeningHistory.trackPlayed(userId, guildId, {
                             title: source,
                             url: null,
@@ -1125,7 +1145,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 
                 // Track soundboard usage
                 if (userId) {
-                    stats.trackSound(source, userId, guildId, 'local', true, null, requestSource);
+                    stats.trackSound(source, userId, guildId, 'local', true, null, requestSource, username, discriminator);
                     listeningHistory.trackPlayed(userId, guildId, {
                         title: source,
                         url: null,
@@ -1174,12 +1194,24 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
     // Store userId for history tracking and statistics
     if (userId) {
         state.lastUserId = userId;
+        if (username) {
+            state.lastUsername = username;
+        }
+        if (discriminator) {
+            state.lastDiscriminator = discriminator;
+        }
     }
     
     // Store userId and source with each track so we can track who queued what
     tracks.forEach(track => {
         if (!track.userId && userId) {
             track.userId = userId;
+        }
+        if (!track.username && username) {
+            track.username = username;
+        }
+        if (!track.discriminator && discriminator) {
+            track.discriminator = discriminator;
         }
         if (!track.source) {
             track.source = requestSource; // Use the requestSource parameter

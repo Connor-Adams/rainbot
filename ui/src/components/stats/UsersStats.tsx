@@ -30,6 +30,7 @@ export default function UsersStats() {
       <table className="stats-table w-full">
         <thead>
           <tr>
+            <th>Username</th>
             <th>User ID</th>
             <th>Guild ID</th>
             <th>Commands</th>
@@ -44,9 +45,12 @@ export default function UsersStats() {
             const soundCount = parseInt(user.sound_count || '0')
             const total = commandCount + soundCount
             const lastActive = user.last_active ? new Date(user.last_active).toLocaleString() : 'Never'
+            const username = user.username
+              ? `${user.username}${user.discriminator && user.discriminator !== '0' ? `#${user.discriminator}` : ''}`
+              : 'Unknown'
             return (
               <tr key={`${user.user_id}-${user.guild_id}`} className="hover:bg-gray-700/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(user.discriminator)}</td>
+                <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(username)}</td>
                 <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(user.user_id)}</td>
                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{escapeHtml(user.guild_id)}</td>
                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{commandCount.toLocaleString()}</td>
@@ -61,4 +65,3 @@ export default function UsersStats() {
     </div>
   )
 }
-
