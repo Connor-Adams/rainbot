@@ -1,23 +1,38 @@
-const path = require('path');
-const { createLogger } = require('./logger');
-const { loadConfig } = require('./config');
+import path from 'path';
+import { Readable } from 'stream';
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3';
+import { createLogger } from './logger';
+import { loadConfig } from './config';
 
 const log = createLogger('STORAGE');
 
-let s3Client = null;
-let bucketName = null;
+let s3Client: S3Client | null = null;
+let bucketName: string | null = null;
+
+export interface SoundFile {
+  name: string;
+  size: number;
+  createdAt: Date;
+}
 
 /**
  * Initialize storage - requires Railway S3-compatible bucket
  */
-function initStorage() {
+function initStorage(): void {
   const config = loadConfig();
 
   // Railway Bucket service variables can be:
   // - AWS_* prefix: AWS_S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL, AWS_DEFAULT_REGION
   // - Legacy: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
   // - Manual config: STORAGE_BUCKET_NAME, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_ENDPOINT, STORAGE_REGION
-  const storageVars = {
+  const storageVars: Record<string, boolean> = {
     'bucket (AWS_S3_BUCKET_NAME, BUCKET, or STORAGE_BUCKET_NAME)': !!config.storageBucketName,
     'accessKey (AWS_ACCESS_KEY_ID, ACCESS_KEY_ID, or STORAGE_ACCESS_KEY)':
       !!config.storageAccessKey,
@@ -56,24 +71,22 @@ function initStorage() {
   }
 
   try {
-    // Use Railway S3-compatible storage
-    const { S3Client } = require('@aws-sdk/client-s3');
-
     s3Client = new S3Client({
       endpoint: config.storageEndpoint,
       region: config.storageRegion || 'us-east-1',
       credentials: {
-        accessKeyId: config.storageAccessKey,
-        secretAccessKey: config.storageSecretKey,
+        accessKeyId: config.storageAccessKey!,
+        secretAccessKey: config.storageSecretKey!,
       },
       forcePathStyle: false, // Railway uses virtual-hosted-style URLs (bucket.endpoint/key)
     });
 
-    bucketName = config.storageBucketName;
+    bucketName = config.storageBucketName!;
 
     log.info(`✓ Storage initialized: S3 bucket "${bucketName}" at ${config.storageEndpoint}`);
   } catch (error) {
-    log.error(`✗ Failed to initialize S3 storage: ${error.message}`);
+    const err = error as Error;
+    log.error(`✗ Failed to initialize S3 storage: ${err.message}`);
     throw error;
   }
 }
@@ -81,14 +94,13 @@ function initStorage() {
 /**
  * List all sound files from S3
  */
-async function listSounds() {
+export async function listSounds(): Promise<SoundFile[]> {
   if (!s3Client || !bucketName) {
     log.warn('Storage not configured - cannot list sounds');
     return [];
   }
 
-  const sounds = [];
-  const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
+  const sounds: SoundFile[] = [];
 
   try {
     const command = new ListObjectsV2Command({
@@ -99,35 +111,41 @@ async function listSounds() {
     const response = await s3Client.send(command);
 
     if (response.Contents) {
-      response.Contents.filter((obj) => /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key)).forEach(
-        (obj) => {
-          const name = path.basename(obj.Key);
-          sounds.push({
-            name: name,
-            size: obj.Size,
-            createdAt: obj.LastModified,
-          });
-        }
-      );
+      response.Contents.filter(
+        (obj) => obj.Key && /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key)
+      ).forEach((obj) => {
+        const name = path.basename(obj.Key!);
+        sounds.push({
+          name: name,
+          size: obj.Size || 0,
+          createdAt: obj.LastModified || new Date(),
+        });
+      });
     }
   } catch (error) {
-    log.error(`Error listing sounds from S3: ${error.message}`);
+    const err = error as Error;
+    log.error(`Error listing sounds from S3: ${err.message}`);
     throw error;
   }
 
   return sounds;
 }
 
+interface S3ErrorMetadata {
+  httpStatusCode?: number;
+}
+
+interface S3Error extends Error {
+  $metadata?: S3ErrorMetadata;
+}
+
 /**
  * Get a readable stream for a sound file from S3
  */
-async function getSoundStream(filename) {
+export async function getSoundStream(filename: string): Promise<Readable> {
   if (!s3Client || !bucketName) {
     throw new Error('Storage not configured');
   }
-
-  const { GetObjectCommand } = require('@aws-sdk/client-s3');
-  const { Readable } = require('stream');
 
   try {
     const command = new GetObjectCommand({
@@ -140,20 +158,23 @@ async function getSoundStream(filename) {
     // Convert AWS SDK stream to Node.js stream if needed
     if (response.Body instanceof Readable) {
       return response.Body;
-    } else if (response.Body && typeof response.Body.transformToWebStream === 'function') {
+    } else if (response.Body && typeof (response.Body as any).transformToWebStream === 'function') {
       // Handle web streams (newer AWS SDK versions)
-      const webStream = response.Body.transformToWebStream();
+      const webStream = (response.Body as any).transformToWebStream();
       return Readable.fromWeb(webStream);
-    } else {
+    } else if (response.Body) {
       // Fallback: convert to buffer then stream
-      const chunks = [];
-      for await (const chunk of response.Body) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of response.Body as AsyncIterable<Buffer>) {
         chunks.push(chunk);
       }
       return Readable.from(Buffer.concat(chunks));
+    } else {
+      throw new Error('Empty response body');
     }
   } catch (error) {
-    if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
+    const err = error as S3Error;
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
       throw new Error(`Sound not found: ${filename}`);
     }
     throw error;
@@ -163,18 +184,19 @@ async function getSoundStream(filename) {
 /**
  * Upload a sound file to S3
  */
-async function uploadSound(fileStream, filename) {
+export async function uploadSound(
+  fileStream: AsyncIterable<Buffer>,
+  filename: string
+): Promise<string> {
   if (!s3Client || !bucketName) {
     throw new Error('Storage not configured');
   }
-
-  const { PutObjectCommand } = require('@aws-sdk/client-s3');
 
   // Sanitize filename
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
 
   // Read stream into buffer (required for S3)
-  const chunks = [];
+  const chunks: Buffer[] = [];
   for await (const chunk of fileStream) {
     chunks.push(chunk);
   }
@@ -195,12 +217,10 @@ async function uploadSound(fileStream, filename) {
 /**
  * Delete a sound file from S3
  */
-async function deleteSound(filename) {
+export async function deleteSound(filename: string): Promise<boolean> {
   if (!s3Client || !bucketName) {
     throw new Error('Storage not configured');
   }
-
-  const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
   const command = new DeleteObjectCommand({
     Bucket: bucketName,
@@ -215,12 +235,10 @@ async function deleteSound(filename) {
 /**
  * Check if a sound file exists in S3
  */
-async function soundExists(filename) {
+export async function soundExists(filename: string): Promise<boolean> {
   if (!s3Client || !bucketName) {
     return false;
   }
-
-  const { HeadObjectCommand } = require('@aws-sdk/client-s3');
 
   try {
     const command = new HeadObjectCommand({
@@ -231,7 +249,8 @@ async function soundExists(filename) {
     await s3Client.send(command);
     return true;
   } catch (error) {
-    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+    const err = error as S3Error;
+    if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
       return false;
     }
     throw error;
@@ -241,9 +260,9 @@ async function soundExists(filename) {
 /**
  * Get content type based on file extension
  */
-function getContentType(filename) {
+function getContentType(filename: string): string {
   const ext = path.extname(filename).toLowerCase();
-  const types = {
+  const types: Record<string, string> = {
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
     '.ogg': 'audio/ogg',
@@ -257,19 +276,16 @@ function getContentType(filename) {
 /**
  * Check if storage is configured and available
  */
-function isStorageConfigured() {
+export function isStorageConfigured(): boolean {
   return s3Client !== null && bucketName !== null;
+}
+
+/**
+ * Get storage type
+ */
+export function getStorageType(): string {
+  return 's3';
 }
 
 // Initialize storage on module load
 initStorage();
-
-module.exports = {
-  listSounds,
-  getSoundStream,
-  uploadSound,
-  deleteSound,
-  soundExists,
-  getStorageType: () => 's3',
-  isStorageConfigured,
-};

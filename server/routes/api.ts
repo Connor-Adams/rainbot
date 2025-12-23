@@ -1,11 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { Readable } from 'stream';
-import voiceManager from '../../utils/voiceManager';
-import storage from '../../utils/storage';
+import * as voiceManager from '../../utils/voiceManager';
+import * as storage from '../../utils/storage';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
-import stats from '../../utils/statistics';
+import * as stats from '../../utils/statistics';
 import type { GuildMember } from 'discord.js';
 
 const router = express.Router();
@@ -206,7 +206,8 @@ router.post(
       );
 
       // Extract title from first track
-      const title = result.tracks && result.tracks.length > 0 ? result.tracks[0].title : 'Unknown';
+      const firstTrack = result.tracks?.[0];
+      const title = firstTrack ? firstTrack.title : 'Unknown';
 
       // Track API command
       if (userId) {

@@ -1,13 +1,15 @@
-const { createAudioResource, StreamType } = require('@discordjs/voice');
-const play = require('play-dl');
-const youtubedlPkg = require('youtube-dl-exec');
-const { spawn } = require('child_process');
-const { createLogger } = require('../logger');
+import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
+import play from 'play-dl';
+import youtubedlPkg from 'youtube-dl-exec';
+import { spawn, ChildProcess } from 'child_process';
+import { Readable } from 'stream';
+import { createLogger } from '../logger';
+import type { Track } from '../../types/voice';
 
 const log = createLogger('AUDIO_RESOURCE');
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
-const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
+const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 /**
  * Cache expiration time for stream URLs (2 hours)
@@ -24,16 +26,29 @@ const MAX_CACHE_SIZE = 500;
  */
 const FETCH_TIMEOUT_MS = 10000;
 
+interface CacheEntry {
+  url: string;
+  expires: number;
+}
+
 /**
- * @type {Map<string, {url: string, expires: number}>}
  * Cache of video URL -> stream URL
  */
-const urlCache = new Map();
+const urlCache = new Map<string, CacheEntry>();
+
+export interface TrackResourceResult {
+  resource: AudioResource;
+  subprocess?: ChildProcess;
+  actualSeek?: number;
+}
 
 /**
  * Helper to create audio resource with inline volume support
  */
-function createVolumeResource(input, options = {}) {
+export function createVolumeResource(
+  input: Readable | string,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
   return createAudioResource(input, {
     ...options,
     inlineVolume: true,
@@ -42,10 +57,8 @@ function createVolumeResource(input, options = {}) {
 
 /**
  * Get direct stream URL from yt-dlp (cached for speed)
- * @param {string} videoUrl - YouTube video URL
- * @returns {Promise<string>} Direct stream URL
  */
-async function getStreamUrl(videoUrl) {
+export async function getStreamUrl(videoUrl: string): Promise<string> {
   // Check cache first (URLs are valid for a few hours)
   const cached = urlCache.get(videoUrl);
   if (cached && cached.expires > Date.now()) {
@@ -63,12 +76,12 @@ async function getStreamUrl(videoUrl) {
     noCheckCertificates: true,
   });
 
-  const streamUrl = typeof result === 'string' ? result.trim() : result;
+  const streamUrl = typeof result === 'string' ? result.trim() : String(result).trim();
 
   // LRU eviction if cache is too large
   if (urlCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = urlCache.keys().next().value;
-    urlCache.delete(oldestKey);
+    if (oldestKey) urlCache.delete(oldestKey);
     log.debug(`Evicted oldest cache entry: ${oldestKey}`);
   }
 
@@ -80,10 +93,10 @@ async function getStreamUrl(videoUrl) {
 
 /**
  * Create track resource asynchronously using fetch for YouTube videos
- * @param {Object} track - Track object
- * @returns {Promise<Object|null>} Resource and metadata
  */
-async function createTrackResourceAsync(track) {
+export async function createTrackResourceAsync(track: Track): Promise<TrackResourceResult | null> {
+  if (!track.url) return null;
+
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
@@ -117,23 +130,24 @@ async function createTrackResourceAsync(track) {
         throw new Error(`Stream fetch failed: ${response.status}`);
       }
 
-      const { Readable } = require('stream');
-      const nodeStream = Readable.fromWeb(response.body);
+      const nodeStream = Readable.fromWeb(response.body as any);
 
       return {
         resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
       };
     } catch (fetchError) {
       clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
+      const err = fetchError as Error;
+      if (err.name === 'AbortError') {
         log.warn('Fetch timeout, falling back to yt-dlp piping');
         throw new Error('Stream fetch timeout');
       }
       throw fetchError;
     }
   } catch (error) {
+    const err = error as Error;
     // Fallback to yt-dlp piping if fetch fails
-    if (error.message.includes('Stream fetch failed') || error.message.includes('fetch')) {
+    if (err.message.includes('Stream fetch failed') || err.message.includes('fetch')) {
       log.info(`Using yt-dlp fallback for: ${track.title}`);
       return createTrackResource(track);
     }
@@ -143,10 +157,10 @@ async function createTrackResourceAsync(track) {
 
 /**
  * Create track resource using yt-dlp piping
- * @param {Object} track - Track object
- * @returns {Object|null} Resource and subprocess
  */
-function createTrackResource(track) {
+export function createTrackResource(track: Track): TrackResourceResult | null {
+  if (!track.url) return null;
+
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
@@ -161,11 +175,11 @@ function createTrackResource(track) {
     bufferSize: '16K',
   });
 
-  subprocess.catch((err) =>
+  subprocess.catch((err: Error) =>
     log.debug(`yt-dlp subprocess error (expected on cleanup): ${err.message}`)
   );
 
-  subprocess.stderr?.on('data', (data) => {
+  subprocess.stderr?.on('data', (data: Buffer) => {
     const msg = data.toString().trim();
     if (!msg.includes('Broken pipe')) {
       log.debug(`yt-dlp: ${msg}`);
@@ -173,39 +187,52 @@ function createTrackResource(track) {
   });
 
   return {
-    resource: createAudioResource(subprocess.stdout, { inputType: StreamType.Arbitrary }),
+    resource: createAudioResource(subprocess.stdout as Readable, {
+      inputType: StreamType.Arbitrary,
+    }),
     subprocess,
   };
 }
 
 /**
  * Create audio resource for any track type
- * @param {Object} track - Track object
- * @param {Object} options - Additional options
- * @returns {Promise<Object>} Resource object
  */
-async function createTrackResourceForAny(track, options = {}) {
-  const storage = require('../storage');
+export async function createTrackResourceForAny(
+  track: Track,
+  _options: Record<string, unknown> = {}
+): Promise<TrackResourceResult> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
 
   // Handle local files/streams
   if (track.isLocal) {
-    if (track.isStream) {
+    if (track.isStream && track.source) {
       return {
-        resource: createVolumeResource(track.source, { inputType: StreamType.Arbitrary }),
+        resource: createVolumeResource(track.source as unknown as Readable, {
+          inputType: StreamType.Arbitrary,
+        }),
       };
-    } else {
+    } else if (track.source) {
+      const soundStream = await storage.getSoundStream(track.source);
       return {
-        resource: createVolumeResource(track.source),
+        resource: createVolumeResource(soundStream),
       };
     }
+    throw new Error('Local track missing source');
+  }
+
+  if (!track.url) {
+    throw new Error('Track URL is required');
   }
 
   // Try async version for YouTube (uses cache + fetch)
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
     try {
-      return await createTrackResourceAsync(track);
+      const result = await createTrackResourceAsync(track);
+      if (result) return result;
     } catch (error) {
+      const err = error as Error;
       // Fallback to play-dl
       log.warn(`yt-dlp methods failed for ${track.title}, trying play-dl...`);
       try {
@@ -216,10 +243,11 @@ async function createTrackResourceForAny(track, options = {}) {
           }),
         };
       } catch (playDlError) {
+        const playErr = playDlError as Error;
         log.error(
-          `All streaming methods failed for ${track.title}: ${error.message}, ${playDlError.message}`
+          `All streaming methods failed for ${track.title}: ${err.message}, ${playErr.message}`
         );
-        throw new Error(`Failed to stream: ${error.message}`);
+        throw new Error(`Failed to stream: ${err.message}`);
       }
     }
   }
@@ -240,16 +268,17 @@ async function createTrackResourceForAny(track, options = {}) {
 
 /**
  * Create audio resource with seek position
- * @param {Object} track - Track object
- * @param {number} seekSeconds - Position to seek to
- * @returns {Promise<Object>} Resource object
  */
-async function createResourceWithSeek(track, seekSeconds) {
-  const storage = require('../storage');
+export async function createResourceWithSeek(
+  track: Track,
+  seekSeconds: number
+): Promise<TrackResourceResult> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
 
-  if (track.isLocal) {
+  if (track.isLocal && track.source) {
     // Local files: use FFmpeg -ss for seeking
-    const soundStream = await storage.getSoundStream(track.source || track.title);
+    const soundStream = await storage.getSoundStream(track.source);
     const ffmpeg = spawn(
       'ffmpeg',
       [
@@ -270,12 +299,16 @@ async function createResourceWithSeek(track, seekSeconds) {
       { stdio: ['pipe', 'pipe', 'pipe'] }
     );
 
-    soundStream.pipe(ffmpeg.stdin);
-    ffmpeg.stderr.on('data', () => {}); // Suppress stderr
+    soundStream.pipe(ffmpeg.stdin as NodeJS.WritableStream);
+    ffmpeg.stderr?.on('data', () => {}); // Suppress stderr
 
     return {
-      resource: createVolumeResource(ffmpeg.stdout, { inputType: StreamType.OggOpus }),
+      resource: createVolumeResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
     };
+  }
+
+  if (!track.url) {
+    throw new Error('Track URL is required for seek');
   }
 
   // Streams: play-dl supports seek option
@@ -289,7 +322,8 @@ async function createResourceWithSeek(track, seekSeconds) {
       actualSeek: seekSeconds,
     };
   } catch (error) {
-    log.error(`Failed to stream with seek for ${track.title}: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to stream with seek for ${track.title}: ${err.message}`);
     // Fall back to streaming from start
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return {
@@ -298,12 +332,3 @@ async function createResourceWithSeek(track, seekSeconds) {
     };
   }
 }
-
-module.exports = {
-  createVolumeResource,
-  getStreamUrl,
-  createTrackResourceAsync,
-  createTrackResource,
-  createTrackResourceForAny,
-  createResourceWithSeek,
-};

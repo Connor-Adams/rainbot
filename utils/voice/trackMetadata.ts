@@ -1,32 +1,53 @@
-const play = require('play-dl');
-const youtubedlPkg = require('youtube-dl-exec');
-const { createLogger } = require('../logger');
+import play from 'play-dl';
+import youtubedlPkg from 'youtube-dl-exec';
+import { createLogger } from '../logger';
+import type { VoiceState } from '../../types/voice-modules';
 
 const log = createLogger('TRACK_METADATA');
 
 // Use system yt-dlp if available
-const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
+const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
+
+export interface TrackMetadata {
+  title: string;
+  duration?: number;
+  url: string;
+  spotifyId?: string;
+  spotifyUrl?: string;
+}
+
+export interface PlaylistMetadata {
+  title: string;
+  entries: unknown[];
+}
+
+export interface SpotifyTrack {
+  name: string;
+  artists: Array<{ name?: string }>;
+  durationInMs?: number;
+  id?: string;
+  url?: string;
+}
 
 /**
  * Fetch YouTube video metadata
- * @param {string} url - YouTube video URL
- * @returns {Promise<Object>} Video metadata
  */
-async function fetchYouTubeMetadata(url) {
+export async function fetchYouTubeMetadata(url: string): Promise<TrackMetadata> {
   try {
-    const info = await youtubedl(url, {
+    const info = (await youtubedl(url, {
       dumpSingleJson: true,
       noPlaylist: true,
       noWarnings: true,
       quiet: true,
-    });
+    })) as { title?: string; duration?: number };
     return {
       title: info.title || 'Unknown Track',
       duration: info.duration,
       url: url,
     };
   } catch (error) {
-    log.warn(`Could not fetch video info: ${error.message}`);
+    const err = error as Error;
+    log.warn(`Could not fetch video info: ${err.message}`);
     return {
       title: 'Unknown Track',
       url: url,
@@ -36,51 +57,45 @@ async function fetchYouTubeMetadata(url) {
 
 /**
  * Fetch YouTube playlist metadata
- * @param {string} url - YouTube playlist URL
- * @returns {Promise<Object>} Playlist info with entries
  */
-async function fetchYouTubePlaylist(url) {
-  const info = await youtubedl(url, {
+export async function fetchYouTubePlaylist(url: string): Promise<PlaylistMetadata> {
+  const info = (await youtubedl(url, {
     dumpSingleJson: true,
     flatPlaylist: true,
     noWarnings: true,
     quiet: true,
-  });
+  })) as { title?: string; entries?: unknown[] };
   return {
-    title: info.title,
+    title: info.title || 'Unknown Playlist',
     entries: info.entries || [],
   };
 }
 
 /**
  * Search YouTube for a query
- * @param {string} query - Search query
- * @param {number} limit - Maximum results
- * @returns {Promise<Array>} Search results
  */
-async function searchYouTube(query, limit = 1) {
+export async function searchYouTube(query: string, limit: number = 1): Promise<TrackMetadata[]> {
   const results = await play.search(query, { limit });
   return results.map((result) => ({
     title: result.title || query,
     url: result.url,
-    duration: result.durationInSec || null,
+    duration: result.durationInSec || undefined,
   }));
 }
 
 /**
  * Process Spotify track to YouTube equivalent
- * @param {Object} spotifyTrack - Spotify track object
- * @returns {Promise<Object>} Track info
  */
-async function spotifyToYouTube(spotifyTrack) {
+export async function spotifyToYouTube(spotifyTrack: SpotifyTrack): Promise<TrackMetadata> {
   const searchQuery = `${spotifyTrack.name} ${spotifyTrack.artists[0]?.name || ''}`;
   log.debug(`Searching YouTube for Spotify track: ${searchQuery}`);
 
   const ytResults = await play.search(searchQuery, { limit: 1 });
-  if (ytResults && ytResults.length > 0) {
+  const ytResult = ytResults?.[0];
+  if (ytResult) {
     return {
       title: `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown Artist'}`,
-      url: ytResults[0].url,
+      url: ytResult.url,
       duration: Math.floor((spotifyTrack.durationInMs || 0) / 1000),
       spotifyId: spotifyTrack.id,
       spotifyUrl: spotifyTrack.url,
@@ -91,11 +106,12 @@ async function spotifyToYouTube(spotifyTrack) {
 
 /**
  * Process Spotify playlist/album tracks in background
- * @param {Array} spotifyTracks - Array of Spotify track objects
- * @param {Object} state - Voice state
- * @param {string} guildId - Guild ID
  */
-async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
+export async function processSpotifyPlaylistTracks(
+  spotifyTracks: SpotifyTrack[],
+  state: VoiceState,
+  _guildId: string
+): Promise<void> {
   let added = 0;
   let failed = 0;
 
@@ -105,9 +121,9 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
       state.queue.push({
         ...track,
         isLocal: false,
-        userId: state.lastUserId || null,
-        username: state.lastUsername || null,
-        discriminator: state.lastDiscriminator || null,
+        userId: state.lastUserId || undefined,
+        username: state.lastUsername || undefined,
+        discriminator: state.lastDiscriminator || undefined,
         source: 'discord',
       });
       added++;
@@ -116,7 +132,8 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
       failed++;
-      log.error(`Error processing Spotify track ${spotifyTrack.name}: ${error.message}`);
+      const err = error as Error;
+      log.error(`Error processing Spotify track ${spotifyTrack.name}: ${err.message}`);
     }
   }
 
@@ -125,11 +142,8 @@ async function processSpotifyPlaylistTracks(spotifyTracks, state, guildId) {
 
 /**
  * Check if hostname matches expected domain
- * @param {string} hostname - URL hostname
- * @param {string} expectedDomain - Expected domain (e.g., 'youtube.com')
- * @returns {boolean} True if hostname matches or is a subdomain of expectedDomain
  */
-function isValidHostname(hostname, expectedDomain) {
+export function isValidHostname(hostname: string, expectedDomain: string): boolean {
   // Exact match
   if (hostname === expectedDomain) return true;
   // Subdomain match (e.g., www.youtube.com, m.youtube.com)
@@ -137,12 +151,12 @@ function isValidHostname(hostname, expectedDomain) {
   return false;
 }
 
+export type UrlType = 'yt_video' | 'yt_playlist' | 'sp_track' | 'sp_playlist' | 'sp_album' | null;
+
 /**
  * Detect URL type quickly (YouTube, Spotify)
- * @param {string} source - URL or search query
- * @returns {string|null} URL type or null
  */
-function detectUrlType(source) {
+export function detectUrlType(source: string): UrlType {
   try {
     const url = new URL(source);
     const hostname = url.hostname.toLowerCase();
@@ -173,12 +187,3 @@ function detectUrlType(source) {
     return null;
   }
 }
-
-module.exports = {
-  fetchYouTubeMetadata,
-  fetchYouTubePlaylist,
-  searchYouTube,
-  spotifyToYouTube,
-  processSpotifyPlaylistTracks,
-  detectUrlType,
-};

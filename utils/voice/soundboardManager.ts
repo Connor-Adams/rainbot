@@ -1,31 +1,26 @@
-const { createAudioResource, StreamType, AudioPlayerStatus } = require('@discordjs/voice');
-const { spawn } = require('child_process');
-const path = require('path');
-const { createLogger } = require('../logger');
-const { getStreamUrl } = require('./audioResource');
-const storage = require('../storage');
-const stats = require('../statistics');
-const listeningHistory = require('../listeningHistory');
+import { createAudioResource, StreamType, AudioPlayerStatus } from '@discordjs/voice';
+import { spawn, ChildProcess } from 'child_process';
+import path from 'path';
+import { createLogger } from '../logger';
+import { getStreamUrl } from './audioResource';
+import * as storage from '../storage';
+import * as stats from '../statistics';
+import * as listeningHistory from '../listeningHistory';
+import type { VoiceState } from '../../types/voice-modules';
 
 const log = createLogger('SOUNDBOARD');
 
 /**
  * Track soundboard usage in statistics and listening history
- * @param {string} soundName - Name of the sound file
- * @param {string} userId - User ID who triggered the soundboard
- * @param {string} guildId - Guild ID
- * @param {string} source - Request source ('discord' or 'api')
- * @param {string} [username] - Discord username
- * @param {string} [discriminator] - Discord discriminator
  */
-function trackSoundboardUsage(
-  soundName,
-  userId,
-  guildId,
-  source,
-  username = null,
-  discriminator = null
-) {
+export function trackSoundboardUsage(
+  soundName: string,
+  userId: string,
+  guildId: string,
+  source: string,
+  username: string | null = null,
+  discriminator: string | null = null
+): void {
   if (!userId) return;
 
   stats.trackSound(
@@ -46,36 +41,42 @@ function trackSoundboardUsage(
       guildId,
       {
         title: soundName,
-        url: null,
-        duration: null,
+        url: undefined,
+        duration: undefined,
         isLocal: true,
-        sourceType: 'local',
         source,
         isSoundboard: true,
       },
       userId
     )
-    .catch((err) => log.error(`Failed to track soundboard history: ${err.message}`));
+    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
+}
+
+export interface SoundboardResult {
+  overlaid: boolean;
+  sound: string;
+  message: string;
 }
 
 /**
  * Play soundboard sound directly (no overlay)
- * @param {Object} state - Voice state
- * @param {string} soundName - Sound file name
- * @param {string} userId - User ID
- * @param {string} source - Request source
- * @param {string} username - Username
- * @param {string} discriminator - Discriminator
- * @returns {Promise<Object>} Result object
  */
-async function playSoundboardDirect(state, soundName, userId, source, username, discriminator) {
+export async function playSoundboardDirect(
+  state: VoiceState,
+  soundName: string,
+  userId: string,
+  source: string,
+  username: string | null,
+  discriminator: string | null
+): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
   // Kill any existing overlay
-  if (state.overlayProcess) {
+  const overlayProcess = state.overlayProcess as ChildProcess | null;
+  if (overlayProcess) {
     try {
-      state.overlayProcess.kill('SIGKILL');
+      overlayProcess.kill('SIGKILL');
     } catch {
       // Ignore errors
     }
@@ -98,24 +99,16 @@ async function playSoundboardDirect(state, soundName, userId, source, username, 
 /**
  * Play a soundboard sound overlaid on current music
  * Uses FFmpeg to mix the soundboard with ducked music
- * @param {Object} state - Voice state object
- * @param {string} guildId - Guild ID
- * @param {string} soundName - Name of the sound file
- * @param {string} userId - User ID who triggered the soundboard
- * @param {string} source - Source of the request ('discord' or 'api')
- * @param {string} username - Discord username
- * @param {string} discriminator - Discord discriminator
- * @returns {Promise<Object>} Result object
  */
-async function playSoundboardOverlay(
-  state,
-  guildId,
-  soundName,
-  userId,
-  source,
-  username,
-  discriminator
-) {
+export async function playSoundboardOverlay(
+  state: VoiceState,
+  guildId: string,
+  soundName: string,
+  userId: string,
+  source: string,
+  username: string | null,
+  discriminator: string | null
+): Promise<SoundboardResult> {
   // Check if sound exists
   const exists = await storage.soundExists(soundName);
   if (!exists) {
@@ -135,21 +128,22 @@ async function playSoundboardOverlay(
 
   try {
     // Clean up any existing overlay process
-    if (state.overlayProcess) {
+    const existingOverlay = state.overlayProcess as ChildProcess | null;
+    if (existingOverlay) {
       log.debug('Killing existing overlay process for new soundboard');
       try {
-        state.overlayProcess.kill('SIGKILL');
+        existingOverlay.kill('SIGKILL');
         state.player.stop();
       } catch (err) {
-        log.debug(`Error killing old overlay: ${err.message}`);
+        log.debug(`Error killing old overlay: ${(err as Error).message}`);
       }
       state.overlayProcess = null;
     }
 
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Get the music stream URL
-    const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
+    // Get the music stream URL (hasMusicSource check above ensures it's not null)
+    const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
 
     // Calculate current playback position
     let playbackPosition = 0;
@@ -202,9 +196,9 @@ async function playSoundboardOverlay(
 
     // Pipe soundboard stream
     const soundStream = await storage.getSoundStream(soundName);
-    soundStream.pipe(ffmpeg.stdio[3]);
+    soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
 
-    ffmpeg.stderr.on('data', (data) => {
+    ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg && !msg.includes('frame=') && !msg.includes('size=')) {
         log.debug(`FFmpeg overlay: ${msg}`);
@@ -228,7 +222,7 @@ async function playSoundboardOverlay(
     });
 
     // Create audio resource from FFmpeg output
-    const resource = createAudioResource(ffmpeg.stdout, {
+    const resource = createAudioResource(ffmpeg.stdout!, {
       inputType: StreamType.OggOpus,
     });
 
@@ -249,14 +243,8 @@ async function playSoundboardOverlay(
       message: 'Soundboard playing over music',
     };
   } catch (error) {
-    log.error(`Failed to overlay soundboard: ${error.message}`);
+    log.error(`Failed to overlay soundboard: ${(error as Error).message}`);
     // Fallback to direct playback
     return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
   }
 }
-
-module.exports = {
-  trackSoundboardUsage,
-  playSoundboardDirect,
-  playSoundboardOverlay,
-};

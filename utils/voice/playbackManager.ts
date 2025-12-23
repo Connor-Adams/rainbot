@@ -1,16 +1,22 @@
 /**
  * Playback Manager - Handles playback control and audio resources
  */
-const { createAudioResource, AudioPlayerStatus, StreamType } = require('@discordjs/voice');
-const play = require('play-dl');
-const youtubedlPkg = require('youtube-dl-exec');
-const { spawn } = require('child_process');
-const { createLogger } = require('../logger');
-const { getVoiceState } = require('./connectionManager');
-const storage = require('../storage');
+import {
+  createAudioResource,
+  AudioPlayerStatus,
+  StreamType,
+  AudioResource,
+} from '@discordjs/voice';
+import play from 'play-dl';
+import youtubedlPkg from 'youtube-dl-exec';
+import { Readable } from 'stream';
+import { createLogger } from '../logger';
+import { getVoiceState } from './connectionManager';
+import type { Track } from '../../types/voice';
+import type { VoiceState } from '../../types/voice-modules';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
-const youtubedl = youtubedlPkg.create(process.env.YTDLP_PATH || 'yt-dlp');
+const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 const log = createLogger('PLAYBACK');
 
@@ -21,15 +27,18 @@ const MAX_CACHE_SIZE = 500;
 /** Timeout for fetch operations */
 const FETCH_TIMEOUT_MS = 10000;
 
-/** @type {Map<string, {url: string, expires: number}>} Cache of video URL -> stream URL */
-const urlCache = new Map();
+interface CacheEntry {
+  url: string;
+  expires: number;
+}
+
+/** Cache of video URL -> stream URL */
+const urlCache = new Map<string, CacheEntry>();
 
 /**
  * Get direct stream URL from yt-dlp (cached for speed)
- * @param {string} videoUrl - YouTube video URL
- * @returns {Promise<string>} Direct stream URL
  */
-async function getStreamUrl(videoUrl) {
+async function getStreamUrl(videoUrl: string): Promise<string> {
   // Check cache first
   const cached = urlCache.get(videoUrl);
   if (cached && cached.expires > Date.now()) {
@@ -47,12 +56,12 @@ async function getStreamUrl(videoUrl) {
     noCheckCertificates: true,
   });
 
-  const streamUrl = typeof result === 'string' ? result.trim() : result;
+  const streamUrl = typeof result === 'string' ? result.trim() : String(result).trim();
 
   // LRU eviction if cache is too large
   if (urlCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = urlCache.keys().next().value;
-    urlCache.delete(oldestKey);
+    if (oldestKey) urlCache.delete(oldestKey);
   }
 
   // Cache with expiration
@@ -61,10 +70,17 @@ async function getStreamUrl(videoUrl) {
   return streamUrl;
 }
 
+interface TrackResourceResult {
+  resource: AudioResource;
+  subprocess?: { kill: () => void };
+}
+
 /**
  * Create track resource using async fetch method (fastest)
  */
-async function createTrackResourceAsync(track) {
+async function createTrackResourceAsync(track: Track): Promise<TrackResourceResult | null> {
+  if (!track.url) return null;
+
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
     const streamUrl = await getStreamUrl(track.url);
@@ -94,8 +110,7 @@ async function createTrackResourceAsync(track) {
         throw new Error(`Stream fetch failed: ${response.status}`);
       }
 
-      const { Readable } = require('stream');
-      const nodeStream = Readable.fromWeb(response.body);
+      const nodeStream = Readable.fromWeb(response.body as any);
 
       return {
         resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
@@ -111,7 +126,9 @@ async function createTrackResourceAsync(track) {
 /**
  * Create track resource using yt-dlp piping (fallback)
  */
-function createTrackResource(track) {
+function createTrackResource(track: Track): TrackResourceResult | null {
+  if (!track.url) return null;
+
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) {
     const subprocess = youtubedl.exec(track.url, {
@@ -125,11 +142,11 @@ function createTrackResource(track) {
       bufferSize: '16K',
     });
 
-    subprocess.catch((err) =>
+    subprocess.catch((err: Error) =>
       log.debug(`yt-dlp subprocess error (expected on cleanup): ${err.message}`)
     );
 
-    subprocess.stderr?.on('data', (data) => {
+    subprocess.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
       if (!msg.includes('Broken pipe')) {
         log.debug(`yt-dlp: ${msg}`);
@@ -137,7 +154,9 @@ function createTrackResource(track) {
     });
 
     return {
-      resource: createAudioResource(subprocess.stdout, { inputType: StreamType.Arbitrary }),
+      resource: createAudioResource(subprocess.stdout as Readable, {
+        inputType: StreamType.Arbitrary,
+      }),
       subprocess,
     };
   }
@@ -146,11 +165,11 @@ function createTrackResource(track) {
 
 /**
  * Helper to create audio resource with inline volume support
- * @param {Stream} input - Audio input stream
- * @param {Object} options - Resource options
- * @returns {AudioResource}
  */
-function createVolumeResource(input, options = {}) {
+export function createVolumeResource(
+  input: Readable | string,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
   return createAudioResource(input, {
     ...options,
     inlineVolume: true,
@@ -159,10 +178,8 @@ function createVolumeResource(input, options = {}) {
 
 /**
  * Play a resource with volume applied
- * @param {Object} state - Voice state
- * @param {AudioResource} resource - Audio resource
  */
-function playWithVolume(state, resource) {
+export function playWithVolume(state: VoiceState, resource: AudioResource): void {
   if (resource.volume) {
     resource.volume.setVolume((state.volume || 100) / 100);
   }
@@ -172,10 +189,11 @@ function playWithVolume(state, resource) {
 
 /**
  * Play next track in queue
- * @param {string} guildId - Guild ID
- * @returns {Promise<Track|null>} - Next track or null
  */
-async function playNext(guildId) {
+export async function playNext(guildId: string): Promise<Track | null> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
+
   const playStartTime = Date.now();
   const state = getVoiceState(guildId);
   if (!state || state.queue.length === 0) {
@@ -188,43 +206,58 @@ async function playNext(guildId) {
     return null;
   }
 
-  const nextTrack = state.queue.shift();
+  const nextTrack = state.queue.shift()!;
   log.debug(`[TIMING] playNext: starting ${nextTrack.title}`);
 
   try {
-    let resource;
+    let resource: AudioResource;
 
     // Handle local/soundboard files
     if (nextTrack.isLocal) {
-      if (nextTrack.isStream) {
-        resource = createVolumeResource(nextTrack.source, { inputType: StreamType.Arbitrary });
+      if (nextTrack.isStream && nextTrack.source) {
+        resource = createVolumeResource(nextTrack.source as unknown as Readable, {
+          inputType: StreamType.Arbitrary,
+        });
+      } else if (nextTrack.source) {
+        const soundStream = await storage.getSoundStream(nextTrack.source);
+        resource = createVolumeResource(soundStream);
       } else {
-        resource = createVolumeResource(nextTrack.source);
+        throw new Error('Local track missing source');
       }
     } else {
       // Check if we have this track pre-buffered
-      if (state.preBuffered && state.preBuffered.track.url === nextTrack.url) {
+      const preBuffered = state.preBuffered as {
+        track: Track;
+        resource: AudioResource;
+        subprocess?: { kill: () => void };
+      } | null;
+      if (preBuffered && nextTrack.url && preBuffered.track.url === nextTrack.url) {
         log.debug(`Using pre-buffered stream for: ${nextTrack.title}`);
-        resource = state.preBuffered.resource;
+        resource = preBuffered.resource;
         state.preBuffered = null;
       } else {
         // Kill old pre-buffer if it doesn't match
-        if (state.preBuffered?.subprocess) {
-          state.preBuffered.subprocess.kill?.();
+        if (preBuffered?.subprocess) {
+          preBuffered.subprocess.kill?.();
           state.preBuffered = null;
         }
 
         log.debug(`Streaming: ${nextTrack.url}`);
 
-        const ytMatch = nextTrack.url.match(
+        const ytMatch = nextTrack.url?.match(
           /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
         );
-        if (ytMatch) {
+        if (ytMatch && nextTrack.url) {
           // Try async version first (fastest)
           try {
             const result = await createTrackResourceAsync(nextTrack);
-            resource = result.resource;
+            if (result) {
+              resource = result.resource;
+            } else {
+              throw new Error('Failed to create async resource');
+            }
           } catch (error) {
+            const err = error as Error;
             // Fallback to play-dl
             log.warn(`yt-dlp methods failed for ${nextTrack.title}, trying play-dl...`);
             try {
@@ -233,13 +266,14 @@ async function playNext(guildId) {
                 inputType: streamInfo.type,
               });
             } catch (playDlError) {
+              const playErr = playDlError as Error;
               log.error(
-                `All streaming methods failed for ${nextTrack.title}: ${error.message}, ${playDlError.message}`
+                `All streaming methods failed for ${nextTrack.title}: ${err.message}, ${playErr.message}`
               );
-              throw new Error(`Failed to stream: ${error.message}`);
+              throw new Error(`Failed to stream: ${err.message}`);
             }
           }
-        } else {
+        } else if (nextTrack.url) {
           // Use play-dl for other platforms
           const urlType = await play.validate(nextTrack.url);
           if (urlType) {
@@ -250,6 +284,8 @@ async function playNext(guildId) {
           } else {
             throw new Error('URL no longer valid');
           }
+        } else {
+          throw new Error('Track has no URL');
         }
       }
     }
@@ -258,7 +294,7 @@ async function playNext(guildId) {
     playWithVolume(state, resource);
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
-    state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url;
+    state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;
     state.playbackStartTime = Date.now();
     state.totalPausedTime = 0;
     state.pauseStartTime = null;
@@ -268,17 +304,18 @@ async function playNext(guildId) {
 
     return nextTrack;
   } catch (error) {
-    log.error(`Failed to play ${nextTrack.title}: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to play ${nextTrack.title}: ${err.message}`);
 
     // Check if it's a recoverable error
     const isRecoverable =
-      error.message.includes('403') ||
-      error.message.includes('404') ||
-      error.message.includes('unavailable') ||
-      error.message.includes('deleted') ||
-      error.message.includes('terminated') ||
-      error.message.includes('Stream fetch failed') ||
-      error.message.includes('no longer available');
+      err.message.includes('403') ||
+      err.message.includes('404') ||
+      err.message.includes('unavailable') ||
+      err.message.includes('deleted') ||
+      err.message.includes('terminated') ||
+      err.message.includes('Stream fetch failed') ||
+      err.message.includes('no longer available');
 
     if (isRecoverable) {
       log.warn(`Skipping track due to error: ${nextTrack.title}`);
@@ -300,10 +337,8 @@ async function playNext(guildId) {
 
 /**
  * Toggle pause/resume playback
- * @param {string} guildId - Guild ID
- * @returns {{paused: boolean}}
  */
-function togglePause(guildId) {
+export function togglePause(guildId: string): { paused: boolean } {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -335,10 +370,8 @@ function togglePause(guildId) {
 
 /**
  * Stop current playback and clear queue
- * @param {string} guildId - Guild ID
- * @returns {boolean}
  */
-function stopSound(guildId) {
+export function stopSound(guildId: string): boolean {
   const state = getVoiceState(guildId);
   if (state && state.player) {
     state.queue = [];
@@ -358,11 +391,8 @@ function stopSound(guildId) {
 
 /**
  * Set volume for a guild
- * @param {string} guildId - Guild ID
- * @param {number} level - Volume level (1-100)
- * @returns {number} - Actual volume set
  */
-function setVolume(guildId, level) {
+export function setVolume(guildId: string, level: number): number {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -381,22 +411,21 @@ function setVolume(guildId, level) {
 
 /**
  * Play a sound immediately (interrupts current playback)
- * @param {string} guildId - Guild ID
- * @param {AudioResource} resource - Audio resource
- * @param {string} title - Sound title
  */
-function playSoundImmediate(guildId, resource, title) {
+export function playSoundImmediate(guildId: string, resource: AudioResource, title: string): void {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
   }
 
   // Kill any existing overlay
-  if (state.overlayProcess) {
+  const overlayProcess = state.overlayProcess as { kill: (signal?: string) => void } | null;
+  if (overlayProcess) {
     try {
-      state.overlayProcess.kill('SIGKILL');
+      overlayProcess.kill('SIGKILL');
     } catch (err) {
-      log.debug(`Failed to kill overlay process: ${err.message}`);
+      const e = err as Error;
+      log.debug(`Failed to kill overlay process: ${e.message}`);
     }
     state.overlayProcess = null;
   }
@@ -409,11 +438,14 @@ function playSoundImmediate(guildId, resource, title) {
 
 /**
  * Play soundboard overlay on current music
- * @param {string} guildId - Guild ID
- * @param {string} soundName - Sound file name
- * @returns {Promise<Object>} - Overlay result
  */
-async function playSoundboardOverlay(guildId, soundName) {
+export async function playSoundboardOverlay(
+  guildId: string,
+  soundName: string
+): Promise<{ overlaid: boolean; sound: string; message: string }> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
+
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -437,14 +469,3 @@ async function playSoundboardOverlay(guildId, soundName) {
     message: 'Playing soundboard (overlay not implemented)',
   };
 }
-
-module.exports = {
-  playNext,
-  togglePause,
-  stopSound,
-  setVolume,
-  playSoundImmediate,
-  playSoundboardOverlay,
-  createVolumeResource,
-  playWithVolume,
-};

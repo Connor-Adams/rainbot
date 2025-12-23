@@ -1,27 +1,32 @@
 /**
  * Connection Manager - Handles voice connections and state
  */
-const {
+import {
   joinVoiceChannel,
   createAudioPlayer,
   VoiceConnectionStatus,
   AudioPlayerStatus,
   entersState,
   getVoiceConnection,
-} = require('@discordjs/voice');
-const { createLogger } = require('../logger');
+  VoiceConnection,
+  AudioPlayer,
+} from '@discordjs/voice';
+import type { VoiceBasedChannel } from 'discord.js';
+import { createLogger } from '../logger';
+import type { VoiceState } from '../../types/voice-modules';
+import type { Track } from '../../types/voice';
 
 const log = createLogger('CONNECTION');
 
-/** @type {Map<string, VoiceState>} Map of guildId -> voice state */
-const voiceStates = new Map();
+/** Map of guildId -> voice state */
+export const voiceStates = new Map<string, VoiceState>();
 
 /**
  * Join a voice channel
- * @param {Object} channel - Discord voice channel object
- * @returns {Promise<{connection: VoiceConnection, player: AudioPlayer}>}
  */
-async function joinChannel(channel) {
+export async function joinChannel(
+  channel: VoiceBasedChannel
+): Promise<{ connection: VoiceConnection; player: AudioPlayer }> {
   const guildId = channel.guild.id;
 
   const connection = joinVoiceChannel({
@@ -48,13 +53,13 @@ async function joinChannel(channel) {
     }
   });
 
-  voiceStates.set(guildId, {
+  const state: VoiceState = {
     connection,
     player,
     nowPlaying: null,
     currentTrack: null,
     currentResource: null,
-    queue: [],
+    queue: [] as Track[],
     channelId: channel.id,
     channelName: channel.name,
     lastUserId: null,
@@ -68,7 +73,9 @@ async function joinChannel(channel) {
     volume: 100,
     preBuffered: null,
     currentTrackSource: null,
-  });
+  };
+
+  voiceStates.set(guildId, state);
 
   log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
   return { connection, player };
@@ -76,10 +83,8 @@ async function joinChannel(channel) {
 
 /**
  * Leave a voice channel
- * @param {string} guildId - Guild ID
- * @returns {boolean} - Whether the channel was left
  */
-function leaveChannel(guildId) {
+export function leaveChannel(guildId: string): boolean {
   const connection = getVoiceConnection(guildId);
   if (connection) {
     connection.destroy();
@@ -92,19 +97,26 @@ function leaveChannel(guildId) {
 
 /**
  * Get voice state for a guild
- * @param {string} guildId - Guild ID
- * @returns {VoiceState|undefined}
  */
-function getVoiceState(guildId) {
+export function getVoiceState(guildId: string): VoiceState | undefined {
   return voiceStates.get(guildId);
+}
+
+export interface ConnectionInfo {
+  guildId: string;
+  channelId: string;
+  channelName: string;
+  nowPlaying: string | null;
+  isPlaying: boolean;
+  queueLength: number;
+  volume: number;
 }
 
 /**
  * Get all active voice connections
- * @returns {Array<Object>} - Array of connection info objects
  */
-function getAllConnections() {
-  const connections = [];
+export function getAllConnections(): ConnectionInfo[] {
+  const connections: ConnectionInfo[] = [];
   for (const [guildId, state] of voiceStates) {
     connections.push({
       guildId,
@@ -118,11 +130,3 @@ function getAllConnections() {
   }
   return connections;
 }
-
-module.exports = {
-  joinChannel,
-  leaveChannel,
-  getVoiceState,
-  getAllConnections,
-  voiceStates,
-};

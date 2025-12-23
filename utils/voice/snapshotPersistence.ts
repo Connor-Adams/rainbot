@@ -1,18 +1,16 @@
 /**
  * Snapshot Persistence - Handles queue snapshot save/restore
  */
-const { createLogger } = require('../logger');
-const { getVoiceState } = require('./connectionManager');
-const { query } = require('../database');
+import { createLogger } from '../logger';
+import { getVoiceState, voiceStates } from './connectionManager';
+import { query } from '../database';
 
 const log = createLogger('SNAPSHOT');
 
 /**
  * Save queue snapshot to database for persistence across restarts
- * @param {string} guildId - Guild ID
- * @returns {Promise<void>}
  */
-async function saveQueueSnapshot(guildId) {
+export async function saveQueueSnapshot(guildId: string): Promise<void> {
   const state = getVoiceState(guildId);
   if (!state || (!state.currentTrack && state.queue.length === 0)) {
     log.debug(`No queue to save for guild ${guildId}`);
@@ -59,21 +57,19 @@ async function saveQueueSnapshot(guildId) {
       `Saved queue snapshot for guild ${guildId} (${state.queue.length} tracks, position: ${Math.floor(positionMs / 1000)}s)`
     );
   } catch (error) {
-    log.error(`Failed to save queue snapshot for ${guildId}: ${error.message}`);
+    log.error(`Failed to save queue snapshot for ${guildId}: ${(error as Error).message}`);
   }
 }
 
 /**
  * Save all active queue snapshots (for graceful shutdown)
- * @returns {Promise<void>}
  */
-async function saveAllQueueSnapshots() {
-  const { voiceStates } = require('./connectionManager');
-  const promises = [];
+export async function saveAllQueueSnapshots(): Promise<void> {
+  const promises: Promise<void>[] = [];
   for (const guildId of voiceStates.keys()) {
     promises.push(
       saveQueueSnapshot(guildId).catch((e) =>
-        log.error(`Failed to save snapshot for ${guildId}: ${e.message}`)
+        log.error(`Failed to save snapshot for ${guildId}: ${(e as Error).message}`)
       )
     );
   }
@@ -83,11 +79,8 @@ async function saveAllQueueSnapshots() {
 
 /**
  * Restore queue snapshot from database
- * @param {string} guildId - Guild ID
- * @param {Object} client - Discord client
- * @returns {Promise<boolean>} - Whether restore was successful
  */
-async function restoreQueueSnapshot(guildId, client) {
+export async function restoreQueueSnapshot(guildId: string, _client: unknown): Promise<boolean> {
   try {
     const result = await query('SELECT * FROM guild_queue_snapshots WHERE guild_id = $1', [
       guildId,
@@ -99,20 +92,18 @@ async function restoreQueueSnapshot(guildId, client) {
 
     log.info(`Found snapshot for guild ${guildId} - restoration not fully implemented yet`);
     // TODO: Implement full restoration with channel joining and playback resume
-    
+
     return false;
   } catch (error) {
-    log.error(`Failed to restore queue snapshot for ${guildId}: ${error.message}`);
+    log.error(`Failed to restore queue snapshot for ${guildId}: ${(error as Error).message}`);
     return false;
   }
 }
 
 /**
  * Restore all queue snapshots (called on bot startup)
- * @param {Object} client - Discord client
- * @returns {Promise<number>} - Number of successfully restored snapshots
  */
-async function restoreAllQueueSnapshots(client) {
+export async function restoreAllQueueSnapshots(_client: unknown): Promise<number> {
   try {
     const result = await query('SELECT guild_id FROM guild_queue_snapshots');
     if (!result?.rows?.length) {
@@ -120,19 +111,14 @@ async function restoreAllQueueSnapshots(client) {
       return 0;
     }
 
-    log.info(`Found ${result.rows.length} queue snapshot(s) - restoration not fully implemented yet`);
+    log.info(
+      `Found ${result.rows.length} queue snapshot(s) - restoration not fully implemented yet`
+    );
     // TODO: Implement full restoration
-    
+
     return 0;
   } catch (error) {
-    log.error(`Failed to query queue snapshots: ${error.message}`);
+    log.error(`Failed to query queue snapshots: ${(error as Error).message}`);
     return 0;
   }
 }
-
-module.exports = {
-  saveQueueSnapshot,
-  saveAllQueueSnapshots,
-  restoreQueueSnapshot,
-  restoreAllQueueSnapshots,
-};

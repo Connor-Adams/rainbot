@@ -1,16 +1,16 @@
-const { Pool } = require('pg');
-const { createLogger } = require('./logger');
-const { loadConfig } = require('./config');
+import { Pool, PoolConfig, QueryResult } from 'pg';
+import { createLogger } from './logger';
+import { loadConfig } from './config';
 
 const log = createLogger('DATABASE');
 
-let pool = null;
+let pool: Pool | null = null;
 let schemaInitialized = false;
 
 /**
  * Initialize PostgreSQL connection pool
  */
-function initDatabase() {
+export function initDatabase(): Pool | null {
   const config = loadConfig();
 
   if (!config.databaseUrl) {
@@ -20,7 +20,7 @@ function initDatabase() {
 
   try {
     // Parse connection string to handle SSL requirements (common in Railway/cloud providers)
-    const poolConfig = {
+    const poolConfig: PoolConfig = {
       connectionString: config.databaseUrl,
       max: 10, // Maximum number of clients in the pool
       idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
@@ -65,7 +65,8 @@ function initDatabase() {
 
     return pool;
   } catch (error) {
-    log.error(`Failed to initialize database pool: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to initialize database pool: ${err.message}`);
     return null;
   }
 }
@@ -73,14 +74,14 @@ function initDatabase() {
 /**
  * Get the database pool (returns null if not initialized)
  */
-function getPool() {
+export function getPool(): Pool | null {
   return pool;
 }
 
 /**
  * Execute a query safely (handles errors gracefully)
  */
-async function query(text, params) {
+export async function query(text: string, params?: unknown[]): Promise<QueryResult | null> {
   if (!pool) {
     log.debug('Database pool not available, skipping query');
     return null;
@@ -90,7 +91,8 @@ async function query(text, params) {
     const result = await pool.query(text, params);
     return result;
   } catch (error) {
-    log.error(`Database query error: ${error.message}`, { query: text.substring(0, 100) });
+    const err = error as Error;
+    log.error(`Database query error: ${err.message}`, { query: text.substring(0, 100) });
     return null;
   }
 }
@@ -100,7 +102,7 @@ async function query(text, params) {
  * This runs automatically on first connection
  * Can also be called manually to ensure schema is set up
  */
-async function initializeSchema() {
+export async function initializeSchema(): Promise<boolean> {
   if (!pool) {
     log.warn('Cannot initialize schema: database pool not available');
     return false;
@@ -378,7 +380,8 @@ async function initializeSchema() {
     log.info('✓ Database schema initialized');
     return true;
   } catch (error) {
-    log.error(`Failed to initialize database schema: ${error.message}`, { stack: error.stack });
+    const err = error as Error;
+    log.error(`Failed to initialize database schema: ${err.message}`, { stack: err.stack });
     // Don't throw - allow app to continue without schema
     return false;
   }
@@ -387,7 +390,7 @@ async function initializeSchema() {
 /**
  * Close the database pool
  */
-async function close() {
+export async function close(): Promise<void> {
   if (pool) {
     await pool.end();
     pool = null;
@@ -395,11 +398,3 @@ async function close() {
     log.info('Database pool closed');
   }
 }
-
-module.exports = {
-  initDatabase,
-  getPool,
-  query,
-  close,
-  initializeSchema,
-};

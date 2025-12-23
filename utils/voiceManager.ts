@@ -1,66 +1,35 @@
-const {
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus,
-  StreamType,
-} = require('@discordjs/voice');
-const path = require('path');
+import { createAudioResource, AudioPlayerStatus, StreamType } from '@discordjs/voice';
+import type { VoiceBasedChannel, Client } from 'discord.js';
 
 // Import split modules
-const connectionManager = require('./voice/connectionManager');
-const queueManager = require('./voice/queueManager');
-const playbackManager = require('./voice/playbackManager');
-const trackFetcher = require('./voice/trackFetcher');
-const snapshotPersistence = require('./voice/snapshotPersistence');
+import * as connectionManager from './voice/connectionManager';
+import * as queueManager from './voice/queueManager';
+import * as playbackManager from './voice/playbackManager';
+import * as trackFetcher from './voice/trackFetcher';
+import * as snapshotPersistence from './voice/snapshotPersistence';
 
-const { createLogger } = require('./logger');
-const stats = require('./statistics');
-const storage = require('./storage');
-const listeningHistory = require('./listeningHistory');
+import { createLogger } from './logger';
+import * as stats from './statistics';
+import * as storage from './storage';
+import * as listeningHistory from './listeningHistory';
+import type { Track, QueueInfo, VoiceStatus } from '../types/voice';
 
 const log = createLogger('VOICE');
 
-// ============================================================================
-// TYPE DEFINITIONS (JSDoc)
-// ============================================================================
-
-/**
- * @typedef {Object} Track
- * @property {string} title - Track title
- * @property {string} [url] - Source URL (YouTube, Spotify, SoundCloud, etc.)
- * @property {number} [duration] - Duration in seconds
- * @property {boolean} [isLocal] - Whether this is a local soundboard file
- * @property {boolean} [isStream] - Whether this is a stream vs file
- * @property {string} [source] - Request source ('discord' or 'api')
- * @property {string} [userId] - Discord ID of user who queued it
- * @property {string} [username] - Discord username
- * @property {string} [discriminator] - Discord discriminator
- * @property {string} [spotifyId] - Spotify track ID (if applicable)
- * @property {string} [spotifyUrl] - Spotify URL (if applicable)
- * @property {string} [sourceType] - Type: 'youtube', 'spotify', 'soundcloud', 'local', 'other'
- */
-
-// ============================================================================
-// HELPERS
-// ============================================================================
+// Re-export getVoiceState for other modules
+export const getVoiceState = connectionManager.getVoiceState;
 
 /**
  * Track soundboard usage in statistics and listening history
- * @param {string} soundName - Name of the sound file
- * @param {string} userId - User ID who triggered the soundboard
- * @param {string} guildId - Guild ID
- * @param {string} source - Request source ('discord' or 'api')
- * @param {string} [username] - Discord username
- * @param {string} [discriminator] - Discord discriminator
  */
 function trackSoundboardUsage(
-  soundName,
-  userId,
-  guildId,
-  source,
-  username = null,
-  discriminator = null
-) {
+  soundName: string,
+  userId: string,
+  guildId: string,
+  source: string,
+  username: string | null = null,
+  discriminator: string | null = null
+): void {
   if (!userId) return;
 
   stats.trackSound(
@@ -81,16 +50,15 @@ function trackSoundboardUsage(
       guildId,
       {
         title: soundName,
-        url: null,
-        duration: null,
+        url: undefined,
+        duration: undefined,
         isLocal: true,
-        sourceType: 'local',
         source,
         isSoundboard: true,
       },
       userId
     )
-    .catch((err) => log.error(`Failed to track soundboard history: ${err.message}`));
+    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
 }
 
 // ============================================================================
@@ -100,73 +68,81 @@ function trackSoundboardUsage(
 /**
  * Join a voice channel
  */
-async function joinChannel(channel) {
+export async function joinChannel(
+  channel: VoiceBasedChannel
+): ReturnType<typeof connectionManager.joinChannel> {
   const result = await connectionManager.joinChannel(channel);
-  
+
   // Track voice join event
   stats.trackVoiceEvent('join', channel.guild.id, channel.id, channel.name, 'discord');
-  
+
   return result;
 }
 
 /**
  * Leave a voice channel
  */
-function leaveChannel(guildId) {
+export function leaveChannel(guildId: string): boolean {
   const state = connectionManager.getVoiceState(guildId);
-  
+
   // Save queue snapshot if there's content to preserve
   if (state && (state.currentTrack || state.queue.length > 0)) {
-    snapshotPersistence.saveQueueSnapshot(guildId).catch((e) =>
-      log.error(`Failed to save queue snapshot on leave: ${e.message}`)
-    );
+    snapshotPersistence
+      .saveQueueSnapshot(guildId)
+      .catch((e) => log.error(`Failed to save queue snapshot on leave: ${(e as Error).message}`));
   }
 
   // Save history before leaving
   if (state && state.lastUserId) {
-    const { nowPlaying, queue, currentTrack } = getQueue(guildId);
-    listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
+    const queueInfo = getQueue(guildId);
+    listeningHistory.saveHistory(
+      state.lastUserId,
+      guildId,
+      queueInfo.queue,
+      queueInfo.nowPlaying,
+      queueInfo.currentTrack || null
+    );
   }
 
   const channelId = state?.channelId || null;
   const channelName = state?.channelName || null;
-  
+
   const result = connectionManager.leaveChannel(guildId);
-  
+
   // Track voice leave event
   if (result && channelId) {
     stats.trackVoiceEvent('leave', guildId, channelId, channelName, 'discord');
   }
-  
+
   return result;
+}
+
+export interface PlayResult {
+  added: number;
+  tracks: Array<{ title: string; isLocal?: boolean }>;
+  totalInQueue: number;
+  overlaid?: boolean;
 }
 
 /**
  * Play a soundboard sound overlaid on current music
- * Uses FFmpeg to mix the soundboard with ducked music
- * @param {string} guildId - Guild ID
- * @param {string} soundName - Name of the sound file
- * @param {string} userId - User ID who triggered the soundboard (optional)
- * @param {string} source - Source of the request ('discord' or 'api', default: 'discord')
- * @param {string} username - Discord username (optional)
- * @param {string} discriminator - Discord discriminator (optional)
  */
-async function playSoundboardOverlay(
-  guildId,
-  soundName,
-  userId = null,
-  source = 'discord',
-  username = null,
-  discriminator = null
-) {
+export async function playSoundboardOverlay(
+  guildId: string,
+  soundName: string,
+  userId: string | null = null,
+  source: string = 'discord',
+  username: string | null = null,
+  discriminator: string | null = null
+): Promise<{ overlaid: boolean; sound: string; message: string }> {
   const result = await playbackManager.playSoundboardOverlay(guildId, soundName);
-  
+
   // Track soundboard usage
   const state = connectionManager.getVoiceState(guildId);
   const trackUserId = userId || state?.lastUserId;
   const trackUsername = username || state?.lastUsername;
   const trackDiscriminator = discriminator || state?.lastDiscriminator;
-  
+
   if (trackUserId) {
     trackSoundboardUsage(
       soundName,
@@ -177,27 +153,21 @@ async function playSoundboardOverlay(
       trackDiscriminator
     );
   }
-  
+
   return result;
 }
 
 /**
  * Add track(s) to queue and start playing if not already
- * @param {string} guildId - Guild ID
- * @param {string} source - Source URL or sound name
- * @param {string} userId - User ID who initiated playback (optional, for history tracking)
- * @param {string} requestSource - Source of the request ('discord' or 'api', default: 'discord')
- * @param {string} username - Discord username (optional)
- * @param {string} discriminator - Discord discriminator (optional)
  */
-async function playSound(
-  guildId,
-  source,
-  userId = null,
-  requestSource = 'discord',
-  username = null,
-  discriminator = null
-) {
+export async function playSound(
+  guildId: string,
+  source: string,
+  userId: string | null = null,
+  requestSource: string = 'discord',
+  username: string | null = null,
+  discriminator: string | null = null
+): Promise<PlayResult> {
   const startTime = Date.now();
   const state = connectionManager.getVoiceState(guildId);
   if (!state) {
@@ -212,10 +182,11 @@ async function playSound(
 
   // Fetch tracks using trackFetcher module
   const tracks = await trackFetcher.fetchTracks(source, guildId);
-  
+
   // Handle soundboard files specially (they play immediately)
-  if (tracks.length === 1 && tracks[0].isLocal && tracks[0].isSoundboard) {
-    const track = tracks[0];
+  const firstTrack = tracks[0];
+  if (tracks.length === 1 && firstTrack && firstTrack.isLocal && firstTrack.isSoundboard) {
+    const track = firstTrack;
     const hasMusicSource = state.currentTrackSource;
 
     if (hasMusicSource) {
@@ -238,15 +209,17 @@ async function playSound(
           overlaid: overlayResult.overlaid,
         };
       } catch (overlayError) {
-        log.warn(`Overlay failed, playing soundboard directly: ${overlayError.message}`);
+        log.warn(`Overlay failed, playing soundboard directly: ${(overlayError as Error).message}`);
         // Fallback handled by playbackManager
         const soundStream = await storage.getSoundStream(source);
         const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-        
+
         playbackManager.playSoundImmediate(guildId, resource, track.title);
-        
-        trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
-        
+
+        if (userId) {
+          trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
+        }
+
         return {
           added: 1,
           tracks: [{ title: track.title, isLocal: true }],
@@ -259,11 +232,13 @@ async function playSound(
       log.info(`Soundboard file detected, playing immediately (no music): ${source}`);
       const soundStream = await storage.getSoundStream(source);
       const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-      
+
       playbackManager.playSoundImmediate(guildId, resource, track.title);
-      
-      trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
-      
+
+      if (userId) {
+        trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
+      }
+
       return {
         added: 1,
         tracks: [{ title: track.title, isLocal: true }],
@@ -302,7 +277,7 @@ async function playSound(
 
   // Add tracks to queue using queueManager
   const result = await queueManager.addToQueue(guildId, tracks);
-  
+
   log.debug(`[TIMING] Tracks queued (${Date.now() - startTime}ms)`);
 
   // Start playing if not already
@@ -315,8 +290,14 @@ async function playSound(
 
   // Save history for user
   if (userId) {
-    const { nowPlaying, queue } = getQueue(guildId);
-    listeningHistory.saveHistory(userId, guildId, queue, nowPlaying, state.currentTrack);
+    const queueInfo = getQueue(guildId);
+    listeningHistory.saveHistory(
+      userId,
+      guildId,
+      queueInfo.queue,
+      queueInfo.nowPlaying,
+      state.currentTrack
+    );
   }
 
   return {
@@ -328,13 +309,10 @@ async function playSound(
 
 /**
  * Skip current track(s)
- * @param {string} guildId - Guild ID
- * @param {number} count - Number of tracks to skip (default: 1)
- * @returns {Promise<Array<string>>} Array of skipped track titles
  */
-async function skip(guildId, count = 1) {
+export async function skip(guildId: string, count: number = 1): Promise<string[]> {
   const result = await queueManager.skip(guildId, count);
-  
+
   // Track skip operation
   const state = connectionManager.getVoiceState(guildId);
   if (state?.lastUserId) {
@@ -343,59 +321,54 @@ async function skip(guildId, count = 1) {
       skipped: result.length,
     });
   }
-  
+
   return result;
 }
 
 /**
  * Pause/resume playback
  */
-function togglePause(guildId) {
+export function togglePause(guildId: string): { paused: boolean } {
   const result = playbackManager.togglePause(guildId);
-  
+
   // Track pause/resume operation
   const state = connectionManager.getVoiceState(guildId);
   if (state?.lastUserId) {
     const operation = result.paused ? 'pause' : 'resume';
     stats.trackQueueOperation(operation, state.lastUserId, guildId, 'discord');
   }
-  
+
   return result;
 }
 
 /**
  * Get the current queue with stateful information
  */
-function getQueue(guildId) {
+export function getQueue(guildId: string): QueueInfo {
   return queueManager.getQueue(guildId);
 }
 
 /**
  * Clear the queue
- * @param {string} guildId - Guild ID
- * @returns {Promise<number>} Number of cleared tracks
  */
-async function clearQueue(guildId) {
+export async function clearQueue(guildId: string): Promise<number> {
   const cleared = await queueManager.clearQueue(guildId);
-  
+
   // Track queue clear operation
   const state = connectionManager.getVoiceState(guildId);
   if (state?.lastUserId) {
     stats.trackQueueOperation('clear', state.lastUserId, guildId, 'discord', { cleared });
   }
-  
+
   return cleared;
 }
 
 /**
  * Remove a track from the queue by index
- * @param {string} guildId - Guild ID
- * @param {number} index - Queue index to remove
- * @returns {Promise<Track>} Removed track
  */
-async function removeTrackFromQueue(guildId, index) {
+export async function removeTrackFromQueue(guildId: string, index: number): Promise<Track> {
   const removed = await queueManager.removeTrackFromQueue(guildId, index);
-  
+
   // Track removal operation
   const state = connectionManager.getVoiceState(guildId);
   if (state?.lastUserId) {
@@ -404,29 +377,35 @@ async function removeTrackFromQueue(guildId, index) {
       track: removed.title,
     });
   }
-  
+
   return removed;
 }
 
 /**
  * Stop current playback and clear queue
  */
-function stopSound(guildId) {
+export function stopSound(guildId: string): boolean {
   const state = connectionManager.getVoiceState(guildId);
-  
+
   // Save history before stopping
   if (state?.lastUserId) {
-    const { nowPlaying, queue, currentTrack } = getQueue(guildId);
-    listeningHistory.saveHistory(state.lastUserId, guildId, queue, nowPlaying, currentTrack);
+    const queueInfo = getQueue(guildId);
+    listeningHistory.saveHistory(
+      state.lastUserId,
+      guildId,
+      queueInfo.queue,
+      queueInfo.nowPlaying,
+      queueInfo.currentTrack || null
+    );
   }
-  
+
   return playbackManager.stopSound(guildId);
 }
 
 /**
  * Get status for a guild
  */
-function getStatus(guildId) {
+export function getStatus(guildId: string): VoiceStatus | null {
   const state = connectionManager.getVoiceState(guildId);
   if (!state) {
     return null;
@@ -438,45 +417,44 @@ function getStatus(guildId) {
     nowPlaying: state.nowPlaying,
     isPlaying: state.player.state.status === AudioPlayerStatus.Playing,
     queueLength: state.queue.length,
-    volume: state.volume || 100,
   };
 }
 
 /**
  * Set volume for a guild (1-100)
  */
-function setVolume(guildId, level) {
+export function setVolume(guildId: string, level: number): number {
   return playbackManager.setVolume(guildId, level);
 }
 
 /**
  * Get all active voice connections
  */
-function getAllConnections() {
+export function getAllConnections(): connectionManager.ConnectionInfo[] {
   return connectionManager.getAllConnections();
 }
 
 /**
  * List all available sounds
  */
-async function listSounds() {
+export async function listSounds(): Promise<storage.SoundFile[]> {
   return await storage.listSounds();
 }
 
 /**
  * Delete a sound file
  */
-async function deleteSound(filename) {
+export async function deleteSound(filename: string): Promise<boolean> {
   return await storage.deleteSound(filename);
 }
 
 /**
  * Resume listening history for a user
- * @param {string} guildId - Guild ID
- * @param {string} userId - User ID
- * @returns {Object} Result object with restored tracks count
  */
-async function resumeHistory(guildId, userId) {
+export async function resumeHistory(
+  guildId: string,
+  userId: string
+): Promise<{ restored: number; nowPlaying: string | null }> {
   const state = connectionManager.getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -491,15 +469,23 @@ async function resumeHistory(guildId, userId) {
     throw new Error('No listening history found');
   }
 
-  // Restore queue using queueManager
-  await queueManager.restoreQueue(guildId, history.queue);
+  // Restore queue using queueManager - map history tracks to voice tracks
+  const voiceTracks = history.queue
+    .filter((t): t is listeningHistory.Track & { title: string } => !!t.title)
+    .map((t) => ({
+      title: t.title,
+      url: t.url,
+      duration: t.duration,
+      isLocal: t.isLocal,
+    }));
+  await queueManager.restoreQueue(guildId, voiceTracks);
   state.lastUserId = userId;
 
   // Start playing if not already
   const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
   if (!isPlaying && state.queue.length > 0) {
     playbackManager.playNext(guildId).catch((err) => {
-      log.error(`Failed to resume playback: ${err.message}`);
+      log.error(`Failed to resume playback: ${(err as Error).message}`);
     });
   }
 
@@ -513,57 +499,28 @@ async function resumeHistory(guildId, userId) {
 
 /**
  * Save queue snapshot to database for persistence across restarts
- * @param {string} guildId - Guild ID
  */
-async function saveQueueSnapshot(guildId) {
+export async function saveQueueSnapshot(guildId: string): Promise<void> {
   return snapshotPersistence.saveQueueSnapshot(guildId);
 }
 
 /**
  * Save all active queue snapshots (for graceful shutdown)
  */
-async function saveAllQueueSnapshots() {
+export async function saveAllQueueSnapshots(): Promise<void> {
   return snapshotPersistence.saveAllQueueSnapshots();
 }
 
 /**
  * Restore queue snapshot from database
- * @param {string} guildId - Guild ID
- * @param {Object} client - Discord client
- * @returns {boolean} Whether restore was successful
  */
-async function restoreQueueSnapshot(guildId, client) {
+export async function restoreQueueSnapshot(guildId: string, client: Client): Promise<boolean> {
   return snapshotPersistence.restoreQueueSnapshot(guildId, client);
 }
 
 /**
  * Restore all queue snapshots (called on bot startup)
- * @param {Object} client - Discord client
- * @returns {number} Number of successfully restored snapshots
  */
-async function restoreAllQueueSnapshots(client) {
+export async function restoreAllQueueSnapshots(client: Client): Promise<number> {
   return snapshotPersistence.restoreAllQueueSnapshots(client);
 }
-
-module.exports = {
-  joinChannel,
-  leaveChannel,
-  playSound,
-  playSoundboardOverlay,
-  skip,
-  togglePause,
-  getQueue,
-  clearQueue,
-  removeTrackFromQueue,
-  stopSound,
-  getStatus,
-  setVolume,
-  getAllConnections,
-  listSounds,
-  deleteSound,
-  resumeHistory,
-  saveQueueSnapshot,
-  saveAllQueueSnapshots,
-  restoreQueueSnapshot,
-  restoreAllQueueSnapshots,
-};

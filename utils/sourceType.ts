@@ -2,15 +2,20 @@
  * Shared utility for detecting track source type
  */
 
+export type SourceType = 'youtube' | 'spotify' | 'soundcloud' | 'local' | 'other';
+
+export interface TrackForSourceDetection {
+  isLocal?: boolean;
+  url?: string;
+  spotifyId?: string;
+}
+
 /**
  * Detect the source type of a track based on its properties
- * @param {Object} track - Track object
- * @param {boolean} [track.isLocal] - Whether this is a local file
- * @param {string} [track.url] - Track URL
- * @param {string} [track.spotifyId] - Spotify track ID
- * @returns {'youtube'|'spotify'|'soundcloud'|'local'|'other'} Source type
+ * @param track - Track object
+ * @returns Source type
  */
-function detectSourceType(track) {
+export function detectSourceType(track: TrackForSourceDetection): SourceType {
   if (track.isLocal) return 'local';
   if (!track.url) return 'other';
 
@@ -21,5 +26,3 @@ function detectSourceType(track) {
 
   return 'other';
 }
-
-module.exports = { detectSourceType };

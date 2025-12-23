@@ -1,15 +1,23 @@
-const { REST, Routes } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const { createLogger } = require('./logger');
+import { REST, Routes, RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
+import { createLogger } from './logger';
 
 const log = createLogger('DEPLOY');
+
+interface Command {
+  data: {
+    name: string;
+    toJSON: () => RESTPostAPIChatInputApplicationCommandsJSONBody;
+  };
+  execute: (...args: unknown[]) => Promise<void>;
+}
 
 /**
  * Load all commands from the commands directory
  */
-function loadCommands() {
-  const commands = [];
+export function loadCommands(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
+  const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
   const commandsPath = path.join(__dirname, '..', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 
@@ -22,9 +30,10 @@ function loadCommands() {
 
     for (const file of commandFiles) {
       const filePath = path.join(folderPath, file);
-      const command = require(filePath);
 
-      if ('data' in command && 'execute' in command) {
+      const command = require(filePath) as Partial<Command>;
+
+      if ('data' in command && command.data && 'execute' in command) {
         commands.push(command.data.toJSON());
         log.debug(`Loaded command: ${command.data.name}`);
       } else {
@@ -38,11 +47,12 @@ function loadCommands() {
 
 /**
  * Deploy commands to Discord
- * @param {string} token - Bot token
- * @param {string} clientId - Bot client ID
- * @param {string} guildId - Guild ID (optional, if provided deploys to guild, otherwise global)
  */
-async function deployCommands(token, clientId, guildId = null) {
+export async function deployCommands(
+  token: string,
+  clientId: string,
+  guildId: string | null = null
+): Promise<RESTPostAPIChatInputApplicationCommandsJSONBody[] | undefined> {
   try {
     const commands = loadCommands();
 
@@ -57,13 +67,17 @@ async function deployCommands(token, clientId, guildId = null) {
       `Started refreshing ${commands.length} application (/) commands${guildId ? ` for guild ${guildId}` : ' globally'}...`
     );
 
-    let data;
+    let data: RESTPostAPIChatInputApplicationCommandsJSONBody[];
     if (guildId) {
       // Deploy to a specific guild (faster for development, updates immediately)
-      data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
+      data = (await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: commands,
+      })) as RESTPostAPIChatInputApplicationCommandsJSONBody[];
     } else {
       // Deploy globally (takes up to 1 hour to propagate)
-      data = await rest.put(Routes.applicationCommands(clientId), { body: commands });
+      data = (await rest.put(Routes.applicationCommands(clientId), {
+        body: commands,
+      })) as RESTPostAPIChatInputApplicationCommandsJSONBody[];
     }
 
     log.info(
@@ -71,12 +85,8 @@ async function deployCommands(token, clientId, guildId = null) {
     );
     return data;
   } catch (error) {
-    log.error(`Failed to deploy commands: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to deploy commands: ${err.message}`);
     throw error;
   }
 }
-
-module.exports = {
-  deployCommands,
-  loadCommands,
-};

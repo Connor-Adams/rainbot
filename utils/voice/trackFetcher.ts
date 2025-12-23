@@ -1,25 +1,23 @@
 /**
  * Track Fetcher - Handles track metadata fetching and URL validation
  */
-const play = require('play-dl');
-const path = require('path');
-const { createLogger } = require('../logger');
-const storage = require('../storage');
+import play from 'play-dl';
+import path from 'path';
+import { createLogger } from '../logger';
+import * as storage from '../storage';
+import type { Track } from '../../types/voice';
 
 const log = createLogger('FETCHER');
 
 /**
  * Fetch tracks from a source (URL, search query, or local file)
- * @param {string} source - Source URL or search query
- * @param {string} guildId - Guild ID
- * @returns {Promise<Array<Track>>} - Array of tracks
  */
-async function fetchTracks(source, guildId) {
-  const tracks = [];
+export async function fetchTracks(source: string, _guildId: string): Promise<Track[]> {
+  const tracks: Track[] = [];
 
   // Check if it's a URL
   if (source.startsWith('http://') || source.startsWith('https://')) {
-    let url;
+    let url: URL;
     try {
       url = new URL(source);
     } catch {
@@ -27,7 +25,7 @@ async function fetchTracks(source, guildId) {
     }
 
     // Fast URL type detection
-    let urlType;
+    let urlType: string | false | undefined;
     if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
       if (url.searchParams.has('list')) {
         urlType = 'yt_playlist';
@@ -49,20 +47,21 @@ async function fetchTracks(source, guildId) {
       urlType = await play.validate(source);
     }
 
-    if (!urlType || urlType === false) {
+    if (!urlType) {
       throw new Error('Unsupported URL. Supported: YouTube, SoundCloud, Spotify');
     }
 
     // Handle YouTube video
     if (urlType === 'yt_video') {
       // Clean playlist parameter if present
+      let cleanSource = source;
       if (url.hostname.includes('youtube.com') && url.searchParams.has('list')) {
-        source = `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`;
+        cleanSource = `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`;
       }
-      
+
       tracks.push({
         title: 'Loading...',
-        url: source,
+        url: cleanSource,
         isLocal: false,
       });
     }
@@ -90,12 +89,12 @@ async function fetchTracks(source, guildId) {
       log.info(`Searching YouTube for: "${source}"`);
       try {
         const ytResults = await play.search(source, { limit: 1 });
-        if (ytResults && ytResults.length > 0) {
-          const result = ytResults[0];
+        const result = ytResults?.[0];
+        if (result) {
           tracks.push({
             title: result.title || source,
             url: result.url,
-            duration: result.durationInSec || null,
+            duration: result.durationInSec || undefined,
             isLocal: false,
           });
           log.info(`Found YouTube result: "${result.title}"`);
@@ -103,7 +102,7 @@ async function fetchTracks(source, guildId) {
           throw new Error(`No results found for: ${source}`);
         }
       } catch (error) {
-        log.error(`Search error: ${error.message}`);
+        log.error(`Search error: ${(error as Error).message}`);
         throw new Error(
           `Could not find "${source}". Try a different search term or provide a direct URL.`
         );
@@ -113,7 +112,3 @@ async function fetchTracks(source, guildId) {
 
   return tracks;
 }
-
-module.exports = {
-  fetchTracks,
-};

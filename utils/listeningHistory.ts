@@ -1,24 +1,61 @@
-const { createLogger } = require('./logger');
-const { query } = require('./database');
-const { detectSourceType } = require('./sourceType');
+import { createLogger } from './logger';
+import { query } from './database';
+import { detectSourceType, SourceType } from './sourceType';
 
 const log = createLogger('HISTORY');
 
+export interface Track {
+  title?: string;
+  url?: string;
+  duration?: number;
+  isLocal?: boolean;
+  isSoundboard?: boolean;
+  spotifyId?: string;
+  spotifyUrl?: string;
+  source?: string;
+}
+
+export interface HistoryEntry {
+  guildId: string;
+  queue: Track[];
+  nowPlaying: string | null;
+  currentTrack: Track | null;
+  timestamp: number;
+}
+
+export interface ListeningHistoryRow {
+  id: number;
+  user_id: string;
+  guild_id: string;
+  track_title: string;
+  track_url: string | null;
+  source_type: SourceType;
+  is_soundboard: boolean;
+  duration: number | null;
+  played_at: Date;
+  source: string;
+  queued_by: string | null;
+  metadata: unknown;
+  username?: string;
+  discriminator?: string;
+}
+
 // Map of userId -> { guildId, queue, nowPlaying, timestamp } (for in-memory quick access)
-const userHistory = new Map();
+const userHistory = new Map<string, HistoryEntry>();
 
 // Maximum number of tracks to store in in-memory history
 const MAX_HISTORY_TRACKS = 50;
 
 /**
  * Save listening history for a user
- * @param {string} userId - User ID
- * @param {string} guildId - Guild ID
- * @param {Array} queue - Queue of tracks
- * @param {string} nowPlaying - Currently playing track title
- * @param {Object} currentTrack - Current track object
  */
-function saveHistory(userId, guildId, queue, nowPlaying, currentTrack) {
+export function saveHistory(
+  userId: string,
+  guildId: string,
+  queue: Track[],
+  nowPlaying: string | null,
+  currentTrack: Track | null
+): void {
   if (!userId || !guildId) return;
 
   // Only save if there's actual content
@@ -39,10 +76,8 @@ function saveHistory(userId, guildId, queue, nowPlaying, currentTrack) {
 
 /**
  * Get listening history for a user
- * @param {string} userId - User ID
- * @returns {Object|null} History object or null if not found
  */
-function getHistory(userId) {
+export function getHistory(userId: string): HistoryEntry | null {
   if (!userId) return null;
 
   const history = userHistory.get(userId);
@@ -61,9 +96,8 @@ function getHistory(userId) {
 
 /**
  * Clear history for a user (in-memory only, use clearListeningHistory for database)
- * @param {string} userId - User ID
  */
-function clearHistory(userId) {
+export function clearHistory(userId: string): void {
   if (!userId) return;
   userHistory.delete(userId);
   log.debug(`Cleared in-memory history for user ${userId}`);
@@ -71,12 +105,13 @@ function clearHistory(userId) {
 
 /**
  * Track a track being played (adds to persistent database history)
- * @param {string} userId - User ID
- * @param {string} guildId - Guild ID
- * @param {Object} track - Track object
- * @param {string} queuedBy - User ID who queued the track (optional)
  */
-async function trackPlayed(userId, guildId, track, queuedBy = null) {
+export async function trackPlayed(
+  userId: string,
+  guildId: string,
+  track: Track,
+  queuedBy: string | null = null
+): Promise<void> {
   if (!userId || !guildId || !track) return;
 
   try {
@@ -114,35 +149,30 @@ async function trackPlayed(userId, guildId, track, queuedBy = null) {
     };
 
     history.guildId = guildId;
-    history.nowPlaying = track.title;
+    history.nowPlaying = track.title || null;
     history.currentTrack = track;
     history.timestamp = Date.now();
 
     userHistory.set(userId, history);
   } catch (error) {
-    log.error(`Failed to track played track: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to track played track: ${err.message}`);
   }
 }
 
 /**
  * Get listening history from database
- * @param {string} userId - Optional user ID to filter by (null for all users)
- * @param {string} guildId - Optional guild ID to filter by
- * @param {number} limit - Maximum number of tracks to return (default: 100)
- * @param {Date} startDate - Optional start date filter
- * @param {Date} endDate - Optional end date filter
- * @returns {Promise<Array>} Array of history entries
  */
-async function getListeningHistory(
-  userId = null,
-  guildId = null,
-  limit = 100,
-  startDate = null,
-  endDate = null
-) {
+export async function getListeningHistory(
+  userId: string | null = null,
+  guildId: string | null = null,
+  limit: number = 100,
+  startDate: Date | null = null,
+  endDate: Date | null = null
+): Promise<ListeningHistoryRow[]> {
   try {
-    const params = [];
-    const conditions = [];
+    const params: unknown[] = [];
+    const conditions: string[] = [];
     let paramIndex = 1;
 
     if (userId) {
@@ -178,20 +208,21 @@ async function getListeningHistory(
       params
     );
 
-    return result?.rows || [];
+    return (result?.rows as ListeningHistoryRow[]) || [];
   } catch (error) {
-    log.error(`Failed to get listening history: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to get listening history: ${err.message}`);
     return [];
   }
 }
 
 /**
  * Get recent listening history for a user (last session)
- * @param {string} userId - User ID
- * @param {string} guildId - Guild ID
- * @returns {Promise<Object|null>} History object with queue and nowPlaying
  */
-async function getRecentHistory(userId, guildId) {
+export async function getRecentHistory(
+  userId: string,
+  guildId: string
+): Promise<HistoryEntry | null> {
   if (!userId || !guildId) return null;
 
   try {
@@ -208,39 +239,45 @@ async function getRecentHistory(userId, guildId) {
       return null;
     }
 
-    const tracks = result.rows.reverse(); // Oldest first
+    const rows = result.rows as ListeningHistoryRow[];
+    const tracks = rows.reverse(); // Oldest first
     const lastTrack = tracks[tracks.length - 1];
+
+    if (!lastTrack) {
+      return null;
+    }
 
     return {
       guildId,
       queue: tracks.slice(0, -1).map((row) => ({
         title: row.track_title,
-        url: row.track_url,
-        duration: row.duration,
+        url: row.track_url || undefined,
+        duration: row.duration || undefined,
         isLocal: row.source_type === 'local',
-        sourceType: row.source_type,
       })),
       nowPlaying: lastTrack.track_title,
       currentTrack: {
         title: lastTrack.track_title,
-        url: lastTrack.track_url,
-        duration: lastTrack.duration,
+        url: lastTrack.track_url || undefined,
+        duration: lastTrack.duration || undefined,
         isLocal: lastTrack.source_type === 'local',
       },
       timestamp: lastTrack.played_at.getTime(),
     };
   } catch (error) {
-    log.error(`Failed to get recent history: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to get recent history: ${err.message}`);
     return null;
   }
 }
 
 /**
  * Clear listening history for a user
- * @param {string} userId - User ID
- * @param {string} guildId - Optional guild ID to clear only that guild's history
  */
-async function clearListeningHistory(userId, guildId = null) {
+export async function clearListeningHistory(
+  userId: string,
+  guildId: string | null = null
+): Promise<void> {
   if (!userId) return;
 
   try {
@@ -259,16 +296,7 @@ async function clearListeningHistory(userId, guildId = null) {
       `Cleared listening history for user ${userId}${guildId ? ` in guild ${guildId}` : ''}`
     );
   } catch (error) {
-    log.error(`Failed to clear listening history: ${error.message}`);
+    const err = error as Error;
+    log.error(`Failed to clear listening history: ${err.message}`);
   }
 }
-
-module.exports = {
-  saveHistory,
-  getHistory,
-  clearHistory,
-  trackPlayed,
-  getListeningHistory,
-  getRecentHistory,
-  clearListeningHistory,
-};

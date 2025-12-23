@@ -1,35 +1,31 @@
 /**
  * Queue Manager - Handles queue operations with mutex locking
  */
-const { Mutex } = require('async-mutex');
-const { AudioPlayerStatus } = require('@discordjs/voice');
-const { createLogger } = require('../logger');
-const { getVoiceState } = require('./connectionManager');
+import { Mutex } from 'async-mutex';
+import { AudioPlayerStatus } from '@discordjs/voice';
+import { createLogger } from '../logger';
+import { getVoiceState } from './connectionManager';
+import type { Track, QueueInfo } from '../../types/voice';
 
 const log = createLogger('QUEUE');
 
-/** @type {Map<string, Mutex>} Map of guildId -> queue mutex */
-const queueMutexes = new Map();
+/** Map of guildId -> queue mutex */
+const queueMutexes = new Map<string, Mutex>();
 
 /**
  * Get or create a mutex for a guild's queue operations
- * @param {string} guildId - Guild ID
- * @returns {Mutex}
  */
-function getQueueMutex(guildId) {
+function getQueueMutex(guildId: string): Mutex {
   if (!queueMutexes.has(guildId)) {
     queueMutexes.set(guildId, new Mutex());
   }
-  return queueMutexes.get(guildId);
+  return queueMutexes.get(guildId)!;
 }
 
 /**
  * Execute a function with exclusive queue lock
- * @param {string} guildId - Guild ID
- * @param {Function} fn - Function to execute
- * @returns {Promise<any>}
  */
-async function withQueueLock(guildId, fn) {
+export async function withQueueLock<T>(guildId: string, fn: () => T | Promise<T>): Promise<T> {
   const mutex = getQueueMutex(guildId);
   const release = await mutex.acquire();
   try {
@@ -41,11 +37,11 @@ async function withQueueLock(guildId, fn) {
 
 /**
  * Add tracks to queue
- * @param {string} guildId - Guild ID
- * @param {Array<Track>} tracks - Tracks to add
- * @returns {Promise<{added: number, tracks: Array<Track>}>}
  */
-async function addToQueue(guildId, tracks) {
+export async function addToQueue(
+  guildId: string,
+  tracks: Track[]
+): Promise<{ added: number; tracks: Track[] }> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -64,11 +60,8 @@ async function addToQueue(guildId, tracks) {
 
 /**
  * Skip current track(s)
- * @param {string} guildId - Guild ID
- * @param {number} count - Number of tracks to skip
- * @returns {Promise<Array<string>>} - Array of skipped track titles
  */
-async function skip(guildId, count = 1) {
+export async function skip(guildId: string, count: number = 1): Promise<string[]> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -79,7 +72,7 @@ async function skip(guildId, count = 1) {
       throw new Error('Nothing is playing');
     }
 
-    const skipped = [];
+    const skipped: string[] = [];
     if (state.nowPlaying) {
       skipped.push(state.nowPlaying);
     }
@@ -87,7 +80,10 @@ async function skip(guildId, count = 1) {
     const tracksToRemove = Math.min(count - 1, state.queue.length);
     for (let i = 0; i < tracksToRemove; i++) {
       if (state.queue.length > 0) {
-        skipped.push(state.queue[0].title);
+        const track = state.queue[0];
+        if (track) {
+          skipped.push(track.title);
+        }
         state.queue.shift();
       }
     }
@@ -99,10 +95,8 @@ async function skip(guildId, count = 1) {
 
 /**
  * Clear the queue
- * @param {string} guildId - Guild ID
- * @returns {Promise<number>} - Number of tracks cleared
  */
-async function clearQueue(guildId) {
+export async function clearQueue(guildId: string): Promise<number> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -118,11 +112,8 @@ async function clearQueue(guildId) {
 
 /**
  * Remove a track from the queue by index
- * @param {string} guildId - Guild ID
- * @param {number} index - Queue index
- * @returns {Promise<Track>} - Removed track
  */
-async function removeTrackFromQueue(guildId, index) {
+export async function removeTrackFromQueue(guildId: string, index: number): Promise<Track> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -133,7 +124,10 @@ async function removeTrackFromQueue(guildId, index) {
       throw new Error('Invalid queue index');
     }
 
-    const removed = state.queue.splice(index, 1)[0];
+    const [removed] = state.queue.splice(index, 1);
+    if (!removed) {
+      throw new Error('Track not found at index');
+    }
     log.info(`Removed track "${removed.title}" from queue at index ${index}`);
     return removed;
   });
@@ -141,10 +135,8 @@ async function removeTrackFromQueue(guildId, index) {
 
 /**
  * Get the current queue with stateful information
- * @param {string} guildId - Guild ID
- * @returns {Object} - Queue info object
  */
-function getQueue(guildId) {
+export function getQueue(guildId: string): QueueInfo {
   const state = getVoiceState(guildId);
   if (!state) {
     return {
@@ -185,11 +177,8 @@ function getQueue(guildId) {
 
 /**
  * Restore queue from history
- * @param {string} guildId - Guild ID
- * @param {Array<Track>} tracks - Tracks to restore
- * @returns {Promise<void>}
  */
-async function restoreQueue(guildId, tracks) {
+export async function restoreQueue(guildId: string, tracks: Track[]): Promise<void> {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -197,13 +186,3 @@ async function restoreQueue(guildId, tracks) {
   state.queue = [...tracks];
   log.info(`Restored ${tracks.length} tracks to queue`);
 }
-
-module.exports = {
-  addToQueue,
-  skip,
-  clearQueue,
-  removeTrackFromQueue,
-  getQueue,
-  restoreQueue,
-  withQueueLock,
-};
