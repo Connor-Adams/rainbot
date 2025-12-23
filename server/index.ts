@@ -2,7 +2,7 @@ import express, { Application, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import session from 'express-session';
-import FileStoreFactory from 'session-file-store';
+import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
 import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';

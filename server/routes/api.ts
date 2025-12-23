@@ -368,7 +368,7 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
-      const skipped = voiceManager.skip(guildId);
+      const skipped = await voiceManager.skip(guildId);
       if (skipped && skipped.length > 0) {
         // Track API command and queue operation
         if (userId) {

@@ -67,16 +67,16 @@ export async function getStreamUrl(videoUrl: string): Promise<string> {
   }
 
   // Get direct URL from yt-dlp
-  const result = await youtubedl(videoUrl, {
+  const result = (await youtubedl(videoUrl, {
     format: 'bestaudio[acodec=opus]/bestaudio/best',
     getUrl: true,
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-  });
+  })) as unknown as string;
 
-  const streamUrl = typeof result === 'string' ? result.trim() : String(result).trim();
+  const streamUrl = result.trim();
 
   // LRU eviction if cache is too large
   if (urlCache.size >= MAX_CACHE_SIZE) {

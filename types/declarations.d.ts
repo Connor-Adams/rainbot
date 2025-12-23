@@ -27,23 +27,19 @@ declare module 'session-file-store' {
     keyFunction?: (secret: string, sessionId: string) => string;
   }
 
-  function FileStoreFactory(session: typeof import('express-session')): {
-    new (options?: FileStoreOptions): session.Store;
-  };
+  type FileStoreConstructor = new (options?: FileStoreOptions) => session.Store;
+
+  const FileStoreFactory: (session: typeof import('express-session')) => FileStoreConstructor;
 
   export = FileStoreFactory;
 }
 
-// Augment Express types
-declare global {
-  namespace Express {
-    interface User {
-      id: string;
-      username: string;
-      discriminator: string;
-      avatar: string | null;
-    }
+// Augment Express types - in a separate ambient declaration file
+declare namespace Express {
+  interface User {
+    id: string;
+    username: string;
+    discriminator: string;
+    avatar: string | null;
   }
 }
-
-export {};

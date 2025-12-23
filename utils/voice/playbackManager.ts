@@ -47,16 +47,16 @@ async function getStreamUrl(videoUrl: string): Promise<string> {
   }
 
   // Get direct URL from yt-dlp
-  const result = await youtubedl(videoUrl, {
+  const result = (await youtubedl(videoUrl, {
     format: 'bestaudio[acodec=opus]/bestaudio/best',
     getUrl: true,
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-  });
+  })) as unknown as string;
 
-  const streamUrl = typeof result === 'string' ? result.trim() : String(result).trim();
+  const streamUrl = result.trim();
 
   // LRU eviction if cache is too large
   if (urlCache.size >= MAX_CACHE_SIZE) {
@@ -119,46 +119,6 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
       clearTimeout(timeoutId);
       throw fetchError;
     }
-  }
-  return null;
-}
-
-/**
- * Create track resource using yt-dlp piping (fallback)
- */
-function createTrackResource(track: Track): TrackResourceResult | null {
-  if (!track.url) return null;
-
-  const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch) {
-    const subprocess = youtubedl.exec(track.url, {
-      format: 'bestaudio[acodec=opus]/bestaudio',
-      output: '-',
-      noPlaylist: true,
-      noWarnings: true,
-      quiet: true,
-      noCheckCertificates: true,
-      preferFreeFormats: true,
-      bufferSize: '16K',
-    });
-
-    subprocess.catch((err: Error) =>
-      log.debug(`yt-dlp subprocess error (expected on cleanup): ${err.message}`)
-    );
-
-    subprocess.stderr?.on('data', (data: Buffer) => {
-      const msg = data.toString().trim();
-      if (!msg.includes('Broken pipe')) {
-        log.debug(`yt-dlp: ${msg}`);
-      }
-    });
-
-    return {
-      resource: createAudioResource(subprocess.stdout as Readable, {
-        inputType: StreamType.Arbitrary,
-      }),
-      subprocess,
-    };
   }
   return null;
 }
