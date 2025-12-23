@@ -45,8 +45,7 @@ build/
 *.tsbuildinfo
 
 # TypeScript compiled output
-commands/voice/*.js
-commands/utility/*.js
+
 utils/playerEmbed.js
 
 # React UI build output (source is tracked, build is not)
