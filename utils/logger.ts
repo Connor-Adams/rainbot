@@ -44,6 +44,20 @@ const consoleFormat = printf((info) => {
   return `${ts} ${level}${ctx} ${msg}`;
 });
 
+/**
+ * Sanitize log messages to avoid leaking sensitive information such as passwords.
+ * This function performs targeted redaction on known patterns (e.g. Redis URLs).
+ */
+function sanitizeLogMessage(message: string): string {
+  let sanitized = message;
+
+  // Mask credentials in Redis URLs: redis://user:password@host:port or redis://:password@host:port
+  // Keeps the user (if any) and host visible, but replaces the password with "****".
+  sanitized = sanitized.replace(/(redis:\/\/[^:\s]*:)[^@\s]+@/gi, '$1****@');
+
+  return sanitized;
+}
+
 // Create the logger
 const logger = winston.createLogger({
   levels,
@@ -95,15 +109,15 @@ export interface Logger {
 export function createLogger(context: string): Logger {
   return {
     error: (message: string, meta: Record<string, unknown> = {}) =>
-      logger.error(message, { context, ...meta }),
+      logger.error(sanitizeLogMessage(message), { context, ...meta }),
     warn: (message: string, meta: Record<string, unknown> = {}) =>
-      logger.warn(message, { context, ...meta }),
+      logger.warn(sanitizeLogMessage(message), { context, ...meta }),
     info: (message: string, meta: Record<string, unknown> = {}) =>
-      logger.info(message, { context, ...meta }),
+      logger.info(sanitizeLogMessage(message), { context, ...meta }),
     http: (message: string, meta: Record<string, unknown> = {}) =>
-      logger.http(message, { context, ...meta }),
+      logger.http(sanitizeLogMessage(message), { context, ...meta }),
     debug: (message: string, meta: Record<string, unknown> = {}) =>
-      logger.debug(message, { context, ...meta }),
+      logger.debug(sanitizeLogMessage(message), { context, ...meta }),
   };
 }
 
