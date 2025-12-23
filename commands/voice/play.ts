@@ -1,6 +1,6 @@
 import type { PlayParams } from '../../types/commands';
 import type { QueueInfo } from '../../types/voice';
-import { createPlayerMessage } from '../../utils/playerEmbed';
+import { createPlayerMessage } from '../../utils/playerEmbed.js';
 
 const voiceManager = require('../../utils/voiceManager');
 const { createLogger } = require('../../utils/logger');

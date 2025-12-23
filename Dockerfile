@@ -31,6 +31,9 @@ COPY . .
 # Compile TypeScript during build
 RUN npm run build:ts
 
+# Deploy Discord commands during build (if env vars are available)
+RUN node utils/deployCommands.js || echo "Command deployment skipped (env vars not available during build)"
+
 # Build React UI
 WORKDIR /app/ui
 COPY ui/package*.json ./

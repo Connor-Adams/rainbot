@@ -14,17 +14,19 @@
     "types": ["node"],
     "moduleDetection": "force",
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "outDir": "."
   },
   "include": [
     "commands/**/*.ts",
-    "utils/playerEmbed.ts",
+    "utils/**/*.ts",
     "types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "ui",
-    "dist"
+    "dist",
+    "commands/entrypoints"
   ]
 }
 
