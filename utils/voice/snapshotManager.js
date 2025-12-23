@@ -1,7 +1,7 @@
 const { createLogger } = require('../logger');
 const { query } = require('../database');
 
-const log = createLogger('SNAPSHOT');
+const log = createLogger('SNAPSHOT_MANAGER');
 
 /**
  * Save queue snapshot to database for persistence across restarts
@@ -69,13 +69,12 @@ async function saveAllQueueSnapshots(voiceStates) {
  * Restore queue snapshot from database
  * @param {string} guildId - Guild ID
  * @param {Object} client - Discord client
- * @param {Function} joinChannel - Join channel function
- * @param {Function} playWithSeek - Play with seek function
- * @param {Function} playNext - Play next function
- * @param {Function} getVoiceState - Get voice state function
+ * @param {Function} joinChannel - Function to join voice channel
+ * @param {Function} playWithSeek - Function to play with seek position
+ * @param {Function} playNext - Function to play next track
  * @returns {Promise<boolean>} Whether restore was successful
  */
-async function restoreQueueSnapshot(guildId, client, joinChannel, playWithSeek, playNext, getVoiceState) {
+async function restoreQueueSnapshot(guildId, client, joinChannel, playWithSeek, playNext) {
     try {
         const result = await query(
             'SELECT * FROM guild_queue_snapshots WHERE guild_id = $1',
@@ -100,7 +99,9 @@ async function restoreQueueSnapshot(guildId, client, joinChannel, playWithSeek, 
 
         // Join channel
         await joinChannel(channel);
-        const state = getVoiceState(guildId);
+        
+        // Get the voice state that was just created
+        const state = require('../voiceManager').getVoiceState(guildId);
         if (!state) {
             log.error(`Failed to join channel for restore in guild ${guildId}`);
             return false;
@@ -133,10 +134,12 @@ async function restoreQueueSnapshot(guildId, client, joinChannel, playWithSeek, 
 /**
  * Restore all queue snapshots (called on bot startup)
  * @param {Object} client - Discord client
- * @param {Function} restoreSingle - Function to restore single snapshot
+ * @param {Function} joinChannel - Function to join voice channel
+ * @param {Function} playWithSeek - Function to play with seek position
+ * @param {Function} playNext - Function to play next track
  * @returns {Promise<number>} Number of successfully restored snapshots
  */
-async function restoreAllQueueSnapshots(client, restoreSingle) {
+async function restoreAllQueueSnapshots(client, joinChannel, playWithSeek, playNext) {
     try {
         const result = await query('SELECT guild_id FROM guild_queue_snapshots');
         if (!result?.rows?.length) return 0;
@@ -144,7 +147,7 @@ async function restoreAllQueueSnapshots(client, restoreSingle) {
         let restored = 0;
         for (const row of result.rows) {
             try {
-                if (await restoreSingle(row.guild_id, client)) {
+                if (await restoreQueueSnapshot(row.guild_id, client, joinChannel, playWithSeek, playNext)) {
                     restored++;
                 }
             } catch (error) {
