@@ -9,13 +9,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "allowJs": true,
+    "allowJs": false,
     "noEmit": false,
     "types": ["node"],
     "moduleDetection": "force",
     "declaration": false,
     "sourceMap": false,
-    "outDir": "."
+    "outDir": "./dist",
+    "rootDir": "./"
   },
   "include": [
     "commands/**/*.ts",
@@ -25,8 +26,6 @@
   "exclude": [
     "node_modules",
     "ui",
-    "dist",
-    "commands/entrypoints"
+    "dist"
   ]
 }
-

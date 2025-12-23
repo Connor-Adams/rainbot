@@ -28,7 +28,7 @@ function initStorage() {
         .filter(([, present]) => !present)
         .map(([name]) => name);
     
-    // Require all S3 configuration variables
+    // S3 configuration is optional - storage features will be disabled without it
     if (missingVars.length > 0) {
         // Log all available environment variables for debugging
         const allEnvVars = Object.keys(process.env).filter(key => 
@@ -40,22 +40,14 @@ function initStorage() {
             key.includes('STORAGE')
         );
         
-        log.error(`S3 storage configuration incomplete. Missing: ${missingVars.join(', ')}`);
+        log.warn(`S3 storage not configured. Sound file storage features will be disabled.`);
         if (allEnvVars.length > 0) {
             log.info(`Found these storage-related environment variables: ${allEnvVars.join(', ')}`);
             log.info(`Tip: Railway Bucket service variables may need to be manually set as STORAGE_* variables`);
-            log.info(`Or ensure the Bucket service is properly linked to your main service`);
-        } else {
-            log.info(`No storage-related environment variables found.`);
-            log.info(`Please set these environment variables in Railway:`);
-            log.info(`  - STORAGE_BUCKET_NAME (or BUCKET)`);
-            log.info(`  - STORAGE_ACCESS_KEY (or ACCESS_KEY_ID)`);
-            log.info(`  - STORAGE_SECRET_KEY (or SECRET_ACCESS_KEY)`);
-            log.info(`  - STORAGE_ENDPOINT (or ENDPOINT)`);
-            log.info(`  - STORAGE_REGION (or REGION, optional, defaults to us-east-1)`);
         }
         
-        throw new Error(`S3 storage is required but not fully configured. Missing: ${missingVars.join(', ')}`);
+        // Don't throw - allow bot to run without storage
+        return;
     }
     
     try {

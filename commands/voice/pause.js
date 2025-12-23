@@ -1,49 +1,46 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.executePause = executePause;
-exports.formatPauseMessage = formatPauseMessage;
+const { SlashCommandBuilder } = require('discord.js');
 const voiceManager = require('../../utils/voiceManager');
 const { createLogger } = require('../../utils/logger');
+
 const log = createLogger('PAUSE');
-function executePause(guildId) {
-    const status = voiceManager.getStatus(guildId);
-    if (!status) {
-        return {
-            success: false,
-            error: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
-        };
-    }
-    try {
-        const result = voiceManager.togglePause(guildId);
-        const { nowPlaying } = voiceManager.getQueue(guildId);
-        if (result.paused) {
-            log.info('Paused');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('pause')
+        .setDescription('Toggle pause/resume playback (pauses if playing, resumes if paused)'),
+
+    async execute(interaction) {
+        const guildId = interaction.guildId;
+
+        const status = voiceManager.getStatus(guildId);
+        if (!status) {
+            return interaction.reply({
+                content: '❌ I\'m not in a voice channel! Use `/join` to connect me to your voice channel first.',
+                ephemeral: true,
+            });
         }
-        else {
-            log.info('Resumed');
+
+        try {
+            const result = voiceManager.togglePause(guildId);
+            
+            if (result.paused) {
+                log.info(`Paused by ${interaction.user.tag}`);
+                const { nowPlaying } = voiceManager.getQueue(guildId);
+                const trackInfo = nowPlaying ? ` **${nowPlaying}**` : '';
+                await interaction.reply(`⏸️ Paused playback${trackInfo}.`);
+            } else {
+                log.info(`Resumed by ${interaction.user.tag}`);
+                const { nowPlaying } = voiceManager.getQueue(guildId);
+                const trackInfo = nowPlaying ? ` **${nowPlaying}**` : '';
+                await interaction.reply(`▶️ Resumed playback${trackInfo}.`);
+            }
+        } catch (error) {
+            log.error(`Pause error: ${error.message}`);
+            await interaction.reply({
+                content: `❌ ${error.message}\n\n💡 **Tip:** Make sure something is playing before trying to pause.`,
+                ephemeral: true,
+            });
         }
-        return {
-            success: true,
-            result: {
-                paused: result.paused,
-                nowPlaying: nowPlaying || null,
-            },
-        };
-    }
-    catch (error) {
-        log.error(`Pause error: ${error.message}`);
-        return {
-            success: false,
-            error: `❌ ${error.message}\n\n💡 **Tip:** Make sure something is playing before trying to pause.`,
-        };
-    }
-}
-function formatPauseMessage(result) {
-    const trackInfo = result.nowPlaying ? ` **${result.nowPlaying}**` : '';
-    if (result.paused) {
-        return `⏸️ Paused playback${trackInfo}.`;
-    }
-    else {
-        return `▶️ Resumed playback${trackInfo}.`;
-    }
-}
+    },
+};
+
