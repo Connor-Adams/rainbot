@@ -196,11 +196,27 @@ function updateNowPlayingCard(title, guildId) {
         trackLink.style.display = 'none';
     }
 
-    // Update play/pause button state - will be updated when we fetch status
-    // The button state is managed by the pause endpoint response
+    // Update play/pause button state based on queue data
+    updatePlayPauseButton(queueData.isPaused || false);
 
     // Update progress (simulated for now - would need real-time updates)
     updateProgress(0, nowPlayingTrack?.duration || 0);
+}
+
+// Update play/pause button state
+function updatePlayPauseButton(isPaused) {
+    const playIcon = playPauseBtn.querySelector('.play-icon');
+    const pauseIcon = playPauseBtn.querySelector('.pause-icon');
+    
+    if (isPaused) {
+        playIcon.style.display = 'block';
+        pauseIcon.style.display = 'none';
+        playPauseBtn.title = 'Resume';
+    } else {
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = 'block';
+        playPauseBtn.title = 'Pause';
+    }
 }
 
 // Update progress bar
@@ -315,6 +331,10 @@ async function fetchQueue(guildId) {
         const data = await api(`/queue/${guildId}`);
         queueData = data;
         renderQueue();
+        // Update play/pause button state when queue is fetched
+        if (data.isPaused !== undefined) {
+            updatePlayPauseButton(data.isPaused);
+        }
     } catch (error) {
         console.error('Failed to fetch queue:', error);
         queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
@@ -329,6 +349,14 @@ function renderQueue() {
     // Show/hide clear button
     const hasQueue = (queueData.nowPlaying || (queueData.queue && queueData.queue.length > 0));
     clearQueueBtn.style.display = hasQueue ? 'flex' : 'none';
+
+    // Update play/pause button state
+    if (queueData.isPaused !== undefined) {
+        updatePlayPauseButton(queueData.isPaused);
+    } else if (!queueData.nowPlaying) {
+        // If nothing is playing, show play icon
+        updatePlayPauseButton(true);
+    }
 
     // Update now playing card
     if (queueData.nowPlaying && selectedGuildId) {
@@ -363,17 +391,17 @@ function renderQueue() {
                 sourceText = 'Stream';
             }
             return `
-                <div class="queue-item flex items-center gap-3 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg transition-all hover:border-blue-500 hover:bg-gray-800 hover:translate-x-1 hover:shadow-lg hover:shadow-blue-500/20" data-index="${index}">
-                    <div class="queue-position w-6 h-6 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-full text-xs font-bold flex-shrink-0 shadow-lg shadow-blue-500/40">${index + 1}</div>
-                    <div class="queue-item-info flex-1 min-w-0 pr-2">
-                        <div class="queue-item-title text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1.5" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
-                        <div class="queue-item-meta flex items-center gap-3 text-xs text-gray-400 font-medium">
-                            <span class="queue-item-source flex items-center gap-1">${sourceIcon} ${sourceText}</span>
+                <div class="queue-item flex items-center gap-3" data-index="${index}">
+                    <div class="queue-position">${index + 1}</div>
+                    <div class="queue-item-info">
+                        <div class="queue-item-title" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
+                        <div class="queue-item-meta">
+                            <span class="queue-item-source">${sourceIcon} ${sourceText}</span>
                             ${track.duration ? `<span>${formatDuration(track.duration)}</span>` : ''}
                         </div>
                     </div>
-                    <div class="queue-item-actions flex gap-2 flex-shrink-0">
-                        <button class="btn btn-danger btn-small remove-queue-item-btn px-2 py-2 min-w-[36px] h-9 rounded-full transition-all hover:scale-110 hover:shadow-md" data-index="${index}" title="Remove">✕</button>
+                    <div class="queue-item-actions">
+                        <button class="btn btn-danger btn-small remove-queue-item-btn" data-index="${index}" title="Remove">✕</button>
                     </div>
                 </div>
             `;
@@ -523,7 +551,10 @@ async function stopPlayback() {
             body: JSON.stringify({ guildId }),
         });
         showToast('Playback stopped');
-        fetchStatus();
+        await fetchStatus();
+        await fetchQueue(guildId);
+        // Reset button to play state when stopped
+        updatePlayPauseButton(true);
     } catch (error) {
         showToast(error.message, 'error');
     }
@@ -620,6 +651,8 @@ function handleServerSelectorChange(guildId) {
     } else {
         queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
         renderQueue();
+        // Reset button to play state when no server selected
+        updatePlayPauseButton(true);
     }
 }
 
@@ -652,17 +685,8 @@ playPauseBtn.addEventListener('click', async () => {
             body: JSON.stringify({ guildId }),
         });
         
-        // Update button state
-        const playIcon = playPauseBtn.querySelector('.play-icon');
-        const pauseIcon = playPauseBtn.querySelector('.pause-icon');
-        
-        if (data.paused) {
-            playIcon.style.display = 'block';
-            pauseIcon.style.display = 'none';
-        } else {
-            playIcon.style.display = 'none';
-            pauseIcon.style.display = 'block';
-        }
+        // Update button state using helper function
+        updatePlayPauseButton(data.paused);
         
         await fetchStatus();
         await fetchQueue(guildId);

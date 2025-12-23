@@ -34,6 +34,8 @@ function setupTabNavigation() {
             
             if (tabName === 'player') {
                 document.getElementById('tab-player').style.display = 'block';
+            } else if (tabName === 'soundboard') {
+                document.getElementById('tab-soundboard').style.display = 'block';
             } else if (tabName === 'stats') {
                 document.getElementById('tab-stats').style.display = 'block';
                 currentStatsTab = 'summary';
