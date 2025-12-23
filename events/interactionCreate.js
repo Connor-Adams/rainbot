@@ -74,7 +74,10 @@ module.exports = {
                 interaction.user.id,
                 interaction.guildId,
                 'discord',
-                true
+                true,
+                null,
+                interaction.user.username,
+                interaction.user.discriminator
             );
         } catch (error) {
             log.error(`Error executing ${interaction.commandName}: ${error.message}`, { stack: error.stack });
@@ -86,7 +89,9 @@ module.exports = {
                 interaction.guildId,
                 'discord',
                 false,
-                error.message
+                error.message,
+                interaction.user.username,
+                interaction.user.discriminator
             );
 
             const reply = { content: 'There was an error while executing this command!', ephemeral: true };

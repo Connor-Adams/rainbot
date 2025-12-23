@@ -116,6 +116,8 @@ async function initializeSchema() {
                 id SERIAL PRIMARY KEY,
                 command_name VARCHAR(100) NOT NULL,
                 user_id VARCHAR(20) NOT NULL,
+                username VARCHAR(100),
+                discriminator VARCHAR(10),
                 guild_id VARCHAR(20) NOT NULL,
                 source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api')),
                 executed_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -129,6 +131,8 @@ async function initializeSchema() {
                 id SERIAL PRIMARY KEY,
                 sound_name VARCHAR(255) NOT NULL,
                 user_id VARCHAR(20) NOT NULL,
+                username VARCHAR(100),
+                discriminator VARCHAR(10),
                 guild_id VARCHAR(20) NOT NULL,
                 source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('local', 'youtube', 'spotify', 'soundcloud', 'other')),
                 is_soundboard BOOLEAN NOT NULL DEFAULT FALSE,
@@ -192,6 +196,37 @@ async function initializeSchema() {
             END $$;
         `);
 
+        // Add username/discriminator columns if they don't exist (migration)
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'command_stats' AND column_name = 'username'
+                ) THEN
+                    ALTER TABLE command_stats ADD COLUMN username VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'command_stats' AND column_name = 'discriminator'
+                ) THEN
+                    ALTER TABLE command_stats ADD COLUMN discriminator VARCHAR(10);
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'sound_stats' AND column_name = 'username'
+                ) THEN
+                    ALTER TABLE sound_stats ADD COLUMN username VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'sound_stats' AND column_name = 'discriminator'
+                ) THEN
+                    ALTER TABLE sound_stats ADD COLUMN discriminator VARCHAR(10);
+                END IF;
+            END $$;
+        `);
+
         // Create indexes
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_guild_id ON command_stats(guild_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_command_stats_user_id ON command_stats(user_id)`);
@@ -222,6 +257,8 @@ async function initializeSchema() {
             SELECT 
                 COALESCE(c.user_id, s.user_id) AS user_id,
                 COALESCE(c.guild_id, s.guild_id) AS guild_id,
+                COALESCE(MAX(c.username), MAX(s.username)) AS username,
+                COALESCE(MAX(c.discriminator), MAX(s.discriminator)) AS discriminator,
                 COUNT(DISTINCT c.id) AS command_count,
                 COUNT(DISTINCT s.id) AS sound_count,
                 GREATEST(MAX(c.executed_at), MAX(s.played_at)) AS last_active
@@ -300,4 +337,3 @@ module.exports = {
     close,
     initializeSchema,
 };
-

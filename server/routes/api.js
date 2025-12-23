@@ -9,6 +9,15 @@ const stats = require('../../utils/statistics');
 
 const router = express.Router();
 
+function getAuthUser(req) {
+    const user = req.user || {};
+    return {
+        id: user.id || null,
+        username: user.username || null,
+        discriminator: user.discriminator || null,
+    };
+}
+
 // Configure multer for file uploads
 // Always use memory storage - files are uploaded to S3
 const upload = multer({
@@ -114,9 +123,9 @@ router.post('/play', requireAuth, async (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         // Pass 'api' as source indicator
-        const result = await voiceManager.playSound(guildId, source, userId, 'api');
+        const result = await voiceManager.playSound(guildId, source, userId, 'api', username, discriminator);
         
         // Extract title from first track
         const title = result.tracks && result.tracks.length > 0 
@@ -125,7 +134,7 @@ router.post('/play', requireAuth, async (req, res) => {
         
         // Track API command
         if (userId) {
-            stats.trackCommand('play', userId, guildId, 'api', true);
+            stats.trackCommand('play', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         // Sanitize tracks array to remove stream objects (which have circular references)
@@ -145,9 +154,9 @@ router.post('/play', requireAuth, async (req, res) => {
             tracks: sanitizedTracks,
         });
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('play', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('play', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -162,19 +171,19 @@ router.post('/soundboard', requireAuth, async (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
-        const result = await voiceManager.playSoundboardOverlay(guildId, sound, userId, 'api');
+        const { id: userId, username, discriminator } = getAuthUser(req);
+        const result = await voiceManager.playSoundboardOverlay(guildId, sound, userId, 'api', username, discriminator);
         
         // Track API command
         if (userId) {
-            stats.trackCommand('soundboard', userId, guildId, 'api', true);
+            stats.trackCommand('soundboard', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         res.json(result);
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('soundboard', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('soundboard', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -188,18 +197,18 @@ router.post('/stop', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'guildId is required' });
     }
 
-    const userId = req.user?.id || null;
+    const { id: userId, username, discriminator } = getAuthUser(req);
     const stopped = voiceManager.stopSound(guildId);
     if (stopped) {
         // Track stop as clear operation
         if (userId) {
-            stats.trackCommand('stop', userId, guildId, 'api', true);
+            stats.trackCommand('stop', userId, guildId, 'api', true, null, username, discriminator);
             stats.trackQueueOperation('clear', userId, guildId, 'api', { cleared: 0 });
         }
         res.json({ message: 'Playback stopped' });
     } else {
         if (userId) {
-            stats.trackCommand('stop', userId, guildId, 'api', false, 'Not playing anything');
+            stats.trackCommand('stop', userId, guildId, 'api', false, 'Not playing anything', username, discriminator);
         }
         res.status(400).json({ error: 'Not playing anything' });
     }
@@ -214,24 +223,24 @@ router.post('/skip', requireAuth, (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         const skipped = voiceManager.skip(guildId);
         if (skipped && skipped.length > 0) {
             // Track API command and queue operation
             if (userId) {
-                stats.trackCommand('skip', userId, guildId, 'api', true);
+                stats.trackCommand('skip', userId, guildId, 'api', true, null, username, discriminator);
             }
             res.json({ message: `Skipped ${skipped.length} track(s)`, skipped });
         } else {
             if (userId) {
-                stats.trackCommand('skip', userId, guildId, 'api', false, 'No track to skip');
+                stats.trackCommand('skip', userId, guildId, 'api', false, 'No track to skip', username, discriminator);
             }
             res.status(400).json({ error: 'No track to skip' });
         }
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('skip', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('skip', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -246,19 +255,19 @@ router.post('/pause', requireAuth, (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         const paused = voiceManager.togglePause(guildId);
         
         // Track API command
         if (userId) {
-            stats.trackCommand('pause', userId, guildId, 'api', true);
+            stats.trackCommand('pause', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         res.json({ message: paused ? 'Paused' : 'Resumed', paused });
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('pause', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('pause', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -277,18 +286,18 @@ router.post('/volume', requireAuth, (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         const volume = voiceManager.setVolume(guildId, level);
         
         if (userId) {
-            stats.trackCommand('volume', userId, guildId, 'api', true);
+            stats.trackCommand('volume', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         res.json({ message: `Volume set to ${volume}%`, volume });
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('volume', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('volume', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -363,19 +372,19 @@ router.post('/queue/:guildId/clear', requireAuth, (req, res) => {
     const { guildId } = req.params;
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         const cleared = voiceManager.clearQueue(guildId);
         
         // Track API command
         if (userId) {
-            stats.trackCommand('clear', userId, guildId, 'api', true);
+            stats.trackCommand('clear', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         res.json({ message: `Cleared ${cleared} tracks`, cleared });
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('clear', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('clear', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -391,19 +400,19 @@ router.delete('/queue/:guildId/:index', requireAuth, (req, res) => {
     }
 
     try {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         const removed = voiceManager.removeTrackFromQueue(guildId, trackIndex);
         
         // Track API command
         if (userId) {
-            stats.trackCommand('remove', userId, guildId, 'api', true);
+            stats.trackCommand('remove', userId, guildId, 'api', true, null, username, discriminator);
         }
         
         res.json({ message: 'Track removed', track: removed });
     } catch (error) {
-        const userId = req.user?.id || null;
+        const { id: userId, username, discriminator } = getAuthUser(req);
         if (userId) {
-            stats.trackCommand('remove', userId, guildId, 'api', false, error.message);
+            stats.trackCommand('remove', userId, guildId, 'api', false, error.message, username, discriminator);
         }
         res.status(400).json({ error: error.message });
     }
@@ -420,4 +429,3 @@ router.use((error, req, res, next) => {
 });
 
 module.exports = router;
-

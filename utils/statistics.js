@@ -56,12 +56,14 @@ async function insertBatch(type, table, events) {
     try {
         if (table === 'command_stats') {
             const values = events.map((_, i) => 
-                `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`
+                `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`
             ).join(', ');
             
             const params = events.flatMap(e => [
                 e.command_name,
                 e.user_id,
+                e.username || null,
+                e.discriminator || null,
                 e.guild_id,
                 e.source,
                 e.executed_at || new Date(),
@@ -70,17 +72,19 @@ async function insertBatch(type, table, events) {
             ]);
 
             await query(
-                `INSERT INTO command_stats (command_name, user_id, guild_id, source, executed_at, success, error_message) VALUES ${values}`,
+                `INSERT INTO command_stats (command_name, user_id, username, discriminator, guild_id, source, executed_at, success, error_message) VALUES ${values}`,
                 params
             );
         } else if (table === 'sound_stats') {
             const values = events.map((_, i) => 
-                `($${i * 8 + 1}, $${i * 8 + 2}, $${i * 8 + 3}, $${i * 8 + 4}, $${i * 8 + 5}, $${i * 8 + 6}, $${i * 8 + 7}, $${i * 8 + 8})`
+                `($${i * 10 + 1}, $${i * 10 + 2}, $${i * 10 + 3}, $${i * 10 + 4}, $${i * 10 + 5}, $${i * 10 + 6}, $${i * 10 + 7}, $${i * 10 + 8}, $${i * 10 + 9}, $${i * 10 + 10})`
             ).join(', ');
             
             const params = events.flatMap(e => [
                 e.sound_name,
                 e.user_id,
+                e.username || null,
+                e.discriminator || null,
                 e.guild_id,
                 e.source_type,
                 e.is_soundboard,
@@ -90,7 +94,7 @@ async function insertBatch(type, table, events) {
             ]);
 
             await query(
-                `INSERT INTO sound_stats (sound_name, user_id, guild_id, source_type, is_soundboard, played_at, duration, source) VALUES ${values}`,
+                `INSERT INTO sound_stats (sound_name, user_id, username, discriminator, guild_id, source_type, is_soundboard, played_at, duration, source) VALUES ${values}`,
                 params
             );
         } else if (table === 'queue_operations') {
@@ -152,8 +156,10 @@ async function insertBatch(type, table, events) {
  * @param {string} source - 'discord' or 'api'
  * @param {boolean} success - Whether command succeeded
  * @param {string} errorMessage - Error message if failed
+ * @param {string} username - Discord username (optional)
+ * @param {string} discriminator - Discord discriminator (optional)
  */
-function trackCommand(commandName, userId, guildId, source = 'discord', success = true, errorMessage = null) {
+function trackCommand(commandName, userId, guildId, source = 'discord', success = true, errorMessage = null, username = null, discriminator = null) {
     if (!commandName || !userId || !guildId) {
         log.debug('Invalid command tracking data, skipping');
         return;
@@ -164,6 +170,8 @@ function trackCommand(commandName, userId, guildId, source = 'discord', success 
             command_name: commandName,
             user_id: userId,
             guild_id: guildId,
+            username,
+            discriminator,
             source: source === 'api' ? 'api' : 'discord',
             executed_at: new Date(),
             success,
@@ -190,8 +198,10 @@ function trackCommand(commandName, userId, guildId, source = 'discord', success 
  * @param {boolean} isSoundboard - Whether this is a soundboard overlay
  * @param {number} duration - Duration in seconds (optional)
  * @param {string} source - 'discord' or 'api'
+ * @param {string} username - Discord username (optional)
+ * @param {string} discriminator - Discord discriminator (optional)
  */
-function trackSound(soundName, userId, guildId, sourceType = 'other', isSoundboard = false, duration = null, source = 'discord') {
+function trackSound(soundName, userId, guildId, sourceType = 'other', isSoundboard = false, duration = null, source = 'discord', username = null, discriminator = null) {
     if (!soundName || !userId || !guildId) {
         log.debug('Invalid sound tracking data, skipping');
         return;
@@ -202,6 +212,8 @@ function trackSound(soundName, userId, guildId, sourceType = 'other', isSoundboa
             sound_name: soundName,
             user_id: userId,
             guild_id: guildId,
+            username,
+            discriminator,
             source_type: sourceType,
             is_soundboard: isSoundboard,
             played_at: new Date(),
@@ -308,4 +320,3 @@ module.exports = {
     trackVoiceEvent,
     flushAll,
 };
-
