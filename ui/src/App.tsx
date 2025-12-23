@@ -10,6 +10,8 @@ function App() {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore()
 
   useEffect(() => {
+    // Check auth on mount
+    // After OAuth callback (/auth/discord/callback), server redirects to / and we check auth again
     checkAuth()
   }, [checkAuth])
 

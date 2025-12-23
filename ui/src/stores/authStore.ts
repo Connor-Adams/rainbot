@@ -29,11 +29,13 @@ export const useAuthStore = create<AuthState>()(
           const res = await authApi.check();
           const data = res.data;
           
+          // Handle error responses (401/403)
           if (res.status === 401 || res.status === 403) {
             set({ isAuthenticated: false, user: null, isLoading: false });
             return false;
           }
 
+          // Check if authenticated and has access
           if (data.authenticated && data.hasAccess) {
             // Fetch user info
             try {
@@ -45,14 +47,24 @@ export const useAuthStore = create<AuthState>()(
               });
               return true;
             } catch (error) {
+              console.error('Failed to fetch user info:', error);
               set({ isAuthenticated: false, user: null, isLoading: false });
               return false;
             }
           }
 
+          // Not authenticated or no access
           set({ isAuthenticated: false, user: null, isLoading: false });
           return false;
-        } catch (error) {
+        } catch (error: any) {
+          // Handle network errors or other exceptions
+          console.error('Auth check failed:', error);
+          // If it's a 401/403, user is not authenticated
+          if (error.response?.status === 401 || error.response?.status === 403) {
+            set({ isAuthenticated: false, user: null, isLoading: false });
+            return false;
+          }
+          // For other errors, still mark as not authenticated
           set({ isAuthenticated: false, user: null, isLoading: false });
           return false;
         }

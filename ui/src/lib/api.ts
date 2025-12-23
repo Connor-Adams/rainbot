@@ -8,11 +8,20 @@ const api = axios.create({
   },
 });
 
+// Auth API - uses root path, not /api (auth routes are at /auth/*, not /api/auth/*)
+const authApiClient = axios.create({
+  baseURL: '/',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 // Auth API
 export const authApi = {
-  check: () => api.get('/auth/check'),
-  me: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout'),
+  check: () => authApiClient.get('/auth/check'),
+  me: () => authApiClient.get('/auth/me'),
+  logout: () => authApiClient.get('/auth/logout'), // Note: logout is GET, not POST
 };
 
 // Bot API
