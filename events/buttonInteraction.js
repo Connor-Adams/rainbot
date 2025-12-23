@@ -100,7 +100,7 @@ module.exports = {
                 }
 
                 case 'skip': {
-                    const skipped = voiceManager.skip(guildId);
+                    const _skipped = voiceManager.skip(guildId);
                     // Small delay to let next track start
                     await new Promise(r => setTimeout(r, 500));
                     const queueInfo = voiceManager.getQueue(guildId);
