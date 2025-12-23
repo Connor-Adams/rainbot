@@ -401,7 +401,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
 
         // Create FFmpeg process for mixing
         // Both music and soundboard play at full volume simultaneously
-        // Using amix filter to combine both streams
+        // Music continues after soundboard ends
         const ffmpegArgs = [
             '-reconnect', '1',
             '-reconnect_streamed', '1', 
@@ -409,8 +409,8 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
             '-i', musicStreamUrl,                    // Input 0: Music stream
             '-i', soundInput,                          // Input 1: Soundboard (piped from S3)
             '-filter_complex',
-            // Simple mix: both streams at full volume, soundboard duration determines length
-            '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0.5[out]',
+            // Mix both streams at full volume, music continues after soundboard ends
+            '[0:a][1:a]amix=inputs=2:duration=longest:dropout_transition=0.5[out]',
             '-map', '[out]',
             '-acodec', 'libopus',
             '-f', 'opus',
@@ -576,7 +576,6 @@ async function joinChannel(channel) {
         
         // Normal queue playback
         if (state.queue.length > 0) {
-            // Normal queue playback
             playNext(guildId);
         } else {
             // Queue empty
@@ -608,6 +607,7 @@ async function joinChannel(channel) {
         channelId: channel.id,
         channelName: channel.name,
         lastUserId: null, // Track last user who played music
+        pausedMusic: null, // Store paused music when soundboard interrupts
     });
 
     log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
@@ -927,12 +927,12 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
         // Check if it's a stored sound file first
         const exists = await storage.soundExists(source);
         if (exists) {
-            // Soundboard files should play overtop music, not interrupt it
+            // Soundboard files play overtop music at full volume
             const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
             const hasMusicSource = state.currentTrackSource;
             
             if (isPlaying && hasMusicSource) {
-                // Music is playing - use overlay to play soundboard overtop
+                // Music is playing - use overlay to play soundboard overtop at full volume
                 log.info(`Soundboard file detected, playing over music: ${source}`);
                 
                 // Use the overlay function to play soundboard over music
@@ -972,8 +972,8 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                         overlaid: overlayResult.overlaid,
                     };
                 } catch (overlayError) {
-                    log.warn(`Overlay failed, falling back to interrupt: ${overlayError.message}`);
-                    // Fall through to interrupt behavior if overlay fails
+                    log.warn(`Overlay failed: ${overlayError.message}`);
+                    // Fall through to add to queue if overlay fails
                 }
             }
             
