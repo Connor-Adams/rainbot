@@ -1,0 +1,140 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { statsApi } from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
+import { useGuildStore } from '@/stores/guildStore'
+import type { ListeningHistoryEntry } from '@/types'
+import { escapeHtml, formatDurationLong } from '@/lib/utils'
+
+export default function HistoryStats() {
+  const { user } = useAuthStore()
+  const { selectedGuildId } = useGuildStore()
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['stats', 'history', selectedGuildId, startDate, endDate],
+    queryFn: () =>
+      statsApi
+        .history({
+          userId: user?.id,
+          guildId: selectedGuildId || undefined,
+          limit: 100,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        })
+        .then((res) => res.data),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  })
+
+  const handleFilter = () => {
+    refetch()
+  }
+
+  if (!user) {
+    return (
+      <div className="stats-error text-center py-12 text-red-400">
+        Please log in to view your listening history
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return <div className="stats-loading text-center py-12 text-gray-400">Loading listening history...</div>
+  }
+
+  if (error) {
+    return (
+      <div className="stats-error text-center py-12 text-red-400">
+        Error: {error instanceof Error ? error.message : 'Unknown error'}
+      </div>
+    )
+  }
+
+  const history = data?.history || []
+
+  return (
+    <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+      <h3 className="text-xl text-white mb-4">Your Listening History</h3>
+      <div className="history-filters flex gap-3 mb-6">
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Start date"
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="End date"
+        />
+        <button className="btn btn-secondary px-4 py-2" onClick={handleFilter}>
+          Filter
+        </button>
+      </div>
+      <div className="history-list overflow-x-auto">
+        {history.length === 0 ? (
+          <p className="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
+            <span className="text-2xl opacity-50">📭</span>
+            No listening history found
+          </p>
+        ) : (
+          <table className="stats-table w-full">
+            <thead>
+              <tr>
+                <th>Track</th>
+                <th>Source</th>
+                <th>Duration</th>
+                <th>Queued By</th>
+                <th>Played At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((entry: ListeningHistoryEntry, index: number) => {
+                const playedAt = new Date(entry.played_at)
+                const sourceIcon =
+                  entry.source_type === 'youtube'
+                    ? '▶️'
+                    : entry.source_type === 'spotify'
+                      ? '🎵'
+                      : entry.source_type === 'soundcloud'
+                        ? '🎧'
+                        : entry.source_type === 'local'
+                          ? '📁'
+                          : '🎵'
+                const duration = entry.duration ? formatDurationLong(entry.duration) : '-'
+                const queuedBy = entry.queued_by ? (
+                  <code>{entry.queued_by}</code>
+                ) : (
+                  <em>Unknown</em>
+                )
+
+                return (
+                  <tr key={index} className="hover:bg-gray-700/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {entry.is_soundboard && <span className="text-lg">🔊</span>}
+                        <span className="text-sm text-white">{escapeHtml(entry.track_title)}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-400">
+                      {sourceIcon} {entry.source_type}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-400 font-mono">{duration}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{queuedBy}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{playedAt.toLocaleString()}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+

@@ -202,16 +202,26 @@ async function createServer() {
     const authRoutes = require('./routes/auth');
     app.use('/auth', authRoutes);
 
-    // Serve static files from public directory
-    app.use(express.static(path.join(__dirname, '..', 'public')));
-
-    // API routes
+    // API routes (must be before static files)
     const apiRoutes = require('./routes/api');
     app.use('/api', apiRoutes);
     
     // Statistics routes
     const statsRoutes = require('./routes/stats');
     app.use('/api/stats', statsRoutes);
+
+    // Serve React build from ui/dist (production)
+    // This is the standard pattern: source code in ui/, build output in ui/dist/
+    const reactBuildPath = path.join(__dirname, '..', 'ui', 'dist');
+    const fs = require('fs');
+    
+    if (fs.existsSync(reactBuildPath)) {
+        // Serve React build static assets
+        app.use(express.static(reactBuildPath));
+        log.info('Serving React UI from ui/dist');
+    } else {
+        log.warn('React build not found at ui/dist. Run "npm run build:ui" to build the UI.');
+    }
 
     // Serve dashboard for all other routes (protected)
     // This must be last to catch all unmatched routes
@@ -220,7 +230,21 @@ async function createServer() {
         if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
             return res.status(404).json({ error: 'Not found' });
         }
-        res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+        // Serve React app (SPA fallback)
+        const reactIndex = path.join(reactBuildPath, 'index.html');
+        if (fs.existsSync(reactIndex)) {
+            res.sendFile(reactIndex);
+        } else {
+            res.status(503).send(`
+                <html>
+                    <body style="font-family: sans-serif; padding: 2rem; text-align: center;">
+                        <h1>UI Not Built</h1>
+                        <p>React UI has not been built yet.</p>
+                        <p>Run: <code>npm run build:ui</code></p>
+                    </body>
+                </html>
+            `);
+        }
     });
 
     return app;
