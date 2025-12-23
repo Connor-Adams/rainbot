@@ -4,94 +4,107 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rainbot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app">
-        <header class="header">
-            <div class="logo">
-                <span class="logo-icon">🌧️</span>
-                <h1>Rainbot</h1>
+    <div class="app flex flex-col min-h-screen">
+        <header class="header flex justify-between items-center px-8 py-5 border-b border-gray-700 bg-gray-900/85 backdrop-blur-xl sticky top-0 z-100">
+            <div class="logo flex items-center gap-3">
+                <span class="logo-icon text-3xl">🌧️</span>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Rainbot</h1>
             </div>
-            <div class="header-right">
-                <div class="user-info" id="user-info" style="display: none;">
-                    <img class="user-avatar" id="user-avatar" src="" alt="User avatar" />
-                    <span class="user-name" id="user-name"></span>
+            <div class="header-right flex items-center gap-4">
+                <div class="user-info flex items-center gap-3 px-4 py-2 bg-gray-800 rounded-full border border-gray-700" id="user-info" style="display: none;">
+                    <img class="user-avatar w-8 h-8 rounded-full border-2 border-gray-700" id="user-avatar" src="" alt="User avatar" />
+                    <span class="user-name text-sm font-medium text-white" id="user-name"></span>
                     <button class="btn btn-secondary btn-small" id="logout-btn">Logout</button>
                 </div>
                 <button class="btn btn-primary" id="login-btn" style="display: none;">Login</button>
-                <div class="status" id="bot-status">
-                    <span class="status-dot offline"></span>
-                    <span class="status-text">Connecting...</span>
+                <div class="status flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700" id="bot-status">
+                    <span class="status-dot offline w-2 h-2 rounded-full"></span>
+                    <span class="status-text text-sm text-gray-400 font-medium">Connecting...</span>
                 </div>
             </div>
         </header>
 
-        <div class="loading-overlay" id="loading-overlay">
-            <div class="loading-spinner"></div>
-            <p>Checking authentication...</p>
+        <div class="loading-overlay fixed inset-0 bg-gray-950/95 backdrop-blur-xl flex flex-col justify-center items-center gap-4 z-1000" id="loading-overlay">
+            <div class="loading-spinner w-12 h-12 border-4 border-gray-700 border-t-blue-500 rounded-full animate-spin"></div>
+            <p class="text-gray-400 text-sm">Checking authentication...</p>
         </div>
 
-        <div class="login-container" id="login-container" style="display: none;">
-            <div class="login-content">
-                <div class="login-logo">
-                    <span class="logo-icon">🌧️</span>
-                    <h1>Rainbot</h1>
+        <div class="login-container flex items-center justify-center min-h-[calc(100vh-80px)] p-8" id="login-container" style="display: none;">
+            <div class="login-content flex flex-col items-center gap-8 max-w-md w-full text-center">
+                <div class="login-logo flex flex-col items-center gap-4">
+                    <span class="logo-icon text-7xl animate-bounce">🌧️</span>
+                    <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Rainbot</h1>
                 </div>
-                <p class="login-description">Connect to Discord to access the music bot dashboard</p>
-                <button class="btn btn-primary btn-large" id="login-btn-centered">
+                <p class="login-description text-lg text-gray-400 leading-relaxed">Connect to Discord to access the music bot dashboard</p>
+                <button class="btn btn-primary btn-large px-8 py-4 text-base min-h-[56px] flex items-center gap-3 font-semibold" id="login-btn-centered">
                     <svg viewBox="0 0 24 24" fill="currentColor" style="width: 20px; height: 20px;">
                         <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
                     </svg>
                     Login with Discord
                 </button>
-                <div class="login-footer">
-                    <p>Secure authentication via Discord OAuth2</p>
+                <div class="login-footer mt-4">
+                    <p class="text-sm text-gray-500">Secure authentication via Discord OAuth2</p>
                 </div>
             </div>
         </div>
 
-        <main class="main">
-            <aside class="sidebar">
-                <section class="panel connections-panel">
-                    <h2>Voice Connections</h2>
-                    <div id="connections-list" class="connections-list">
+        <main class="main flex flex-1 gap-6 px-8 py-6">
+            <aside class="sidebar w-[280px] flex-shrink-0 flex flex-col gap-6">
+                <section class="panel connections-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+                    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+                        Voice Connections
+                    </h2>
+                    <div id="connections-list" class="connections-list flex flex-col gap-2">
                         <div class="skeleton skeleton-item"></div>
                         <div class="skeleton skeleton-item"></div>
                     </div>
                 </section>
 
-                <section class="panel servers-panel">
-                    <h2>Servers</h2>
-                    <div id="servers-list" class="servers-list">
+                <section class="panel servers-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+                    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+                        Servers
+                    </h2>
+                    <div id="servers-list" class="servers-list flex flex-col gap-2">
                         <div class="skeleton skeleton-item"></div>
                         <div class="skeleton skeleton-item"></div>
                         <div class="skeleton skeleton-item"></div>
                     </div>
                 </section>
 
-                <section class="panel queue-panel">
-                    <div class="queue-header">
-                        <h2>Queue</h2>
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <section class="panel queue-panel bg-gray-800 rounded-2xl border border-gray-700 p-6 max-h-[600px] flex flex-col">
+                    <div class="queue-header flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                            <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+                            Queue
+                        </h2>
+                        <div class="flex items-center gap-3">
                             <span class="queue-count" id="queue-count">0</span>
                             <button class="btn btn-danger btn-small" id="clear-queue-btn" style="display: none;">
                                 <span class="btn-icon">🗑</span> Clear
                             </button>
                         </div>
                     </div>
-                    <div id="queue-list" class="queue-list">
-                        <p class="queue-empty">Queue is empty</p>
+                    <div id="queue-list" class="queue-list flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-2">
+                        <p class="queue-empty text-center py-8 text-gray-500">Queue is empty</p>
                     </div>
                 </section>
             </aside>
 
-            <div class="content">
+            <div class="content flex-1 flex flex-col gap-6 min-w-0">
+                <!-- Server Selector (Context-Aware) -->
+                <div id="server-selector-container" class="mb-6" style="display: none;"></div>
+                
                 <!-- Navigation Tabs -->
-                <div class="nav-tabs" id="nav-tabs">
+                <div class="nav-tabs flex gap-2 mb-6 border-b border-gray-700 pb-2" id="nav-tabs">
                     <button class="nav-tab active" data-tab="player">Player</button>
                     <button class="nav-tab" data-tab="sounds">Sounds</button>
                     <button class="nav-tab" data-tab="stats">Statistics</button>
@@ -100,9 +113,9 @@
                 <!-- Player Tab Content -->
                 <div class="tab-content" id="tab-player">
                 <!-- Spotify-like Now Playing Card -->
-                <section class="panel now-playing-card" id="now-playing-card" style="display: none;">
-                    <div class="now-playing-content">
-                        <div class="now-playing-artwork">
+                <section class="panel now-playing-card bg-gray-800 rounded-2xl border border-gray-700 mb-6 overflow-hidden" id="now-playing-card" style="display: none;">
+                    <div class="now-playing-content flex gap-6 p-6 items-center">
+                        <div class="now-playing-artwork relative w-[200px] h-[200px] flex-shrink-0 rounded-xl overflow-hidden shadow-2xl bg-gray-800">
                             <div class="artwork-placeholder" id="artwork-placeholder">
                                 <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <rect width="200" height="200" fill="url(#gradient)"/>
@@ -121,30 +134,30 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="now-playing-info">
-                            <div class="track-info">
-                                <div class="track-title" id="track-title">No track playing</div>
-                                <div class="track-artist" id="track-artist">Select a server to start</div>
-                                <a href="#" id="track-link" class="track-link" target="_blank" rel="noopener noreferrer" style="display: none;">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <div class="now-playing-info flex-1 flex flex-col gap-4 min-w-0">
+                            <div class="track-info flex flex-col gap-2">
+                                <div class="track-title text-2xl font-bold text-white overflow-hidden text-ellipsis whitespace-nowrap" id="track-title">No track playing</div>
+                                <div class="track-artist text-base text-gray-400 font-medium overflow-hidden text-ellipsis whitespace-nowrap" id="track-artist">Select a server to start</div>
+                                <a href="#" id="track-link" class="track-link flex items-center gap-2 mt-2 text-sm text-blue-500 no-underline transition-all w-fit px-2 py-1 rounded-md hover:text-blue-400 hover:bg-blue-500/10" target="_blank" rel="noopener noreferrer" style="display: none;">
+                                    <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                                         <polyline points="15 3 21 3 21 9"></polyline>
                                         <line x1="10" y1="14" x2="21" y2="3"></line>
                                     </svg>
-                                    <span>Open in source</span>
+                                    <span class="font-medium">Open in source</span>
                                 </a>
                             </div>
-                            <div class="progress-container">
-                                <div class="progress-bar" id="progress-bar">
-                                    <div class="progress-fill" id="progress-fill"></div>
-                                    <div class="progress-handle" id="progress-handle"></div>
+                            <div class="progress-container flex flex-col gap-2">
+                                <div class="progress-bar relative w-full h-1.5 bg-gray-800 rounded-full cursor-pointer overflow-hidden" id="progress-bar">
+                                    <div class="progress-fill absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-100 shadow-lg shadow-blue-500/40" id="progress-fill" style="width: 0%;"></div>
+                                    <div class="progress-handle absolute top-1/2 left-0 w-3.5 h-3.5 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-200 shadow-md cursor-grab active:cursor-grabbing" id="progress-handle" style="left: 0%;"></div>
                                 </div>
-                                <div class="progress-time">
+                                <div class="progress-time flex justify-between text-xs text-gray-500 font-mono">
                                     <span id="current-time">0:00</span>
                                     <span id="total-time">0:00</span>
                                 </div>
                             </div>
-                            <div class="player-controls-main">
+                            <div class="player-controls-main flex items-center justify-center gap-4">
                                 <button class="control-btn" id="prev-btn" title="Previous">
                                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
                                 </button>
@@ -160,16 +173,16 @@
                     </div>
                 </section>
 
-                <section class="panel player-panel">
-                    <h2>Add to Queue</h2>
-                    <div class="url-player">
-                        <div class="input-group">
-                            <input type="text" id="url-input" placeholder="YouTube, Spotify, SoundCloud, or direct URL..." />
-                            <select id="guild-select">
-                                <option value="">Select server...</option>
-                            </select>
+                <section class="panel player-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+                    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+                        Add to Queue
+                    </h2>
+                    <div class="url-player space-y-4">
+                        <div class="input-group flex gap-3">
+                            <input type="text" id="url-input" class="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-500" placeholder="YouTube, Spotify, SoundCloud, or direct URL..." />
                         </div>
-                        <div class="player-controls">
+                        <div class="player-controls flex gap-3">
                             <button class="btn btn-primary" id="play-url-btn">
                                 <span class="btn-icon">▶</span> Add to Queue
                             </button>
@@ -180,9 +193,12 @@
                     </div>
                 </section>
 
-                <section class="panel sounds-panel">
-                    <div class="panel-header">
-                        <h2>Sound Library</h2>
+                <section class="panel sounds-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+                    <div class="panel-header flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                            <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+                            Sound Library
+                        </h2>
                         <div class="upload-area" id="upload-area">
                             <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.m4a,.webm,.flac" multiple hidden />
                             <button class="btn btn-secondary" id="upload-btn">
@@ -190,11 +206,11 @@
                             </button>
                         </div>
                     </div>
-                    <div class="search-bar">
-                        <input type="text" id="search-input" placeholder="Search sounds..." />
-                        <button class="clear-btn" id="clear-search-btn" style="display: none;">✕</button>
+                    <div class="search-bar mb-4 relative">
+                        <input type="text" id="search-input" class="w-full px-4 py-3 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-500" placeholder="Search sounds..." />
+                        <button class="clear-btn absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-500 cursor-pointer p-1 hidden items-center justify-center rounded transition-all hover:bg-gray-800 hover:text-white" id="clear-search-btn" style="display: none;">✕</button>
                     </div>
-                    <div id="sounds-grid" class="sounds-grid">
+                    <div id="sounds-grid" class="sounds-grid grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-h-[500px] overflow-y-auto pr-2">
                         <div class="skeleton skeleton-card"></div>
                         <div class="skeleton skeleton-card"></div>
                         <div class="skeleton skeleton-card"></div>
@@ -205,19 +221,20 @@
 
                 <!-- Statistics Tab Content -->
                 <div class="tab-content" id="tab-stats" style="display: none;">
-                    <section class="panel stats-panel">
+                    <section class="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
                         <div id="stats-container">
-                            <div class="stats-loading">Loading statistics...</div>
+                            <div class="stats-loading text-center py-12 text-gray-400">Loading statistics...</div>
                         </div>
                     </section>
                 </div>
             </div>
         </main>
 
-        <div id="toast-container" class="toast-container"></div>
+        <div id="toast-container" class="toast-container fixed bottom-6 right-6 flex flex-col gap-3 z-1000"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="components/serverSelector.js"></script>
     <script src="app.js"></script>
     <script src="stats.js"></script>
 </body>

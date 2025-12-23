@@ -174,8 +174,22 @@ async function initializeSchema() {
                 duration INTEGER,
                 played_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api')),
+                queued_by VARCHAR(20),
                 metadata JSONB
             )
+        `);
+
+        // Add queued_by column if it doesn't exist (migration for existing databases)
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'listening_history' AND column_name = 'queued_by'
+                ) THEN
+                    ALTER TABLE listening_history ADD COLUMN queued_by VARCHAR(20);
+                END IF;
+            END $$;
         `);
 
         // Create indexes
@@ -200,6 +214,7 @@ async function initializeSchema() {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_user_guild ON listening_history(user_id, guild_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_listening_history_queued_by ON listening_history(queued_by)`);
 
         // Create views
         await pool.query(`

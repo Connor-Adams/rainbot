@@ -45,6 +45,11 @@ function setupTabNavigation() {
                     loadStatsSummary();
                 }
             }
+            
+            // Update server selector visibility (if function exists)
+            if (typeof window.updateServerSelectorVisibility === 'function') {
+                setTimeout(window.updateServerSelectorVisibility, 100);
+            }
         });
     });
 }
@@ -707,7 +712,10 @@ async function loadHistoryStats() {
             return;
         }
         
-        const guildId = document.getElementById('guild-select')?.value || null;
+        // Get guild ID from server selector component or null
+        const guildId = (typeof serverSelector !== 'undefined' && serverSelector) 
+            ? serverSelector.getSelectedGuildId() 
+            : null;
         
         const params = new URLSearchParams();
         params.append('userId', userId);
@@ -766,6 +774,7 @@ function renderHistoryList(history) {
                     <th>Track</th>
                     <th>Source</th>
                     <th>Duration</th>
+                    <th>Queued By</th>
                     <th>Played At</th>
                 </tr>
             </thead>
@@ -777,6 +786,7 @@ function renderHistoryList(history) {
                                       entry.source_type === 'soundcloud' ? '🎧' :
                                       entry.source_type === 'local' ? '📁' : '🎵';
                     const duration = entry.duration ? formatDuration(entry.duration) : '-';
+                    const queuedBy = entry.queued_by ? `<code>${entry.queued_by}</code>` : '<em>Unknown</em>';
                     
                     return `
                         <tr>
@@ -788,6 +798,7 @@ function renderHistoryList(history) {
                             </td>
                             <td>${sourceIcon} ${entry.source_type}</td>
                             <td>${duration}</td>
+                            <td>${queuedBy}</td>
                             <td>${playedAt.toLocaleString()}</td>
                         </tr>
                     `;

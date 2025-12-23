@@ -73,8 +73,9 @@ function clearHistory(userId) {
  * @param {string} userId - User ID
  * @param {string} guildId - Guild ID
  * @param {Object} track - Track object
+ * @param {string} queuedBy - User ID who queued the track (optional)
  */
-async function trackPlayed(userId, guildId, track) {
+async function trackPlayed(userId, guildId, track, queuedBy = null) {
     if (!userId || !guildId || !track) return;
 
     try {
@@ -95,8 +96,8 @@ async function trackPlayed(userId, guildId, track) {
         // Store in database
         await query(
             `INSERT INTO listening_history 
-            (user_id, guild_id, track_title, track_url, source_type, is_soundboard, duration, played_at, source, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)`,
+            (user_id, guild_id, track_title, track_url, source_type, is_soundboard, duration, played_at, source, queued_by, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10)`,
             [
                 userId,
                 guildId,
@@ -106,6 +107,7 @@ async function trackPlayed(userId, guildId, track) {
                 track.isSoundboard || false,
                 track.duration || null,
                 track.source || 'discord',
+                queuedBy || null,
                 track.spotifyId || track.spotifyUrl ? JSON.stringify({ spotifyId: track.spotifyId, spotifyUrl: track.spotifyUrl }) : null,
             ]
         );

@@ -5,12 +5,12 @@ let connections = [];
 let selectedGuildId = null;
 let isAuthenticated = false;
 let queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
+let serverSelector = null;
 
 // DOM Elements
 const botStatus = document.getElementById('bot-status');
 const connectionsList = document.getElementById('connections-list');
 const serversList = document.getElementById('servers-list');
-const guildSelect = document.getElementById('guild-select');
 const urlInput = document.getElementById('url-input');
 const playUrlBtn = document.getElementById('play-url-btn');
 const stopBtn = document.getElementById('stop-btn');
@@ -111,17 +111,17 @@ function updateStatusDisplay(data) {
 // Render connections list
 function renderConnections() {
     if (connections.length === 0) {
-        connectionsList.innerHTML = '<p class="empty-state">🔇 No active connections<br><small style="margin-top: 0.5rem; display: block;">Join a voice channel to get started</small></p>';
+        connectionsList.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">🔇</span>No active connections<br><small class="block mt-2 text-xs">Join a voice channel to get started</small></p>';
         nowPlayingCard.style.display = 'none';
         return;
     }
 
     connectionsList.innerHTML = connections.map(conn => `
-        <div class="connection-item">
-            <span class="icon">🔊</span>
-            <div class="info">
-                <div class="name">${escapeHtml(conn.channelName)}</div>
-                ${conn.nowPlaying ? `<div class="playing">♪ ${escapeHtml(conn.nowPlaying)}</div>` : '<div class="detail">Idle</div>'}
+        <div class="connection-item flex items-center gap-3">
+            <span class="icon text-xl">🔊</span>
+            <div class="info flex-1 min-w-0">
+                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis">${escapeHtml(conn.channelName)}</div>
+                ${conn.nowPlaying ? `<div class="playing text-xs text-green-500 font-mono">♪ ${escapeHtml(conn.nowPlaying)}</div>` : '<div class="detail text-xs text-gray-500">Idle</div>'}
             </div>
         </div>
     `).join('');
@@ -229,26 +229,30 @@ function escapeHtml(text) {
 // Render servers list
 function renderServers() {
     if (guilds.length === 0) {
-        serversList.innerHTML = '<p class="empty-state">🏠 No servers available</p>';
+        serversList.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">🏠</span>No servers available</p>';
         return;
     }
 
     serversList.innerHTML = guilds.map(guild => `
-        <div class="server-item" data-guild-id="${guild.id}">
-            <span class="icon">🏠</span>
-            <div class="info">
-                <div class="name">${escapeHtml(guild.name)}</div>
-                <div class="detail">${guild.memberCount} members</div>
+        <div class="server-item flex items-center gap-3" data-guild-id="${guild.id}">
+            <span class="icon text-xl">🏠</span>
+            <div class="info flex-1 min-w-0">
+                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis">${escapeHtml(guild.name)}</div>
+                <div class="detail text-xs text-gray-500">${guild.memberCount} members</div>
             </div>
         </div>
     `).join('');
 
-    // Update guild select dropdown
-    guildSelect.innerHTML = '<option value="">Select server...</option>' +
-        guilds.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
-    
-    if (selectedGuildId) {
-        guildSelect.value = selectedGuildId;
+    // Update server selector component
+    if (serverSelector) {
+        serverSelector.setGuilds(guilds);
+        // Restore persisted selection if available
+        const persistedId = serverSelector.getSelectedGuildId();
+        if (persistedId) {
+            selectedGuildId = persistedId;
+            // Trigger queue fetch if we have a persisted selection
+            fetchQueue(persistedId);
+        }
     }
 }
 
@@ -260,23 +264,23 @@ function renderSounds(filter = '') {
 
     if (filtered.length === 0) {
         soundsGrid.innerHTML = filter 
-            ? '<p class="empty-state">🔍 No matching sounds</p>'
-            : '<p class="empty-state">📭 No sounds uploaded yet<br><small style="margin-top: 0.5rem; display: block;">Upload your first sound to get started</small></p>';
+            ? '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">🔍</span>No matching sounds</p>'
+            : '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">📭</span>No sounds uploaded yet<br><small class="block mt-2 text-xs">Upload your first sound to get started</small></p>';
         return;
     }
 
     soundsGrid.innerHTML = filtered.map(sound => `
-        <div class="sound-card" data-name="${sound.name}">
-            <div class="sound-icon">🎵</div>
-            <div class="sound-info">
-                <div class="sound-name" title="${escapeHtml(sound.name)}">${escapeHtml(sound.name)}</div>
-                <div class="sound-meta">
-                    <span class="sound-size">${formatSize(sound.size)}</span>
+        <div class="sound-card bg-gray-900 border border-gray-700 rounded-lg p-4 flex flex-col gap-3 transition-all hover:border-blue-500 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 hover:bg-gray-800" data-name="${sound.name}">
+            <div class="sound-icon text-3xl text-center">🎵</div>
+            <div class="sound-info flex flex-col gap-1 flex-1">
+                <div class="sound-name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis text-center" title="${escapeHtml(sound.name)}">${escapeHtml(sound.name)}</div>
+                <div class="sound-meta flex items-center justify-center gap-2 flex-wrap">
+                    <span class="sound-size text-xs text-gray-500 font-mono">${formatSize(sound.size)}</span>
                 </div>
             </div>
-            <div class="sound-actions">
-                <button class="btn btn-primary btn-small play-sound-btn">▶</button>
-                <button class="btn btn-danger btn-small delete-sound-btn">✕</button>
+            <div class="sound-actions flex gap-2 mt-auto">
+                <button class="btn btn-primary btn-small play-sound-btn flex-1">▶</button>
+                <button class="btn btn-danger btn-small delete-sound-btn flex-1">✕</button>
             </div>
         </div>
     `).join('');
@@ -332,7 +336,7 @@ function renderQueue() {
     }
 
     if (!queueData.nowPlaying && queueData.queue.length === 0) {
-        queueList.innerHTML = '<p class="queue-empty">Queue is empty<br><small style="margin-top: 0.5rem; display: block;">Add tracks to start playing</small></p>';
+        queueList.innerHTML = '<p class="queue-empty text-center py-8 text-gray-500"><span class="block text-2xl mb-2 opacity-50">🎵</span>Queue is empty<br><small class="block mt-2 text-sm">Add tracks to start playing</small></p>';
         return;
     }
 
@@ -359,17 +363,17 @@ function renderQueue() {
                 sourceText = 'Stream';
             }
             return `
-                <div class="queue-item" data-index="${index}">
-                    <div class="queue-position">${index + 1}</div>
-                    <div class="queue-item-info">
-                        <div class="queue-item-title" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
-                        <div class="queue-item-meta">
-                            <span class="queue-item-source">${sourceIcon} ${sourceText}</span>
+                <div class="queue-item flex items-center gap-3 px-3 py-3 bg-gray-900 border border-gray-700 rounded-lg transition-all hover:border-blue-500 hover:bg-gray-800 hover:translate-x-1 hover:shadow-lg hover:shadow-blue-500/20" data-index="${index}">
+                    <div class="queue-position w-6 h-6 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-full text-xs font-bold flex-shrink-0 shadow-lg shadow-blue-500/40">${index + 1}</div>
+                    <div class="queue-item-info flex-1 min-w-0">
+                        <div class="queue-item-title text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
+                        <div class="queue-item-meta flex items-center gap-3 text-xs text-gray-400 font-medium">
+                            <span class="queue-item-source flex items-center gap-1">${sourceIcon} ${sourceText}</span>
                             ${track.duration ? `<span>${formatDuration(track.duration)}</span>` : ''}
                         </div>
                     </div>
-                    <div class="queue-item-actions">
-                        <button class="btn btn-danger btn-small remove-queue-item-btn" data-index="${index}" title="Remove">✕</button>
+                    <div class="queue-item-actions flex gap-2">
+                        <button class="btn btn-danger btn-small remove-queue-item-btn px-2 py-2 min-w-[36px] h-9 rounded-full transition-all hover:scale-110 hover:shadow-md" data-index="${index}" title="Remove">✕</button>
                     </div>
                 </div>
             `;
@@ -397,7 +401,7 @@ function formatDuration(seconds) {
 
 // Remove track from queue
 async function removeFromQueue(index) {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -414,7 +418,7 @@ async function removeFromQueue(index) {
 
 // Clear queue
 async function clearQueue() {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -474,7 +478,7 @@ async function fetchSounds() {
 
 // Play a sound
 async function playSound(source, event) {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -507,7 +511,7 @@ async function playSound(source, event) {
 
 // Stop playback
 async function stopPlayback() {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -608,15 +612,16 @@ urlInput.addEventListener('keypress', (e) => {
 
 stopBtn.addEventListener('click', stopPlayback);
 
-guildSelect.addEventListener('change', async (e) => {
-    selectedGuildId = e.target.value;
+// Server selector change handler (set up during initialization)
+function handleServerSelectorChange(guildId) {
+    selectedGuildId = guildId;
     if (selectedGuildId) {
-        await fetchQueue(selectedGuildId);
+        fetchQueue(selectedGuildId);
     } else {
         queueData = { nowPlaying: null, queue: [], totalInQueue: 0 };
         renderQueue();
     }
-});
+}
 
 searchInput.addEventListener('input', (e) => {
     renderSounds(e.target.value);
@@ -633,7 +638,7 @@ clearQueueBtn.addEventListener('click', clearQueue);
 
 // Player control event listeners
 playPauseBtn.addEventListener('click', async () => {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -669,7 +674,7 @@ playPauseBtn.addEventListener('click', async () => {
 });
 
 prevBtn.addEventListener('click', async () => {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -679,7 +684,7 @@ prevBtn.addEventListener('click', async () => {
 });
 
 nextBtn.addEventListener('click', async () => {
-    const guildId = guildSelect.value;
+    const guildId = serverSelector ? serverSelector.getSelectedGuildId() : null;
     if (!guildId) {
         showToast('Please select a server first', 'error');
         return;
@@ -880,9 +885,65 @@ if (urlParams.has('code') || window.location.pathname === '/') {
     console.log('Checking auth status after redirect...');
 }
 
+// Initialize server selector component
+function initServerSelector() {
+    if (typeof ServerSelector === 'undefined') {
+        console.error('ServerSelector component not loaded');
+        return;
+    }
+
+    serverSelector = new ServerSelector('server-selector-container', {
+        onChange: handleServerSelectorChange
+    });
+
+    // Set up context-aware visibility based on active tab
+    window.updateServerSelectorVisibility();
+    
+    // Set up basic tab navigation if not already handled by stats.js
+    // This ensures server selector visibility updates when tabs change
+    const navTabs = document.querySelectorAll('.nav-tab');
+    navTabs.forEach(tab => {
+        // Check if tab already has click handler (from stats.js)
+        // If not, add one
+        if (!tab.dataset.hasHandler) {
+            tab.dataset.hasHandler = 'true';
+            tab.addEventListener('click', () => {
+                setTimeout(() => {
+                    if (window.updateServerSelectorVisibility) {
+                        window.updateServerSelectorVisibility();
+                    }
+                }, 100);
+            });
+        }
+    });
+}
+
+// Update server selector visibility based on active tab (global function)
+window.updateServerSelectorVisibility = function() {
+    if (!serverSelector) return;
+
+    const activeTab = document.querySelector('.nav-tab.active');
+    if (!activeTab) {
+        serverSelector.hide();
+        return;
+    }
+
+    const tabName = activeTab.dataset.tab;
+    // Show selector in Player, Sounds, and Stats tabs
+    const shouldShow = ['player', 'sounds', 'stats'].includes(tabName);
+    
+    if (shouldShow) {
+        serverSelector.show();
+    } else {
+        serverSelector.hide();
+    }
+}
+
 // Initial load - check auth first
 checkAuth().then(authenticated => {
     if (authenticated) {
+        // Initialize server selector after auth
+        initServerSelector();
         fetchStatus();
         fetchSounds();
         // Poll for updates every 5 seconds
@@ -896,7 +957,11 @@ checkAuth().then(authenticated => {
         // If not authenticated, check again after a short delay (in case session is still being created)
         setTimeout(() => {
             console.log('Re-checking auth status...');
-            checkAuth();
+            checkAuth().then(auth => {
+                if (auth) {
+                    initServerSelector();
+                }
+            });
         }, 1000);
     }
 });

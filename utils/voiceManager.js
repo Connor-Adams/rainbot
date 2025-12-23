@@ -295,6 +295,7 @@ async function playNext(guildId) {
             );
             
             // Track in listening history
+            // Pass queued_by from the track (who queued it) or null if not available
             listeningHistory.trackPlayed(trackUserId, guildId, {
                 title: nextTrack.title,
                 url: nextTrack.url,
@@ -304,7 +305,7 @@ async function playNext(guildId) {
                 source,
                 spotifyId: nextTrack.spotifyId,
                 spotifyUrl: nextTrack.spotifyUrl,
-            }).catch(err => log.error(`Failed to track listening history: ${err.message}`));
+            }, nextTrack.userId || null).catch(err => log.error(`Failed to track listening history: ${err.message}`));
         }
         
         // Pre-buffer the next track for instant skip
@@ -475,6 +476,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
             );
             
             // Track in listening history
+            // For soundboard sounds, queued_by is the same as trackUserId (person who triggered it)
             listeningHistory.trackPlayed(trackUserId, guildId, {
                 title: soundName,
                 url: null,
@@ -483,7 +485,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
                 sourceType: 'local',
                 source,
                 isSoundboard: true,
-            }).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+            }, trackUserId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
         }
 
         return {
@@ -517,6 +519,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
             );
             
             // Track in listening history
+            // For soundboard sounds, queued_by is the same as trackUserId (person who triggered it)
             listeningHistory.trackPlayed(trackUserId, guildId, {
                 title: soundName,
                 url: null,
@@ -525,7 +528,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
                 sourceType: 'local',
                 source,
                 isSoundboard: true,
-            }).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+            }, trackUserId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
         }
         
         return {
