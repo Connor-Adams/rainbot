@@ -1,176 +1,297 @@
-# Voice Manager Module Architecture
+# Voice Module Architecture
 
-The voice manager has been refactored from a single 72KB monolithic file into focused, maintainable modules.
+This directory contains the refactored voice management system, split into focused, maintainable modules.
+
+## Overview
+
+The original `voiceManager.js` (72KB) has been split into specialized modules for better maintainability, testability, and code organization.
 
 ## Module Structure
 
 ```
 utils/voice/
-├── audioResource.js      # Audio streaming and resource creation
-├── constants.js          # Shared constants
-├── queueManager.js       # Thread-safe queue operations
-├── soundboardManager.js  # Soundboard overlay functionality
-├── snapshotManager.js    # Queue persistence across restarts
-├── trackFetcher.js       # URL parsing and metadata fetching
-└── README.md            # This file
+├── index.js                 # Main entry point, re-exports all modules
+├── constants.js             # Shared constants
+├── audioResource.js         # Audio streaming & resource creation
+├── queueManager.js          # Thread-safe queue operations
+├── playbackManager.js       # Playback control & state management
+├── soundboardManager.js     # Soundboard overlay functionality
+├── snapshotManager.js       # Queue persistence (save/restore)
+├── trackMetadata.js         # YouTube/Spotify metadata fetching
+└── README.md                # This file
 ```
 
 ## Module Responsibilities
 
-### audioResource.js
-**Purpose:** Handle all audio streaming and resource creation
+### 🎵 audioResource.js
+**Purpose:** Audio streaming and resource creation
 
 **Key Functions:**
-- `getStreamUrl(url)` - Cache and fetch YouTube stream URLs
-- `createTrackResourceAsync(track)` - Fast streaming using fetch API
-- `createTrackResource(track)` - Fallback yt-dlp piping
-- `createTrackResourceForAny(track)` - Universal track resource creator
-- `createResourceWithSeek(track, seconds)` - Create resource at specific position
-- `createVolumeResource(input, options)` - Helper for inline volume control
+- `createVolumeResource()` - Create audio resource with volume support
+- `getStreamUrl()` - Get cached stream URLs from yt-dlp
+- `createTrackResourceAsync()` - Fast streaming via fetch (YouTube)
+- `createTrackResource()` - Fallback yt-dlp piping
+- `createTrackResourceForAny()` - Universal track resource creation
+- `createResourceWithSeek()` - Create resource at specific position
 
 **Features:**
-- LRU cache for stream URLs (2hr expiration, 500 max entries)
-- Multiple fallback strategies for reliability
-- Fetch API streaming for lower latency
-- FFmpeg seeking for local files
+- LRU cache for stream URLs (2 hour expiration)
+- Fast fetch-based streaming for YouTube
+- Automatic fallback to yt-dlp or play-dl
+- Support for local files and remote streams
 
 ---
 
-### queueManager.js
-**Purpose:** Thread-safe queue operations with mutex locking
+### 📋 queueManager.js
+**Purpose:** Thread-safe queue operations
 
 **Key Functions:**
-- `withQueueLock(guildId, fn)` - Execute function with exclusive lock
-- `addToQueue(state, tracks)` - Add tracks to queue
-- `clearQueue(state)` - Clear all tracks
-- `removeTrack(state, index)` - Remove specific track
-- `getNextTrack(state)` - Pop next track (FIFO)
-- `skipTracks(state, count)` - Skip multiple tracks
-- `getQueueSnapshot(state, limit)` - Get safe queue copy
+- `withQueueLock()` - Execute function with exclusive queue lock
+- `addToQueue()` - Add tracks to queue
+- `clearQueue()` - Remove all tracks
+- `removeTrack()` - Remove specific track by index
+- `getNextTrack()` - Pop next track from queue
+- `skipTracks()` - Skip multiple tracks
+- `getQueueSnapshot()` - Get safe queue copy
 
-**Why Mutex?**
-Prevents race conditions when:
-- Multiple API requests modify queue simultaneously
-- Discord commands and web dashboard interact concurrently
-- Ensures atomic operations on shared queue state
+**Features:**
+- **Mutex locking** prevents race conditions
+- Critical for concurrent API + Discord command access
+- FIFO queue management
+- Thread-safe operations for music playback only
 
 ---
 
-### soundboardManager.js
-**Purpose:** Instant soundboard playback with music overlay
+### ▶️ playbackManager.js
+**Purpose:** Playback control and state management
 
 **Key Functions:**
-- `playSoundboardOverlay(state, guildId, sound, ...)` - Mix soundboard over music
-- `playSoundboardDirect(state, sound, ...)` - Direct playback (no music)
-- `trackSoundboardUsage(sound, userId, ...)` - Statistics tracking
+- `playNext()` - Play next track in queue
+- `playWithSeek()` - Resume playback at specific position
+- `togglePause()` - Pause/resume with position tracking
+- `setVolume()` - Adjust volume (1-100)
+- `stopPlayback()` - Stop and clear queue
+- `preBufferNext()` - Pre-buffer next track for instant skips
 
 **Features:**
-- FFmpeg audio mixing (soundboard + music at full volume)
-- Automatic seeking to maintain music position
-- Works even when music is paused
-- Fallback to direct playback if overlay fails
+- Automatic error recovery and track skipping
+- Playback position tracking (accounting for pauses)
+- Statistics and listening history integration
+- Pre-buffering for seamless playback
+
+---
+
+### 🔊 soundboardManager.js
+**Purpose:** Soundboard overlay functionality
+
+**Key Functions:**
+- `playSoundboardOverlay()` - Mix soundboard over music with FFmpeg
+- `playSoundboardDirect()` - Play soundboard without music
+- `trackSoundboardUsage()` - Track statistics and history
+
+**Features:**
+- **Real-time audio mixing** with FFmpeg
+- Soundboard plays at full volume over music
 - Spammable (kills previous overlay instantly)
+- Works even when music is paused
+- Automatic fallback to direct playback
 
-**Important:** Soundboards are **never queued** - always play immediately!
-
----
-
-### snapshotManager.js
-**Purpose:** Persist queue state across bot restarts
-
-**Key Functions:**
-- `saveQueueSnapshot(guildId, state)` - Save to database
-- `saveAllQueueSnapshots(voiceStates)` - Batch save on shutdown
-- `restoreQueueSnapshot(guildId, client, ...)` - Restore single guild
-- `restoreAllQueueSnapshots(client, ...)` - Restore all on startup
-
-**Saved State:**
-- Queue tracks and current track
-- Playback position (accounting for pauses)
-- Volume level
-- Paused state
-- Last user who played music
-
-**Flow:**
+**Architecture:**
 ```
-1. Bot shutdown → Save all guild queues to DB
-2. Bot startup → Restore queues from DB
-3. Rejoin voice channels
-4. Resume playback at exact position (even if paused)
-5. Delete snapshots after successful restore
+Music: ━━━━━━━━━━━━━━━━━━━━━━━━ (continuous)
+Sound:         🔊 bruh        (overlay)
+Output: ━━━━━━━[bruh]━━━━━━━━━━ (mixed)
 ```
 
 ---
 
-### trackFetcher.js
-**Purpose:** Fetch metadata and handle various source types
+### 💾 snapshotManager.js
+**Purpose:** Queue persistence across bot restarts
 
 **Key Functions:**
-- `detectUrlType(url)` - Fast URL type detection
-- `fetchYouTubeMetadata(url)` - Get video info
-- `fetchYouTubePlaylist(url, callbacks)` - Stream playlist loading
-- `processSpotifyTracks(tracks, callback)` - Find YouTube equivalents
-- `searchYouTube(query)` - Search and return first result
+- `saveQueueSnapshot()` - Save guild queue to database
+- `saveAllQueueSnapshots()` - Save all active queues
+- `restoreQueueSnapshot()` - Restore guild queue on startup
+- `restoreAllQueueSnapshots()` - Restore all saved queues
 
-**Supported Sources:**
-- YouTube (videos, playlists)
-- Spotify (tracks, playlists, albums) → converted to YouTube
-- SoundCloud (tracks, playlists)
-- Direct URLs (via play-dl)
+**Features:**
+- Saves queue, current track, position, and volume
+- Handles paused state correctly
+- Automatic cleanup after successful restore
+- Graceful handling of missing guilds/channels
 
-**Optimization:**
-- First track queued instantly for playlists
-- Remaining tracks fetched in background
-- No blocking HTTP requests for known URL types
-
----
-
-### constants.js
-**Purpose:** Shared configuration values
-
-**Constants:**
-- `CACHE_EXPIRATION_MS` - Stream URL cache lifetime (2 hours)
-- `MAX_CACHE_SIZE` - Maximum cached URLs (500)
-- `FETCH_TIMEOUT_MS` - Network request timeout (10 seconds)
+**Use Cases:**
+- Bot restarts/updates
+- Server maintenance
+- Crash recovery
 
 ---
 
-## Integration Example
+### 🔍 trackMetadata.js
+**Purpose:** Fetch track metadata from various sources
 
-The main voiceManager.js orchestrates these modules:
+**Key Functions:**
+- `fetchYouTubeMetadata()` - Get video info
+- `fetchYouTubePlaylist()` - Get playlist entries
+- `searchYouTube()` - Search for tracks
+- `spotifyToYouTube()` - Convert Spotify track to YouTube
+- `processSpotifyPlaylistTracks()` - Background playlist processing
+- `detectUrlType()` - Fast URL type detection
+
+**Features:**
+- Fast URL type detection (no HTTP requests)
+- Spotify → YouTube conversion
+- Background playlist processing
+- Rate limiting protection
+
+---
+
+### 🔧 constants.js
+**Purpose:** Shared constants
 
 ```javascript
-const { withQueueLock, addToQueue } = require('./voice/queueManager');
-const { createTrackResourceForAny } = require('./voice/audioResource');
-const { playSoundboardOverlay } = require('./voice/soundboardManager');
-const { saveQueueSnapshot } = require('./voice/snapshotManager');
-const { detectUrlType, searchYouTube } = require('./voice/trackFetcher');
+CACHE_EXPIRATION_MS: 2 hours
+MAX_CACHE_SIZE: 500 URLs
+FETCH_TIMEOUT_MS: 10 seconds
+```
 
-// Add track with thread safety
+---
+
+## Integration with Main voiceManager.js
+
+The main `voiceManager.js` now acts as an **orchestrator** that:
+1. Manages voice state Map
+2. Handles Discord voice connections
+3. Coordinates between modules
+4. Exposes public API
+
+This reduces the main file from **72KB to ~15-20KB**.
+
+## Benefits of This Architecture
+
+### ✅ Maintainability
+- Each module has a single, clear responsibility
+- Easier to locate and fix bugs
+- Simpler to understand individual components
+
+### ✅ Testability
+- Modules can be tested independently
+- Mock dependencies easily
+- Unit tests can focus on specific functionality
+
+### ✅ Dependency Injection Ready
+- Modules accept dependencies as parameters
+- Easy to swap implementations
+- Better for testing and mocking
+
+### ✅ Reusability
+- Functions can be used across different contexts
+- Common functionality extracted to shared modules
+- Reduces code duplication
+
+### ✅ Performance
+- Module-level caching (stream URLs)
+- Pre-buffering for instant skips
+- Thread-safe operations prevent race conditions
+
+## Usage Examples
+
+### Basic Playback
+```javascript
+const { playNext } = require('./voice/playbackManager');
+const { addToQueue } = require('./voice/queueManager');
+
+// Add tracks to queue
+addToQueue(state, [track1, track2, track3]);
+
+// Start playback
+await playNext(guildId, voiceStates);
+```
+
+### Thread-Safe Queue Operations
+```javascript
+const { withQueueLock, clearQueue } = require('./voice/queueManager');
+
+// Ensure exclusive access
 await withQueueLock(guildId, async () => {
-    addToQueue(state, tracks);
-    if (!isPlaying) {
-        const resource = await createTrackResourceForAny(tracks[0]);
-        state.player.play(resource.resource);
-    }
+    const cleared = clearQueue(state);
+    console.log(`Cleared ${cleared} tracks`);
 });
 ```
 
-## Benefits of Modular Architecture
+### Soundboard Overlay
+```javascript
+const { playSoundboardOverlay } = require('./voice/soundboardManager');
 
-1. **Maintainability** - Each module has a single, clear responsibility
-2. **Testability** - Functions can be unit tested in isolation
-3. **Reusability** - Modules can be used independently
-4. **Readability** - 72KB file split into ~300-500 line focused modules
-5. **Thread Safety** - Centralized queue locking prevents race conditions
-6. **Dependency Injection Ready** - Easy to mock modules for testing
+// Play sound over music
+const result = await playSoundboardOverlay(
+    state,
+    guildId,
+    'bruh.mp3',
+    userId,
+    'discord',
+    username,
+    discriminator
+);
+
+console.log(result.overlaid); // true if mixed, false if direct
+```
+
+### Snapshot Persistence
+```javascript
+const { saveQueueSnapshot, restoreQueueSnapshot } = require('./voice/snapshotManager');
+
+// Save before shutdown
+await saveQueueSnapshot(guildId, state);
+
+// Restore on startup
+await restoreQueueSnapshot(guildId, client, joinChannel, playWithSeek, playNext);
+```
 
 ## Migration Notes
 
-The original `voiceManager.js` is now a thin orchestration layer that:
-- Maintains the same public API (no breaking changes)
-- Delegates operations to specialized modules
-- Manages voice state map
-- Handles Discord.js voice events
+If updating existing code:
 
-All existing commands and API endpoints continue to work without modification.
+1. **Import from voice module:**
+   ```javascript
+   // Old
+   const voiceManager = require('./voiceManager');
+   
+   // New
+   const { playNext, addToQueue } = require('./voice');
+   ```
+
+2. **Pass voiceStates Map explicitly:**
+   ```javascript
+   // Many functions now require voiceStates as parameter
+   await playNext(guildId, voiceStates);
+   ```
+
+3. **Use queue locks for concurrent access:**
+   ```javascript
+   // Always use withQueueLock for queue modifications
+   await withQueueLock(guildId, async () => {
+       addToQueue(state, tracks);
+   });
+   ```
+
+## Future Improvements
+
+- [ ] Add TypeScript type definitions
+- [ ] Implement comprehensive unit tests
+- [ ] Add integration tests for playback flow
+- [ ] Create service classes for dependency injection
+- [ ] Add event emitters for state changes
+- [ ] Implement queue history/undo functionality
+- [ ] Add support for more streaming platforms
+
+## Contributing
+
+When adding new voice functionality:
+
+1. Identify the appropriate module (or create a new one)
+2. Keep functions focused and single-purpose
+3. Document parameters and return values
+4. Add JSDoc comments for type hints
+5. Consider thread-safety for queue operations
+6. Update this README with new functionality
