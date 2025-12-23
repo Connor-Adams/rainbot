@@ -1,59 +1,33 @@
 /**
- * Server and API type definitions
+ * Server/API type definitions
  */
+import type { Request, Response, NextFunction } from 'express';
 
-import { Request, Response, NextFunction } from 'express';
-import { Client } from 'discord.js';
-
-/**
- * Extended Express Request with session and user
- */
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    username: string;
-    discriminator: string;
-    avatar?: string;
-    guilds?: any[];
-  };
-  session: {
-    passport?: {
-      user?: string;
-    };
-  };
+  userId?: string;
+  guildId?: string;
 }
 
-/**
- * Server configuration
- */
-export interface ServerConfig {
-  port: number;
-  sessionSecret: string;
-  callbackUrl: string;
-  clientId: string;
-  clientSecret: string;
+export interface ApiMiddleware {
+  (req: AuthenticatedRequest, res: Response, next: NextFunction): void | Promise<void>;
 }
 
-/**
- * API response wrapper
- */
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
   message?: string;
 }
 
-/**
- * Middleware function type
- */
-export type Middleware = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => void | Promise<void>;
+export interface CorsConfig {
+  origin: string | string[] | boolean;
+  credentials?: boolean;
+  methods?: string[];
+}
 
-/**
- * Route handler function type
- */
-export type RouteHandler = (req: AuthenticatedRequest, res: Response) => void | Promise<void>;
+export interface ServerConfig {
+  port: number;
+  host: string;
+  trustProxy?: boolean;
+  rateLimit?: RateLimitConfig;
+  cors?: CorsConfig;
+}

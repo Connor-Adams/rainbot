@@ -1,32 +1,9 @@
 /**
- * Type definitions for voice modules
+ * Type definitions for voice module system
  */
+import type { VoiceConnection, AudioPlayer, AudioResource } from '@discordjs/voice';
+import type { Track } from './voice';
 
-import { AudioPlayer, AudioResource, VoiceConnection } from '@discordjs/voice';
-import { ChildProcess } from 'child_process';
-import { Mutex } from 'async-mutex';
-
-/**
- * Track object representing a song or audio file
- */
-export interface Track {
-  title: string;
-  url?: string;
-  duration?: number;
-  isLocal?: boolean;
-  isStream?: boolean;
-  source?: string;
-  userId?: string;
-  username?: string;
-  discriminator?: string;
-  spotifyId?: string;
-  spotifyUrl?: string;
-  sourceType?: 'youtube' | 'spotify' | 'soundcloud' | 'local' | 'other';
-}
-
-/**
- * Voice state for a guild
- */
 export interface VoiceState {
   connection: VoiceConnection;
   player: AudioPlayer;
@@ -39,89 +16,53 @@ export interface VoiceState {
   lastUserId: string | null;
   lastUsername: string | null;
   lastDiscriminator: string | null;
-  pausedMusic: any | null;
+  pausedMusic: unknown | null;
   playbackStartTime: number | null;
   pauseStartTime: number | null;
   totalPausedTime: number;
-  overlayProcess: ChildProcess | null;
+  overlayProcess: unknown | null;
   volume: number;
-  preBuffered: any | null;
+  preBuffered: unknown | null;
   currentTrackSource: string | null;
 }
 
-/**
- * Audio resource result
- */
-export interface AudioResourceResult {
-  resource: AudioResource;
-  subprocess?: ChildProcess;
-  actualSeek?: number;
-}
-
-/**
- * Soundboard result
- */
-export interface SoundboardResult {
-  overlaid: boolean;
-  sound: string;
-  message: string;
-  error?: string;
-}
-
-/**
- * Queue snapshot for persistence
- */
-export interface QueueSnapshot {
-  guild_id: string;
-  channel_id: string;
-  queue_data: Track[];
-  current_track: Track | null;
-  position_ms: number;
-  is_paused: boolean;
-  volume: number;
-  last_user_id: string | null;
-  saved_at: Date;
-}
-
-/**
- * Track metadata result
- */
-export interface TrackMetadata {
-  title: string;
+export interface StreamUrlCache {
   url: string;
-  duration?: number;
-  spotifyId?: string;
-  spotifyUrl?: string;
+  expires: number;
 }
 
-/**
- * Playlist metadata result
- */
-export interface PlaylistMetadata {
-  title: string;
-  entries: any[];
+export interface ConnectionManagerInterface {
+  joinChannel(channel: unknown): Promise<{ connection: VoiceConnection; player: AudioPlayer }>;
+  leaveChannel(guildId: string): boolean;
+  getVoiceState(guildId: string): VoiceState | undefined;
+  getAllConnections(): unknown[];
 }
 
-/**
- * Queue info snapshot
- */
-export interface QueueInfo {
-  queue: Track[];
-  totalInQueue: number;
-  nowPlaying: string | null;
-  currentTrack: Track | null;
-  playbackPosition?: number;
-  hasOverlay?: boolean;
-  isPaused?: boolean;
-  channelName?: string;
+export interface QueueManagerInterface {
+  addToQueue(guildId: string, tracks: Track[]): Promise<{ added: number; tracks: Track[] }>;
+  skip(guildId: string, count: number): Promise<string[]>;
+  clearQueue(guildId: string): Promise<number>;
+  removeTrackFromQueue(guildId: string, index: number): Promise<Track>;
+  getQueue(guildId: string): unknown;
+  restoreQueue(guildId: string, tracks: Track[]): Promise<void>;
 }
 
-/**
- * Play result
- */
-export interface PlayResult {
-  added: number;
-  tracks: Track[];
-  totalInQueue: number;
-  overlaid?: boolean;
+export interface PlaybackManagerInterface {
+  playNext(guildId: string): Promise<Track | null>;
+  togglePause(guildId: string): { paused: boolean };
+  stopSound(guildId: string): boolean;
+  setVolume(guildId: string, level: number): number;
+  playSoundImmediate(guildId: string, resource: AudioResource, title: string): void;
+  playSoundboardOverlay(guildId: string, soundName: string): Promise<unknown>;
+}
+
+export interface TrackFetcherInterface {
+  fetchTracks(source: string, guildId: string): Promise<Track[]>;
+}
+
+export interface SnapshotPersistenceInterface {
+  saveQueueSnapshot(guildId: string): Promise<void>;
+  saveAllQueueSnapshots(): Promise<void>;
+  restoreQueueSnapshot(guildId: string, client: unknown): Promise<boolean>;
+  restoreAllQueueSnapshots(client: unknown): Promise<number>;
 }

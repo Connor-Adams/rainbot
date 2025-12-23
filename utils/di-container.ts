@@ -1,120 +1,74 @@
-import 'reflect-metadata';
-import { Container } from 'inversify';
-import { Client } from 'discord.js';
-import { TYPES } from '../types/di.symbols';
-import type {
-  ILoggerService,
-  IDatabaseService,
-  ICacheService,
-  IConfigService,
-} from '../types/services';
-
 /**
  * Dependency Injection Container
- * Centralizes all service instantiation and dependency management
+ * Provides centralized service management
  */
 
-export class DIContainer {
-  private static instance: Container;
+type ServiceFactory<T> = () => T;
+type ServiceInstance<T> = T;
+
+class DIContainer {
+  private services: Map<string, ServiceInstance<unknown>> = new Map();
+  private factories: Map<string, ServiceFactory<unknown>> = new Map();
 
   /**
-   * Initialize the DI container with all bindings
+   * Register a singleton service
    */
-  static initialize(client: Client): Container {
-    if (!DIContainer.instance) {
-      DIContainer.instance = new Container();
-      DIContainer.setupBindings(client);
-    }
-    return DIContainer.instance;
+  register<T>(name: string, factory: ServiceFactory<T>): void {
+    this.factories.set(name, factory as ServiceFactory<unknown>);
   }
 
   /**
-   * Get the container instance
+   * Get a service instance (lazy initialization)
    */
-  static getContainer(): Container {
-    if (!DIContainer.instance) {
-      throw new Error('DI Container not initialized. Call initialize() first.');
+  get<T>(name: string): T {
+    // Return existing instance if available
+    if (this.services.has(name)) {
+      return this.services.get(name) as T;
     }
-    return DIContainer.instance;
+
+    // Create new instance from factory
+    const factory = this.factories.get(name);
+    if (!factory) {
+      throw new Error(`Service not registered: ${name}`);
+    }
+
+    const instance = factory();
+    this.services.set(name, instance);
+    return instance as T;
   }
 
   /**
-   * Setup all service bindings
+   * Check if a service is registered
    */
-  private static setupBindings(client: Client): void {
-    const container = DIContainer.instance;
-
-    // Bind Discord Client
-    container.bind<Client>(TYPES.Client).toConstantValue(client);
-
-    // Bind services (these will be implemented progressively)
-    // For now, we'll use lazy loading to maintain backward compatibility
-
-    // Config Service
-    container
-      .bind<IConfigService>(TYPES.ConfigService)
-      .toDynamicValue(() => {
-        const { loadConfig } = require('./config');
-        return {
-          get: (key: string) => loadConfig()[key],
-          getAll: () => loadConfig(),
-          validate: () => true,
-        };
-      })
-      .inSingletonScope();
-
-    // Logger Service
-    container
-      .bind<ILoggerService>(TYPES.Logger)
-      .toDynamicValue((context) => {
-        const { createLogger } = require('./logger');
-        return createLogger('DIContainer');
-      })
-      .inSingletonScope();
-
-    // Database Service
-    container
-      .bind<IDatabaseService>(TYPES.DatabaseService)
-      .toDynamicValue(() => {
-        const database = require('./database');
-        return {
-          getPool: () => database.getPool(),
-          query: database.query,
-          transaction: database.transaction,
-          close: database.close,
-        };
-      })
-      .inSingletonScope();
-
-    // Cache Service (Redis)
-    container
-      .bind<ICacheService>(TYPES.CacheService)
-      .toDynamicValue(() => {
-        // This will be implemented when we add Redis caching
-        return {
-          get: async () => null,
-          set: async () => {},
-          delete: async () => {},
-          clear: async () => {},
-          exists: async () => false,
-        };
-      })
-      .inSingletonScope();
+  has(name: string): boolean {
+    return this.factories.has(name) || this.services.has(name);
   }
 
   /**
-   * Reset the container (useful for testing)
+   * Clear all services (for testing)
    */
-  static reset(): void {
-    if (DIContainer.instance) {
-      DIContainer.instance.unbindAll();
-    }
+  clear(): void {
+    this.services.clear();
+    this.factories.clear();
+  }
+
+  /**
+   * Register multiple services at once
+   */
+  registerAll(services: Record<string, ServiceFactory<unknown>>): void {
+    Object.entries(services).forEach(([name, factory]) => {
+      this.register(name, factory);
+    });
   }
 }
 
-/**
- * Convenience function to get a service from the container
- */
-export function getService<T>(serviceIdentifier: symbol): T {
-  return DIContainer.getContainer().get<T>(serviceIdentifier);
+// Export singleton instance
+export const container = new DIContainer();
+
+// Helper function to initialize common services
+export function initializeServices(_config: unknown = {}): void {
+  // Register core services here
+  // Example:
+  // container.register('logger', () => createLogger(config.logLevel));
+  // container.register('database', () => createDatabaseConnection(config.db));
 }

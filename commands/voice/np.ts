@@ -1,37 +1,58 @@
+import { EmbedBuilder } from 'discord.js';
 import type { QueueInfo } from '../../types/voice';
-import { createPlayerMessage } from '../../utils/playerEmbed';
+import { formatDuration } from '../../utils/playerEmbed';
 
 const voiceManager = require('../../utils/voiceManager');
 
-export interface NPResult {
-  success: boolean;
-  error?: string;
-  playerMessage?: ReturnType<typeof createPlayerMessage>;
+function getYouTubeThumbnail(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (match) {
+    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
+  }
+  return null;
 }
 
-export function executeNP(guildId: string): NPResult {
-  const status = voiceManager.getStatus(guildId);
-  if (!status) {
-    return {
-      success: false,
-      error:
-        "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-    };
+export function executeNowPlaying(guildId: string): QueueInfo {
+  return voiceManager.getQueue(guildId) as QueueInfo;
+}
+
+export function createNowPlayingEmbed(queueInfo: QueueInfo): EmbedBuilder {
+  const { nowPlaying, playbackPosition = 0, isPaused = false, hasOverlay = false } = queueInfo;
+  const currentTrack = queueInfo.currentTrack || null;
+
+  const embed = new EmbedBuilder().setTitle('🎵 Now Playing').setColor(0x6366f1).setTimestamp();
+
+  if (nowPlaying && currentTrack) {
+    let description = `**${nowPlaying}**`;
+
+    // Show playback progress
+    if (currentTrack.duration && playbackPosition > 0) {
+      const currentTime = formatDuration(playbackPosition);
+      const totalTime = formatDuration(currentTrack.duration);
+      description += `\n\`${currentTime} / ${totalTime}\``;
+    } else if (currentTrack.duration) {
+      description += ` • \`${formatDuration(currentTrack.duration)}\``;
+    }
+
+    // Add state indicators
+    if (hasOverlay) {
+      description += '\n\n🔊 *Soundboard overlay active*';
+    } else if (isPaused) {
+      description += '\n\n⏸️ *Paused*';
+    }
+
+    const thumbnail = getYouTubeThumbnail(currentTrack.url);
+    if (thumbnail && !currentTrack.isSoundboard) {
+      embed.setThumbnail(thumbnail);
+    }
+
+    embed.setDescription(description);
+  } else if (nowPlaying) {
+    embed.setDescription(`**${nowPlaying}**`);
+  } else {
+    embed.setDescription('*Nothing playing*');
   }
 
-  if (!status.nowPlaying) {
-    return {
-      success: false,
-      error: '❌ Nothing is playing right now. Use `/play` to start playing music.',
-    };
-  }
-
-  const queueInfo = voiceManager.getQueue(guildId) as QueueInfo;
-  const { nowPlaying, queue, currentTrack } = queueInfo;
-  const isPaused = !status.isPlaying;
-
-  return {
-    success: true,
-    playerMessage: createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo),
-  };
+  return embed;
 }
