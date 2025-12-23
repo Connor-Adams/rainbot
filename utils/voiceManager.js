@@ -1694,7 +1694,7 @@ async function playWithSeek(state, track, seekSeconds, startPaused = false) {
         soundStream.pipe(ffmpeg.stdin);
         ffmpeg.stderr.on('data', () => {}); // Suppress stderr
 
-        resource = createAudioResource(ffmpeg.stdout, { inputType: StreamType.OggOpus });
+        resource = createVolumeResource(ffmpeg.stdout, { inputType: StreamType.OggOpus });
     } else {
         // Streams: play-dl supports seek option
         try {
