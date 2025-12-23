@@ -400,7 +400,7 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         const soundInput = 'pipe:3'; // We'll pipe soundboard on fd 3
 
         // Create FFmpeg process for mixing
-        // Music is ducked to 25% volume, soundboard at full volume
+        // Both music and soundboard play at full volume simultaneously
         // Using amix filter to combine both streams
         const ffmpegArgs = [
             '-reconnect', '1',
@@ -409,11 +409,8 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
             '-i', musicStreamUrl,                    // Input 0: Music stream
             '-i', soundInput,                          // Input 1: Soundboard (piped from S3)
             '-filter_complex',
-            // Sidechain compression: music ducks when soundboard audio is present, restores when it ends
-            // [0:a] = music, [1:a] = soundboard (sidechain trigger)
-            // threshold=0.01 triggers on any soundboard audio
-            // ratio=4 ducks to ~25% volume, attack=0.01 quick duck, release=0.5 smooth restore
-            '[1:a]asplit=2[sc][sfx];[0:a][sc]sidechaincompress=threshold=0.01:ratio=4:attack=0.01:release=0.5[ducked];[ducked][sfx]amix=inputs=2:duration=first:dropout_transition=0.5[out]',
+            // Simple mix: both streams at full volume, soundboard duration determines length
+            '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0.5[out]',
             '-map', '[out]',
             '-acodec', 'libopus',
             '-f', 'opus',
@@ -575,11 +572,17 @@ async function joinChannel(channel) {
     // Handle player state changes - auto-play next track
     player.on(AudioPlayerStatus.Idle, () => {
         const state = voiceStates.get(guildId);
-        if (state && state.queue.length > 0) {
+        if (!state) return;
+        
+        // Normal queue playback
+        if (state.queue.length > 0) {
+            // Normal queue playback
             playNext(guildId);
-        } else if (state) {
+        } else {
+            // Queue empty
             state.nowPlaying = null;
             state.currentTrack = null;
+            state.currentTrackSource = null;
         }
     });
 
@@ -924,14 +927,64 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
         // Check if it's a stored sound file first
         const exists = await storage.soundExists(source);
         if (exists) {
-            // Play from stored sound file (local or S3)
+            // Soundboard files should play overtop music, not interrupt it
+            const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+            const hasMusicSource = state.currentTrackSource;
+            
+            if (isPlaying && hasMusicSource) {
+                // Music is playing - use overlay to play soundboard overtop
+                log.info(`Soundboard file detected, playing over music: ${source}`);
+                
+                // Use the overlay function to play soundboard over music
+                try {
+                    const overlayResult = await playSoundboardOverlay(guildId, source, userId, requestSource);
+                    
+                    // Track soundboard usage (already done in overlay function, but ensure it's tracked)
+                    if (userId) {
+                        stats.trackSound(
+                            source,
+                            userId,
+                            guildId,
+                            'local',
+                            true,
+                            null,
+                            requestSource
+                        );
+                        
+                        listeningHistory.trackPlayed(userId, guildId, {
+                            title: source,
+                            url: null,
+                            duration: null,
+                            isLocal: true,
+                            sourceType: 'local',
+                            source: requestSource,
+                            isSoundboard: true,
+                        }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+                    }
+                    
+                    return {
+                        added: 1,
+                        tracks: [{
+                            title: path.basename(source, path.extname(source)),
+                            isLocal: true,
+                        }],
+                        totalInQueue: state.queue.length,
+                        overlaid: overlayResult.overlaid,
+                    };
+                } catch (overlayError) {
+                    log.warn(`Overlay failed, falling back to interrupt: ${overlayError.message}`);
+                    // Fall through to interrupt behavior if overlay fails
+                }
+            }
+            
+            // No music playing OR overlay failed - add to queue normally
             const stream = await storage.getSoundStream(source);
-
             tracks.push({
                 title: path.basename(source, path.extname(source)),
                 source: stream,
                 isLocal: true,
-                isStream: true, // Indicate this is a stream, not a file path
+                isStream: true,
+                isSoundboard: true, // Mark as soundboard
             });
         } else {
             // Not a sound file - treat as search query
