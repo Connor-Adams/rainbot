@@ -158,10 +158,16 @@ export async function getSoundStream(filename: string): Promise<Readable> {
     // Convert AWS SDK stream to Node.js stream if needed
     if (response.Body instanceof Readable) {
       return response.Body;
-    } else if (response.Body && typeof (response.Body as any).transformToWebStream === 'function') {
+    } else if (
+      response.Body &&
+      typeof (response.Body as { transformToWebStream?: () => ReadableStream })
+        .transformToWebStream === 'function'
+    ) {
       // Handle web streams (newer AWS SDK versions)
-      const webStream = (response.Body as any).transformToWebStream();
-      return Readable.fromWeb(webStream);
+      const webStream = (
+        response.Body as { transformToWebStream: () => ReadableStream }
+      ).transformToWebStream();
+      return Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0]);
     } else if (response.Body) {
       // Fallback: convert to buffer then stream
       const chunks: Buffer[] = [];

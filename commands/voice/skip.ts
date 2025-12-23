@@ -45,11 +45,12 @@ export function executeSkip(params: SkipParams): SkipExecuteResult {
         nextUp,
       },
     };
-  } catch (error: any) {
-    log.error(`Skip error: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    log.error(`Skip error: ${err.message}`);
     return {
       success: false,
-      error: `❌ ${error.message}`,
+      error: `❌ ${err.message}`,
     };
   }
 }

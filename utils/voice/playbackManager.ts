@@ -110,7 +110,7 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
         throw new Error(`Stream fetch failed: ${response.status}`);
       }
 
-      const nodeStream = Readable.fromWeb(response.body as any);
+      const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
       return {
         resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),

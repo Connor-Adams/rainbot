@@ -34,11 +34,12 @@ export function executeClear(guildId: string): ClearExecuteResult {
         nowPlaying: nowPlaying || null,
       },
     };
-  } catch (error: any) {
-    log.error(`Clear error: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    log.error(`Clear error: ${err.message}`);
     return {
       success: false,
-      error: `❌ ${error.message}`,
+      error: `❌ ${err.message}`,
     };
   }
 }

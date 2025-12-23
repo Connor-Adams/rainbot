@@ -38,11 +38,12 @@ export function executePause(guildId: string): PauseExecuteResult {
         nowPlaying: nowPlaying || null,
       },
     };
-  } catch (error: any) {
-    log.error(`Pause error: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    log.error(`Pause error: ${err.message}`);
     return {
       success: false,
-      error: `❌ ${error.message}\n\n💡 **Tip:** Make sure something is playing before trying to pause.`,
+      error: `❌ ${err.message}\n\n💡 **Tip:** Make sure something is playing before trying to pause.`,
     };
   }
 }

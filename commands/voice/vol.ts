@@ -49,12 +49,13 @@ export async function executeVolDeferred(params: VolParams): Promise<VolExecuteR
       needsDefer: false,
       content: `🔊 Volume set to **${level}%**`,
     };
-  } catch (error: any) {
-    log.error(`Failed to set volume: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    log.error(`Failed to set volume: ${err.message}`);
     return {
       needsDefer: false,
       ephemeral: true,
-      content: `❌ Failed to set volume: ${error.message}`,
+      content: `❌ Failed to set volume: ${err.message}`,
     };
   }
 }
