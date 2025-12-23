@@ -37,15 +37,15 @@ export function executeQueue(guildId: string): QueueCommandResult {
 }
 
 export function createQueueEmbed(result: QueueCommandResult): EmbedBuilder {
-  const { queueInfo, status } = result;
+  const { queueInfo } = result;
   const {
     nowPlaying,
     queue,
-    totalInQueue,
+    totalInQueue = 0,
     currentTrack,
-    playbackPosition,
-    hasOverlay,
-    isPaused,
+    playbackPosition = 0,
+    hasOverlay = false,
+    isPaused = false,
     channelName,
   } = queueInfo;
 
