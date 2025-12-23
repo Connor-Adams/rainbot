@@ -354,7 +354,6 @@ body {
 
 .connection-item,
 .server-item {
-    padding: 0.75rem;
     background: var(--bg-elevated);
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
@@ -665,7 +664,7 @@ select {
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 0;
+    padding: 8px;
 }
 
 .control-btn svg {
@@ -720,6 +719,7 @@ select {
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
+    min-height: 40px;
 }
 
 .btn-icon {
@@ -1008,6 +1008,7 @@ select {
     min-width: 280px;
     position: relative;
     overflow: hidden;
+    margin: 0;
 }
 
 .toast::after {
@@ -1187,10 +1188,6 @@ select {
 }
 
 .queue-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -1461,7 +1458,8 @@ select {
     font-weight: 500;
     transition: all 0.2s;
     border-bottom: 2px solid transparent;
-    margin-bottom: -0.5rem;
+    margin-bottom: -2px;
+    position: relative;
 }
 
 .nav-tab:hover {
@@ -1633,6 +1631,7 @@ select {
     font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    background: var(--bg-input);
 }
 
 .stats-table td {

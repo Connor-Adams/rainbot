@@ -70,8 +70,8 @@ function showToast(message, type = 'success') {
     };
     
     toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || icons.success}</span>
-        <span class="toast-message">${message}</span>
+        <span class="toast-icon text-xl flex-shrink-0">${icons[type] || icons.success}</span>
+        <span class="toast-message text-sm flex-1">${message}</span>
     `;
     toastContainer.appendChild(toast);
     
@@ -117,10 +117,10 @@ function renderConnections() {
     }
 
     connectionsList.innerHTML = connections.map(conn => `
-        <div class="connection-item flex items-center gap-3">
-            <span class="icon text-xl">🔊</span>
+        <div class="connection-item flex items-center gap-3 px-3 py-3">
+            <span class="icon text-xl flex-shrink-0">🔊</span>
             <div class="info flex-1 min-w-0">
-                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis">${escapeHtml(conn.channelName)}</div>
+                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1">${escapeHtml(conn.channelName)}</div>
                 ${conn.nowPlaying ? `<div class="playing text-xs text-green-500 font-mono">♪ ${escapeHtml(conn.nowPlaying)}</div>` : '<div class="detail text-xs text-gray-500">Idle</div>'}
             </div>
         </div>
@@ -234,10 +234,10 @@ function renderServers() {
     }
 
     serversList.innerHTML = guilds.map(guild => `
-        <div class="server-item flex items-center gap-3" data-guild-id="${guild.id}">
-            <span class="icon text-xl">🏠</span>
+        <div class="server-item flex items-center gap-3 px-3 py-3" data-guild-id="${guild.id}">
+            <span class="icon text-xl flex-shrink-0">🏠</span>
             <div class="info flex-1 min-w-0">
-                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis">${escapeHtml(guild.name)}</div>
+                <div class="name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1">${escapeHtml(guild.name)}</div>
                 <div class="detail text-xs text-gray-500">${guild.memberCount} members</div>
             </div>
         </div>
@@ -363,16 +363,16 @@ function renderQueue() {
                 sourceText = 'Stream';
             }
             return `
-                <div class="queue-item flex items-center gap-3 px-3 py-3 bg-gray-900 border border-gray-700 rounded-lg transition-all hover:border-blue-500 hover:bg-gray-800 hover:translate-x-1 hover:shadow-lg hover:shadow-blue-500/20" data-index="${index}">
+                <div class="queue-item flex items-center gap-3 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg transition-all hover:border-blue-500 hover:bg-gray-800 hover:translate-x-1 hover:shadow-lg hover:shadow-blue-500/20" data-index="${index}">
                     <div class="queue-position w-6 h-6 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-full text-xs font-bold flex-shrink-0 shadow-lg shadow-blue-500/40">${index + 1}</div>
-                    <div class="queue-item-info flex-1 min-w-0">
-                        <div class="queue-item-title text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
+                    <div class="queue-item-info flex-1 min-w-0 pr-2">
+                        <div class="queue-item-title text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1.5" title="${escapeHtml(track.title)}">${escapeHtml(track.title)}</div>
                         <div class="queue-item-meta flex items-center gap-3 text-xs text-gray-400 font-medium">
                             <span class="queue-item-source flex items-center gap-1">${sourceIcon} ${sourceText}</span>
                             ${track.duration ? `<span>${formatDuration(track.duration)}</span>` : ''}
                         </div>
                     </div>
-                    <div class="queue-item-actions flex gap-2">
+                    <div class="queue-item-actions flex gap-2 flex-shrink-0">
                         <button class="btn btn-danger btn-small remove-queue-item-btn px-2 py-2 min-w-[36px] h-9 rounded-full transition-all hover:scale-110 hover:shadow-md" data-index="${index}" title="Remove">✕</button>
                     </div>
                 </div>
@@ -452,8 +452,8 @@ async function fetchStatus() {
     } catch (error) {
         updateStatusDisplay({ online: false });
         // Clear skeleton loaders on error
-        connectionsList.innerHTML = '<p class="empty-state">❌ Failed to load connections</p>';
-        serversList.innerHTML = '<p class="empty-state">❌ Failed to load servers</p>';
+        connectionsList.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">❌</span>Failed to load connections</p>';
+        serversList.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">❌</span>Failed to load servers</p>';
     }
 }
 
@@ -472,7 +472,7 @@ async function fetchSounds() {
         renderSounds(searchInput.value);
     } catch (error) {
         console.error('Failed to fetch sounds:', error);
-        soundsGrid.innerHTML = '<p class="empty-state">❌ Failed to load sounds</p>';
+        soundsGrid.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">❌</span>Failed to load sounds</p>';
     }
 }
 
@@ -896,47 +896,20 @@ function initServerSelector() {
         onChange: handleServerSelectorChange
     });
 
-    // Set up context-aware visibility based on active tab
-    window.updateServerSelectorVisibility();
+    // Server selector is now in sidebar, always show it
+    if (serverSelector) {
+        serverSelector.show();
+    }
     
-    // Set up basic tab navigation if not already handled by stats.js
-    // This ensures server selector visibility updates when tabs change
-    const navTabs = document.querySelectorAll('.nav-tab');
-    navTabs.forEach(tab => {
-        // Check if tab already has click handler (from stats.js)
-        // If not, add one
-        if (!tab.dataset.hasHandler) {
-            tab.dataset.hasHandler = 'true';
-            tab.addEventListener('click', () => {
-                setTimeout(() => {
-                    if (window.updateServerSelectorVisibility) {
-                        window.updateServerSelectorVisibility();
-                    }
-                }, 100);
-            });
-        }
-    });
+    // Server selector is now always visible in sidebar, no need for tab-based visibility
 }
 
 // Update server selector visibility based on active tab (global function)
+// Since server selector is now in sidebar, always show it
 window.updateServerSelectorVisibility = function() {
     if (!serverSelector) return;
-
-    const activeTab = document.querySelector('.nav-tab.active');
-    if (!activeTab) {
-        serverSelector.hide();
-        return;
-    }
-
-    const tabName = activeTab.dataset.tab;
-    // Show selector in Player, Sounds, and Stats tabs
-    const shouldShow = ['player', 'sounds', 'stats'].includes(tabName);
-    
-    if (shouldShow) {
-        serverSelector.show();
-    } else {
-        serverSelector.hide();
-    }
+    // Always show server selector when it's in the sidebar
+    serverSelector.show();
 }
 
 // Initial load - check auth first

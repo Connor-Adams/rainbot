@@ -12,12 +12,16 @@
 </head>
 <body>
     <div class="app flex flex-col min-h-screen">
-        <header class="header flex justify-between items-center px-8 py-5 border-b border-gray-700 bg-gray-900/85 backdrop-blur-xl sticky top-0 z-100">
-            <div class="logo flex items-center gap-3">
+        <header class="header flex items-center px-8 py-5 border-b border-gray-700 bg-gray-900/85 backdrop-blur-xl sticky top-0 z-100 gap-8">
+            <div class="logo flex items-center gap-3 flex-shrink-0">
                 <span class="logo-icon text-3xl">🌧️</span>
                 <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">Rainbot</h1>
             </div>
-            <div class="header-right flex items-center gap-4">
+            <div class="header-nav flex items-center gap-2 flex-1 justify-center" id="nav-tabs">
+                <button class="nav-tab active px-4 py-2" data-tab="player">Player</button>
+                <button class="nav-tab px-4 py-2" data-tab="stats">Statistics</button>
+            </div>
+            <div class="header-right flex items-center gap-4 flex-shrink-0">
                 <div class="user-info flex items-center gap-3 px-4 py-2 bg-gray-800 rounded-full border border-gray-700" id="user-info" style="display: none;">
                     <img class="user-avatar w-8 h-8 rounded-full border-2 border-gray-700" id="user-avatar" src="" alt="User avatar" />
                     <span class="user-name text-sm font-medium text-white" id="user-name"></span>
@@ -57,6 +61,9 @@
 
         <main class="main flex flex-1 gap-6 px-8 py-6 w-full max-w-[1600px] mx-auto">
             <aside class="sidebar w-[280px] flex-shrink-0 flex flex-col gap-6">
+                <!-- Server Selector -->
+                <div id="server-selector-container" style="display: none;"></div>
+                
                 <section class="panel connections-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
                     <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
@@ -100,16 +107,6 @@
             </aside>
 
             <div class="content flex-1 flex flex-col gap-6 min-w-0">
-                <!-- Server Selector (Context-Aware) -->
-                <div id="server-selector-container" class="mb-6" style="display: none;"></div>
-                
-                <!-- Navigation Tabs -->
-                <div class="nav-tabs flex gap-2 mb-6 border-b border-gray-700 pb-2" id="nav-tabs">
-                    <button class="nav-tab active" data-tab="player">Player</button>
-                    <button class="nav-tab" data-tab="sounds">Sounds</button>
-                    <button class="nav-tab" data-tab="stats">Statistics</button>
-                </div>
-
                 <!-- Player Tab Content -->
                 <div class="tab-content" id="tab-player">
                 <!-- Spotify-like Now Playing Card -->

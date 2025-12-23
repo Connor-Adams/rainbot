@@ -34,10 +34,6 @@ function setupTabNavigation() {
             
             if (tabName === 'player') {
                 document.getElementById('tab-player').style.display = 'block';
-            } else if (tabName === 'sounds') {
-                document.getElementById('tab-player').style.display = 'block';
-                // Scroll to sounds section
-                document.querySelector('.sounds-panel').scrollIntoView({ behavior: 'smooth' });
             } else if (tabName === 'stats') {
                 document.getElementById('tab-stats').style.display = 'block';
                 currentStatsTab = 'summary';
@@ -57,26 +53,26 @@ function setupTabNavigation() {
 // Load statistics summary
 async function loadStatsSummary() {
     const container = document.getElementById('stats-container');
-    container.innerHTML = '<div class="stats-loading">Loading statistics...</div>';
+    container.innerHTML = '<div class="stats-loading text-center py-12 text-gray-400">Loading statistics...</div>';
     
     try {
         const data = await api('/stats/summary');
         
         container.innerHTML = `
-            <div class="stats-header">
-                <h2>Statistics Dashboard</h2>
-                <div class="stats-tabs">
-                    <button class="stats-tab-btn active" data-stats-tab="summary">Summary</button>
-                    <button class="stats-tab-btn" data-stats-tab="commands">Commands</button>
-                    <button class="stats-tab-btn" data-stats-tab="sounds">Sounds</button>
-                    <button class="stats-tab-btn" data-stats-tab="users">Users</button>
-                    <button class="stats-tab-btn" data-stats-tab="guilds">Guilds</button>
-                    <button class="stats-tab-btn" data-stats-tab="queue">Queue</button>
-                    <button class="stats-tab-btn" data-stats-tab="time">Time Trends</button>
-                    <button class="stats-tab-btn" data-stats-tab="history">Listening History</button>
+            <div class="stats-header mb-6">
+                <h2 class="text-2xl font-bold text-white mb-4">Statistics Dashboard</h2>
+                <div class="stats-tabs flex gap-2 flex-wrap">
+                    <button class="stats-tab-btn active px-4 py-2" data-stats-tab="summary">Summary</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="commands">Commands</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="sounds">Sounds</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="users">Users</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="guilds">Guilds</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="queue">Queue</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="time">Time Trends</button>
+                    <button class="stats-tab-btn px-4 py-2" data-stats-tab="history">Listening History</button>
                 </div>
             </div>
-            <div id="stats-content"></div>
+            <div id="stats-content" class="space-y-6"></div>
         `;
         
         setupStatsTabs();
@@ -85,7 +81,7 @@ async function loadStatsSummary() {
         // Set current tab to summary
         currentStatsTab = 'summary';
     } catch (error) {
-        container.innerHTML = `<div class="stats-error">Error loading statistics: ${error.message}</div>`;
+        container.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error loading statistics: ${error.message}</div>`;
     }
 }
 
@@ -134,27 +130,27 @@ function setupStatsTabs() {
 function renderStatsSummary(data) {
     const content = document.getElementById('stats-content');
     content.innerHTML = `
-        <div class="stats-summary">
-            <div class="stats-cards">
-                <div class="stat-card">
-                    <div class="stat-value">${data.totalCommands.toLocaleString()}</div>
-                    <div class="stat-label">Total Commands</div>
+        <div class="stats-summary space-y-6">
+            <div class="stats-cards grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6">
+                <div class="stat-card bg-gray-800 border border-gray-700 rounded-xl p-6 text-center transition-all hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="stat-value text-4xl font-bold text-blue-500 mb-2 font-mono">${data.totalCommands.toLocaleString()}</div>
+                    <div class="stat-label text-xs text-gray-400 uppercase tracking-wider">Total Commands</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.totalSounds.toLocaleString()}</div>
-                    <div class="stat-label">Sounds Played</div>
+                <div class="stat-card bg-gray-800 border border-gray-700 rounded-xl p-6 text-center transition-all hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="stat-value text-4xl font-bold text-blue-500 mb-2 font-mono">${data.totalSounds.toLocaleString()}</div>
+                    <div class="stat-label text-xs text-gray-400 uppercase tracking-wider">Sounds Played</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.uniqueUsers.toLocaleString()}</div>
-                    <div class="stat-label">Active Users</div>
+                <div class="stat-card bg-gray-800 border border-gray-700 rounded-xl p-6 text-center transition-all hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="stat-value text-4xl font-bold text-blue-500 mb-2 font-mono">${data.uniqueUsers.toLocaleString()}</div>
+                    <div class="stat-label text-xs text-gray-400 uppercase tracking-wider">Active Users</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.uniqueGuilds.toLocaleString()}</div>
-                    <div class="stat-label">Active Guilds</div>
+                <div class="stat-card bg-gray-800 border border-gray-700 rounded-xl p-6 text-center transition-all hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="stat-value text-4xl font-bold text-blue-500 mb-2 font-mono">${data.uniqueGuilds.toLocaleString()}</div>
+                    <div class="stat-label text-xs text-gray-400 uppercase tracking-wider">Active Guilds</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.successRate.toFixed(1)}%</div>
-                    <div class="stat-label">Success Rate</div>
+                <div class="stat-card bg-gray-800 border border-gray-700 rounded-xl p-6 text-center transition-all hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="stat-value text-4xl font-bold text-blue-500 mb-2 font-mono">${data.successRate.toFixed(1)}%</div>
+                    <div class="stat-label text-xs text-gray-400 uppercase tracking-wider">Success Rate</div>
                 </div>
             </div>
         </div>
@@ -164,23 +160,23 @@ function renderStatsSummary(data) {
 // Load commands statistics
 async function loadCommandsStats() {
     const content = document.getElementById('stats-content');
-    content.innerHTML = '<div class="stats-loading">Loading command statistics...</div>';
+        content.innerHTML = '<div class="stats-loading text-center py-12 text-gray-400">Loading command statistics...</div>';
     
     try {
         const data = await api('/stats/commands');
         
         content.innerHTML = `
-            <div class="stats-section">
-                <h3>Top Commands</h3>
-                <canvas id="commands-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
+                <h3 class="text-xl text-white mb-4">Top Commands</h3>
+                <canvas id="commands-chart" class="max-h-[400px]"></canvas>
             </div>
-            <div class="stats-section">
-                <h3>Command Success Rate</h3>
-                <canvas id="commands-success-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
+                <h3 class="text-xl text-white mb-4">Command Success Rate</h3>
+                <canvas id="commands-success-chart" class="max-h-[400px]"></canvas>
             </div>
-            <div class="stats-table-section">
-                <h3>Command Details</h3>
-                <table class="stats-table">
+            <div class="stats-table-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Command Details</h3>
+                <table class="stats-table w-full">
                     <thead>
                         <tr>
                             <th>Command</th>
@@ -200,7 +196,7 @@ async function loadCommandsStats() {
         renderCommandsSuccessChart(data);
         renderCommandsTable(data.commands);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -276,12 +272,12 @@ function renderCommandsTable(commands) {
         const successRate = total > 0 ? ((successCount / total) * 100).toFixed(1) : 0;
         
         return `
-            <tr>
-                <td>${escapeHtml(cmd.command_name)}</td>
-                <td>${parseInt(cmd.count).toLocaleString()}</td>
-                <td>${successCount.toLocaleString()}</td>
-                <td>${errorCount.toLocaleString()}</td>
-                <td>${successRate}%</td>
+            <tr class="hover:bg-gray-700/50 transition-colors">
+                <td class="px-4 py-3 text-sm text-white">${escapeHtml(cmd.command_name)}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${parseInt(cmd.count).toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${successCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${errorCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${successRate}%</td>
             </tr>
         `;
     }).join('');
@@ -290,23 +286,23 @@ function renderCommandsTable(commands) {
 // Load sounds statistics
 async function loadSoundsStats() {
     const content = document.getElementById('stats-content');
-    content.innerHTML = '<div class="stats-loading">Loading sound statistics...</div>';
+        content.innerHTML = '<div class="stats-loading text-center py-12 text-gray-400">Loading sound statistics...</div>';
     
     try {
         const data = await api('/stats/sounds');
         
         content.innerHTML = `
-            <div class="stats-section">
-                <h3>Top Sounds</h3>
-                <canvas id="sounds-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
+                <h3 class="text-xl text-white mb-4">Top Sounds</h3>
+                <canvas id="sounds-chart" class="max-h-[400px]"></canvas>
             </div>
-            <div class="stats-section">
-                <h3>Source Type Breakdown</h3>
-                <canvas id="sounds-source-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
+                <h3 class="text-xl text-white mb-4">Source Type Breakdown</h3>
+                <canvas id="sounds-source-chart" class="max-h-[400px]"></canvas>
             </div>
-            <div class="stats-section">
-                <h3>Soundboard vs Regular</h3>
-                <canvas id="sounds-soundboard-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Soundboard vs Regular</h3>
+                <canvas id="sounds-soundboard-chart" class="max-h-[400px]"></canvas>
             </div>
         `;
         
@@ -314,7 +310,7 @@ async function loadSoundsStats() {
         renderSoundsSourceChart(data.sourceTypes);
         renderSoundsSoundboardChart(data.soundboardBreakdown);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -408,15 +404,15 @@ function renderSoundsSoundboardChart(breakdown) {
 // Load users statistics
 async function loadUsersStats() {
     const content = document.getElementById('stats-content');
-    content.innerHTML = '<div class="stats-loading">Loading user statistics...</div>';
+    content.innerHTML = '<div class="stats-loading text-center py-12 text-gray-400">Loading user statistics...</div>';
     
     try {
         const data = await api('/stats/users');
         
         content.innerHTML = `
-            <div class="stats-table-section">
-                <h3>Top Users</h3>
-                <table class="stats-table">
+            <div class="stats-table-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Top Users</h3>
+                <table class="stats-table w-full">
                     <thead>
                         <tr>
                             <th>User ID</th>
@@ -434,7 +430,7 @@ async function loadUsersStats() {
         
         renderUsersTable(data.users);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -450,13 +446,13 @@ function renderUsersTable(users) {
         const lastActive = user.last_active ? new Date(user.last_active).toLocaleString() : 'Never';
         
         return `
-            <tr>
-                <td>${escapeHtml(user.user_id)}</td>
-                <td>${escapeHtml(user.guild_id)}</td>
-                <td>${commandCount.toLocaleString()}</td>
-                <td>${soundCount.toLocaleString()}</td>
-                <td>${total.toLocaleString()}</td>
-                <td>${lastActive}</td>
+            <tr class="hover:bg-gray-700/50 transition-colors">
+                <td class="px-4 py-3 text-sm text-white font-mono">${escapeHtml(user.user_id)}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${escapeHtml(user.guild_id)}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${commandCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${soundCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${total.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400">${lastActive}</td>
             </tr>
         `;
     }).join('');
@@ -471,9 +467,9 @@ async function loadGuildsStats() {
         const data = await api('/stats/guilds');
         
         content.innerHTML = `
-            <div class="stats-table-section">
-                <h3>Top Guilds</h3>
-                <table class="stats-table">
+            <div class="stats-table-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Top Guilds</h3>
+                <table class="stats-table w-full">
                     <thead>
                         <tr>
                             <th>Guild ID</th>
@@ -491,7 +487,7 @@ async function loadGuildsStats() {
         
         renderGuildsTable(data.guilds);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -507,13 +503,13 @@ function renderGuildsTable(guilds) {
         const lastActive = guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never';
         
         return `
-            <tr>
-                <td>${escapeHtml(guild.guild_id)}</td>
-                <td>${commandCount.toLocaleString()}</td>
-                <td>${soundCount.toLocaleString()}</td>
-                <td>${parseInt(guild.unique_users || 0).toLocaleString()}</td>
-                <td>${total.toLocaleString()}</td>
-                <td>${lastActive}</td>
+            <tr class="hover:bg-gray-700/50 transition-colors">
+                <td class="px-4 py-3 text-sm text-white font-mono">${escapeHtml(guild.guild_id)}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${commandCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${soundCount.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${parseInt(guild.unique_users || 0).toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400 font-mono">${total.toLocaleString()}</td>
+                <td class="px-4 py-3 text-sm text-gray-400">${lastActive}</td>
             </tr>
         `;
     }).join('');
@@ -522,21 +518,21 @@ function renderGuildsTable(guilds) {
 // Load queue statistics
 async function loadQueueStats() {
     const content = document.getElementById('stats-content');
-    content.innerHTML = '<div class="stats-loading">Loading queue statistics...</div>';
+    content.innerHTML = '<div class="stats-loading text-center py-12 text-gray-400">Loading queue statistics...</div>';
     
     try {
         const data = await api('/stats/queue');
         
         content.innerHTML = `
-            <div class="stats-section">
-                <h3>Queue Operations</h3>
-                <canvas id="queue-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Queue Operations</h3>
+                <canvas id="queue-chart" class="max-h-[400px]"></canvas>
             </div>
         `;
         
         renderQueueChart(data.operations);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -582,15 +578,15 @@ async function loadTimeStats() {
         const data = await api(`/stats/time?granularity=${granularity}`);
         
         content.innerHTML = `
-            <div class="stats-section">
-                <h3>Usage Over Time</h3>
-                <canvas id="time-chart"></canvas>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Usage Over Time</h3>
+                <canvas id="time-chart" class="max-h-[400px]"></canvas>
             </div>
         `;
         
         renderTimeChart(data);
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -708,7 +704,7 @@ async function loadHistoryStats() {
         }
         
         if (!userId) {
-            content.innerHTML = '<div class="stats-error">Please log in to view your listening history</div>';
+            content.innerHTML = '<div class="stats-error text-center py-12 text-red-400">Please log in to view your listening history</div>';
             return;
         }
         
@@ -725,14 +721,14 @@ async function loadHistoryStats() {
         const data = await api(`/stats/history?${params.toString()}`);
         
         content.innerHTML = `
-            <div class="stats-section">
-                <h3>Your Listening History</h3>
-                <div class="history-filters" style="margin-bottom: 1rem;">
-                    <input type="date" id="history-start-date" placeholder="Start date" />
-                    <input type="date" id="history-end-date" placeholder="End date" />
-                    <button class="btn btn-secondary" id="history-filter-btn">Filter</button>
+            <div class="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl text-white mb-4">Your Listening History</h3>
+                <div class="history-filters flex gap-3 mb-6">
+                    <input type="date" id="history-start-date" class="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Start date" />
+                    <input type="date" id="history-end-date" class="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="End date" />
+                    <button class="btn btn-secondary px-4 py-2" id="history-filter-btn">Filter</button>
                 </div>
-                <div id="history-list" class="history-list"></div>
+                <div id="history-list" class="history-list overflow-x-auto"></div>
             </div>
         `;
         
@@ -753,7 +749,7 @@ async function loadHistoryStats() {
             renderHistoryList(filteredData.history || []);
         });
     } catch (error) {
-        content.innerHTML = `<div class="stats-error">Error: ${error.message}</div>`;
+        content.innerHTML = `<div class="stats-error text-center py-12 text-red-400">Error: ${error.message}</div>`;
     }
 }
 
@@ -763,12 +759,12 @@ function renderHistoryList(history) {
     if (!container) return;
     
     if (history.length === 0) {
-        container.innerHTML = '<p class="empty-state">No listening history found</p>';
+        container.innerHTML = '<p class="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2"><span class="text-2xl opacity-50">📭</span>No listening history found</p>';
         return;
     }
     
     container.innerHTML = `
-        <table class="stats-table">
+        <table class="stats-table w-full">
             <thead>
                 <tr>
                     <th>Track</th>
@@ -789,17 +785,17 @@ function renderHistoryList(history) {
                     const queuedBy = entry.queued_by ? `<code>${entry.queued_by}</code>` : '<em>Unknown</em>';
                     
                     return `
-                        <tr>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    ${entry.is_soundboard ? '🔊' : ''}
-                                    <span>${escapeHtml(entry.track_title)}</span>
+                        <tr class="hover:bg-gray-700/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    ${entry.is_soundboard ? '<span class="text-lg">🔊</span>' : ''}
+                                    <span class="text-sm text-white">${escapeHtml(entry.track_title)}</span>
                                 </div>
                             </td>
-                            <td>${sourceIcon} ${entry.source_type}</td>
-                            <td>${duration}</td>
-                            <td>${queuedBy}</td>
-                            <td>${playedAt.toLocaleString()}</td>
+                            <td class="px-4 py-3 text-sm text-gray-400">${sourceIcon} ${entry.source_type}</td>
+                            <td class="px-4 py-3 text-sm text-gray-400 font-mono">${duration}</td>
+                            <td class="px-4 py-3 text-sm text-gray-400">${queuedBy}</td>
+                            <td class="px-4 py-3 text-sm text-gray-400">${playedAt.toLocaleString()}</td>
                         </tr>
                     `;
                 }).join('')}

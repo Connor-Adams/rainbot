@@ -28,13 +28,14 @@ class ServerSelector {
         const selectedGuild = this.guilds.find(g => g.id === this.selectedGuildId);
         
         this.container.innerHTML = `
-            <div class="server-selector-wrapper mb-6">
-                <label for="server-selector" class="block text-sm font-medium text-gray-300 mb-2">
+            <div class="server-selector-wrapper bg-gray-800 rounded-2xl border border-gray-700 p-6">
+                <label for="server-selector" class="block text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
                     Select Server
                 </label>
                 <select 
                     id="server-selector" 
-                    class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm font-medium 
+                    class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium 
                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent 
                            transition-all duration-200 hover:border-gray-600
                            appearance-none cursor-pointer"
@@ -48,7 +49,7 @@ class ServerSelector {
                     `).join('')}
                 </select>
                 ${selectedGuild ? `
-                    <p class="mt-2 text-xs text-gray-400">
+                    <p class="mt-3 text-xs text-gray-400">
                         Selected: <span class="text-blue-400 font-medium">${this.escapeHtml(selectedGuild.name)}</span>
                     </p>
                 ` : ''}
