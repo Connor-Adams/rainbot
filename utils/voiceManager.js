@@ -10,6 +10,7 @@ const {
 } = require('@discordjs/voice');
 const play = require('play-dl');
 const youtubedlPkg = require('youtube-dl-exec');
+const { Mutex } = require('async-mutex');
 const path = require('path');
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
@@ -87,9 +88,41 @@ const voiceStates = new Map();
 /** @type {Map<string, {url: string, expires: number}>} Cache of video URL -> stream URL */
 const urlCache = new Map();
 
+/** @type {Map<string, Mutex>} Map of guildId -> queue mutex for thread-safe queue operations */
+const queueMutexes = new Map();
+
+/**
+ * Get or create a mutex for a guild's queue operations
+ * @param {string} guildId - Guild ID
+ * @returns {Mutex} Mutex for the guild
+ */
+function getQueueMutex(guildId) {
+    if (!queueMutexes.has(guildId)) {
+        queueMutexes.set(guildId, new Mutex());
+    }
+    return queueMutexes.get(guildId);
+}
+
+/**
+ * Execute a function with exclusive queue lock
+ * @param {string} guildId - Guild ID
+ * @param {Function} fn - Function to execute with lock
+ * @returns {Promise<any>} Result of the function
+ */
+async function withQueueLock(guildId, fn) {
+    const mutex = getQueueMutex(guildId);
+    const release = await mutex.acquire();
+    try {
+        return await fn();
+    } finally {
+        release();
+    }
+}
+
 const storage = require('./storage');
 const listeningHistory = require('./listeningHistory');
 const { query } = require('./database');
+const { detectSourceType } = require('./sourceType');
 
 // ============================================================================
 // HELPERS
@@ -264,7 +297,7 @@ function createTrackResource(track) {
             bufferSize: '16K',
         });
         
-        subprocess.catch(() => {});
+        subprocess.catch(err => log.debug(`yt-dlp subprocess error (expected on cleanup): ${err.message}`));
         
         subprocess.stderr?.on('data', (data) => {
             const msg = data.toString().trim();
@@ -399,18 +432,7 @@ async function playNext(guildId) {
         
         // Track sound playback statistics - use userId from track or fall back to lastUserId
         if (trackUserId) {
-            let sourceType = 'other';
-            if (nextTrack.isLocal) {
-                sourceType = 'local';
-            } else if (nextTrack.url) {
-                if (nextTrack.url.includes('youtube.com') || nextTrack.url.includes('youtu.be')) {
-                    sourceType = 'youtube';
-                } else if (nextTrack.url.includes('spotify.com') || nextTrack.spotifyId) {
-                    sourceType = 'spotify';
-                } else if (nextTrack.url.includes('soundcloud.com')) {
-                    sourceType = 'soundcloud';
-                }
-            }
+            const sourceType = detectSourceType(nextTrack);
             // Determine source (discord vs api) - default to discord if not specified
             const source = nextTrack.source || 'discord';
             
@@ -895,7 +917,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                 tracks.push(firstTrack);
                 
                 // Start fetching stream URL immediately (in background)
-                getStreamUrl(firstTrack.url).catch(() => {});
+                getStreamUrl(firstTrack.url).catch(err => log.debug(`Pre-fetch stream URL failed: ${err.message}`));
                 log.debug(`Queued first track, pre-fetching stream URL...`);
             }
             
@@ -960,7 +982,7 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
             tracks.push(track);
             
             // Start fetching stream URL immediately (in background)
-            getStreamUrl(source).catch(() => {});
+            getStreamUrl(source).catch(err => log.debug(`Pre-fetch stream URL failed: ${err.message}`));
             
             // Fetch metadata async (don't block playback)
             youtubedl(source, {
@@ -1234,80 +1256,86 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
         }
     });
 
-    // Add tracks to queue
-    state.queue.push(...tracks);
-    log.debug(`[TIMING] Tracks queued (${Date.now() - startTime}ms)`);
+    // Add tracks to queue (with lock to prevent race conditions)
+    const result = await withQueueLock(guildId, async () => {
+        state.queue.push(...tracks);
+        log.debug(`[TIMING] Tracks queued (${Date.now() - startTime}ms)`);
 
-    // Start playing if not already
-    const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
-    if (!isPlaying) {
-        log.debug(`[TIMING] Calling playNext (${Date.now() - startTime}ms)`);
-        await playNext(guildId);
-        log.debug(`[TIMING] playNext returned (${Date.now() - startTime}ms)`);
-    }
-    log.info(`Added ${tracks.length} track(s) to queue`);
+        // Start playing if not already
+        const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+        if (!isPlaying) {
+            log.debug(`[TIMING] Calling playNext (${Date.now() - startTime}ms)`);
+            await playNext(guildId);
+            log.debug(`[TIMING] playNext returned (${Date.now() - startTime}ms)`);
+        }
+        log.info(`Added ${tracks.length} track(s) to queue`);
 
-    // Save history for user
+        return {
+            added: tracks.length,
+            tracks: tracks.slice(0, 5), // Return first 5 for display
+            totalInQueue: state.queue.length,
+        };
+    });
+
+    // Save history for user (outside lock to avoid holding it too long)
     if (userId) {
         const { nowPlaying, queue } = getQueue(guildId);
         listeningHistory.saveHistory(userId, guildId, queue, nowPlaying, state.currentTrack);
     }
 
-    return {
-        added: tracks.length,
-        tracks: tracks.slice(0, 5), // Return first 5 for display
-        totalInQueue: state.queue.length,
-    };
+    return result;
 }
 
 /**
  * Skip current track(s)
  * @param {string} guildId - Guild ID
  * @param {number} count - Number of tracks to skip (default: 1)
- * @returns {Array<string>} Array of skipped track titles
+ * @returns {Promise<Array<string>>} Array of skipped track titles
  */
-function skip(guildId, count = 1) {
-    const state = voiceStates.get(guildId);
-    if (!state) {
-        throw new Error('Bot is not connected to a voice channel');
-    }
-
-    if (!state.nowPlaying && state.queue.length === 0) {
-        throw new Error('Nothing is playing');
-    }
-
-    // Validate count
-    if (count < 1) {
-        count = 1;
-    }
-
-    const skipped = [];
-    const queueLength = state.queue.length;
-    
-    // Skip the current track
-    if (state.nowPlaying) {
-        skipped.push(state.nowPlaying);
-    }
-    
-    // Remove tracks from queue if count > 1
-    const tracksToRemove = Math.min(count - 1, queueLength);
-    for (let i = 0; i < tracksToRemove; i++) {
-        if (state.queue.length > 0) {
-            skipped.push(state.queue[0].title);
-            state.queue.shift();
+async function skip(guildId, count = 1) {
+    return withQueueLock(guildId, () => {
+        const state = voiceStates.get(guildId);
+        if (!state) {
+            throw new Error('Bot is not connected to a voice channel');
         }
-    }
-    
-    // Stop player to trigger next track (or end playback)
-    state.player.stop();
-    
-    // Track skip operation
-    if (state.lastUserId) {
-        stats.trackQueueOperation('skip', state.lastUserId, guildId, 'discord', { count, skipped: skipped.length });
-    }
-    
-    // Return array (always has at least one item if we got here)
-    return skipped;
+
+        if (!state.nowPlaying && state.queue.length === 0) {
+            throw new Error('Nothing is playing');
+        }
+
+        // Validate count
+        if (count < 1) {
+            count = 1;
+        }
+
+        const skipped = [];
+        const queueLength = state.queue.length;
+
+        // Skip the current track
+        if (state.nowPlaying) {
+            skipped.push(state.nowPlaying);
+        }
+
+        // Remove tracks from queue if count > 1
+        const tracksToRemove = Math.min(count - 1, queueLength);
+        for (let i = 0; i < tracksToRemove; i++) {
+            if (state.queue.length > 0) {
+                skipped.push(state.queue[0].title);
+                state.queue.shift();
+            }
+        }
+
+        // Stop player to trigger next track (or end playback)
+        state.player.stop();
+
+        // Track skip operation
+        if (state.lastUserId) {
+            stats.trackQueueOperation('skip', state.lastUserId, guildId, 'discord', { count, skipped: skipped.length });
+        }
+
+        // Return array (always has at least one item if we got here)
+        return skipped;
+    });
 }
 
 /**
@@ -1435,47 +1463,56 @@ function getQueue(guildId) {
 
 /**
  * Clear the queue
+ * @param {string} guildId - Guild ID
+ * @returns {Promise<number>} Number of cleared tracks
  */
-function clearQueue(guildId) {
-    const state = voiceStates.get(guildId);
-    if (!state) {
-        throw new Error('Bot is not connected to a voice channel');
-    }
+async function clearQueue(guildId) {
+    return withQueueLock(guildId, () => {
+        const state = voiceStates.get(guildId);
+        if (!state) {
+            throw new Error('Bot is not connected to a voice channel');
+        }
 
-    const cleared = state.queue.length;
-    state.queue = [];
-    log.info(`Cleared ${cleared} tracks from queue`);
-    
-    // Track queue clear operation
-    if (state.lastUserId) {
-        stats.trackQueueOperation('clear', state.lastUserId, guildId, 'discord', { cleared });
-    }
-    
-    return cleared;
+        const cleared = state.queue.length;
+        state.queue = [];
+        log.info(`Cleared ${cleared} tracks from queue`);
+
+        // Track queue clear operation
+        if (state.lastUserId) {
+            stats.trackQueueOperation('clear', state.lastUserId, guildId, 'discord', { cleared });
+        }
+
+        return cleared;
+    });
 }
 
 /**
  * Remove a track from the queue by index
+ * @param {string} guildId - Guild ID
+ * @param {number} index - Queue index to remove
+ * @returns {Promise<Track>} Removed track
  */
-function removeTrackFromQueue(guildId, index) {
-    const state = voiceStates.get(guildId);
-    if (!state) {
-        throw new Error('Bot is not connected to a voice channel');
-    }
+async function removeTrackFromQueue(guildId, index) {
+    return withQueueLock(guildId, () => {
+        const state = voiceStates.get(guildId);
+        if (!state) {
+            throw new Error('Bot is not connected to a voice channel');
+        }
 
-    if (index < 0 || index >= state.queue.length) {
-        throw new Error('Invalid queue index');
-    }
+        if (index < 0 || index >= state.queue.length) {
+            throw new Error('Invalid queue index');
+        }
 
-    const removed = state.queue.splice(index, 1)[0];
-    log.info(`Removed track "${removed.title}" from queue at index ${index}`);
-    
-    // Track track removal operation
-    if (state.lastUserId) {
-        stats.trackQueueOperation('remove', state.lastUserId, guildId, 'discord', { index, track: removed.title });
-    }
-    
-    return removed;
+        const removed = state.queue.splice(index, 1)[0];
+        log.info(`Removed track "${removed.title}" from queue at index ${index}`);
+
+        // Track track removal operation
+        if (state.lastUserId) {
+            stats.trackQueueOperation('remove', state.lastUserId, guildId, 'discord', { index, track: removed.title });
+        }
+
+        return removed;
+    });
 }
 
 /**

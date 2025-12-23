@@ -8,6 +8,32 @@ const stats = require('../../utils/statistics');
 
 const router = express.Router();
 
+/**
+ * Middleware to verify user is a member of the requested guild
+ */
+async function requireGuildMember(req, res, next) {
+    const guildId = req.body?.guildId || req.params?.guildId;
+    if (!guildId) return next();
+
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const client = clientStore.getClient();
+    if (!client?.isReady()) return res.status(503).json({ error: 'Bot not ready' });
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    try {
+        const member = await guild.members.fetch(userId);
+        if (!member) return res.status(403).json({ error: 'Not a member of this guild' });
+        req.guildMember = member;
+        next();
+    } catch {
+        return res.status(403).json({ error: 'Not a member of this guild' });
+    }
+}
+
 function getAuthUser(req) {
     const user = req.user || {};
     return {
@@ -114,7 +140,7 @@ router.delete('/sounds/:name', requireAuth, async (req, res) => {
 });
 
 // POST /api/play - Play a sound
-router.post('/play', requireAuth, async (req, res) => {
+router.post('/play', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId, source } = req.body;
 
     if (!guildId || !source) {
@@ -162,7 +188,7 @@ router.post('/play', requireAuth, async (req, res) => {
 });
 
 // POST /api/soundboard - Play a soundboard sound with overlay (ducks music)
-router.post('/soundboard', requireAuth, async (req, res) => {
+router.post('/soundboard', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId, sound } = req.body;
 
     if (!guildId || !sound) {
@@ -189,7 +215,7 @@ router.post('/soundboard', requireAuth, async (req, res) => {
 });
 
 // POST /api/stop - Stop playback
-router.post('/stop', requireAuth, (req, res) => {
+router.post('/stop', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId } = req.body;
 
     if (!guildId) {
@@ -214,7 +240,7 @@ router.post('/stop', requireAuth, (req, res) => {
 });
 
 // POST /api/skip - Skip to next track
-router.post('/skip', requireAuth, (req, res) => {
+router.post('/skip', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId } = req.body;
 
     if (!guildId) {
@@ -246,7 +272,7 @@ router.post('/skip', requireAuth, (req, res) => {
 });
 
 // POST /api/pause - Toggle pause/resume
-router.post('/pause', requireAuth, (req, res) => {
+router.post('/pause', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId } = req.body;
 
     if (!guildId) {
@@ -273,7 +299,7 @@ router.post('/pause', requireAuth, (req, res) => {
 });
 
 // POST /api/volume - Set volume
-router.post('/volume', requireAuth, (req, res) => {
+router.post('/volume', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId, level } = req.body;
 
     if (!guildId) {
@@ -355,7 +381,7 @@ router.get('/guilds/:id/channels', (req, res) => {
 });
 
 // GET /api/queue/:guildId - Get queue for a guild
-router.get('/queue/:guildId', requireAuth, (req, res) => {
+router.get('/queue/:guildId', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId } = req.params;
 
     try {
@@ -367,7 +393,7 @@ router.get('/queue/:guildId', requireAuth, (req, res) => {
 });
 
 // POST /api/queue/:guildId/clear - Clear the queue
-router.post('/queue/:guildId/clear', requireAuth, (req, res) => {
+router.post('/queue/:guildId/clear', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId } = req.params;
 
     try {
@@ -390,7 +416,7 @@ router.post('/queue/:guildId/clear', requireAuth, (req, res) => {
 });
 
 // DELETE /api/queue/:guildId/:index - Remove a track from queue by index
-router.delete('/queue/:guildId/:index', requireAuth, (req, res) => {
+router.delete('/queue/:guildId/:index', requireAuth, requireGuildMember, async (req, res) => {
     const { guildId, index } = req.params;
     const trackIndex = parseInt(index);
 

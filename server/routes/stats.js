@@ -5,26 +5,27 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 /**
- * Parse date range from query params
+ * Parse and validate a date string
+ * @param {string} dateStr - Date string to parse
+ * @returns {Date|null} Parsed date or null if not provided
+ * @throws {Error} If date string is invalid
  */
-function parseDateRange(req) {
-    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
-    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
-    return { startDate, endDate };
+function parseValidDate(dateStr) {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date format: ${dateStr}`);
+    }
+    return date;
 }
 
 /**
- * Build WHERE clause for date filtering
+ * Parse date range from query params with validation
  */
-function _buildDateFilter(startDate, endDate, dateColumn = 'executed_at') {
-    const conditions = [];
-    if (startDate) {
-        conditions.push(`${dateColumn} >= $${conditions.length + 1}`);
-    }
-    if (endDate) {
-        conditions.push(`${dateColumn} <= $${conditions.length + 1}`);
-    }
-    return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+function parseDateRange(req) {
+    const startDate = parseValidDate(req.query.startDate);
+    const endDate = parseValidDate(req.query.endDate);
+    return { startDate, endDate };
 }
 
 /**
@@ -134,7 +135,8 @@ router.get('/summary', requireAuth, async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -146,50 +148,51 @@ router.get('/commands', requireAuth, async (req, res) => {
             guildId: req.query.guildId,
             userId: req.query.userId,
             source: req.query.source,
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         const params = [];
         const whereClause = buildWhereClause(filters, params);
 
-        // Top commands
-        const topCommandsQuery = `
-            SELECT command_name, COUNT(*) as count, 
-                   COUNT(*) FILTER (WHERE success = true) as success_count,
-                   COUNT(*) FILTER (WHERE success = false) as error_count
-            FROM command_stats
-            ${whereClause}
-            GROUP BY command_name
+        // Combined query using window functions to avoid N+1
+        const combinedQuery = `
+            WITH aggregated AS (
+                SELECT command_name,
+                       COUNT(*) as count,
+                       COUNT(*) FILTER (WHERE success = true) as success_count,
+                       COUNT(*) FILTER (WHERE success = false) as error_count
+                FROM command_stats
+                ${whereClause}
+                GROUP BY command_name
+            )
+            SELECT *,
+                   SUM(count) OVER() as total,
+                   SUM(success_count) OVER() as total_success
+            FROM aggregated
             ORDER BY count DESC
             LIMIT $${params.length + 1}
         `;
         params.push(limit);
 
-        const result = await query(topCommandsQuery, params);
+        const result = await query(combinedQuery, params);
 
-        // Success rate
-        const successRateQuery = `
-            SELECT 
-                COUNT(*) FILTER (WHERE success = true) as success,
-                COUNT(*) as total
-            FROM command_stats
-            ${whereClause}
-        `;
-        const successParams = params.slice(0, -1); // Remove limit
-        const successResult = await query(successRateQuery, successParams);
+        // Extract totals from first row (available in all rows via window function)
+        const total = parseInt(result?.rows[0]?.total || 0);
+        const totalSuccess = parseInt(result?.rows[0]?.total_success || 0);
+        const successRate = total > 0 ? (totalSuccess / total) * 100 : 0;
 
-        const total = successResult?.rows[0]?.total || 0;
-        const success = successResult?.rows[0]?.success || 0;
-        const successRate = total > 0 ? (success / total) * 100 : 0;
+        // Remove the window function columns from response
+        const commands = (result?.rows || []).map(({ total: _t, total_success: _ts, ...rest }) => rest);
 
         res.json({
-            commands: result?.rows || [],
+            commands,
             successRate: Math.round(successRate * 100) / 100,
             total,
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -202,8 +205,8 @@ router.get('/sounds', requireAuth, async (req, res) => {
             userId: req.query.userId,
             sourceType: req.query.sourceType,
             isSoundboard: req.query.isSoundboard !== undefined ? req.query.isSoundboard === 'true' : undefined,
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         const params = [];
@@ -277,7 +280,8 @@ router.get('/sounds', requireAuth, async (req, res) => {
             soundboardBreakdown: soundboardResult?.rows || [],
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -287,8 +291,8 @@ router.get('/users', requireAuth, async (req, res) => {
         const limit = Math.min(parseInt(req.query.limit) || 50, 500);
         const filters = {
             guildId: req.query.guildId,
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         const params = [];
@@ -345,7 +349,8 @@ router.get('/users', requireAuth, async (req, res) => {
             users: result?.rows || [],
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -354,8 +359,8 @@ router.get('/guilds', requireAuth, async (req, res) => {
     try {
         const limit = Math.min(parseInt(req.query.limit) || 50, 500);
         const filters = {
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         const params = [];
@@ -405,7 +410,8 @@ router.get('/guilds', requireAuth, async (req, res) => {
             guilds: result?.rows || [],
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -415,8 +421,8 @@ router.get('/time', requireAuth, async (req, res) => {
         const granularity = req.query.granularity || 'day'; // hour, day, week, month
         const filters = {
             guildId: req.query.guildId,
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         let dateTrunc;
@@ -482,7 +488,8 @@ router.get('/time', requireAuth, async (req, res) => {
             sounds: soundsResult?.rows || [],
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -493,8 +500,8 @@ router.get('/queue', requireAuth, async (req, res) => {
         const filters = {
             guildId: req.query.guildId,
             operationType: req.query.operationType,
-            startDate: req.query.startDate ? new Date(req.query.startDate) : null,
-            endDate: req.query.endDate ? new Date(req.query.endDate) : null,
+            startDate: parseValidDate(req.query.startDate),
+            endDate: parseValidDate(req.query.endDate),
         };
 
         const params = [];
@@ -516,7 +523,8 @@ router.get('/queue', requireAuth, async (req, res) => {
             operations: result?.rows || [],
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 
@@ -526,8 +534,8 @@ router.get('/history', requireAuth, async (req, res) => {
         const userId = req.query.userId || req.user?.id;
         const guildId = req.query.guildId || null;
         const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-        const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
-        const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+        const startDate = parseValidDate(req.query.startDate);
+        const endDate = parseValidDate(req.query.endDate);
 
         if (!userId) {
             return res.status(400).json({ error: 'userId is required' });
@@ -541,7 +549,8 @@ router.get('/history', requireAuth, async (req, res) => {
             count: history?.length || 0,
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const status = error.message.includes('Invalid date') ? 400 : 500;
+        res.status(status).json({ error: error.message });
     }
 });
 

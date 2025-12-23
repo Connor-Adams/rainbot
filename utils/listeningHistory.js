@@ -1,5 +1,6 @@
 const { createLogger } = require('./logger');
 const { query } = require('./database');
+const { detectSourceType } = require('./sourceType');
 
 const log = createLogger('HISTORY');
 
@@ -79,19 +80,8 @@ async function trackPlayed(userId, guildId, track, queuedBy = null) {
     if (!userId || !guildId || !track) return;
 
     try {
-        // Determine source type
-        let sourceType = 'other';
-        if (track.isLocal) {
-            sourceType = 'local';
-        } else if (track.url) {
-            if (track.url.includes('youtube.com') || track.url.includes('youtu.be')) {
-                sourceType = 'youtube';
-            } else if (track.url.includes('spotify.com') || track.spotifyId) {
-                sourceType = 'spotify';
-            } else if (track.url.includes('soundcloud.com')) {
-                sourceType = 'soundcloud';
-            }
-        }
+        // Determine source type using shared utility
+        const sourceType = detectSourceType(track);
 
         // Store in database
         await query(
