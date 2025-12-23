@@ -147,11 +147,6 @@ app.delete('/api/queue/:guildId/:index', (req, res) => {
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve index.html for all unmatched routes (SPA fallback)
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // Start server
 app
   .listen(port, 'localhost', () => {
