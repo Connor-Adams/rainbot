@@ -2,7 +2,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { PlayCommandResult } from '../../types/commands';
 import type { PlayResult } from '../../types/voice';
 
-const voiceManager = require('../../utils/voiceManager');
+// const voiceManager = require('../../utils/voiceManager');
 
 export async function executePlay(
   _guildId: string,
