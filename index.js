@@ -29,6 +29,25 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 
 const config = loadConfig();
 
+// Initialize play-dl with Spotify credentials (if provided)
+const play = require('play-dl');
+if (config.spotifyClientId && config.spotifyClientSecret) {
+    try {
+        play.setToken({
+            spotify: {
+                client_id: config.spotifyClientId,
+                client_secret: config.spotifyClientSecret,
+            }
+        });
+        log.info('Spotify credentials configured for play-dl');
+    } catch (error) {
+        log.warn(`Failed to configure Spotify credentials: ${error.message}`);
+        log.warn('Spotify links will not work without valid credentials');
+    }
+} else {
+    log.warn('Spotify credentials not configured. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables to enable Spotify support.');
+}
+
 // Initialize database (non-blocking, handles errors gracefully)
 const { initDatabase } = require('./utils/database');
 initDatabase();

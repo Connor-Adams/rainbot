@@ -15,6 +15,7 @@ function loadConfig() {
         key.startsWith('SESSION_') || 
         key.startsWith('REQUIRED_') ||
         key.startsWith('STORAGE_') ||
+        key.startsWith('SPOTIFY_') ||
         key === 'PORT' ||
         key === 'CALLBACK_URL' ||
         key === 'RAILWAY_PUBLIC_DOMAIN' ||
@@ -83,6 +84,10 @@ function loadConfig() {
         
         // Database configuration
         databaseUrl: process.env.DATABASE_URL,
+        
+        // Spotify configuration (for play-dl)
+        spotifyClientId: process.env.SPOTIFY_CLIENT_ID,
+        spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET,
     };
 
     // Log which environment variables are set (for debugging)

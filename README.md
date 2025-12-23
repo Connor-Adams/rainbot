@@ -90,6 +90,13 @@ See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions
 4. Add **redirect URL** in Discord OAuth2 settings: `https://your-domain.com/auth/discord/callback`
 5. Set environment variables: `DISCORD_CLIENT_SECRET`, `REQUIRED_ROLE_ID`, `SESSION_SECRET`
 
+**Spotify Configuration (Optional, for Spotify URL support):**
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Create a new app or select an existing one
+3. Copy the **Client ID** and **Client Secret**
+4. Set environment variables: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`
+5. **Note**: Without Spotify credentials, Spotify links will not work. The bot will show a warning in logs but continue to function for other sources (YouTube, SoundCloud, etc.)
+
 ## Commands
 
 ### Voice Commands

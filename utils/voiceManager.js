@@ -994,15 +994,14 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
         // Check if it's a stored sound file first
         const exists = await storage.soundExists(source);
         if (exists) {
-            // Soundboard files play overtop music at full volume
-            const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+            // Soundboard files ALWAYS play immediately - never queue
             const hasMusicSource = state.currentTrackSource;
             
-            if (isPlaying && hasMusicSource) {
-                // Music is playing - use overlay to play soundboard overtop at full volume
-                log.info(`Soundboard file detected, playing over music: ${source}`);
+            if (hasMusicSource) {
+                // Music source exists - use overlay to play soundboard overtop at full volume
+                log.info(`Soundboard file detected, playing immediately over music: ${source}`);
                 
-                // Use the overlay function to play soundboard over music
+                // Use the overlay function to play soundboard over music (works even if paused)
                 try {
                     const overlayResult = await playSoundboardOverlay(guildId, source, userId, requestSource);
                     
@@ -1039,20 +1038,87 @@ async function playSound(guildId, source, userId = null, requestSource = 'discor
                         overlaid: overlayResult.overlaid,
                     };
                 } catch (overlayError) {
-                    log.warn(`Overlay failed: ${overlayError.message}`);
-                    // Fall through to add to queue if overlay fails
+                    log.warn(`Overlay failed, playing soundboard directly: ${overlayError.message}`);
+                    // Fallback: play soundboard directly (interrupts everything)
+                    const soundStream = await storage.getSoundStream(source);
+                    const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+                    
+                    // Kill any existing overlay
+                    if (state.overlayProcess) {
+                        try {
+                            state.overlayProcess.kill('SIGKILL');
+                        } catch (err) {}
+                        state.overlayProcess = null;
+                    }
+                    
+                    state.player.play(resource);
+                    state.nowPlaying = `🔊 ${path.basename(source, path.extname(source))}`;
+                    
+                    // Track soundboard usage
+                    if (userId) {
+                        stats.trackSound(source, userId, guildId, 'local', true, null, requestSource);
+                        listeningHistory.trackPlayed(userId, guildId, {
+                            title: source,
+                            url: null,
+                            duration: null,
+                            isLocal: true,
+                            sourceType: 'local',
+                            source: requestSource,
+                            isSoundboard: true,
+                        }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+                    }
+                    
+                    return {
+                        added: 1,
+                        tracks: [{
+                            title: path.basename(source, path.extname(source)),
+                            isLocal: true,
+                        }],
+                        totalInQueue: state.queue.length,
+                        overlaid: false,
+                    };
                 }
+            } else {
+                // No music source - play soundboard directly
+                log.info(`Soundboard file detected, playing immediately (no music): ${source}`);
+                const soundStream = await storage.getSoundStream(source);
+                const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+                
+                // Kill any existing overlay
+                if (state.overlayProcess) {
+                    try {
+                        state.overlayProcess.kill('SIGKILL');
+                    } catch (err) {}
+                    state.overlayProcess = null;
+                }
+                
+                state.player.play(resource);
+                state.nowPlaying = `🔊 ${path.basename(source, path.extname(source))}`;
+                
+                // Track soundboard usage
+                if (userId) {
+                    stats.trackSound(source, userId, guildId, 'local', true, null, requestSource);
+                    listeningHistory.trackPlayed(userId, guildId, {
+                        title: source,
+                        url: null,
+                        duration: null,
+                        isLocal: true,
+                        sourceType: 'local',
+                        source: requestSource,
+                        isSoundboard: true,
+                    }, userId).catch(err => log.error(`Failed to track soundboard history: ${err.message}`));
+                }
+                
+                return {
+                    added: 1,
+                    tracks: [{
+                        title: path.basename(source, path.extname(source)),
+                        isLocal: true,
+                    }],
+                    totalInQueue: state.queue.length,
+                    overlaid: false,
+                };
             }
-            
-            // No music playing OR overlay failed - add to queue normally
-            const stream = await storage.getSoundStream(source);
-            tracks.push({
-                title: path.basename(source, path.extname(source)),
-                source: stream,
-                isLocal: true,
-                isStream: true,
-                isSoundboard: true, // Mark as soundboard
-            });
         } else {
             // Not a sound file - treat as search query
             log.info(`Searching YouTube for: "${source}"`);

@@ -35,6 +35,8 @@ In your Railway project settings, go to "Variables" and add:
 - `HOST` - Railway sets this automatically (don't set manually)
 - `REDIS_URL` - Redis connection URL (auto-set when Redis addon is added, see below)
 - `SESSION_STORE_PATH` - Path for session files (default: `./sessions`, only used if Redis is not available)
+- `SPOTIFY_CLIENT_ID` - Spotify Client ID (optional, required for Spotify URL support)
+- `SPOTIFY_CLIENT_SECRET` - Spotify Client Secret (optional, required for Spotify URL support)
 
 ### 4. Add PostgreSQL for Statistics (Required for Statistics Feature)
 
@@ -109,6 +111,8 @@ Railway will automatically:
 | `DATABASE_URL` | PostgreSQL connection URL (auto-set when PostgreSQL addon is added) | No (required for statistics) |
 | `REDIS_URL` | Redis connection URL (auto-set when Redis addon is added) | No |
 | `SESSION_STORE_PATH` | Path for session files (fallback if Redis not available) | No |
+| `SPOTIFY_CLIENT_ID` | Spotify Client ID for Spotify URL support | No (required for Spotify links) |
+| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support | No (required for Spotify links) |
 
 ## Generating Session Secret
 
