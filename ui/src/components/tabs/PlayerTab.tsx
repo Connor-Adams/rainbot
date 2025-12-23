@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { playbackApi, botApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
@@ -7,8 +7,8 @@ import NowPlayingCard from '../NowPlayingCard'
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore()
   const [urlInput, setUrlInput] = useState('')
-  const [volume, setVolume] = useState(100)
-  const [volumeDebounce, setVolumeDebounce] = useState<NodeJS.Timeout | null>(null)
+  const [localVolume, setLocalVolume] = useState<number | null>(null) // Only set while dragging
+  const volumeDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const queryClient = useQueryClient()
 
   const { data: queueData } = useQuery({
@@ -24,17 +24,19 @@ export default function PlayerTab() {
     refetchInterval: 5000,
   })
 
-  // Get current volume from bot status
-  useEffect(() => {
+  // Derive server volume from bot status
+  const serverVolume = (() => {
     if (botStatus?.connections && selectedGuildId) {
       const connection = botStatus.connections.find(
         (c: { guildId: string; volume?: number }) => c.guildId === selectedGuildId
       )
-      if (connection?.volume !== undefined) {
-        setVolume(connection.volume)
-      }
+      return connection?.volume ?? 100
     }
-  }, [botStatus, selectedGuildId])
+    return 100
+  })()
+
+  // Use local volume while dragging, otherwise use server volume
+  const volume = localVolume ?? serverVolume
 
   const playMutation = useMutation({
     mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
@@ -57,20 +59,23 @@ export default function PlayerTab() {
     mutationFn: (level: number) => playbackApi.volume(selectedGuildId!, level),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-status'] })
+      // Clear local volume after server confirms
+      setLocalVolume(null)
+    },
+    onError: () => {
+      setLocalVolume(null)
     },
   })
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value)
-    setVolume(newVolume)
+    setLocalVolume(newVolume)
     
     // Debounce API call
-    if (volumeDebounce) clearTimeout(volumeDebounce)
-    setVolumeDebounce(
-      setTimeout(() => {
-        volumeMutation.mutate(newVolume)
-      }, 150)
-    )
+    if (volumeDebounceRef.current) clearTimeout(volumeDebounceRef.current)
+    volumeDebounceRef.current = setTimeout(() => {
+      volumeMutation.mutate(newVolume)
+    }, 150)
   }
 
   const handlePlay = () => {
