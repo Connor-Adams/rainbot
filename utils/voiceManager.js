@@ -1505,6 +1505,7 @@ function getAllConnections() {
             nowPlaying: state.nowPlaying,
             isPlaying: state.player.state.status === AudioPlayerStatus.Playing,
             queueLength: state.queue.length,
+            volume: state.volume || 100,
         });
     }
     return connections;

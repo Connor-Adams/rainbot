@@ -248,6 +248,36 @@ router.post('/pause', requireAuth, (req, res) => {
     }
 });
 
+// POST /api/volume - Set volume
+router.post('/volume', requireAuth, (req, res) => {
+    const { guildId, level } = req.body;
+
+    if (!guildId) {
+        return res.status(400).json({ error: 'guildId is required' });
+    }
+
+    if (level === undefined || level === null) {
+        return res.status(400).json({ error: 'level is required (1-100)' });
+    }
+
+    try {
+        const userId = req.user?.id || null;
+        const volume = voiceManager.setVolume(guildId, level);
+        
+        if (userId) {
+            stats.trackCommand('volume', userId, guildId, 'api', true);
+        }
+        
+        res.json({ message: `Volume set to ${volume}%`, volume });
+    } catch (error) {
+        const userId = req.user?.id || null;
+        if (userId) {
+            stats.trackCommand('volume', userId, guildId, 'api', false, error.message);
+        }
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // GET /api/status - Get bot status
 router.get('/status', (req, res) => {
     const client = clientStore.getClient();

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { playbackApi, botApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
@@ -7,6 +7,8 @@ import NowPlayingCard from '../NowPlayingCard'
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore()
   const [urlInput, setUrlInput] = useState('')
+  const [volume, setVolume] = useState(100)
+  const [volumeDebounce, setVolumeDebounce] = useState<NodeJS.Timeout | null>(null)
   const queryClient = useQueryClient()
 
   const { data: queueData } = useQuery({
@@ -15,6 +17,24 @@ export default function PlayerTab() {
     enabled: !!selectedGuildId,
     refetchInterval: 5000,
   })
+
+  const { data: botStatus } = useQuery({
+    queryKey: ['bot-status'],
+    queryFn: () => botApi.getStatus().then((res) => res.data),
+    refetchInterval: 5000,
+  })
+
+  // Get current volume from bot status
+  useEffect(() => {
+    if (botStatus?.connections && selectedGuildId) {
+      const connection = botStatus.connections.find(
+        (c: { guildId: string; volume?: number }) => c.guildId === selectedGuildId
+      )
+      if (connection?.volume !== undefined) {
+        setVolume(connection.volume)
+      }
+    }
+  }, [botStatus, selectedGuildId])
 
   const playMutation = useMutation({
     mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
@@ -32,6 +52,26 @@ export default function PlayerTab() {
       queryClient.invalidateQueries({ queryKey: ['bot-status'] })
     },
   })
+
+  const volumeMutation = useMutation({
+    mutationFn: (level: number) => playbackApi.volume(selectedGuildId!, level),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] })
+    },
+  })
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(e.target.value)
+    setVolume(newVolume)
+    
+    // Debounce API call
+    if (volumeDebounce) clearTimeout(volumeDebounce)
+    setVolumeDebounce(
+      setTimeout(() => {
+        volumeMutation.mutate(newVolume)
+      }, 150)
+    )
+  }
 
   const handlePlay = () => {
     const url = urlInput.trim()
@@ -89,6 +129,27 @@ export default function PlayerTab() {
             >
               <span className="btn-icon">■</span> Stop
             </button>
+          </div>
+        </div>
+
+        {/* Volume Control */}
+        <div className="volume-control mt-6 pt-6 border-t border-gray-700">
+          <div className="flex items-center gap-4">
+            <span className="text-gray-400 text-sm w-6">
+              {volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={handleVolumeChange}
+              disabled={!selectedGuildId}
+              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-gray-400 text-sm font-mono w-12 text-right">
+              {volume}%
+            </span>
           </div>
         </div>
       </section>
