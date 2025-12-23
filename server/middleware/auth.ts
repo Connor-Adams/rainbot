@@ -1,6 +1,8 @@
-const { createLogger } = require('../../utils/logger');
-const { verifyUserRole } = require('../utils/roleVerifier');
-const clientStore = require('../client');
+import type { Response, NextFunction } from 'express';
+import { createLogger } from '../../utils/logger';
+import { verifyUserRole } from '../utils/roleVerifier';
+import { getClient } from '../client';
+import type { AuthenticatedRequest, DiscordUser } from '../../types/server';
 
 const log = createLogger('AUTH');
 
@@ -11,35 +13,43 @@ const VERIFICATION_CACHE_TIME = 5 * 60 * 1000;
  * Middleware to require authentication and role verification
  * Checks session and verifies user still has required role
  */
-async function requireAuth(req, res, next) {
+export async function requireAuth(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   // Check if user is authenticated
   if (!req.isAuthenticated || !req.isAuthenticated()) {
-    return res.status(401).json({ error: 'Authentication required' });
+    res.status(401).json({ error: 'Authentication required' });
+    return;
   }
 
-  const user = req.user;
+  const user = req.user as DiscordUser | undefined;
   if (!user || !user.id) {
-    return res.status(401).json({ error: 'Invalid session' });
+    res.status(401).json({ error: 'Invalid session' });
+    return;
   }
 
   // Get config and bot client
   const { loadConfig } = require('../../utils/config');
   const config = loadConfig();
-  const botClient = clientStore.getClient();
+  const botClient = getClient();
 
   if (!config.requiredRoleId) {
     log.error('requiredRoleId not configured. Set REQUIRED_ROLE_ID environment variable.');
-    return res.status(500).json({ error: 'Server configuration error' });
+    res.status(500).json({ error: 'Server configuration error' });
+    return;
   }
 
   // Check if verification is cached and still valid
   const now = Date.now();
-  const lastVerified = req.session.lastVerified || 0;
-  const hasAccess = req.session.hasAccess;
+  const lastVerified = req.session?.lastVerified || 0;
+  const hasAccess = req.session?.hasAccess;
 
   if (hasAccess && now - lastVerified < VERIFICATION_CACHE_TIME) {
     // Use cached verification
-    return next();
+    next();
+    return;
   }
 
   // Verify user still has required role
@@ -47,22 +57,22 @@ async function requireAuth(req, res, next) {
     const hasRole = await verifyUserRole(user.id, config.requiredRoleId, botClient);
 
     // Update session cache
-    req.session.hasAccess = hasRole;
-    req.session.lastVerified = now;
+    if (req.session) {
+      req.session.hasAccess = hasRole;
+      req.session.lastVerified = now;
+    }
 
     if (!hasRole) {
       log.info(`Access denied for user ${user.username} (${user.id}) - missing required role`);
-      return res.status(403).json({ error: 'Access denied: You do not have the required role' });
+      res.status(403).json({ error: 'Access denied: You do not have the required role' });
+      return;
     }
 
     log.debug(`Access granted for user ${user.username} (${user.id})`);
     next();
   } catch (error) {
-    log.error(`Error verifying access for user ${user.id}: ${error.message}`);
-    return res.status(500).json({ error: 'Error verifying access' });
+    const err = error as Error;
+    log.error(`Error verifying access for user ${user.id}: ${err.message}`);
+    res.status(500).json({ error: 'Error verifying access' });
   }
 }
-
-module.exports = {
-  requireAuth,
-};

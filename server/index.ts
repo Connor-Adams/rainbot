@@ -1,17 +1,21 @@
-const express = require('express');
-const path = require('path');
-const session = require('express-session');
-const FileStore = require('session-file-store')(session);
-const passport = require('passport');
-const { createLogger } = require('../utils/logger');
-const requestLogger = require('./middleware/requestLogger');
+import express, { Application, Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+import session from 'express-session';
+import FileStoreFactory from 'session-file-store';
+import passport from 'passport';
+import type { Client } from 'discord.js';
+import { createLogger } from '../utils/logger';
+import requestLogger from './middleware/requestLogger';
+import { setClient, getClient } from './client';
+import type { AppConfig } from '../types/server';
 
 const log = createLogger('SERVER');
-const clientStore = require('./client');
+const FileStore = FileStoreFactory(session);
 
 // Try to load Redis (optional dependency)
-let RedisStore;
-let redis;
+let RedisStore: typeof import('connect-redis').default | undefined;
+let redis: typeof import('redis') | undefined;
 try {
   const redisLib = require('redis');
   RedisStore = require('connect-redis').default;
@@ -21,15 +25,15 @@ try {
   log.debug('Redis not available, will use file store for sessions');
 }
 
-async function createServer() {
+export async function createServer(): Promise<Application> {
   const app = express();
   const { loadConfig } = require('../utils/config');
-  const config = loadConfig();
+  const config: AppConfig = loadConfig();
 
   // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
   // This enables correct handling of X-Forwarded-* headers
-  const isRailway = !!process.env.RAILWAY_ENVIRONMENT || !!process.env.RAILWAY_PUBLIC_DOMAIN;
-  if (isRailway || process.env.NODE_ENV === 'production') {
+  const isRailway = !!process.env['RAILWAY_ENVIRONMENT'] || !!process.env['RAILWAY_PUBLIC_DOMAIN'];
+  if (isRailway || process.env['NODE_ENV'] === 'production') {
     app.set('trust proxy', 1);
     log.debug('Trust proxy enabled for production/Railway environment');
   }
@@ -52,16 +56,16 @@ async function createServer() {
     log.info('✓ SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
   }
 
-  let sessionStore;
+  let sessionStore: session.Store | undefined;
   // Try to get Redis URL from config or environment
-  let redisUrl = config.redisUrl || process.env.REDIS_URL;
+  let redisUrl = config.redisUrl || process.env['REDIS_URL'];
 
   // If REDIS_URL is not set, try to construct it from Railway's individual Redis env vars
-  if (!redisUrl && process.env.REDISHOST) {
-    const redisHost = process.env.REDISHOST;
-    const redisPort = process.env.REDISPORT || '6379';
-    const redisUser = process.env.REDISUSER || '';
-    const redisPassword = process.env.REDISPASSWORD || '';
+  if (!redisUrl && process.env['REDISHOST']) {
+    const redisHost = process.env['REDISHOST'];
+    const redisPort = process.env['REDISPORT'] || '6379';
+    const redisUser = process.env['REDISUSER'] || '';
+    const redisPassword = process.env['REDISPASSWORD'] || '';
 
     // Construct Redis URL: redis://[username]:[password]@host:port
     if (redisPassword) {
@@ -98,7 +102,7 @@ async function createServer() {
       const redisClient = redis.createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: (retries: number) => {
             if (retries > 10) {
               log.error('Redis connection failed after 10 retries, falling back to memory store');
               return false; // Stop retrying
@@ -108,7 +112,7 @@ async function createServer() {
         },
       });
 
-      redisClient.on('error', (err) => {
+      redisClient.on('error', (err: Error) => {
         log.error(`Redis client error: ${err.message}`);
       });
 
@@ -134,20 +138,20 @@ async function createServer() {
 
         log.info('✓ Using Redis for session storage (sessions will persist across deployments)');
       } catch (connectError) {
-        log.warn(
-          `Failed to connect to Redis: ${connectError.message}, falling back to memory store`
-        );
+        const err = connectError as Error;
+        log.warn(`Failed to connect to Redis: ${err.message}, falling back to memory store`);
         // Close the client if connection failed
         try {
           await redisClient.quit();
         } catch {
           // Ignore quit errors
         }
-        sessionStore = null;
+        sessionStore = undefined;
       }
     } catch (error) {
-      log.warn(`Failed to initialize Redis store: ${error.message}, falling back to memory store`);
-      sessionStore = null;
+      const err = error as Error;
+      log.warn(`Failed to initialize Redis store: ${err.message}, falling back to memory store`);
+      sessionStore = undefined;
     }
   }
 
@@ -155,7 +159,7 @@ async function createServer() {
   // Note: Memory store does NOT persist across restarts, but is better than file store on Railway
   // For production, use Redis for persistent sessions
   if (!sessionStore) {
-    if (isRailway || process.env.NODE_ENV === 'production') {
+    if (isRailway || process.env['NODE_ENV'] === 'production') {
       log.warn('⚠️  Using memory store for sessions (sessions will NOT persist across restarts)');
       log.warn('⚠️  For persistent sessions, configure REDIS_URL environment variable');
       // Use default memory store (no store specified)
@@ -169,14 +173,15 @@ async function createServer() {
         });
         log.info(`✓ Using file store for sessions at ${config.sessionStorePath}`);
       } catch (error) {
-        log.warn(`Failed to create file store: ${error.message}, using memory store`);
+        const err = error as Error;
+        log.warn(`Failed to create file store: ${err.message}, using memory store`);
         sessionStore = undefined;
       }
     }
   }
 
   // Determine cookie security based on environment
-  const useSecureCookies = process.env.NODE_ENV === 'production' || isRailway;
+  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway;
 
   app.use(
     session({
@@ -210,21 +215,20 @@ async function createServer() {
   app.use(express.urlencoded({ extended: true }));
 
   // Auth routes (must be before protected routes)
-  const authRoutes = require('./routes/auth');
+  const authRoutes = require('./routes/auth').default;
   app.use('/auth', authRoutes);
 
   // API routes (must be before static files)
-  const apiRoutes = require('./routes/api');
+  const apiRoutes = require('./routes/api').default;
   app.use('/api', apiRoutes);
 
   // Statistics routes
-  const statsRoutes = require('./routes/stats');
+  const statsRoutes = require('./routes/stats').default;
   app.use('/api/stats', statsRoutes);
 
   // Serve React build from ui/dist (production)
   // This is the standard pattern: source code in ui/, build output in ui/dist/
   const reactBuildPath = path.join(__dirname, '..', 'ui', 'dist');
-  const fs = require('fs');
 
   if (fs.existsSync(reactBuildPath)) {
     // Serve React build static assets
@@ -237,10 +241,11 @@ async function createServer() {
   // Serve React app for all other routes (SPA fallback)
   // IMPORTANT: Don't require auth here - let React app handle auth client-side
   // The React app will check auth via /auth/check API endpoint
-  app.use((req, res) => {
+  app.use((req: Request, res: Response): void => {
     // Skip if it's an API or auth route (shouldn't reach here, but safety check)
     if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
-      return res.status(404).json({ error: 'Not found' });
+      res.status(404).json({ error: 'Not found' });
+      return;
     }
     // Serve React app (SPA fallback) - no auth required, React handles it
     const reactIndex = path.join(reactBuildPath, 'index.html');
@@ -262,14 +267,14 @@ async function createServer() {
   return app;
 }
 
-async function start(client, port = 3000) {
-  clientStore.setClient(client);
+export async function start(client: Client, port = 3000): Promise<Application> {
+  setClient(client);
   const app = await createServer();
   const { loadConfig } = require('../utils/config');
-  const config = loadConfig();
+  const config: AppConfig = loadConfig();
 
   // Railway and other platforms use 0.0.0.0 instead of localhost
-  const host = process.env.HOST || '0.0.0.0';
+  const host = process.env['HOST'] || '0.0.0.0';
 
   app.listen(port, host, () => {
     const url = config.railwayPublicDomain
@@ -281,12 +286,4 @@ async function start(client, port = 3000) {
   return app;
 }
 
-function getClient() {
-  return clientStore.getClient();
-}
-
-module.exports = {
-  start,
-  getClient,
-  createServer,
-};
+export { getClient };

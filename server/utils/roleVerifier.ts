@@ -1,15 +1,20 @@
-const { createLogger } = require('../../utils/logger');
+import type { Client } from 'discord.js';
+import { createLogger } from '../../utils/logger';
 
 const log = createLogger('ROLE_VERIFIER');
 
 /**
  * Verify if a user has the required role in any guild where the bot is present
- * @param {string} userId - Discord user ID
- * @param {string} requiredRoleId - Discord role ID that user must have
- * @param {Client} botClient - Discord bot client instance
- * @returns {Promise<boolean>} - True if user has the role in at least one guild
+ * @param userId - Discord user ID
+ * @param requiredRoleId - Discord role ID that user must have
+ * @param botClient - Discord bot client instance
+ * @returns True if user has the role in at least one guild
  */
-async function verifyUserRole(userId, requiredRoleId, botClient) {
+export async function verifyUserRole(
+  userId: string,
+  requiredRoleId: string,
+  botClient: Client | null
+): Promise<boolean> {
   if (!botClient || !botClient.isReady()) {
     log.warn('Bot client not ready for role verification');
     return false;
@@ -41,7 +46,8 @@ async function verifyUserRole(userId, requiredRoleId, botClient) {
         }
       } catch (error) {
         // If fetching member fails (e.g., user not in guild), continue to next guild
-        log.debug(`Could not fetch member ${userId} in guild ${guildId}: ${error.message}`);
+        const err = error as Error;
+        log.debug(`Could not fetch member ${userId} in guild ${guildId}: ${err.message}`);
         continue;
       }
     }
@@ -49,11 +55,8 @@ async function verifyUserRole(userId, requiredRoleId, botClient) {
     log.debug(`User ${userId} does not have required role ${requiredRoleId} in any bot guild`);
     return false;
   } catch (error) {
-    log.error(`Error verifying user role: ${error.message}`);
+    const err = error as Error;
+    log.error(`Error verifying user role: ${err.message}`);
     return false;
   }
 }
-
-module.exports = {
-  verifyUserRole,
-};

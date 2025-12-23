@@ -1,8 +1,9 @@
-const { createLogger } = require('../../utils/logger');
+import type { Request, Response, NextFunction } from 'express';
+import { createLogger } from '../../utils/logger';
 
 const log = createLogger('HTTP');
 
-function requestLogger(req, res, next) {
+export default function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
   const { method, originalUrl, ip } = req;
   const userAgent = req.get('user-agent') || '-';
@@ -28,5 +29,3 @@ function requestLogger(req, res, next) {
 
   next();
 }
-
-module.exports = requestLogger;

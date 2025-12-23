@@ -1,16 +1,16 @@
-const express = require('express');
-const { query } = require('../../utils/database');
-const { requireAuth } = require('../middleware/auth');
+import express, { Request, Response } from 'express';
+import { query } from '../../utils/database';
+import { requireAuth } from '../middleware/auth';
 
 const router = express.Router();
 
 /**
  * Parse and validate a date string
- * @param {string} dateStr - Date string to parse
- * @returns {Date|null} Parsed date or null if not provided
- * @throws {Error} If date string is invalid
+ * @param dateStr - Date string to parse
+ * @returns Parsed date or null if not provided
+ * @throws Error if date string is invalid
  */
-function parseValidDate(dateStr) {
+function parseValidDate(dateStr: string | undefined): Date | null {
   if (!dateStr) return null;
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) {
@@ -19,20 +19,36 @@ function parseValidDate(dateStr) {
   return date;
 }
 
+interface DateRange {
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
 /**
  * Parse date range from query params with validation
  */
-function parseDateRange(req) {
-  const startDate = parseValidDate(req.query.startDate);
-  const endDate = parseValidDate(req.query.endDate);
+function parseDateRange(req: Request): DateRange {
+  const startDate = parseValidDate(req.query['startDate'] as string | undefined);
+  const endDate = parseValidDate(req.query['endDate'] as string | undefined);
   return { startDate, endDate };
+}
+
+interface WhereFilters {
+  guildId?: string;
+  userId?: string;
+  source?: string;
+  sourceType?: string;
+  isSoundboard?: boolean;
+  operationType?: string;
+  startDate?: Date | null;
+  endDate?: Date | null;
 }
 
 /**
  * Build WHERE clause with multiple filters
  */
-function buildWhereClause(filters, params = []) {
-  const conditions = [];
+function buildWhereClause(filters: WhereFilters, params: (string | boolean | Date)[] = []): string {
+  const conditions: string[] = [];
   let paramIndex = params.length + 1;
 
   if (filters.guildId) {
@@ -72,14 +88,14 @@ function buildWhereClause(filters, params = []) {
 }
 
 // GET /api/stats/summary - Overall summary
-router.get('/summary', requireAuth, async (req, res) => {
+router.get('/summary', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const { startDate, endDate } = parseDateRange(req);
-    const params = [];
+    const params: Date[] = [];
     let dateFilter = '';
 
     if (startDate || endDate) {
-      const conditions = [];
+      const conditions: string[] = [];
       if (startDate) {
         params.push(startDate);
         conditions.push('executed_at >= $' + params.length);
@@ -145,24 +161,25 @@ router.get('/summary', requireAuth, async (req, res) => {
       },
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/commands - Command usage stats
-router.get('/commands', requireAuth, async (req, res) => {
+router.get('/commands', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-    const filters = {
-      guildId: req.query.guildId,
-      userId: req.query.userId,
-      source: req.query.source,
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters: WhereFilters = {
+      guildId: req.query['guildId'] as string | undefined,
+      userId: req.query['userId'] as string | undefined,
+      source: req.query['source'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    const params = [];
+    const params: (string | boolean | Date)[] = [];
     const whereClause = buildWhereClause(filters, params);
 
     // Combined query using window functions to avoid N+1
@@ -183,7 +200,7 @@ router.get('/commands', requireAuth, async (req, res) => {
             ORDER BY count DESC
             LIMIT $${params.length + 1}
         `;
-    params.push(limit);
+    params.push(limit as unknown as string);
 
     const result = await query(combinedQuery, params);
 
@@ -193,7 +210,9 @@ router.get('/commands', requireAuth, async (req, res) => {
     const successRate = total > 0 ? (totalSuccess / total) * 100 : 0;
 
     // Remove the window function columns from response
-    const commands = (result?.rows || []).map(({ total: _t, total_success: _ts, ...rest }) => rest);
+    const commands = (result?.rows || []).map(
+      ({ total: _t, total_success: _ts, ...rest }: Record<string, unknown>) => rest
+    );
 
     res.json({
       commands,
@@ -201,27 +220,28 @@ router.get('/commands', requireAuth, async (req, res) => {
       total,
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/sounds - Sound playback stats
-router.get('/sounds', requireAuth, async (req, res) => {
+router.get('/sounds', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
-      guildId: req.query.guildId,
-      userId: req.query.userId,
-      sourceType: req.query.sourceType,
+      guildId: req.query['guildId'] as string | undefined,
+      userId: req.query['userId'] as string | undefined,
+      sourceType: req.query['sourceType'] as string | undefined,
       isSoundboard:
-        req.query.isSoundboard !== undefined ? req.query.isSoundboard === 'true' : undefined,
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+        req.query['isSoundboard'] !== undefined ? req.query['isSoundboard'] === 'true' : undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    const params = [];
-    let whereConditions = [];
+    const params: (string | boolean | Date)[] = [];
+    const whereConditions: string[] = [];
     let paramIndex = 1;
 
     if (filters.guildId) {
@@ -262,7 +282,7 @@ router.get('/sounds', requireAuth, async (req, res) => {
             ORDER BY count DESC
             LIMIT $${paramIndex}
         `;
-    params.push(limit);
+    params.push(limit as unknown as string);
 
     const result = await query(topSoundsQuery, params);
 
@@ -291,23 +311,24 @@ router.get('/sounds', requireAuth, async (req, res) => {
       soundboardBreakdown: soundboardResult?.rows || [],
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/users - User activity stats
-router.get('/users', requireAuth, async (req, res) => {
+router.get('/users', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
-      guildId: req.query.guildId,
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+      guildId: req.query['guildId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    const params = [];
-    let whereConditions = [];
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
     let paramIndex = 1;
 
     if (filters.guildId) {
@@ -353,7 +374,7 @@ router.get('/users', requireAuth, async (req, res) => {
             ORDER BY (COUNT(DISTINCT c.id) + COUNT(DISTINCT s.id)) DESC
             LIMIT $${paramIndex}
         `;
-    params.push(limit);
+    params.push(limit as unknown as string);
 
     const result = await query(usersQuery, params);
 
@@ -361,22 +382,23 @@ router.get('/users', requireAuth, async (req, res) => {
       users: result?.rows || [],
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/guilds - Guild activity stats
-router.get('/guilds', requireAuth, async (req, res) => {
+router.get('/guilds', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    const params = [];
-    let whereConditions = [];
+    const params: Date[] = [];
+    const whereConditions: string[] = [];
     let paramIndex = 1;
 
     if (filters.startDate) {
@@ -415,7 +437,7 @@ router.get('/guilds', requireAuth, async (req, res) => {
             ORDER BY (COUNT(DISTINCT c.id) + COUNT(DISTINCT s.id)) DESC
             LIMIT $${paramIndex}
         `;
-    params.push(limit);
+    params.push(limit as unknown as Date);
 
     const result = await query(guildsQuery, params);
 
@@ -423,22 +445,23 @@ router.get('/guilds', requireAuth, async (req, res) => {
       guilds: result?.rows || [],
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/time - Time-based trends
-router.get('/time', requireAuth, async (req, res) => {
+router.get('/time', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const granularity = req.query.granularity || 'day'; // hour, day, week, month
+    const granularity = (req.query['granularity'] as string) || 'day'; // hour, day, week, month
     const filters = {
-      guildId: req.query.guildId,
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+      guildId: req.query['guildId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    let dateTrunc;
+    let dateTrunc: string;
     switch (granularity) {
       case 'hour':
         dateTrunc = "DATE_TRUNC('hour', executed_at)";
@@ -453,8 +476,8 @@ router.get('/time', requireAuth, async (req, res) => {
         dateTrunc = "DATE_TRUNC('day', executed_at)";
     }
 
-    const params = [];
-    let whereConditions = [];
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
     let paramIndex = 1;
 
     if (filters.guildId) {
@@ -502,23 +525,24 @@ router.get('/time', requireAuth, async (req, res) => {
       sounds: soundsResult?.rows || [],
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/queue - Queue operation stats
-router.get('/queue', requireAuth, async (req, res) => {
+router.get('/queue', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-    const filters = {
-      guildId: req.query.guildId,
-      operationType: req.query.operationType,
-      startDate: parseValidDate(req.query.startDate),
-      endDate: parseValidDate(req.query.endDate),
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters: WhereFilters = {
+      guildId: req.query['guildId'] as string | undefined,
+      operationType: req.query['operationType'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
     };
 
-    const params = [];
+    const params: (string | boolean | Date)[] = [];
     const whereClause = buildWhereClause(filters, params);
 
     const operationsQuery = `
@@ -529,7 +553,7 @@ router.get('/queue', requireAuth, async (req, res) => {
             ORDER BY count DESC
             LIMIT $${params.length + 1}
         `;
-    params.push(limit);
+    params.push(limit as unknown as string);
 
     const result = await query(operationsQuery, params);
 
@@ -537,19 +561,20 @@ router.get('/queue', requireAuth, async (req, res) => {
       operations: result?.rows || [],
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
 // GET /api/stats/history - Get listening history (all users or filtered by userId)
-router.get('/history', requireAuth, async (req, res) => {
+router.get('/history', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.query.userId || null; // null means all users
-    const guildId = req.query.guildId || null;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const startDate = parseValidDate(req.query.startDate);
-    const endDate = parseValidDate(req.query.endDate);
+    const userId = (req.query['userId'] as string) || null; // null means all users
+    const guildId = (req.query['guildId'] as string) || null;
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 100, 500);
+    const startDate = parseValidDate(req.query['startDate'] as string | undefined);
+    const endDate = parseValidDate(req.query['endDate'] as string | undefined);
 
     const listeningHistory = require('../../utils/listeningHistory');
     const history = await listeningHistory.getListeningHistory(
@@ -565,9 +590,10 @@ router.get('/history', requireAuth, async (req, res) => {
       count: history?.length || 0,
     });
   } catch (error) {
-    const status = error.message.includes('Invalid date') ? 400 : 500;
-    res.status(status).json({ error: error.message });
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
-module.exports = router;
+export default router;

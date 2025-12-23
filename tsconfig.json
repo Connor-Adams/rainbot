@@ -65,6 +65,7 @@
     "commands/**/*.ts",
     "utils/**/*.ts",
     "types/**/*.ts",
+    "types/**/*.d.ts",
     "server/**/*.ts",
     "handlers/**/*.ts",
     "events/**/*.ts",

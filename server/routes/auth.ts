@@ -1,17 +1,25 @@
-const express = require('express');
-const passport = require('passport');
-const OAuth2Strategy = require('passport-oauth2').Strategy;
-const { createLogger } = require('../../utils/logger');
-const { verifyUserRole } = require('../utils/roleVerifier');
-const clientStore = require('../client');
+import express, { Request, Response, NextFunction } from 'express';
+import passport from 'passport';
+import { Strategy as OAuth2Strategy } from 'passport-oauth2';
+import { createLogger } from '../../utils/logger';
+import { verifyUserRole } from '../utils/roleVerifier';
+import { getClient } from '../client';
+import type { DiscordUser, AuthenticatedRequest, AppConfig } from '../../types/server';
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
 
 const { loadConfig } = require('../../utils/config');
 
-const getConfig = () => {
-  const config = loadConfig();
+interface OAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  callbackURL: string;
+  requiredRoleId: string;
+}
+
+const getConfig = (): OAuthConfig => {
+  const config: AppConfig = loadConfig();
 
   // Determine callback URL - prioritize Railway, then CALLBACK_URL, then default
   let callbackURL = config.callbackURL;
@@ -43,11 +51,20 @@ passport.use(
       callbackURL: cfg.callbackURL,
       scope: ['identify', 'guilds'],
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (
+      accessToken: string,
+      _refreshToken: string,
+      _profile: unknown,
+      done: (
+        error: Error | null,
+        user?: DiscordUser | false,
+        info?: { message: string; details?: string }
+      ) => void
+    ) => {
       try {
         log.debug('OAuth strategy callback started');
 
-        const botClient = clientStore.getClient();
+        const botClient = getClient();
 
         if (!botClient || !botClient.isReady()) {
           log.error('Bot client not ready during OAuth verification');
@@ -70,25 +87,31 @@ passport.use(
           throw new Error(`Failed to fetch user profile from Discord: ${userResponse.status}`);
         }
 
-        const discordUser = await userResponse.json();
+        interface DiscordApiUser {
+          id: string;
+          username: string;
+          discriminator: string;
+          avatar: string | null;
+        }
+        const discordUser = (await userResponse.json()) as DiscordApiUser;
         log.debug(`Fetched user profile: ${discordUser.username} (${discordUser.id})`);
 
         // Verify user has required role
-        const cfg = getConfig();
+        const currentCfg = getConfig();
 
-        if (!cfg.requiredRoleId) {
+        if (!currentCfg.requiredRoleId) {
           log.error('REQUIRED_ROLE_ID not configured');
           return done(new Error('Server configuration error: REQUIRED_ROLE_ID not set'));
         }
 
-        log.debug(`Verifying role ${cfg.requiredRoleId} for user ${discordUser.id}`);
+        log.debug(`Verifying role ${currentCfg.requiredRoleId} for user ${discordUser.id}`);
         log.debug(`Bot is in ${botClient.guilds.cache.size} guild(s)`);
 
-        const hasRole = await verifyUserRole(discordUser.id, cfg.requiredRoleId, botClient);
+        const hasRole = await verifyUserRole(discordUser.id, currentCfg.requiredRoleId, botClient);
 
         if (!hasRole) {
           log.warn(
-            `OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role ${cfg.requiredRoleId}`
+            `OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role ${currentCfg.requiredRoleId}`
           );
           log.debug(
             `User is in ${botClient.guilds.cache.size} bot guild(s), but doesn't have required role`
@@ -102,12 +125,12 @@ passport.use(
 
           return done(null, false, {
             message: 'You do not have the required role to access this dashboard',
-            details: `Required role ID: ${cfg.requiredRoleId}. User must have this role in at least one server where the bot is present. Bot is in: ${guildNames || 'no servers'}`,
+            details: `Required role ID: ${currentCfg.requiredRoleId}. User must have this role in at least one server where the bot is present. Bot is in: ${guildNames || 'no servers'}`,
           });
         }
 
         // Store user info in session
-        const user = {
+        const user: DiscordUser = {
           id: discordUser.id,
           username: discordUser.username,
           discriminator: discordUser.discriminator,
@@ -117,27 +140,27 @@ passport.use(
         log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
         return done(null, user);
       } catch (error) {
-        log.error(`Error during OAuth verification: ${error.message}`, { stack: error.stack });
-        return done(error);
+        const err = error as Error;
+        log.error(`Error during OAuth verification: ${err.message}`, { stack: err.stack });
+        return done(err);
       }
     }
   )
 );
 
 // Serialize user for session
-passport.serializeUser((user, done) => {
+passport.serializeUser((user: Express.User, done) => {
   done(null, user);
 });
 
 // Deserialize user from session
-passport.deserializeUser((user, done) => {
+passport.deserializeUser((user: Express.User, done) => {
   done(null, user);
 });
 
 // Helper to get base URL from request
-function getBaseUrl(req) {
-  const { loadConfig } = require('../../utils/config');
-  const config = loadConfig();
+function getBaseUrl(req: Request): string {
+  const config: AppConfig = loadConfig();
 
   // Railway provides public domain
   if (config.railwayPublicDomain) {
@@ -155,7 +178,7 @@ router.get('/discord', passport.authenticate('discord'));
 // OAuth callback
 router.get(
   '/discord/callback',
-  (req, res, next) => {
+  (req: Request, _res: Response, next: NextFunction) => {
     log.info('OAuth callback received', { query: req.query, sessionId: req.sessionID });
     next();
   },
@@ -163,7 +186,7 @@ router.get(
     failureRedirect: '/auth/error',
     failureFlash: false,
   }),
-  (req, res) => {
+  (req: AuthenticatedRequest, res: Response) => {
     if (!req.user) {
       log.error('OAuth callback: req.user is missing after authentication');
       return res.redirect('/auth/error');
@@ -192,9 +215,10 @@ router.get(
             return res.redirect('/auth/error');
           }
 
-          log.info(`User ${req.user.username} (${req.user.id}) logged in successfully`);
+          const user = req.user as DiscordUser;
+          log.info(`User ${user.username} (${user.id}) logged in successfully`);
           log.debug(`Session ID: ${req.sessionID}, Session data:`, {
-            userId: req.user.id,
+            userId: user.id,
             hasAccess: req.session.hasAccess,
             lastVerified: req.session.lastVerified,
             authenticated: req.isAuthenticated(),
@@ -206,23 +230,26 @@ router.get(
         });
       });
     } catch (error) {
-      log.error(`Error in OAuth callback handler: ${error.message}`);
+      const err = error as Error;
+      log.error(`Error in OAuth callback handler: ${err.message}`);
       res.redirect('/auth/error');
     }
   }
 );
 
 // Logout
-router.get('/logout', (req, res) => {
-  const username = req.user?.username || 'Unknown';
+router.get('/logout', (req: AuthenticatedRequest, res: Response): void => {
+  const user = req.user as DiscordUser | undefined;
+  const username = user?.username || 'Unknown';
   req.logout((err) => {
     if (err) {
       log.error(`Error during logout: ${err.message}`);
-      return res.status(500).json({ error: 'Logout failed' });
+      res.status(500).json({ error: 'Logout failed' });
+      return;
     }
-    req.session.destroy((err) => {
-      if (err) {
-        log.error(`Error destroying session: ${err.message}`);
+    req.session.destroy((destroyErr) => {
+      if (destroyErr) {
+        log.error(`Error destroying session: ${destroyErr.message}`);
       }
       log.info(`User ${username} logged out`);
       const baseUrl = getBaseUrl(req);
@@ -232,48 +259,52 @@ router.get('/logout', (req, res) => {
 });
 
 // Get current user info
-router.get('/me', (req, res) => {
+router.get('/me', (req: AuthenticatedRequest, res: Response): void => {
   if (!req.isAuthenticated || !req.isAuthenticated()) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
   }
 
+  const user = req.user as DiscordUser;
   res.json({
-    id: req.user.id,
-    username: req.user.username,
-    discriminator: req.user.discriminator,
-    avatar: req.user.avatar,
-    avatarUrl: req.user.avatar
-      ? `https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png`
-      : `https://cdn.discordapp.com/embed/avatars/${parseInt(req.user.discriminator) % 5}.png`,
+    id: user.id,
+    username: user.username,
+    discriminator: user.discriminator,
+    avatar: user.avatar,
+    avatarUrl: user.avatar
+      ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
+      : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discriminator) % 5}.png`,
   });
 });
 
 // Check authentication status
-router.get('/check', async (req, res) => {
+router.get('/check', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   log.debug(
     `Auth check requested - Session ID: ${req.sessionID}, Authenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}`
   );
 
   if (!req.isAuthenticated || !req.isAuthenticated()) {
     log.debug('Auth check: Not authenticated');
-    return res.status(401).json({ authenticated: false });
+    res.status(401).json({ authenticated: false });
+    return;
   }
 
-  const user = req.user;
+  const user = req.user as DiscordUser | undefined;
   if (!user) {
     log.warn('Auth check: req.user is null despite being authenticated');
-    return res.status(401).json({ authenticated: false });
+    res.status(401).json({ authenticated: false });
+    return;
   }
 
   log.debug(`Auth check: User ${user.username} (${user.id}) is authenticated`);
 
-  const botClient = clientStore.getClient();
-  const cfg = getConfig();
+  const botClient = getClient();
+  const currentCfg = getConfig();
 
   // Check if verification is cached and still valid
   const now = Date.now();
-  const lastVerified = req.session.lastVerified || 0;
-  const hasAccess = req.session.hasAccess;
+  const lastVerified = req.session?.lastVerified || 0;
+  const hasAccess = req.session?.hasAccess;
   const VERIFICATION_CACHE_TIME = 5 * 60 * 1000; // 5 minutes
 
   // If we have cached access and it's still valid, use it
@@ -281,7 +312,7 @@ router.get('/check', async (req, res) => {
     log.debug(
       `Auth check: Using cached verification (${Math.round((now - lastVerified) / 1000)}s old)`
     );
-    return res.json({
+    res.json({
       authenticated: true,
       hasAccess: true,
       cached: true,
@@ -292,26 +323,30 @@ router.get('/check', async (req, res) => {
         avatar: user.avatar,
       },
     });
+    return;
   }
 
   // Verify user still has access (cache expired or not set)
   try {
     log.debug(`Auth check: Verifying role (cache expired or not set)`);
-    const hasRole = await verifyUserRole(user.id, cfg.requiredRoleId, botClient);
+    const hasRole = await verifyUserRole(user.id, currentCfg.requiredRoleId, botClient);
 
     if (!hasRole) {
       log.warn(`Auth check: User ${user.username} no longer has required role`);
-      return res.status(403).json({
+      res.status(403).json({
         authenticated: true,
         hasAccess: false,
         error: 'You no longer have the required role',
       });
+      return;
     }
 
     // Update session cache
-    req.session.hasAccess = true;
-    req.session.lastVerified = now;
-    req.session.save(); // Save updated cache
+    if (req.session) {
+      req.session.hasAccess = true;
+      req.session.lastVerified = now;
+      req.session.save(); // Save updated cache
+    }
 
     log.debug(`Auth check: Access verified and cached`);
 
@@ -327,15 +362,16 @@ router.get('/check', async (req, res) => {
       },
     });
   } catch (error) {
-    log.error(`Error checking access: ${error.message}`);
-    return res.status(500).json({ error: 'Error verifying access' });
+    const err = error as Error;
+    log.error(`Error checking access: ${err.message}`);
+    res.status(500).json({ error: 'Error verifying access' });
   }
 });
 
 // Error page with detailed error info
-router.get('/error', (req, res) => {
-  const errorMessage = req.query.error || 'Unknown error occurred';
-  const errorDetails = req.query.details || '';
+router.get('/error', (req: Request, res: Response): void => {
+  const errorMessage = (req.query['error'] as string) || 'Unknown error occurred';
+  const errorDetails = (req.query['details'] as string) || '';
 
   log.warn(`OAuth error page accessed: ${errorMessage}`, {
     details: errorDetails,
@@ -398,15 +434,15 @@ router.get('/error', (req, res) => {
 });
 
 // Debug endpoint to check auth status
-router.get('/debug', (req, res) => {
+router.get('/debug', (req: AuthenticatedRequest, res: Response) => {
   res.json({
     authenticated: req.isAuthenticated ? req.isAuthenticated() : false,
     user: req.user || null,
     session: {
       id: req.sessionID,
-      hasAccess: req.session.hasAccess,
-      lastVerified: req.session.lastVerified,
-      cookie: req.session.cookie,
+      hasAccess: req.session?.hasAccess,
+      lastVerified: req.session?.lastVerified,
+      cookie: req.session?.cookie,
     },
     headers: {
       host: req.get('host'),
@@ -416,4 +452,4 @@ router.get('/debug', (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

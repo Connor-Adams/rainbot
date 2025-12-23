@@ -2,10 +2,36 @@
  * Server/API type definitions
  */
 import type { Request, Response, NextFunction } from 'express';
+import type { GuildMember } from 'discord.js';
+import type { Session } from 'express-session';
 
+/**
+ * Discord user stored in session after OAuth authentication
+ */
+export interface DiscordUser {
+  id: string;
+  username: string;
+  discriminator: string;
+  avatar: string | null;
+}
+
+/**
+ * Extended session data with our custom properties
+ */
+export interface SessionData extends Session {
+  hasAccess?: boolean;
+  lastVerified?: number;
+}
+
+/**
+ * Extended Request with authentication and guild member info
+ */
 export interface AuthenticatedRequest extends Request {
   userId?: string;
   guildId?: string;
+  user?: DiscordUser;
+  guildMember?: GuildMember;
+  session: SessionData;
 }
 
 export interface ApiMiddleware {
@@ -30,4 +56,25 @@ export interface ServerConfig {
   trustProxy?: boolean;
   rateLimit?: RateLimitConfig;
   cors?: CorsConfig;
+}
+
+/**
+ * App configuration loaded from config.json/env
+ */
+export interface AppConfig {
+  token: string;
+  clientId: string;
+  discordClientSecret: string;
+  callbackURL?: string;
+  requiredRoleId: string;
+  sessionSecret: string;
+  sessionStorePath: string;
+  railwayPublicDomain?: string;
+  databaseUrl?: string;
+  redisUrl?: string;
+  s3Endpoint?: string;
+  s3AccessKeyId?: string;
+  s3SecretAccessKey?: string;
+  s3Bucket?: string;
+  s3Region?: string;
 }
