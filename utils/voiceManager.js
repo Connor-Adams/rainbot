@@ -367,18 +367,15 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
     }
 
     const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
+    const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
     const hasMusicSource = state.currentTrackSource;
 
     // If nothing is playing or no music source, just play the sound normally
-    if (!isPlaying || !hasMusicSource) {
-        log.debug('No music playing, playing soundboard normally');
+    if (!hasMusicSource) {
+        log.debug('No music source, playing soundboard normally');
         // Get sound stream and play directly
         const soundStream = await storage.getSoundStream(soundName);
         const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-        
-        // Store what was playing to resume after
-        const wasPlaying = state.nowPlaying;
-        const hadQueue = state.queue.length > 0;
         
         state.player.play(resource);
         state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
@@ -390,19 +387,45 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
             message: 'Playing soundboard (no music to overlay)'
         };
     }
+    
+    // If music is paused, we still want to overlay soundboard
+    // The overlay will work even if music is paused (it will seek to paused position)
 
     log.info(`Overlaying soundboard "${soundName}" on music`);
 
     try {
+        // Clean up any existing overlay process immediately (spammable soundboard)
+        if (state.overlayProcess) {
+            log.debug('Killing existing overlay process for new soundboard');
+            try {
+                state.overlayProcess.kill('SIGKILL'); // Force kill for immediate response
+                // Also stop the player to immediately switch to new overlay
+                state.player.stop();
+            } catch (err) {
+                log.debug(`Error killing old overlay: ${err.message}`);
+            }
+            state.overlayProcess = null;
+        }
+        
+        // Small delay to ensure old process is killed
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
         // Get the music stream URL (from cache ideally)
         const musicStreamUrl = await getStreamUrl(state.currentTrackSource);
         
-        // Calculate current playback position in seconds
-        const playbackPosition = state.playbackStartTime 
-            ? Math.floor((Date.now() - state.playbackStartTime) / 1000)
-            : 0;
+        // Calculate current playback position in seconds (accounting for pauses)
+        // Soundboard works independently of pause state - if paused, use the paused position
+        let playbackPosition = 0;
+        if (state.playbackStartTime) {
+            const elapsed = Date.now() - state.playbackStartTime;
+            // Subtract any paused time
+            const pausedTime = state.totalPausedTime || 0;
+            // If currently paused, add the current pause duration
+            const currentPauseTime = state.pauseStartTime ? (Date.now() - state.pauseStartTime) : 0;
+            playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
+        }
         
-        log.debug(`Seeking music to position: ${playbackPosition}s`);
+        log.debug(`Seeking music to position: ${playbackPosition}s (paused: ${isPaused})`);
         
         // Get the soundboard stream from S3
         // Pipe the stream to FFmpeg
@@ -411,19 +434,21 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         // Create FFmpeg process for mixing
         // Both music and soundboard play at full volume simultaneously
         // Music continues after soundboard ends
-        // Seek music to current playback position
+        // Use -ss before -i for fast seeking, then trim filter for accuracy
         const ffmpegArgs = [
             '-reconnect', '1',
             '-reconnect_streamed', '1', 
             '-reconnect_delay_max', '5',
-            '-ss', playbackPosition.toString(),      // Seek music to current position
+            '-ss', playbackPosition.toString(),      // Fast seek to approximate position
             '-i', musicStreamUrl,                    // Input 0: Music stream
-            '-i', soundInput,                          // Input 1: Soundboard (piped from S3)
+            '-i', soundInput,                        // Input 1: Soundboard (piped from S3)
             '-filter_complex',
-            // Mix both streams at full volume, music continues after soundboard ends
-            '[0:a][1:a]amix=inputs=2:duration=longest:dropout_transition=0.5[out]',
+            // Mix both streams at full volume, normalize to prevent clipping
+            // Use longest duration so music continues after soundboard ends
+            '[0:a]volume=1.0[music];[1:a]volume=1.0[sound];[music][sound]amix=inputs=2:duration=longest:dropout_transition=0.5:normalize=0[out]',
             '-map', '[out]',
             '-acodec', 'libopus',
+            '-b:a', '128k',                          // Bitrate for better quality
             '-f', 'opus',
             '-ar', '48000',
             '-ac', '2',
@@ -453,8 +478,15 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         });
 
         ffmpeg.on('close', (code) => {
+            // Clean up overlay process reference
+            if (state.overlayProcess === ffmpeg) {
+                state.overlayProcess = null;
+            }
+            
             if (code !== 0 && code !== 255) {
                 log.warn(`FFmpeg overlay exited with code ${code}`);
+            } else {
+                log.debug(`FFmpeg overlay completed successfully`);
             }
         });
 
@@ -468,7 +500,10 @@ async function playSoundboardOverlay(guildId, soundName, userId = null, source =
         state.nowPlaying = `${state.nowPlaying} 🔊`;
         state.overlayProcess = ffmpeg;
         // Update playback start time to account for the seek position
+        // This ensures position tracking continues correctly after overlay
         state.playbackStartTime = Date.now() - (playbackPosition * 1000);
+        // Reset paused time since we're starting fresh with the overlay
+        state.totalPausedTime = 0;
 
         log.info(`Soundboard "${soundName}" overlaid on music`);
 
@@ -587,6 +622,20 @@ async function joinChannel(channel) {
         const state = voiceStates.get(guildId);
         if (!state) return;
         
+        // Clean up overlay process if it exists
+        if (state.overlayProcess) {
+            try {
+                state.overlayProcess.kill();
+            } catch (err) {
+                // Ignore errors when killing
+            }
+            state.overlayProcess = null;
+        }
+        
+        // Reset pause tracking
+        state.pauseStartTime = null;
+        state.totalPausedTime = 0;
+        
         // Normal queue playback
         if (state.queue.length > 0) {
             playNext(guildId);
@@ -595,6 +644,7 @@ async function joinChannel(channel) {
             state.nowPlaying = null;
             state.currentTrack = null;
             state.currentTrackSource = null;
+            state.playbackStartTime = null;
         }
     });
 
@@ -621,6 +671,10 @@ async function joinChannel(channel) {
         channelName: channel.name,
         lastUserId: null, // Track last user who played music
         pausedMusic: null, // Store paused music when soundboard interrupts
+        playbackStartTime: null, // Track when playback started for position calculation
+        pauseStartTime: null, // Track when pause started
+        totalPausedTime: 0, // Total time paused for accurate position tracking
+        overlayProcess: null, // FFmpeg process for overlay mixing
     });
 
     log.info(`Joined voice channel: ${channel.name} (${channel.guild.name})`);
@@ -1123,8 +1177,21 @@ function togglePause(guildId) {
         throw new Error('Bot is not connected to a voice channel');
     }
 
+    // Don't pause/resume if overlay is active (soundboard should play independently)
+    if (state.overlayProcess) {
+        log.debug('Overlay active, ignoring pause/resume');
+        return { paused: state.player.state.status === AudioPlayerStatus.Paused };
+    }
+    
     if (state.player.state.status === AudioPlayerStatus.Paused) {
         state.player.unpause();
+        
+        // Track pause duration for accurate position calculation
+        if (state.pauseStartTime) {
+            const pauseDuration = Date.now() - state.pauseStartTime;
+            state.totalPausedTime = (state.totalPausedTime || 0) + pauseDuration;
+            state.pauseStartTime = null;
+        }
         
         // Track resume operation
         if (state.lastUserId) {
@@ -1134,6 +1201,9 @@ function togglePause(guildId) {
         return { paused: false };
     } else if (state.player.state.status === AudioPlayerStatus.Playing) {
         state.player.pause();
+        
+        // Track when pause started
+        state.pauseStartTime = Date.now();
         
         // Track pause operation
         if (state.lastUserId) {
