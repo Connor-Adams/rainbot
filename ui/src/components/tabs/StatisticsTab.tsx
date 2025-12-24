@@ -7,8 +7,24 @@ import GuildsStats from '../stats/GuildsStats'
 import QueueStats from '../stats/QueueStats'
 import TimeStats from '../stats/TimeStats'
 import HistoryStats from '../stats/HistoryStats'
+import SessionsStats from '../stats/SessionsStats'
+import PerformanceStats from '../stats/PerformanceStats'
+import ErrorsStats from '../stats/ErrorsStats'
+import RetentionStats from '../stats/RetentionStats'
 
-type StatsTab = 'summary' | 'commands' | 'sounds' | 'users' | 'guilds' | 'queue' | 'time' | 'history'
+type StatsTab =
+  | 'summary'
+  | 'commands'
+  | 'sounds'
+  | 'users'
+  | 'guilds'
+  | 'queue'
+  | 'time'
+  | 'history'
+  | 'sessions'
+  | 'performance'
+  | 'errors'
+  | 'retention'
 
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
@@ -64,7 +80,31 @@ export default function StatisticsTab() {
             className={`stats-tab-btn px-4 py-2 ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
-            Listening History
+            History
+          </button>
+          <button
+            className={`stats-tab-btn px-4 py-2 ${activeTab === 'sessions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sessions')}
+          >
+            Sessions
+          </button>
+          <button
+            className={`stats-tab-btn px-4 py-2 ${activeTab === 'performance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('performance')}
+          >
+            Performance
+          </button>
+          <button
+            className={`stats-tab-btn px-4 py-2 ${activeTab === 'errors' ? 'active' : ''}`}
+            onClick={() => setActiveTab('errors')}
+          >
+            Errors
+          </button>
+          <button
+            className={`stats-tab-btn px-4 py-2 ${activeTab === 'retention' ? 'active' : ''}`}
+            onClick={() => setActiveTab('retention')}
+          >
+            Retention
           </button>
         </div>
       </div>
@@ -77,8 +117,11 @@ export default function StatisticsTab() {
         {activeTab === 'queue' && <QueueStats />}
         {activeTab === 'time' && <TimeStats />}
         {activeTab === 'history' && <HistoryStats />}
+        {activeTab === 'sessions' && <SessionsStats />}
+        {activeTab === 'performance' && <PerformanceStats />}
+        {activeTab === 'errors' && <ErrorsStats />}
+        {activeTab === 'retention' && <RetentionStats />}
       </div>
     </section>
   )
 }
-

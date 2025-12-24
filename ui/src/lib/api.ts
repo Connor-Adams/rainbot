@@ -142,6 +142,20 @@ export const statsApi = {
     startDate?: string;
     endDate?: string;
   }) => api.get('/stats/history', { params }),
+  // New stats endpoints
+  errors: (params?: { guildId?: string; startDate?: string; endDate?: string }) =>
+    api.get('/stats/errors', { params }),
+  performance: (params?: {
+    guildId?: string;
+    commandName?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/performance', { params }),
+  sessions: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
+    api.get('/stats/sessions', { params }),
+  retention: (params?: { guildId?: string }) => api.get('/stats/retention', { params }),
+  search: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
+    api.get('/stats/search', { params }),
 };
 
 export default api;
