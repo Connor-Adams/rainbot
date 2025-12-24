@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -14,14 +12,15 @@ import {
 import type { CommandStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
 import { StatsLoading, StatsError, ChartContainer, StatsSection, StatsTable } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
 
 export default function CommandsStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'commands'],
-    queryFn: () => statsApi.commands().then((res) => res.data),
-    refetchInterval: 30000,
+    queryFn: () => statsApi.commands(),
   })
 
   if (isLoading) return <StatsLoading message="Loading command statistics..." />

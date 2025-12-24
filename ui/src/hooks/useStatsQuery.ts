@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { AxiosResponse } from 'axios'
 
 interface UseStatsQueryOptions<T> {
-  queryKey: any[]
+  queryKey: readonly unknown[]
   queryFn: () => Promise<AxiosResponse<T>>
   refetchInterval?: number
   enabled?: boolean

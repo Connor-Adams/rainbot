@@ -1,13 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import type { StatsSummary as StatsSummaryType } from '@/types'
 import { StatsLoading, StatsError, StatCard } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 export default function StatsSummary() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery<StatsSummaryType>({
     queryKey: ['stats', 'summary'],
-    queryFn: () => statsApi.summary().then((res) => res.data as StatsSummaryType),
-    refetchInterval: 30000,
+    queryFn: () => statsApi.summary(),
   })
 
   if (isLoading) return <StatsLoading />
