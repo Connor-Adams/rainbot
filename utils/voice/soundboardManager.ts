@@ -85,6 +85,7 @@ export async function playSoundboardDirect(
   }
 
   state.player.play(resource);
+  // Don't set currentResource - soundboard plays at full volume and shouldn't be affected by volume changes
   state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
   state.currentTrackSource = null;
 
@@ -158,6 +159,8 @@ export async function playSoundboardOverlay(
     log.debug(`Seeking music to position: ${playbackPosition}s (paused: ${isPaused})`);
 
     const soundInput = 'pipe:3';
+    // Apply user's volume to music, keep soundboard at full volume
+    const musicVolume = (state.volume || 100) / 100;
 
     const ffmpegArgs = [
       '-reconnect',
@@ -173,7 +176,7 @@ export async function playSoundboardOverlay(
       '-i',
       soundInput,
       '-filter_complex',
-      '[0:a]volume=1.0[music];[1:a]volume=1.0[sound];[music][sound]amix=inputs=2:duration=longest:dropout_transition=0.5:normalize=0[out]',
+      `[0:a]volume=${musicVolume}[music];[1:a]volume=1.0[sound];[music][sound]amix=inputs=2:duration=longest:dropout_transition=0.5:normalize=0[out]`,
       '-map',
       '[out]',
       '-acodec',
@@ -222,13 +225,14 @@ export async function playSoundboardOverlay(
       }
     });
 
-    // Create audio resource from FFmpeg output (no volume control for soundboard overlay)
+    // Create audio resource from FFmpeg output (volume already applied in FFmpeg filter)
     const resource = createAudioResource(ffmpeg.stdout!, {
       inputType: StreamType.OggOpus,
     });
 
     // Play the mixed audio
     state.player.play(resource);
+    // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
     state.overlayProcess = ffmpeg;
     state.playbackStartTime = Date.now() - playbackPosition * 1000;
