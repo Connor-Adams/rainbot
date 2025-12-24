@@ -1,14 +1,21 @@
 # Use Railway's Node.js base image (Railpack compatible)
 FROM node:22-slim
 
-# Install system dependencies required for yt-dlp
+# Install system dependencies required for native modules and yt-dlp
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     ffmpeg \
     curl \
-    ca-certificates && \
+    ca-certificates \
+    # Build tools for native Node.js modules (@discordjs/opus)
+    build-essential \
+    g++ \
+    make \
+    libtool \
+    autoconf \
+    automake && \
     # Install yt-dlp via pip (--break-system-packages needed for Python 3.11+ PEP 668)
     pip3 install --no-cache-dir --break-system-packages yt-dlp && \
     # Clean up apt cache
