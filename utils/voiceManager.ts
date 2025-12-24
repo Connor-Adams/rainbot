@@ -334,6 +334,26 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
 }
 
 /**
+ * Replay the last played track
+ */
+export async function replay(guildId: string): Promise<{ title: string } | null> {
+  const track = await playbackManager.replay(guildId);
+
+  if (track) {
+    // Track replay operation
+    const state = connectionManager.getVoiceState(guildId);
+    if (state?.lastUserId) {
+      stats.trackQueueOperation('replay', state.lastUserId, guildId, 'discord', {
+        track: track.title,
+      });
+    }
+    return { title: track.title };
+  }
+
+  return null;
+}
+
+/**
  * Pause/resume playback
  */
 export function togglePause(guildId: string): { paused: boolean } {
@@ -425,6 +445,8 @@ export function getStatus(guildId: string): VoiceStatus | null {
     nowPlaying: state.nowPlaying,
     isPlaying: state.player.state.status === AudioPlayerStatus.Playing,
     queueLength: state.queue.length,
+    canReplay: !!state.lastPlayedTrack,
+    lastPlayedTitle: state.lastPlayedTrack?.title || null,
   };
 }
 

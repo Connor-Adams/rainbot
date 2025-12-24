@@ -262,6 +262,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
     state.totalPausedTime = 0;
     state.pauseStartTime = null;
 
+    // Store for replay (only non-soundboard tracks with URLs)
+    if (!nextTrack.isSoundboard && nextTrack.url) {
+      state.lastPlayedTrack = nextTrack;
+    }
+
     log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
     log.info(`Now playing: ${nextTrack.title}`);
 
@@ -431,4 +436,29 @@ export async function playSoundboardOverlay(
     sound: soundName,
     message: 'Playing soundboard (overlay not implemented)',
   };
+}
+
+/**
+ * Replay the last played track (not soundboard)
+ */
+export async function replay(guildId: string): Promise<Track | null> {
+  const state = getVoiceState(guildId);
+  if (!state) {
+    throw new Error('Bot is not connected to a voice channel');
+  }
+
+  if (!state.lastPlayedTrack) {
+    throw new Error('No track to replay');
+  }
+
+  const track = { ...state.lastPlayedTrack };
+  log.info(`Replaying: ${track.title}`);
+
+  // Add to front of queue and play
+  state.queue.unshift(track);
+
+  // Stop current playback to trigger next
+  state.player.stop();
+
+  return track;
 }

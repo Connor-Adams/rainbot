@@ -417,6 +417,50 @@ router.post(
   }
 );
 
+// POST /api/replay - Replay the last played track
+router.post(
+  '/replay',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId } = req.body;
+
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+
+    try {
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      const result = await voiceManager.replay(guildId);
+      if (result) {
+        if (userId) {
+          stats.trackCommand('replay', userId, guildId, 'api', true, null, username, discriminator);
+        }
+        res.json({ message: `Replaying: ${result.title}`, track: result.title });
+      } else {
+        res.status(400).json({ error: 'No track to replay' });
+      }
+    } catch (error) {
+      const err = error as Error;
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      if (userId) {
+        stats.trackCommand(
+          'replay',
+          userId,
+          guildId,
+          'api',
+          false,
+          err.message,
+          username,
+          discriminator
+        );
+      }
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/pause - Toggle pause/resume
 router.post(
   '/pause',

@@ -100,6 +100,7 @@ export async function joinChannel(
     volume: 100,
     preBuffered: null,
     currentTrackSource: null,
+    lastPlayedTrack: null,
   };
 
   voiceStates.set(guildId, state);

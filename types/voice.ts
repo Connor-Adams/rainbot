@@ -36,6 +36,8 @@ export interface VoiceStatus {
   nowPlaying: string | null;
   isPlaying: boolean;
   queueLength: number;
+  canReplay: boolean;
+  lastPlayedTitle: string | null;
 }
 
 export interface PlayResult {

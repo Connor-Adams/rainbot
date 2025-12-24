@@ -24,6 +24,7 @@ export interface VoiceState {
   volume: number;
   preBuffered: unknown | null;
   currentTrackSource: string | null;
+  lastPlayedTrack: Track | null; // For replay functionality (not soundboard)
 }
 
 export interface StreamUrlCache {
