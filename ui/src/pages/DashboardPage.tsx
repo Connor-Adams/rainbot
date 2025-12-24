@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import PlayerTab from '../components/tabs/PlayerTab'
 import SoundboardTab from '../components/tabs/SoundboardTab'
-import StatisticsTab from '../components/tabs/StatisticsTab'
+import StatisticsTab from '../components/tabs/stats/StatisticsTab'
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'player' | 'soundboard' | 'stats'>('player')
