@@ -1,7 +1,4 @@
-import { Request } from 'express';
-
-// These are internal functions that we need to import indirectly
-// We'll test them through the module exports
+// These are internal functions that we test by copying their logic
 describe('stats route helpers', () => {
   describe('parseValidDate', () => {
     // Since parseValidDate is not exported, we'll test it through the route behavior

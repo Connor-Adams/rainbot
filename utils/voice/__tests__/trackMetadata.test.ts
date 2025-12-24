@@ -35,7 +35,11 @@ describe('trackMetadata', () => {
       });
 
       it('detects YouTube playlist with list parameter', () => {
-        expect(detectUrlType('https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf')).toBe('yt_playlist');
+        expect(
+          detectUrlType(
+            'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'
+          )
+        ).toBe('yt_playlist');
       });
 
       it('detects mobile YouTube URL', () => {
@@ -49,15 +53,21 @@ describe('trackMetadata', () => {
 
     describe('Spotify detection', () => {
       it('detects Spotify track URL', () => {
-        expect(detectUrlType('https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp')).toBe('sp_track');
+        expect(detectUrlType('https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp')).toBe(
+          'sp_track'
+        );
       });
 
       it('detects Spotify playlist URL', () => {
-        expect(detectUrlType('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M')).toBe('sp_playlist');
+        expect(detectUrlType('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M')).toBe(
+          'sp_playlist'
+        );
       });
 
       it('detects Spotify album URL', () => {
-        expect(detectUrlType('https://open.spotify.com/album/2fenSS68JI1h4Fo296JfGr')).toBe('sp_album');
+        expect(detectUrlType('https://open.spotify.com/album/2fenSS68JI1h4Fo296JfGr')).toBe(
+          'sp_album'
+        );
       });
 
       it('detects spotify.com without open subdomain', () => {
