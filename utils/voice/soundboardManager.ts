@@ -152,8 +152,6 @@ export async function playSoundboardOverlay(
       state.player.stop();
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
 
