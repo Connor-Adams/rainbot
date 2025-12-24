@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
+const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
 
 const log = createLogger('VOLUME');
 
@@ -17,14 +18,12 @@ module.exports = {
     const level = interaction.options.getInteger('level');
     const user = interaction.user.tag;
 
-    const status = voiceManager.getStatus(guildId);
-    if (!status) {
-      return interaction.reply({
-        content: "❌ I'm not in a voice channel.",
-        ephemeral: true,
-      });
+    const connectionCheck = validateVoiceConnection(interaction, voiceManager);
+    if (!connectionCheck.isValid) {
+      return interaction.reply(connectionCheck.error);
     }
 
+    const status = voiceManager.getStatus(guildId);
     if (level === null) {
       return interaction.reply({
         content: `🔊 Current volume is **${status.volume}%**`,
@@ -40,11 +39,8 @@ module.exports = {
         content: `🔊 Volume set to **${level}%**`,
       });
     } catch (error) {
-      log.error(`Failed to set volussy: ${error.message}`);
-      await interaction.reply({
-        content: `❌ Failed to set volume: ${error.message}`,
-        ephemeral: true,
-      });
+      log.error(`Failed to set volume: ${error.message}`);
+      await interaction.reply(createErrorResponse(error, 'Failed to set volume'));
     }
   },
 };

@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -12,28 +10,20 @@ import {
   Legend,
 } from 'chart.js'
 import type { TimeDataPoint } from '@/types'
+import { StatsLoading, StatsError, ChartContainer } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'time'],
-    queryFn: () => statsApi.time({ granularity: 'day' }).then((res) => res.data),
-    refetchInterval: 30000,
+    queryFn: () => statsApi.time({ granularity: 'day' }),
   })
 
-  if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading time trends...</div>
-  }
-
-  if (error) {
-    return (
-      <div className="stats-error text-center py-12 text-red-400">
-        Error: {error instanceof Error ? error.message : 'Unknown error'}
-      </div>
-    )
-  }
-
+  if (isLoading) return <StatsLoading message="Loading time trends..." />
+  if (error) return <StatsError error={error} />
   if (!data) return null
 
   const dates = [
@@ -74,12 +64,9 @@ export default function TimeStats() {
   }
 
   return (
-    <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Usage Over Time</h3>
-      <div className="max-h-[400px]">
-        <Line data={lineData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
-      </div>
-    </div>
+    <ChartContainer title="Usage Over Time">
+      <Line data={lineData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
+    </ChartContainer>
   )
 }
 

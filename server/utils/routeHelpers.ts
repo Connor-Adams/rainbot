@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import type { Request, Response } from 'express';
 
 /**
  * Server utilities for API routes
@@ -8,7 +8,7 @@ import { Response } from 'express';
 /**
  * Standard error response formatter
  */
-export function sendError(res: Response, statusCode: number, message: string, details?: any): void {
+export function sendError(res: Response, statusCode: number, message: string, details?: unknown): void {
   res.status(statusCode).json({
     error: message,
     ...(details && { details }),
@@ -29,7 +29,7 @@ export function sendSuccess<T>(res: Response, data: T, message?: string): void {
  * Validate required fields in request body
  */
 export function validateRequiredFields(
-  body: any,
+  body: Record<string, unknown>,
   fields: string[]
 ): { isValid: boolean; missing?: string[] } {
   const missing = fields.filter((field) => body[field] === undefined || body[field] === null);
@@ -44,18 +44,20 @@ export function validateRequiredFields(
 /**
  * Safe user data extractor
  */
-export function extractAuthUser(user: any): {
+export function extractAuthUser(user: unknown): {
   id: string | null;
   username: string | null;
   discriminator: string | null;
 } {
-  if (!user) {
+  if (!user || typeof user !== 'object') {
     return { id: null, username: null, discriminator: null };
   }
+
+  const userObj = user as Record<string, unknown>;
   return {
-    id: user.id || null,
-    username: user.username || null,
-    discriminator: user.discriminator || null,
+    id: (userObj.id as string) || null,
+    username: (userObj.username as string) || null,
+    discriminator: (userObj.discriminator as string) || null,
   };
 }
 
@@ -63,8 +65,8 @@ export function extractAuthUser(user: any): {
  * Async handler wrapper for route handlers to catch errors
  */
 export function asyncHandler(
-  fn: (req: any, res: Response, next: any) => Promise<void>
-): (req: any, res: Response, next: any) => void {
+  fn: (req: Request, res: Response, next: unknown) => Promise<void>
+): (req: Request, res: Response, next: unknown) => void {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
