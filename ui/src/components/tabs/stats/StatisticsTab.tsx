@@ -11,6 +11,7 @@ import SessionsStats from './components/SessionsStats'
 import PerformanceStats from './components/PerformanceStats'
 import ErrorsStats from './components/ErrorsStats'
 import RetentionStats from './components/RetentionStats'
+import StatsSSE from './StatsSSE'
 import SearchStats from './components/SearchStats'
 import UserSessionsStats from './components/UserSessionsStats'
 import UserTracksStats from './components/UserTracksStats'
@@ -49,6 +50,7 @@ export default function StatisticsTab() {
 
   return (
     <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
+      <StatsSSE />
       <div className="stats-header mb-6">
         <h2 className="text-2xl font-bold text-white mb-4">Statistics Dashboard</h2>
         <div className="stats-tabs flex gap-2 flex-wrap">
