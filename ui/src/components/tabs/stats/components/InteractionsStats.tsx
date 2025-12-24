@@ -186,8 +186,9 @@ export default function InteractionsStats() {
               </thead>
               <tbody>
                 {data.topActions.slice(0, 10).map((action, idx) => {
-                  const successRate =
-                    (parseInt(action.success_count) / parseInt(action.count)) * 100
+                  const count = parseInt(action.count)
+                  const successCount = parseInt(action.success_count)
+                  const successRate = count > 0 ? (successCount / count) * 100 : 0
                   return (
                     <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                       <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
