@@ -143,8 +143,14 @@ export function createVolumeResource(
  * Play a resource with volume applied
  */
 export function playWithVolume(state: VoiceState, resource: AudioResource): void {
+  log.debug(`playWithVolume: hasVolumeControl=${!!resource.volume}, stateVolume=${state.volume}`);
   if (resource.volume) {
     resource.volume.setVolume((state.volume || 100) / 100);
+    log.debug(`Initial volume set to ${(state.volume || 100) / 100}`);
+  } else {
+    log.warn(
+      `Resource has no volume control - inlineVolume may not be supported for this stream type`
+    );
   }
   state.currentResource = resource;
   state.player.play(resource);
@@ -369,8 +375,13 @@ export function setVolume(guildId: string, level: number): number {
   const volume = Math.max(1, Math.min(100, level));
   state.volume = volume;
 
+  log.debug(
+    `setVolume: level=${volume}, hasResource=${!!state.currentResource}, hasVolumeControl=${!!state.currentResource?.volume}`
+  );
+
   if (state.currentResource && state.currentResource.volume) {
     state.currentResource.volume.setVolume(volume / 100);
+    log.debug(`Volume applied: ${volume / 100}`);
   }
 
   log.info(`Set volume to ${volume}%`);
