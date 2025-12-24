@@ -8,8 +8,8 @@ const log = createLogger('COMMANDS');
 module.exports = (client) => {
   client.commands = new Collection();
 
-  // Look in dist/commands for compiled TypeScript commands
-  const commandsPath = path.join(__dirname, '..', 'dist', 'commands');
+  // Look in commands/ for JS command files (they require from dist/utils/)
+  const commandsPath = path.join(__dirname, '..', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 
   for (const folder of commandFolders) {

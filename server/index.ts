@@ -227,8 +227,8 @@ export async function createServer(): Promise<Application> {
   app.use('/api/stats', statsRoutes);
 
   // Serve React build from ui/dist (production)
-  // This is the standard pattern: source code in ui/, build output in ui/dist/
-  const reactBuildPath = path.join(__dirname, '..', 'ui', 'dist');
+  // After TS compilation, __dirname is dist/server/, so go up 2 levels to reach project root
+  const reactBuildPath = path.join(__dirname, '..', '..', 'ui', 'dist');
 
   if (fs.existsSync(reactBuildPath)) {
     // Serve React build static assets

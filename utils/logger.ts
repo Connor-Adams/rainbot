@@ -70,7 +70,7 @@ const logger = winston.createLogger({
     }),
     // File transport for errors only
     new winston.transports.File({
-      filename: path.join(__dirname, '..', 'logs', 'error.log'),
+      filename: path.join(__dirname, '..', '..', 'logs', 'error.log'),
       level: 'error',
       format: combine(
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -121,8 +121,8 @@ export function createLogger(context: string): Logger {
   };
 }
 
-// Ensure logs directory exists
-const logsDir = path.join(__dirname, '..', 'logs');
+// Ensure logs directory exists (go up 2 levels from dist/utils/ to project root)
+const logsDir = path.join(__dirname, '..', '..', 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }

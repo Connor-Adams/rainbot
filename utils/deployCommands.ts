@@ -18,7 +18,8 @@ interface Command {
  */
 export function loadCommands(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
-  const commandsPath = path.join(__dirname, '..', 'commands');
+  // After TS compilation, __dirname is dist/utils/, so go up 2 levels to project root
+  const commandsPath = path.join(__dirname, '..', '..', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 
   for (const folder of commandFolders) {
