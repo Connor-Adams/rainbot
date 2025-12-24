@@ -6,7 +6,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 
 - Runtime: Node.js app (root) that runs the Discord bot and an Express-based web dashboard. Frontend lives in `ui/` (Vite + React).
 - Entrypoints: `index.js` (bot + dashboard), `deploy-commands.js` (deploy slash commands), `server/index.ts` (Express API).
-- Voice subsystem: modular code under `utils/voice/` (audioResource, queueManager, playbackManager, soundboardManager, snapshotManager). Treat that as the authoritative playback API.
+- Voice subsystem: modular TypeScript code under `utils/voice/` (audioResource, queueManager, playbackManager, soundboardManager, snapshotManager). Treat that as the authoritative playback API.
 
 ## Key directories & examples
 
@@ -20,7 +20,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 
 - Install: `npm install` (root) — front-end `ui/` is built by `npm run build:ui` which runs `cd ui && npm install && npm run build`.
 - Compile TS: `npm run build:ts` (compiles TypeScript files in repo).
-- Start bot + dashboard: `npm run start` (runs `build:ui` then `start` which compiles TS then `node index.js`). For development, run `node index.js` after setting `.env` or `npm run dev:ui` for front-end alone.
+- Start bot + dashboard: `npm run start` (compiles TS with `build:ts`, then runs `node index.js`). For production build with UI: `npm run build` (builds UI, then starts). For development, run `node index.js` after setting `.env` or `npm run dev:ui` for front-end alone.
 - Deploy commands: `node deploy-commands.js` (optional — the bot auto-deploys on startup).
 - Lint/format/type/test: `npm run lint`, `npm run format`, `npm run type-check`, `npm run test`.
 
@@ -29,7 +29,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 - Mixed JS/TS: Root bot and commands are CommonJS JavaScript; server code is TypeScript under `server/`. Type-checking uses `tsc` (`npm run type-check`). Be conservative when changing module formats.
 - Dependency Injection: `inversify` is used in some server modules (`utils/di-container.ts`, `server/`). Prefer passing dependencies rather than importing globals for new services.
 - Voice concurrency: Use `queueManager.withQueueLock(guildId, fn)` for any code that mutates playback queues. Race conditions are a frequent source of bugs — follow `utils/voice/README.md` patterns.
-- Audio resources: Use helper functions in `utils/voice/audioResource.js` (fast fetch-based streaming with fallbacks) instead of reimplementing streaming logic.
+- Audio resources: Use helper functions in `utils/voice/audioResource.ts` (fast fetch-based streaming with fallbacks) instead of reimplementing streaming logic.
 - Command shape: Command files export an object with `data` (SlashCommandBuilder-like) and `execute(interaction)` function — follow existing files in `commands/`.
 
 ## Integration points & external requirements
@@ -52,7 +52,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 
 ## Where to look for examples
 
-- Playback flow: `utils/voice/playbackManager.js`, `queueManager.js`, `audioResource.js`.
+- Playback flow: `utils/voice/playbackManager.ts`, `queueManager.ts`, `audioResource.ts`.
 - Command examples: `commands/voice/play.js`, `commands/voice/join.js`, `commands/utility/ping.js`.
 - Server API: `server/routes/api.ts`, `server/index.ts`.
 
@@ -60,7 +60,3 @@ This file gives AI coding agents focused, actionable information to be immediate
 
 - Prefer reusing existing helpers in `utils/` and follow the voice module APIs.
 - Avoid changing module format across files (CommonJS vs ES modules) without updating build & startup paths.
-
----
-
-If you'd like, I can iterate this file to include more explicit code snippets (e.g., a template for a new command file) or merge content from any other agent docs you prefer. Feedback?
