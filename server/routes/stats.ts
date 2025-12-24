@@ -1192,4 +1192,480 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response): Pr
   }
 });
 
+// GET /api/stats/engagement - Track engagement analytics (completion vs skip)
+router.get('/engagement', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`started_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`started_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Overall engagement summary
+    const summaryResult = await query(
+      `SELECT
+         COUNT(*) as total_tracks,
+         COUNT(*) FILTER (WHERE was_completed = true) as completed,
+         COUNT(*) FILTER (WHERE was_skipped = true) as skipped,
+         ROUND(AVG(played_seconds), 0) as avg_played_seconds,
+         ROUND(AVG(CASE WHEN duration_seconds > 0 THEN (played_seconds::float / duration_seconds * 100) ELSE 0 END), 1) as avg_completion_percent
+       FROM track_engagement ${whereClause}`,
+      params
+    );
+
+    // Skip reasons breakdown
+    const skipReasonsResult = await query(
+      `SELECT skip_reason, COUNT(*) as count
+       FROM track_engagement
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} was_skipped = true
+       GROUP BY skip_reason
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Most skipped tracks
+    const mostSkippedResult = await query(
+      `SELECT track_title, COUNT(*) as skip_count,
+              ROUND(AVG(skipped_at_seconds), 0) as avg_skip_position
+       FROM track_engagement
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} was_skipped = true
+       GROUP BY track_title
+       ORDER BY skip_count DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Most completed tracks
+    const mostCompletedResult = await query(
+      `SELECT track_title, COUNT(*) as completion_count
+       FROM track_engagement
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} was_completed = true
+       GROUP BY track_title
+       ORDER BY completion_count DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    res.json({
+      summary: summaryResult?.rows[0] || {},
+      skipReasons: skipReasonsResult?.rows || [],
+      mostSkipped: mostSkippedResult?.rows || [],
+      mostCompleted: mostCompletedResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/interactions - Interaction events (buttons vs commands)
+router.get('/interactions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      interactionType: req.query['interactionType'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.interactionType) {
+      whereConditions.push(`interaction_type = $${paramIndex++}`);
+      params.push(filters.interactionType);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`created_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`created_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Interaction type breakdown
+    const typeBreakdownResult = await query(
+      `SELECT interaction_type, COUNT(*) as count,
+              COUNT(*) FILTER (WHERE success = true) as success_count,
+              ROUND(AVG(response_time_ms), 0) as avg_response_time_ms
+       FROM interaction_events ${whereClause}
+       GROUP BY interaction_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Top custom_ids (buttons/commands)
+    const topActionsResult = await query(
+      `SELECT custom_id, interaction_type, COUNT(*) as count,
+              COUNT(*) FILTER (WHERE success = true) as success_count,
+              ROUND(AVG(response_time_ms), 0) as avg_response_time_ms
+       FROM interaction_events ${whereClause}
+       GROUP BY custom_id, interaction_type
+       ORDER BY count DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Errors
+    const errorsResult = await query(
+      `SELECT custom_id, interaction_type, error_message, COUNT(*) as count
+       FROM interaction_events
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} success = false
+       GROUP BY custom_id, interaction_type, error_message
+       ORDER BY count DESC
+       LIMIT 20`,
+      params
+    );
+
+    // Response time distribution
+    const responseTimeResult = await query(
+      `SELECT
+         COUNT(*) FILTER (WHERE response_time_ms < 100) as under_100ms,
+         COUNT(*) FILTER (WHERE response_time_ms >= 100 AND response_time_ms < 500) as between_100_500ms,
+         COUNT(*) FILTER (WHERE response_time_ms >= 500 AND response_time_ms < 1000) as between_500_1000ms,
+         COUNT(*) FILTER (WHERE response_time_ms >= 1000) as over_1000ms
+       FROM interaction_events ${whereClause}`,
+      params
+    );
+
+    res.json({
+      typeBreakdown: typeBreakdownResult?.rows || [],
+      topActions: topActionsResult?.rows || [],
+      errors: errorsResult?.rows || [],
+      responseTimeDistribution: responseTimeResult?.rows[0] || {},
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/playback-states - Playback state changes (volume, pause, etc)
+router.get('/playback-states', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      stateType: req.query['stateType'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.stateType) {
+      whereConditions.push(`state_type = $${paramIndex++}`);
+      params.push(filters.stateType);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`created_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`created_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // State type breakdown
+    const stateTypesResult = await query(
+      `SELECT state_type, COUNT(*) as count
+       FROM playback_state_changes ${whereClause}
+       GROUP BY state_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Volume distribution (for volume changes)
+    const volumeDistResult = await query(
+      `SELECT new_value::int as volume_level, COUNT(*) as count
+       FROM playback_state_changes
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} state_type = 'volume'
+       GROUP BY new_value::int
+       ORDER BY volume_level`,
+      params
+    );
+
+    // Pause/resume patterns by hour
+    const pausePatternResult = await query(
+      `SELECT EXTRACT(HOUR FROM created_at) as hour,
+              COUNT(*) FILTER (WHERE state_type = 'pause') as pauses,
+              COUNT(*) FILTER (WHERE state_type = 'resume') as resumes
+       FROM playback_state_changes ${whereClause}
+       GROUP BY EXTRACT(HOUR FROM created_at)
+       ORDER BY hour`,
+      params
+    );
+
+    res.json({
+      stateTypes: stateTypesResult?.rows || [],
+      volumeDistribution: volumeDistResult?.rows || [],
+      pausePatternByHour: pausePatternResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/web-analytics - Web dashboard usage analytics
+router.get('/web-analytics', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      userId: req.query['userId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.userId) {
+      whereConditions.push(`user_id = $${paramIndex++}`);
+      params.push(filters.userId);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`created_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`created_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Event type breakdown
+    const eventTypesResult = await query(
+      `SELECT event_type, COUNT(*) as count
+       FROM web_events ${whereClause}
+       GROUP BY event_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Top event targets (pages, buttons clicked)
+    const topTargetsResult = await query(
+      `SELECT event_type, event_target, COUNT(*) as count
+       FROM web_events ${whereClause}
+       GROUP BY event_type, event_target
+       ORDER BY count DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Active web users
+    const activeUsersResult = await query(
+      `SELECT user_id, COUNT(*) as event_count,
+              COUNT(DISTINCT event_type) as unique_event_types,
+              MAX(created_at) as last_activity
+       FROM web_events ${whereClause}
+       GROUP BY user_id
+       ORDER BY event_count DESC
+       LIMIT 20`,
+      params
+    );
+
+    res.json({
+      eventTypes: eventTypesResult?.rows || [],
+      topTargets: topTargetsResult?.rows || [],
+      activeUsers: activeUsersResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/guild-events - Guild join/leave events
+router.get('/guild-events', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      eventType: req.query['eventType'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.eventType) {
+      whereConditions.push(`event_type = $${paramIndex++}`);
+      params.push(filters.eventType);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`created_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`created_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Event type summary
+    const summaryResult = await query(
+      `SELECT event_type, COUNT(*) as count
+       FROM guild_events ${whereClause}
+       GROUP BY event_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Recent events
+    const recentEventsResult = await query(
+      `SELECT event_type, guild_id, guild_name, member_count, created_at, metadata
+       FROM guild_events ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Net guild growth (joins - leaves) over time
+    const growthResult = await query(
+      `SELECT DATE(created_at) as date,
+              COUNT(*) FILTER (WHERE event_type = 'bot_added') as joins,
+              COUNT(*) FILTER (WHERE event_type = 'bot_removed') as leaves
+       FROM guild_events ${whereClause}
+       GROUP BY DATE(created_at)
+       ORDER BY date DESC
+       LIMIT 30`,
+      params
+    );
+
+    res.json({
+      summary: summaryResult?.rows || [],
+      recentEvents: recentEventsResult?.rows || [],
+      growth: growthResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/api-latency - API performance metrics
+router.get('/api-latency', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters = {
+      endpoint: req.query['endpoint'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.endpoint) {
+      whereConditions.push(`endpoint = $${paramIndex++}`);
+      params.push(filters.endpoint);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`created_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`created_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Overall latency stats
+    const overallResult = await query(
+      `SELECT
+         COUNT(*) as total_requests,
+         ROUND(AVG(response_time_ms), 2) as avg_latency_ms,
+         ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p50_ms,
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p95_ms,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p99_ms,
+         MAX(response_time_ms) as max_ms
+       FROM api_latency ${whereClause}`,
+      params
+    );
+
+    // By endpoint
+    const byEndpointResult = await query(
+      `SELECT endpoint, method, COUNT(*) as requests,
+              ROUND(AVG(response_time_ms), 2) as avg_latency_ms,
+              ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p95_ms
+       FROM api_latency ${whereClause}
+       GROUP BY endpoint, method
+       ORDER BY requests DESC
+       LIMIT 20`,
+      params
+    );
+
+    // Status code breakdown
+    const statusCodesResult = await query(
+      `SELECT status_code, COUNT(*) as count
+       FROM api_latency ${whereClause}
+       GROUP BY status_code
+       ORDER BY count DESC`,
+      params
+    );
+
+    res.json({
+      overall: overallResult?.rows[0] || {},
+      byEndpoint: byEndpointResult?.rows || [],
+      statusCodes: statusCodesResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 export default router;

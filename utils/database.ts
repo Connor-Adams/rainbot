@@ -393,6 +393,167 @@ export async function initializeSchema(): Promise<boolean> {
             )
         `);
 
+    // Create track_engagement table for tracking completion vs skip patterns
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS track_engagement (
+                id SERIAL PRIMARY KEY,
+                engagement_id VARCHAR(64) NOT NULL UNIQUE,
+                track_title VARCHAR(500) NOT NULL,
+                track_url TEXT,
+                guild_id VARCHAR(20) NOT NULL,
+                channel_id VARCHAR(20) NOT NULL,
+                source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('local', 'youtube', 'spotify', 'soundcloud', 'other')),
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                ended_at TIMESTAMP,
+                duration_seconds INTEGER,
+                played_seconds INTEGER,
+                was_skipped BOOLEAN DEFAULT false,
+                skipped_at_seconds INTEGER,
+                was_completed BOOLEAN DEFAULT false,
+                skip_reason VARCHAR(50) CHECK (skip_reason IN ('user_skip', 'queue_clear', 'bot_leave', 'error', 'next_track')),
+                queued_by VARCHAR(20),
+                skipped_by VARCHAR(20),
+                listeners_at_start INTEGER DEFAULT 0,
+                listeners_at_end INTEGER DEFAULT 0
+            )
+        `);
+
+    // Create interaction_events table for tracking button vs command usage
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS interaction_events (
+                id SERIAL PRIMARY KEY,
+                interaction_type VARCHAR(30) NOT NULL CHECK (interaction_type IN ('button', 'slash_command', 'autocomplete', 'context_menu', 'modal')),
+                interaction_id VARCHAR(50),
+                custom_id VARCHAR(100),
+                user_id VARCHAR(20) NOT NULL,
+                username VARCHAR(100),
+                guild_id VARCHAR(20) NOT NULL,
+                channel_id VARCHAR(20),
+                response_time_ms INTEGER,
+                success BOOLEAN DEFAULT true,
+                error_message TEXT,
+                metadata JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create playback_state_changes table for tracking volume, pause, seek, etc.
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS playback_state_changes (
+                id SERIAL PRIMARY KEY,
+                guild_id VARCHAR(20) NOT NULL,
+                channel_id VARCHAR(20),
+                state_type VARCHAR(30) NOT NULL CHECK (state_type IN ('volume', 'pause', 'resume', 'seek', 'loop_toggle', 'shuffle')),
+                old_value VARCHAR(50),
+                new_value VARCHAR(50),
+                user_id VARCHAR(20),
+                username VARCHAR(100),
+                track_title VARCHAR(500),
+                track_position_seconds INTEGER,
+                source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api')),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create web_sessions table for tracking dashboard usage
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS web_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL UNIQUE,
+                user_id VARCHAR(20) NOT NULL,
+                username VARCHAR(100),
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_activity_at TIMESTAMP,
+                ended_at TIMESTAMP,
+                page_views INTEGER DEFAULT 0,
+                actions_taken INTEGER DEFAULT 0
+            )
+        `);
+
+    // Create web_events table for tracking every dashboard action
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS web_events (
+                id SERIAL PRIMARY KEY,
+                web_session_id VARCHAR(64),
+                user_id VARCHAR(20) NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                event_target VARCHAR(100),
+                event_value TEXT,
+                guild_id VARCHAR(20),
+                duration_ms INTEGER,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create guild_events table for tracking bot join/leave and member events
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS guild_events (
+                id SERIAL PRIMARY KEY,
+                event_type VARCHAR(30) NOT NULL CHECK (event_type IN ('bot_added', 'bot_removed', 'member_joined', 'member_left', 'guild_updated')),
+                guild_id VARCHAR(20) NOT NULL,
+                guild_name VARCHAR(100),
+                member_count INTEGER,
+                user_id VARCHAR(20),
+                metadata JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create error_details table for comprehensive error tracking
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS error_details (
+                id SERIAL PRIMARY KEY,
+                error_hash VARCHAR(64) NOT NULL,
+                error_type VARCHAR(50) NOT NULL,
+                error_message TEXT,
+                error_stack TEXT,
+                command_name VARCHAR(50),
+                user_id VARCHAR(20),
+                guild_id VARCHAR(20),
+                context JSONB,
+                occurrence_count INTEGER DEFAULT 1,
+                first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create api_latency table for performance monitoring
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS api_latency (
+                id SERIAL PRIMARY KEY,
+                endpoint VARCHAR(100) NOT NULL,
+                method VARCHAR(10) NOT NULL,
+                response_time_ms INTEGER NOT NULL,
+                status_code INTEGER,
+                user_id VARCHAR(20),
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    // Create user_scores table for behavioral analytics
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_scores (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(20) NOT NULL,
+                guild_id VARCHAR(20) NOT NULL,
+                engagement_score DECIMAL(5,2),
+                completion_rate DECIMAL(5,2),
+                skip_rate DECIMAL(5,2),
+                discovery_score DECIMAL(5,2),
+                social_score DECIMAL(5,2),
+                soundboard_affinity DECIMAL(5,2),
+                peak_activity_hour INTEGER,
+                avg_session_minutes DECIMAL(8,2),
+                total_listening_hours DECIMAL(10,2),
+                last_calculated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(user_id, guild_id)
+            )
+        `);
+
     // Create indexes
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_command_stats_guild_id ON command_stats(guild_id)`
@@ -527,6 +688,114 @@ export async function initializeSchema(): Promise<boolean> {
     );
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_user_track_listens_track_title ON user_track_listens(track_title)`
+    );
+
+    // Indexes for track_engagement
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_track_engagement_guild_id ON track_engagement(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_track_engagement_started_at ON track_engagement(started_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_track_engagement_was_skipped ON track_engagement(was_skipped)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_track_engagement_was_completed ON track_engagement(was_completed)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_track_engagement_guild_date ON track_engagement(guild_id, started_at DESC)`
+    );
+
+    // Indexes for interaction_events
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_interaction_events_user_id ON interaction_events(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_interaction_events_guild_id ON interaction_events(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_interaction_events_type ON interaction_events(interaction_type)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_interaction_events_created_at ON interaction_events(created_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_interaction_events_custom_id ON interaction_events(custom_id)`
+    );
+
+    // Indexes for playback_state_changes
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_playback_state_guild_id ON playback_state_changes(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_playback_state_type ON playback_state_changes(state_type)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_playback_state_user_id ON playback_state_changes(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_playback_state_created_at ON playback_state_changes(created_at)`
+    );
+
+    // Indexes for web_sessions
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id ON web_sessions(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_web_sessions_started_at ON web_sessions(started_at)`
+    );
+
+    // Indexes for web_events
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_web_events_user_id ON web_events(user_id)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_web_events_session_id ON web_events(web_session_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_web_events_event_type ON web_events(event_type)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_web_events_created_at ON web_events(created_at)`
+    );
+
+    // Indexes for guild_events
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_guild_events_guild_id ON guild_events(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_guild_events_event_type ON guild_events(event_type)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_guild_events_created_at ON guild_events(created_at)`
+    );
+
+    // Indexes for error_details
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_error_details_error_hash ON error_details(error_hash)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_error_details_error_type ON error_details(error_type)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_error_details_last_seen ON error_details(last_seen_at)`
+    );
+
+    // Indexes for api_latency
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_api_latency_endpoint ON api_latency(endpoint)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_api_latency_created_at ON api_latency(created_at)`
+    );
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_api_latency_user_id ON api_latency(user_id)`);
+
+    // Indexes for user_scores
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_scores_user_id ON user_scores(user_id)`);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_scores_guild_id ON user_scores(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_scores_engagement ON user_scores(engagement_score DESC)`
     );
 
     // Create views - drop and recreate in transaction to allow column changes

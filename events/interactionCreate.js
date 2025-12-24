@@ -8,6 +8,8 @@ const log = createLogger('INTERACTION');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
+    const startTime = Date.now();
+
     // Handle autocomplete interactions
     if (interaction.isAutocomplete()) {
       const command = interaction.client.commands.get(interaction.commandName);
@@ -41,8 +43,36 @@ module.exports = {
             }));
 
             await interaction.respond(choices);
+
+            // Track autocomplete interaction
+            stats.trackInteraction(
+              'autocomplete',
+              interaction.id,
+              `play_source`,
+              interaction.user.id,
+              interaction.user.username,
+              interaction.guildId,
+              interaction.channelId,
+              Date.now() - startTime,
+              true,
+              null,
+              { query: input, resultsShown: choices.length, totalSounds: sounds.length }
+            );
           } catch (error) {
             log.error(`Error in autocomplete: ${error.message}`);
+            stats.trackInteraction(
+              'autocomplete',
+              interaction.id,
+              `play_source`,
+              interaction.user.id,
+              interaction.user.username,
+              interaction.guildId,
+              interaction.channelId,
+              Date.now() - startTime,
+              false,
+              error.message,
+              null
+            );
             // Return empty array on error - user can still type and search
             await interaction.respond([]);
           }
@@ -64,7 +94,9 @@ module.exports = {
       await command.execute(interaction);
       log.debug(`Executed: ${interaction.commandName} by ${interaction.user.tag}`);
 
-      // Track successful command execution
+      const responseTime = Date.now() - startTime;
+
+      // Track successful command execution (legacy table)
       stats.trackCommand(
         interaction.commandName,
         interaction.user.id,
@@ -75,12 +107,36 @@ module.exports = {
         interaction.user.username,
         interaction.user.discriminator
       );
+
+      // Track slash command interaction (new detailed table)
+      stats.trackInteraction(
+        'slash_command',
+        interaction.id,
+        interaction.commandName,
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        responseTime,
+        true,
+        null,
+        {
+          options:
+            interaction.options?.data?.map((o) => ({
+              name: o.name,
+              type: o.type,
+              value: o.value,
+            })) || [],
+        }
+      );
     } catch (error) {
       log.error(`Error executing ${interaction.commandName}: ${error.message}`, {
         stack: error.stack,
       });
 
-      // Track failed command execution
+      const responseTime = Date.now() - startTime;
+
+      // Track failed command execution (legacy table)
       stats.trackCommand(
         interaction.commandName,
         interaction.user.id,
@@ -90,6 +146,28 @@ module.exports = {
         error.message,
         interaction.user.username,
         interaction.user.discriminator
+      );
+
+      // Track slash command interaction (new detailed table)
+      stats.trackInteraction(
+        'slash_command',
+        interaction.id,
+        interaction.commandName,
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        responseTime,
+        false,
+        error.message,
+        {
+          options:
+            interaction.options?.data?.map((o) => ({
+              name: o.name,
+              type: o.type,
+              value: o.value,
+            })) || [],
+        }
       );
 
       const reply = {

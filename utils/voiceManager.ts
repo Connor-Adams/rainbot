@@ -345,13 +345,20 @@ export async function playSound(
 /**
  * Skip current track(s)
  */
-export async function skip(guildId: string, count: number = 1): Promise<string[]> {
-  const result = await queueManager.skip(guildId, count);
+export async function skip(
+  guildId: string,
+  count: number = 1,
+  skippedBy: string | null = null
+): Promise<string[]> {
+  // Get user info from state if not provided
+  const state = connectionManager.getVoiceState(guildId);
+  const effectiveUserId = skippedBy || state?.lastUserId || null;
+
+  const result = await queueManager.skip(guildId, count, effectiveUserId);
 
   // Track skip operation
-  const state = connectionManager.getVoiceState(guildId);
-  if (state?.lastUserId) {
-    stats.trackQueueOperation('skip', state.lastUserId, guildId, 'discord', {
+  if (effectiveUserId) {
+    stats.trackQueueOperation('skip', effectiveUserId, guildId, 'discord', {
       count,
       skipped: result.length,
     });
@@ -383,14 +390,22 @@ export async function replay(guildId: string): Promise<{ title: string } | null>
 /**
  * Pause/resume playback
  */
-export function togglePause(guildId: string): { paused: boolean } {
-  const result = playbackManager.togglePause(guildId);
-
-  // Track pause/resume operation
+export function togglePause(
+  guildId: string,
+  userId: string | null = null,
+  username: string | null = null
+): { paused: boolean } {
+  // Get user info from state if not provided
   const state = connectionManager.getVoiceState(guildId);
-  if (state?.lastUserId) {
+  const effectiveUserId = userId || state?.lastUserId || null;
+  const effectiveUsername = username || state?.lastUsername || null;
+
+  const result = playbackManager.togglePause(guildId, effectiveUserId, effectiveUsername);
+
+  // Track pause/resume operation (legacy)
+  if (effectiveUserId) {
     const operation = result.paused ? 'pause' : 'resume';
-    stats.trackQueueOperation(operation, state.lastUserId, guildId, 'discord');
+    stats.trackQueueOperation(operation, effectiveUserId, guildId, 'discord');
   }
 
   return result;
@@ -406,13 +421,16 @@ export function getQueue(guildId: string): QueueInfo {
 /**
  * Clear the queue
  */
-export async function clearQueue(guildId: string): Promise<number> {
-  const cleared = await queueManager.clearQueue(guildId);
+export async function clearQueue(guildId: string, userId: string | null = null): Promise<number> {
+  // Get user info from state if not provided
+  const state = connectionManager.getVoiceState(guildId);
+  const effectiveUserId = userId || state?.lastUserId || null;
+
+  const cleared = await queueManager.clearQueue(guildId, effectiveUserId);
 
   // Track queue clear operation
-  const state = connectionManager.getVoiceState(guildId);
-  if (state?.lastUserId) {
-    stats.trackQueueOperation('clear', state.lastUserId, guildId, 'discord', { cleared });
+  if (effectiveUserId) {
+    stats.trackQueueOperation('clear', effectiveUserId, guildId, 'discord', { cleared });
   }
 
   return cleared;
@@ -480,8 +498,18 @@ export function getStatus(guildId: string): VoiceStatus | null {
 /**
  * Set volume for a guild (1-100)
  */
-export function setVolume(guildId: string, level: number): number {
-  return playbackManager.setVolume(guildId, level);
+export function setVolume(
+  guildId: string,
+  level: number,
+  userId: string | null = null,
+  username: string | null = null
+): number {
+  // Get user info from state if not provided
+  const state = connectionManager.getVoiceState(guildId);
+  const effectiveUserId = userId || state?.lastUserId || null;
+  const effectiveUsername = username || state?.lastUsername || null;
+
+  return playbackManager.setVolume(guildId, level, effectiveUserId, effectiveUsername);
 }
 
 /**

@@ -384,6 +384,17 @@ export async function playNext(guildId: string): Promise<Track | null> {
         nextTrack.duration || null,
         nextTrack.userId || state.lastUserId || null
       );
+
+      // Start track engagement tracking (completion vs skip)
+      stats.startTrackEngagement(
+        guildId,
+        state.channelId,
+        nextTrack.title,
+        nextTrack.url || null,
+        sourceType,
+        nextTrack.duration || null,
+        nextTrack.userId || state.lastUserId || null
+      );
     }
 
     return nextTrack;
@@ -422,7 +433,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
 /**
  * Toggle pause/resume playback
  */
-export function togglePause(guildId: string): { paused: boolean } {
+export function togglePause(
+  guildId: string,
+  userId: string | null = null,
+  username: string | null = null
+): { paused: boolean } {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -433,6 +448,15 @@ export function togglePause(guildId: string): { paused: boolean } {
     return { paused: state.player.state.status === AudioPlayerStatus.Paused };
   }
 
+  // Calculate current playback position for tracking
+  let playbackPosition = 0;
+  if (state.playbackStartTime && state.currentTrack) {
+    const elapsed = Date.now() - state.playbackStartTime;
+    const pausedTime = state.totalPausedTime || 0;
+    const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+    playbackPosition = Math.floor((elapsed - pausedTime - currentPauseTime) / 1000);
+  }
+
   if (state.player.state.status === AudioPlayerStatus.Paused) {
     state.player.unpause();
     if (state.pauseStartTime) {
@@ -441,11 +465,41 @@ export function togglePause(guildId: string): { paused: boolean } {
       state.pauseStartTime = null;
     }
     log.info('Resumed playback');
+
+    // Track resume state change
+    stats.trackPlaybackStateChange(
+      guildId,
+      state.channelId,
+      'resume',
+      'paused',
+      'playing',
+      userId,
+      username,
+      state.nowPlaying || null,
+      playbackPosition,
+      'discord'
+    );
+
     return { paused: false };
   } else if (state.player.state.status === AudioPlayerStatus.Playing) {
     state.player.pause();
     state.pauseStartTime = Date.now();
     log.info('Paused playback');
+
+    // Track pause state change
+    stats.trackPlaybackStateChange(
+      guildId,
+      state.channelId,
+      'pause',
+      'playing',
+      'paused',
+      userId,
+      username,
+      state.nowPlaying || null,
+      playbackPosition,
+      'discord'
+    );
+
     return { paused: true };
   } else {
     throw new Error('Nothing is playing');
@@ -476,12 +530,18 @@ export function stopSound(guildId: string): boolean {
 /**
  * Set volume for a guild
  */
-export function setVolume(guildId: string, level: number): number {
+export function setVolume(
+  guildId: string,
+  level: number,
+  userId: string | null = null,
+  username: string | null = null
+): number {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
   }
 
+  const oldVolume = state.volume || 100;
   const volume = Math.max(1, Math.min(100, level));
   state.volume = volume;
 
@@ -493,6 +553,29 @@ export function setVolume(guildId: string, level: number): number {
     state.currentResource.volume.setVolume(volume / 100);
     log.debug(`Volume applied: ${volume / 100}`);
   }
+
+  // Calculate current playback position for tracking
+  let playbackPosition = 0;
+  if (state.playbackStartTime && state.currentTrack) {
+    const elapsed = Date.now() - state.playbackStartTime;
+    const pausedTime = state.totalPausedTime || 0;
+    const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+    playbackPosition = Math.floor((elapsed - pausedTime - currentPauseTime) / 1000);
+  }
+
+  // Track volume state change
+  stats.trackPlaybackStateChange(
+    guildId,
+    state.channelId,
+    'volume',
+    String(oldVolume),
+    String(volume),
+    userId,
+    username,
+    state.nowPlaying || null,
+    playbackPosition,
+    'discord'
+  );
 
   log.info(`Set volume to ${volume}%`);
   return volume;

@@ -106,7 +106,13 @@ type BufferType =
   | 'voice'
   | 'search'
   | 'userSessions'
-  | 'userTrackListens';
+  | 'userTrackListens'
+  | 'trackEngagement'
+  | 'interactionEvents'
+  | 'playbackStateChanges'
+  | 'webEvents'
+  | 'guildEvents'
+  | 'apiLatency';
 
 // User session tracking interfaces
 interface ActiveUserSession {
@@ -157,6 +163,133 @@ const userTrackListenBuffer: UserTrackListenEvent[] = [];
 // Active user sessions: keyed by `${guildId}:${channelId}:${userId}`
 const activeUserSessions = new Map<string, ActiveUserSession>();
 
+// ============================================================================
+// INVASIVE TRACKING - New interfaces and buffers
+// ============================================================================
+
+type SkipReason = 'user_skip' | 'queue_clear' | 'bot_leave' | 'error' | 'next_track';
+type InteractionType = 'button' | 'slash_command' | 'autocomplete' | 'context_menu' | 'modal';
+type PlaybackStateType = 'volume' | 'pause' | 'resume' | 'seek' | 'loop_toggle' | 'shuffle';
+type GuildEventType =
+  | 'bot_added'
+  | 'bot_removed'
+  | 'member_joined'
+  | 'member_left'
+  | 'guild_updated';
+
+// Track engagement - completion vs skip tracking
+interface TrackEngagementEvent {
+  engagement_id: string;
+  track_title: string;
+  track_url: string | null;
+  guild_id: string;
+  channel_id: string;
+  source_type: SourceType;
+  started_at: Date;
+  ended_at: Date | null;
+  duration_seconds: number | null;
+  played_seconds: number | null;
+  was_skipped: boolean;
+  skipped_at_seconds: number | null;
+  was_completed: boolean;
+  skip_reason: SkipReason | null;
+  queued_by: string | null;
+  skipped_by: string | null;
+  listeners_at_start: number;
+  listeners_at_end: number;
+}
+
+// Active track engagement - in-memory while track is playing
+interface ActiveTrackEngagement {
+  engagementId: string;
+  trackTitle: string;
+  trackUrl: string | null;
+  guildId: string;
+  channelId: string;
+  sourceType: SourceType;
+  startedAt: Date;
+  durationSeconds: number | null;
+  queuedBy: string | null;
+  listenersAtStart: number;
+}
+
+// Interaction events - button vs command tracking
+interface InteractionEvent {
+  interaction_type: InteractionType;
+  interaction_id: string | null;
+  custom_id: string | null;
+  user_id: string;
+  username: string | null;
+  guild_id: string;
+  channel_id: string | null;
+  response_time_ms: number | null;
+  success: boolean;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: Date;
+}
+
+// Playback state changes - volume, pause, seek, etc.
+interface PlaybackStateChangeEvent {
+  guild_id: string;
+  channel_id: string | null;
+  state_type: PlaybackStateType;
+  old_value: string | null;
+  new_value: string | null;
+  user_id: string | null;
+  username: string | null;
+  track_title: string | null;
+  track_position_seconds: number | null;
+  source: 'discord' | 'api';
+  created_at: Date;
+}
+
+// Web events - dashboard tracking
+interface WebEvent {
+  web_session_id: string | null;
+  user_id: string;
+  event_type: string;
+  event_target: string | null;
+  event_value: string | null;
+  guild_id: string | null;
+  duration_ms: number | null;
+  created_at: Date;
+}
+
+// Guild events - bot join/leave, member events
+interface GuildEvent {
+  event_type: GuildEventType;
+  guild_id: string;
+  guild_name: string | null;
+  member_count: number | null;
+  user_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: Date;
+}
+
+// API latency tracking
+interface ApiLatencyEvent {
+  endpoint: string;
+  method: string;
+  response_time_ms: number;
+  status_code: number | null;
+  user_id: string | null;
+  request_size_bytes: number | null;
+  response_size_bytes: number | null;
+  created_at: Date;
+}
+
+// New buffers for invasive tracking
+const trackEngagementBuffer: TrackEngagementEvent[] = [];
+const interactionEventBuffer: InteractionEvent[] = [];
+const playbackStateChangeBuffer: PlaybackStateChangeEvent[] = [];
+const webEventBuffer: WebEvent[] = [];
+const guildEventBuffer: GuildEvent[] = [];
+const apiLatencyBuffer: ApiLatencyEvent[] = [];
+
+// Active track engagements: keyed by guildId
+const activeTrackEngagements = new Map<string, ActiveTrackEngagement>();
+
 const bufferMap: Record<BufferType, unknown[]> = {
   commands: commandBuffer,
   sounds: soundBuffer,
@@ -165,6 +298,12 @@ const bufferMap: Record<BufferType, unknown[]> = {
   search: searchBuffer,
   userSessions: userSessionBuffer,
   userTrackListens: userTrackListenBuffer,
+  trackEngagement: trackEngagementBuffer,
+  interactionEvents: interactionEventBuffer,
+  playbackStateChanges: playbackStateChangeBuffer,
+  webEvents: webEventBuffer,
+  guildEvents: guildEventBuffer,
+  apiLatency: apiLatencyBuffer,
 };
 
 // Active voice sessions for tracking duration
@@ -197,6 +336,16 @@ async function flushBatches(): Promise<void> {
     { name: 'search', buffer: searchBuffer, table: 'search_stats' },
     { name: 'userSessions', buffer: userSessionBuffer, table: 'user_voice_sessions' },
     { name: 'userTrackListens', buffer: userTrackListenBuffer, table: 'user_track_listens' },
+    { name: 'trackEngagement', buffer: trackEngagementBuffer, table: 'track_engagement' },
+    { name: 'interactionEvents', buffer: interactionEventBuffer, table: 'interaction_events' },
+    {
+      name: 'playbackStateChanges',
+      buffer: playbackStateChangeBuffer,
+      table: 'playback_state_changes',
+    },
+    { name: 'webEvents', buffer: webEventBuffer, table: 'web_events' },
+    { name: 'guildEvents', buffer: guildEventBuffer, table: 'guild_events' },
+    { name: 'apiLatency', buffer: apiLatencyBuffer, table: 'api_latency' },
   ];
 
   // Collect non-empty batches
@@ -454,6 +603,165 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
 
       await query(
         `INSERT INTO user_track_listens (user_session_id, user_id, guild_id, track_title, track_url, source_type, duration, listened_at, queued_by) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'track_engagement') {
+      const engagementEvents = events as TrackEngagementEvent[];
+      const values = engagementEvents
+        .map(
+          (_, i) =>
+            `($${i * 17 + 1}, $${i * 17 + 2}, $${i * 17 + 3}, $${i * 17 + 4}, $${i * 17 + 5}, $${i * 17 + 6}, $${i * 17 + 7}, $${i * 17 + 8}, $${i * 17 + 9}, $${i * 17 + 10}, $${i * 17 + 11}, $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}, $${i * 17 + 17})`
+        )
+        .join(', ');
+
+      const params = engagementEvents.flatMap((e) => [
+        e.engagement_id,
+        e.track_title,
+        e.track_url,
+        e.guild_id,
+        e.channel_id,
+        e.source_type,
+        e.started_at,
+        e.ended_at,
+        e.duration_seconds,
+        e.played_seconds,
+        e.was_skipped,
+        e.skipped_at_seconds,
+        e.was_completed,
+        e.skip_reason,
+        e.queued_by,
+        e.skipped_by,
+        e.listeners_at_start,
+      ]);
+
+      await query(
+        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'interaction_events') {
+      const interactionEvents = events as InteractionEvent[];
+      const values = interactionEvents
+        .map(
+          (_, i) =>
+            `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`
+        )
+        .join(', ');
+
+      const params = interactionEvents.flatMap((e) => [
+        e.interaction_type,
+        e.interaction_id,
+        e.custom_id,
+        e.user_id,
+        e.username,
+        e.guild_id,
+        e.channel_id,
+        e.response_time_ms,
+        e.success,
+        e.error_message,
+        e.metadata ? JSON.stringify(e.metadata) : null,
+        e.created_at,
+      ]);
+
+      await query(
+        `INSERT INTO interaction_events (interaction_type, interaction_id, custom_id, user_id, username, guild_id, channel_id, response_time_ms, success, error_message, metadata, created_at) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'playback_state_changes') {
+      const stateEvents = events as PlaybackStateChangeEvent[];
+      const values = stateEvents
+        .map(
+          (_, i) =>
+            `($${i * 11 + 1}, $${i * 11 + 2}, $${i * 11 + 3}, $${i * 11 + 4}, $${i * 11 + 5}, $${i * 11 + 6}, $${i * 11 + 7}, $${i * 11 + 8}, $${i * 11 + 9}, $${i * 11 + 10}, $${i * 11 + 11})`
+        )
+        .join(', ');
+
+      const params = stateEvents.flatMap((e) => [
+        e.guild_id,
+        e.channel_id,
+        e.state_type,
+        e.old_value,
+        e.new_value,
+        e.user_id,
+        e.username,
+        e.track_title,
+        e.track_position_seconds,
+        e.source,
+        e.created_at,
+      ]);
+
+      await query(
+        `INSERT INTO playback_state_changes (guild_id, channel_id, state_type, old_value, new_value, user_id, username, track_title, track_position_seconds, source, created_at) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'web_events') {
+      const webEvents = events as WebEvent[];
+      const values = webEvents
+        .map(
+          (_, i) =>
+            `($${i * 8 + 1}, $${i * 8 + 2}, $${i * 8 + 3}, $${i * 8 + 4}, $${i * 8 + 5}, $${i * 8 + 6}, $${i * 8 + 7}, $${i * 8 + 8})`
+        )
+        .join(', ');
+
+      const params = webEvents.flatMap((e) => [
+        e.web_session_id,
+        e.user_id,
+        e.event_type,
+        e.event_target,
+        e.event_value,
+        e.guild_id,
+        e.duration_ms,
+        e.created_at,
+      ]);
+
+      await query(
+        `INSERT INTO web_events (web_session_id, user_id, event_type, event_target, event_value, guild_id, duration_ms, created_at) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'guild_events') {
+      const guildEvents = events as GuildEvent[];
+      const values = guildEvents
+        .map(
+          (_, i) =>
+            `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`
+        )
+        .join(', ');
+
+      const params = guildEvents.flatMap((e) => [
+        e.event_type,
+        e.guild_id,
+        e.guild_name,
+        e.member_count,
+        e.user_id,
+        e.metadata ? JSON.stringify(e.metadata) : null,
+        e.created_at,
+      ]);
+
+      await query(
+        `INSERT INTO guild_events (event_type, guild_id, guild_name, member_count, user_id, metadata, created_at) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'api_latency') {
+      const latencyEvents = events as ApiLatencyEvent[];
+      const values = latencyEvents
+        .map(
+          (_, i) =>
+            `($${i * 8 + 1}, $${i * 8 + 2}, $${i * 8 + 3}, $${i * 8 + 4}, $${i * 8 + 5}, $${i * 8 + 6}, $${i * 8 + 7}, $${i * 8 + 8})`
+        )
+        .join(', ');
+
+      const params = latencyEvents.flatMap((e) => [
+        e.endpoint,
+        e.method,
+        e.response_time_ms,
+        e.status_code,
+        e.user_id,
+        e.request_size_bytes,
+        e.response_size_bytes,
+        e.created_at,
+      ]);
+
+      await query(
+        `INSERT INTO api_latency (endpoint, method, response_time_ms, status_code, user_id, request_size_bytes, response_size_bytes, created_at) VALUES ${values}`,
         params
       );
     }
@@ -1052,4 +1360,271 @@ export function getActiveUserSession(
  */
 export function getActiveUserCount(guildId: string, channelId: string): number {
   return getUsersInChannel(guildId, channelId).length;
+}
+
+// ============================================================================
+// INVASIVE TRACKING - Track Engagement (completion vs skip)
+// ============================================================================
+
+/**
+ * Start tracking a track's engagement when it begins playing
+ */
+export function startTrackEngagement(
+  guildId: string,
+  channelId: string,
+  trackTitle: string,
+  trackUrl: string | null,
+  sourceType: SourceType,
+  durationSeconds: number | null,
+  queuedBy: string | null
+): string {
+  const engagementId = `${guildId}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  const listenersAtStart = getActiveUserCount(guildId, channelId);
+
+  const engagement: ActiveTrackEngagement = {
+    engagementId,
+    trackTitle,
+    trackUrl,
+    guildId,
+    channelId,
+    sourceType,
+    startedAt: new Date(),
+    durationSeconds,
+    queuedBy,
+    listenersAtStart,
+  };
+
+  activeTrackEngagements.set(guildId, engagement);
+  log.debug(`Started track engagement ${engagementId} for "${trackTitle}" in guild ${guildId}`);
+
+  return engagementId;
+}
+
+/**
+ * End track engagement when track ends (completed, skipped, or error)
+ */
+export function endTrackEngagement(
+  guildId: string,
+  wasSkipped: boolean,
+  skipReason: SkipReason | null = null,
+  skippedBy: string | null = null,
+  playedSeconds: number | null = null
+): void {
+  const engagement = activeTrackEngagements.get(guildId);
+  if (!engagement) {
+    log.debug(`No active track engagement found for guild ${guildId}`);
+    return;
+  }
+
+  const endedAt = new Date();
+  const actualPlayedSeconds =
+    playedSeconds ?? Math.floor((endedAt.getTime() - engagement.startedAt.getTime()) / 1000);
+  const wasCompleted =
+    !wasSkipped &&
+    engagement.durationSeconds !== null &&
+    actualPlayedSeconds >= engagement.durationSeconds * 0.9; // 90% = completed
+
+  const listenersAtEnd = getActiveUserCount(guildId, engagement.channelId);
+
+  trackEngagementBuffer.push({
+    engagement_id: engagement.engagementId,
+    track_title: engagement.trackTitle,
+    track_url: engagement.trackUrl,
+    guild_id: engagement.guildId,
+    channel_id: engagement.channelId,
+    source_type: engagement.sourceType,
+    started_at: engagement.startedAt,
+    ended_at: endedAt,
+    duration_seconds: engagement.durationSeconds,
+    played_seconds: actualPlayedSeconds,
+    was_skipped: wasSkipped,
+    skipped_at_seconds: wasSkipped ? actualPlayedSeconds : null,
+    was_completed: wasCompleted,
+    skip_reason: skipReason,
+    queued_by: engagement.queuedBy,
+    skipped_by: skippedBy,
+    listeners_at_start: engagement.listenersAtStart,
+    listeners_at_end: listenersAtEnd,
+  });
+
+  activeTrackEngagements.delete(guildId);
+  log.debug(
+    `Ended track engagement ${engagement.engagementId} - skipped: ${wasSkipped}, completed: ${wasCompleted}, played: ${actualPlayedSeconds}s`
+  );
+
+  startBatchProcessor();
+}
+
+/**
+ * Get active track engagement for a guild
+ */
+export function getActiveTrackEngagement(guildId: string): ActiveTrackEngagement | undefined {
+  return activeTrackEngagements.get(guildId);
+}
+
+// ============================================================================
+// INVASIVE TRACKING - Interaction Events (button vs command)
+// ============================================================================
+
+/**
+ * Track an interaction event (button click, slash command, autocomplete, etc.)
+ */
+export function trackInteraction(
+  interactionType: InteractionType,
+  interactionId: string | null,
+  customId: string | null,
+  userId: string,
+  username: string | null,
+  guildId: string,
+  channelId: string | null,
+  responseTimeMs: number | null = null,
+  success: boolean = true,
+  errorMessage: string | null = null,
+  metadata: Record<string, unknown> | null = null
+): void {
+  interactionEventBuffer.push({
+    interaction_type: interactionType,
+    interaction_id: interactionId,
+    custom_id: customId,
+    user_id: userId,
+    username,
+    guild_id: guildId,
+    channel_id: channelId,
+    response_time_ms: responseTimeMs,
+    success,
+    error_message: errorMessage,
+    metadata,
+    created_at: new Date(),
+  });
+
+  log.debug(`Tracked ${interactionType} interaction: ${customId || interactionId} by ${userId}`);
+  startBatchProcessor();
+}
+
+// ============================================================================
+// INVASIVE TRACKING - Playback State Changes
+// ============================================================================
+
+/**
+ * Track a playback state change (volume, pause, resume, seek, etc.)
+ */
+export function trackPlaybackStateChange(
+  guildId: string,
+  channelId: string | null,
+  stateType: PlaybackStateType,
+  oldValue: string | null,
+  newValue: string | null,
+  userId: string | null = null,
+  username: string | null = null,
+  trackTitle: string | null = null,
+  trackPositionSeconds: number | null = null,
+  source: 'discord' | 'api' = 'discord'
+): void {
+  playbackStateChangeBuffer.push({
+    guild_id: guildId,
+    channel_id: channelId,
+    state_type: stateType,
+    old_value: oldValue,
+    new_value: newValue,
+    user_id: userId,
+    username,
+    track_title: trackTitle,
+    track_position_seconds: trackPositionSeconds,
+    source,
+    created_at: new Date(),
+  });
+
+  log.debug(`Tracked ${stateType} change: ${oldValue} -> ${newValue} in guild ${guildId}`);
+  startBatchProcessor();
+}
+
+// ============================================================================
+// INVASIVE TRACKING - Web Events
+// ============================================================================
+
+/**
+ * Track a web dashboard event
+ */
+export function trackWebEvent(
+  userId: string,
+  eventType: string,
+  eventTarget: string | null = null,
+  eventValue: string | null = null,
+  guildId: string | null = null,
+  durationMs: number | null = null,
+  webSessionId: string | null = null
+): void {
+  webEventBuffer.push({
+    web_session_id: webSessionId,
+    user_id: userId,
+    event_type: eventType,
+    event_target: eventTarget,
+    event_value: eventValue,
+    guild_id: guildId,
+    duration_ms: durationMs,
+    created_at: new Date(),
+  });
+
+  log.debug(`Tracked web event: ${eventType} by ${userId}`);
+  startBatchProcessor();
+}
+
+// ============================================================================
+// INVASIVE TRACKING - Guild Events
+// ============================================================================
+
+/**
+ * Track a guild event (bot join/leave, member events)
+ */
+export function trackGuildEvent(
+  eventType: GuildEventType,
+  guildId: string,
+  guildName: string | null = null,
+  memberCount: number | null = null,
+  userId: string | null = null,
+  metadata: Record<string, unknown> | null = null
+): void {
+  guildEventBuffer.push({
+    event_type: eventType,
+    guild_id: guildId,
+    guild_name: guildName,
+    member_count: memberCount,
+    user_id: userId,
+    metadata,
+    created_at: new Date(),
+  });
+
+  log.debug(`Tracked guild event: ${eventType} for guild ${guildId}`);
+  startBatchProcessor();
+}
+
+// ============================================================================
+// INVASIVE TRACKING - API Latency
+// ============================================================================
+
+/**
+ * Track API endpoint latency
+ */
+export function trackApiLatency(
+  endpoint: string,
+  method: string,
+  responseTimeMs: number,
+  statusCode: number | null = null,
+  userId: string | null = null,
+  requestSizeBytes: number | null = null,
+  responseSizeBytes: number | null = null
+): void {
+  apiLatencyBuffer.push({
+    endpoint,
+    method,
+    response_time_ms: responseTimeMs,
+    status_code: statusCode,
+    user_id: userId,
+    request_size_bytes: requestSizeBytes,
+    response_size_bytes: responseSizeBytes,
+    created_at: new Date(),
+  });
+
+  log.debug(`Tracked API latency: ${method} ${endpoint} - ${responseTimeMs}ms`);
+  startBatchProcessor();
 }

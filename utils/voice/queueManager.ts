@@ -4,6 +4,7 @@
 import { Mutex } from 'async-mutex';
 import { AudioPlayerStatus } from '@discordjs/voice';
 import { createLogger } from '../logger';
+import * as stats from '../statistics';
 import { getVoiceState } from './connectionManager';
 import type { Track, QueueInfo } from '../../types/voice';
 
@@ -61,7 +62,11 @@ export async function addToQueue(
 /**
  * Skip current track(s)
  */
-export async function skip(guildId: string, count: number = 1): Promise<string[]> {
+export async function skip(
+  guildId: string,
+  count: number = 1,
+  skippedBy: string | null = null
+): Promise<string[]> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -71,6 +76,9 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
     if (!state.nowPlaying && state.queue.length === 0) {
       throw new Error('Nothing is playing');
     }
+
+    // End track engagement - track was skipped
+    stats.endTrackEngagement(guildId, true, 'user_skip', skippedBy, null);
 
     const skipped: string[] = [];
     if (state.nowPlaying) {
@@ -96,11 +104,19 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
 /**
  * Clear the queue
  */
-export async function clearQueue(guildId: string): Promise<number> {
+export async function clearQueue(
+  guildId: string,
+  clearedBy: string | null = null
+): Promise<number> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
       throw new Error('Bot is not connected to a voice channel');
+    }
+
+    // End track engagement if something is playing - queue was cleared
+    if (state.nowPlaying) {
+      stats.endTrackEngagement(guildId, true, 'queue_clear', clearedBy, null);
     }
 
     const cleared = state.queue.length;
