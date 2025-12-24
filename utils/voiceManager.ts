@@ -609,3 +609,17 @@ export async function restoreQueueSnapshot(guildId: string, client: Client): Pro
 export async function restoreAllQueueSnapshots(client: Client): Promise<number> {
   return snapshotPersistence.restoreAllQueueSnapshots(client);
 }
+
+/**
+ * Start periodic auto-save of queue snapshots (every 30s)
+ */
+export function startAutoSave(): void {
+  return snapshotPersistence.startAutoSave();
+}
+
+/**
+ * Stop periodic auto-save
+ */
+export function stopAutoSave(): void {
+  return snapshotPersistence.stopAutoSave();
+}

@@ -48,7 +48,12 @@ export {
   saveAllQueueSnapshots,
   restoreQueueSnapshot,
   restoreAllQueueSnapshots,
-} from './snapshotManager';
+  startAutoSave,
+  stopAutoSave,
+} from './snapshotPersistence';
+
+// Playback with seek (for crash recovery)
+export { playWithSeek } from './playbackManager';
 
 // Track metadata
 export {

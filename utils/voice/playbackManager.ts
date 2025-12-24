@@ -643,6 +643,122 @@ export async function playSoundboardOverlay(
 }
 
 /**
+ * Play a track with optional seek position (for crash recovery)
+ */
+export async function playWithSeek(
+  state: VoiceState,
+  track: Track,
+  seekSeconds: number,
+  isPaused: boolean
+): Promise<void> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
+
+  log.info(`Resuming playback of "${track.title}" at ${seekSeconds}s (paused: ${isPaused})`);
+
+  try {
+    let resource: AudioResource;
+
+    // Handle local/soundboard files (no seek support)
+    if (track.isLocal) {
+      if (track.source) {
+        const soundStream = await storage.getSoundStream(track.source);
+        resource = createVolumeResource(soundStream);
+      } else {
+        throw new Error('Local track missing source');
+      }
+    } else if (track.url) {
+      // For YouTube, use yt-dlp with seek support
+      const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+
+      if (ytMatch && seekSeconds > 0) {
+        // Use yt-dlp with download section for seeking
+        log.debug(`Using yt-dlp with seek to ${seekSeconds}s`);
+        const result = (await youtubedl(track.url, {
+          format: 'bestaudio[acodec=opus]/bestaudio/best',
+          getUrl: true,
+          noPlaylist: true,
+          noWarnings: true,
+          quiet: true,
+          noCheckCertificates: true,
+          downloadSections: `*${seekSeconds}-inf`,
+        })) as unknown as string;
+
+        const streamUrl = result.trim();
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(streamUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: '*/*',
+            Range: 'bytes=0-',
+            Referer: 'https://www.youtube.com/',
+            Origin: 'https://www.youtube.com',
+          },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Stream fetch failed: ${response.status}`);
+        }
+
+        const nodeStream = Readable.fromWeb(
+          response.body as Parameters<typeof Readable.fromWeb>[0]
+        );
+        nodeStream.on('error', (err) => {
+          log.debug(`Stream error (expected on skip/stop): ${err.message}`);
+        });
+
+        resource = createAudioResource(nodeStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true,
+        });
+      } else {
+        // No seek needed or not YouTube, use normal playback
+        const result = await createTrackResourceAsync(track);
+        if (result) {
+          resource = result.resource;
+        } else {
+          // Fallback to play-dl
+          const streamInfo = await play.stream(track.url, { quality: 2 });
+          resource = createVolumeResource(streamInfo.stream, {
+            inputType: streamInfo.type,
+          });
+        }
+      }
+    } else {
+      throw new Error('Track has no URL');
+    }
+
+    // Apply volume and play
+    playWithVolume(state, resource);
+    state.nowPlaying = track.title;
+    state.currentTrack = track;
+    state.currentTrackSource = track.isLocal ? null : track.url || null;
+    state.playbackStartTime = Date.now() - seekSeconds * 1000; // Offset to account for seek
+    state.totalPausedTime = 0;
+    state.pauseStartTime = null;
+
+    // Pause if needed
+    if (isPaused) {
+      state.player.pause();
+      state.pauseStartTime = Date.now();
+    }
+
+    log.info(`Resumed: ${track.title} at ${seekSeconds}s`);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to resume ${track.title}: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
  * Replay the last played track (not soundboard)
  */
 export async function replay(guildId: string): Promise<Track | null> {
