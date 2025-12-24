@@ -45,7 +45,7 @@ export async function joinChannel(
     if (!state) return;
 
     // If we're transitioning to a soundboard overlay, don't advance the queue
-    if (state.isTransitioningToOverlay) {
+    if (state.isTransitioningToOverlay === true) {
       log.debug('Ignoring idle event - transitioning to soundboard overlay');
       return;
     }

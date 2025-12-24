@@ -25,7 +25,7 @@ export interface VoiceState {
   preBuffered: unknown | null;
   currentTrackSource: string | null;
   lastPlayedTrack: Track | null; // For replay functionality (not soundboard)
-  isTransitioningToOverlay?: boolean; // Flag to prevent idle handler from playing next during overlay transition
+  isTransitioningToOverlay: boolean; // Flag to prevent idle handler from playing next during overlay transition
 }
 
 export interface StreamUrlCache {
