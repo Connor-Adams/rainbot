@@ -7,6 +7,7 @@ const {
 } = require('discord.js');
 const { createLogger } = require('../dist/utils/logger');
 const listeningHistory = require('../dist/utils/listeningHistory');
+const stats = require('../dist/utils/statistics');
 
 const log = createLogger('VOICE_STATE');
 
@@ -22,20 +23,49 @@ function getVoiceManager() {
 module.exports = {
   name: Events.VoiceStateUpdate,
   async execute(oldState, newState) {
-    // Only process if user joined a voice channel (wasn't in one, now is)
+    // Ignore if channel didn't change
     if (oldState.channelId === newState.channelId) return;
-    if (!newState.channelId) return; // User left voice
 
-    const userId = newState.member?.id;
-    const guildId = newState.guild?.id;
-    const channelId = newState.channelId;
+    const userId = newState.member?.id || oldState.member?.id;
+    const guildId = newState.guild?.id || oldState.guild?.id;
+    const user = newState.member?.user || oldState.member?.user;
 
     if (!userId || !guildId) return;
 
-    // Check if bot is in the same voice channel
+    // Ignore bots
+    if (user?.bot) return;
+
     const vm = getVoiceManager();
     const botStatus = vm.getStatus(guildId);
-    if (!botStatus || botStatus.channelId !== channelId) return;
+    if (!botStatus) return;
+
+    const botChannelId = botStatus.channelId;
+
+    // User left the bot's channel
+    if (oldState.channelId === botChannelId && newState.channelId !== botChannelId) {
+      log.debug(`User ${user?.tag || userId} left bot's channel`);
+      stats.endUserSession(userId, guildId, botChannelId);
+      return;
+    }
+
+    // User joined the bot's channel
+    if (newState.channelId === botChannelId && oldState.channelId !== botChannelId) {
+      const channel = newState.channel;
+      log.debug(`User ${user?.tag || userId} joined bot's channel`);
+      stats.startUserSession(
+        userId,
+        guildId,
+        botChannelId,
+        channel?.name || null,
+        user?.username || null,
+        user?.discriminator || null
+      );
+    }
+
+    // Continue with resume prompt logic only for joins
+    if (!newState.channelId) return; // User left voice entirely
+    const channelId = newState.channelId;
+    if (botChannelId !== channelId) return;
 
     // Check if user has listening history (try database first, fall back to in-memory)
     let history = await listeningHistory.getRecentHistory(userId, guildId);

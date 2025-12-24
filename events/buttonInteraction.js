@@ -3,6 +3,7 @@ const voiceManager = require('../dist/utils/voiceManager');
 const { createPlayerMessage } = require('../dist/utils/playerEmbed');
 const { createLogger } = require('../dist/utils/logger');
 const listeningHistory = require('../dist/utils/listeningHistory');
+const stats = require('../dist/utils/statistics');
 
 const log = createLogger('BUTTONS');
 
@@ -11,10 +12,25 @@ module.exports = {
   async execute(interaction) {
     if (!interaction.isButton()) return;
 
+    const startTime = Date.now();
+
     // Handle resume/dismiss buttons
     if (interaction.customId.startsWith('resume_')) {
       const userId = interaction.customId.replace('resume_', '');
       if (userId !== interaction.user.id) {
+        stats.trackInteraction(
+          'button',
+          interaction.id,
+          'resume',
+          interaction.user.id,
+          interaction.user.username,
+          interaction.guildId,
+          interaction.channelId,
+          Date.now() - startTime,
+          false,
+          'Not authorized - wrong user',
+          null
+        );
         return interaction.reply({
           content: '❌ This resume prompt is not for you!',
           ephemeral: true,
@@ -45,8 +61,35 @@ module.exports = {
             createPlayerMessage(nowPlaying, queue, false, currentTrack, queueInfo)
           );
         }
+
+        stats.trackInteraction(
+          'button',
+          interaction.id,
+          'resume',
+          interaction.user.id,
+          interaction.user.username,
+          interaction.guildId,
+          interaction.channelId,
+          Date.now() - startTime,
+          true,
+          null,
+          { tracksRestored: result.restored }
+        );
       } catch (error) {
         log.error(`Resume error: ${error.message}`);
+        stats.trackInteraction(
+          'button',
+          interaction.id,
+          'resume',
+          interaction.user.id,
+          interaction.user.username,
+          interaction.guildId,
+          interaction.channelId,
+          Date.now() - startTime,
+          false,
+          error.message,
+          null
+        );
         await interaction.update({
           content: `❌ Failed to resume: ${error.message}`,
           embeds: [],
@@ -59,6 +102,19 @@ module.exports = {
     if (interaction.customId.startsWith('dismiss_history_')) {
       const userId = interaction.customId.replace('dismiss_history_', '');
       if (userId !== interaction.user.id) {
+        stats.trackInteraction(
+          'button',
+          interaction.id,
+          'dismiss_history',
+          interaction.user.id,
+          interaction.user.username,
+          interaction.guildId,
+          interaction.channelId,
+          Date.now() - startTime,
+          false,
+          'Not authorized - wrong user',
+          null
+        );
         return interaction.reply({
           content: '❌ This prompt is not for you!',
           ephemeral: true,
@@ -77,6 +133,20 @@ module.exports = {
         ],
         components: [],
       });
+
+      stats.trackInteraction(
+        'button',
+        interaction.id,
+        'dismiss_history',
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        Date.now() - startTime,
+        true,
+        null,
+        null
+      );
       return;
     }
 
@@ -84,15 +154,28 @@ module.exports = {
 
     const guildId = interaction.guildId;
     const status = voiceManager.getStatus(guildId);
+    const action = interaction.customId.replace('player_', '');
 
     if (!status) {
+      stats.trackInteraction(
+        'button',
+        interaction.id,
+        `player_${action}`,
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        Date.now() - startTime,
+        false,
+        'Bot not in voice channel',
+        null
+      );
       return interaction.reply({
         content: "❌ I'm not in a voice channel!",
         ephemeral: true,
       });
     }
 
-    const action = interaction.customId.replace('player_', '');
     log.debug(`Button: ${action} by ${interaction.user.tag}`);
 
     try {
@@ -104,19 +187,45 @@ module.exports = {
           await interaction.update(
             createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo)
           );
+          stats.trackInteraction(
+            'button',
+            interaction.id,
+            'player_pause',
+            interaction.user.id,
+            interaction.user.username,
+            guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            true,
+            null,
+            { paused: result.paused, nowPlaying }
+          );
           break;
         }
 
         case 'skip': {
-          const _skipped = voiceManager.skip(guildId);
+          const _skipped = voiceManager.skip(guildId, 1, interaction.user.id);
           // Small delay to let next track start
           await new Promise((r) => setTimeout(r, 500));
           const queueInfo = voiceManager.getQueue(guildId);
           const { nowPlaying, queue, currentTrack } = queueInfo;
-          const status = voiceManager.getStatus(guildId);
-          const isPaused = status ? !status.isPlaying : false;
+          const skipStatus = voiceManager.getStatus(guildId);
+          const isPaused = skipStatus ? !skipStatus.isPlaying : false;
           await interaction.update(
             createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+          );
+          stats.trackInteraction(
+            'button',
+            interaction.id,
+            'player_skip',
+            interaction.user.id,
+            interaction.user.username,
+            guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            true,
+            null,
+            { skippedTo: nowPlaying, queueLength: queue.length }
           );
           break;
         }
@@ -135,6 +244,19 @@ module.exports = {
             ],
             components: [],
           });
+          stats.trackInteraction(
+            'button',
+            interaction.id,
+            'player_stop',
+            interaction.user.id,
+            interaction.user.username,
+            guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            true,
+            null,
+            null
+          );
           break;
         }
 
@@ -211,11 +333,37 @@ module.exports = {
             embeds: [embed],
             ephemeral: true,
           });
+          stats.trackInteraction(
+            'button',
+            interaction.id,
+            'player_queue',
+            interaction.user.id,
+            interaction.user.username,
+            guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            true,
+            null,
+            { totalInQueue, nowPlaying }
+          );
           break;
         }
       }
     } catch (error) {
       log.error(`Button error: ${error.message}`);
+      stats.trackInteraction(
+        'button',
+        interaction.id,
+        `player_${action}`,
+        interaction.user.id,
+        interaction.user.username,
+        guildId,
+        interaction.channelId,
+        Date.now() - startTime,
+        false,
+        error.message,
+        null
+      );
       await interaction
         .reply({
           content: `❌ ${error.message}`,

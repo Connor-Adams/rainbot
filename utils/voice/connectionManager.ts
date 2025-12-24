@@ -13,6 +13,7 @@ import {
 } from '@discordjs/voice';
 import type { VoiceBasedChannel } from 'discord.js';
 import { createLogger } from '../logger';
+import * as stats from '../statistics';
 import type { VoiceState } from '../../types/voice-modules';
 import type { Track } from '../../types/voice';
 
@@ -42,6 +43,9 @@ export async function joinChannel(
   player.on(AudioPlayerStatus.Idle, async () => {
     const state = voiceStates.get(guildId);
     if (!state) return;
+
+    // End track engagement - track completed naturally
+    stats.endTrackEngagement(guildId, false, 'next_track', null, null);
 
     // Clean up overlay process if it was running
     if (state.overlayProcess) {
@@ -113,6 +117,13 @@ export async function joinChannel(
  * Leave a voice channel
  */
 export function leaveChannel(guildId: string): boolean {
+  const state = voiceStates.get(guildId);
+
+  // End track engagement if something was playing - bot is leaving
+  if (state?.nowPlaying) {
+    stats.endTrackEngagement(guildId, true, 'bot_leave', null, null);
+  }
+
   const connection = getVoiceConnection(guildId);
   if (connection) {
     connection.destroy();

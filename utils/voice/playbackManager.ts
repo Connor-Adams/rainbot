@@ -372,6 +372,31 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Increment session track count
     stats.incrementSessionTracks(guildId);
 
+    // Track that all users in channel heard this track
+    if (!nextTrack.isSoundboard) {
+      const sourceType = detectSourceType(nextTrack);
+      stats.trackUserListen(
+        guildId,
+        state.channelId,
+        nextTrack.title,
+        nextTrack.url || null,
+        sourceType,
+        nextTrack.duration || null,
+        nextTrack.userId || state.lastUserId || null
+      );
+
+      // Start track engagement tracking (completion vs skip)
+      stats.startTrackEngagement(
+        guildId,
+        state.channelId,
+        nextTrack.title,
+        nextTrack.url || null,
+        sourceType,
+        nextTrack.duration || null,
+        nextTrack.userId || state.lastUserId || null
+      );
+    }
+
     return nextTrack;
   } catch (error) {
     const err = error as Error;
@@ -408,7 +433,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
 /**
  * Toggle pause/resume playback
  */
-export function togglePause(guildId: string): { paused: boolean } {
+export function togglePause(
+  guildId: string,
+  userId: string | null = null,
+  username: string | null = null
+): { paused: boolean } {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
@@ -419,6 +448,15 @@ export function togglePause(guildId: string): { paused: boolean } {
     return { paused: state.player.state.status === AudioPlayerStatus.Paused };
   }
 
+  // Calculate current playback position for tracking
+  let playbackPosition = 0;
+  if (state.playbackStartTime && state.currentTrack) {
+    const elapsed = Date.now() - state.playbackStartTime;
+    const pausedTime = state.totalPausedTime || 0;
+    const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+    playbackPosition = Math.floor((elapsed - pausedTime - currentPauseTime) / 1000);
+  }
+
   if (state.player.state.status === AudioPlayerStatus.Paused) {
     state.player.unpause();
     if (state.pauseStartTime) {
@@ -427,11 +465,41 @@ export function togglePause(guildId: string): { paused: boolean } {
       state.pauseStartTime = null;
     }
     log.info('Resumed playback');
+
+    // Track resume state change
+    stats.trackPlaybackStateChange(
+      guildId,
+      state.channelId,
+      'resume',
+      'paused',
+      'playing',
+      userId,
+      username,
+      state.nowPlaying || null,
+      playbackPosition,
+      'discord'
+    );
+
     return { paused: false };
   } else if (state.player.state.status === AudioPlayerStatus.Playing) {
     state.player.pause();
     state.pauseStartTime = Date.now();
     log.info('Paused playback');
+
+    // Track pause state change
+    stats.trackPlaybackStateChange(
+      guildId,
+      state.channelId,
+      'pause',
+      'playing',
+      'paused',
+      userId,
+      username,
+      state.nowPlaying || null,
+      playbackPosition,
+      'discord'
+    );
+
     return { paused: true };
   } else {
     throw new Error('Nothing is playing');
@@ -462,12 +530,18 @@ export function stopSound(guildId: string): boolean {
 /**
  * Set volume for a guild
  */
-export function setVolume(guildId: string, level: number): number {
+export function setVolume(
+  guildId: string,
+  level: number,
+  userId: string | null = null,
+  username: string | null = null
+): number {
   const state = getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
   }
 
+  const oldVolume = state.volume || 100;
   const volume = Math.max(1, Math.min(100, level));
   state.volume = volume;
 
@@ -479,6 +553,29 @@ export function setVolume(guildId: string, level: number): number {
     state.currentResource.volume.setVolume(volume / 100);
     log.debug(`Volume applied: ${volume / 100}`);
   }
+
+  // Calculate current playback position for tracking
+  let playbackPosition = 0;
+  if (state.playbackStartTime && state.currentTrack) {
+    const elapsed = Date.now() - state.playbackStartTime;
+    const pausedTime = state.totalPausedTime || 0;
+    const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+    playbackPosition = Math.floor((elapsed - pausedTime - currentPauseTime) / 1000);
+  }
+
+  // Track volume state change
+  stats.trackPlaybackStateChange(
+    guildId,
+    state.channelId,
+    'volume',
+    String(oldVolume),
+    String(volume),
+    userId,
+    username,
+    state.nowPlaying || null,
+    playbackPosition,
+    'discord'
+  );
 
   log.info(`Set volume to ${volume}%`);
   return volume;
@@ -543,6 +640,122 @@ export async function playSoundboardOverlay(
     sound: soundName,
     message: 'Playing soundboard (overlay not implemented)',
   };
+}
+
+/**
+ * Play a track with optional seek position (for crash recovery)
+ */
+export async function playWithSeek(
+  state: VoiceState,
+  track: Track,
+  seekSeconds: number,
+  isPaused: boolean
+): Promise<void> {
+  // Import storage dynamically to avoid circular dependency
+  const storage = await import('../storage');
+
+  log.info(`Resuming playback of "${track.title}" at ${seekSeconds}s (paused: ${isPaused})`);
+
+  try {
+    let resource: AudioResource;
+
+    // Handle local/soundboard files (no seek support)
+    if (track.isLocal) {
+      if (track.source) {
+        const soundStream = await storage.getSoundStream(track.source);
+        resource = createVolumeResource(soundStream);
+      } else {
+        throw new Error('Local track missing source');
+      }
+    } else if (track.url) {
+      // For YouTube, use yt-dlp with seek support
+      const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+
+      if (ytMatch && seekSeconds > 0) {
+        // Use yt-dlp with download section for seeking
+        log.debug(`Using yt-dlp with seek to ${seekSeconds}s`);
+        const result = (await youtubedl(track.url, {
+          format: 'bestaudio[acodec=opus]/bestaudio/best',
+          getUrl: true,
+          noPlaylist: true,
+          noWarnings: true,
+          quiet: true,
+          noCheckCertificates: true,
+          downloadSections: `*${seekSeconds}-inf`,
+        })) as unknown as string;
+
+        const streamUrl = result.trim();
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+        const response = await fetch(streamUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: '*/*',
+            Range: 'bytes=0-',
+            Referer: 'https://www.youtube.com/',
+            Origin: 'https://www.youtube.com',
+          },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Stream fetch failed: ${response.status}`);
+        }
+
+        const nodeStream = Readable.fromWeb(
+          response.body as Parameters<typeof Readable.fromWeb>[0]
+        );
+        nodeStream.on('error', (err) => {
+          log.debug(`Stream error (expected on skip/stop): ${err.message}`);
+        });
+
+        resource = createAudioResource(nodeStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true,
+        });
+      } else {
+        // No seek needed or not YouTube, use normal playback
+        const result = await createTrackResourceAsync(track);
+        if (result) {
+          resource = result.resource;
+        } else {
+          // Fallback to play-dl
+          const streamInfo = await play.stream(track.url, { quality: 2 });
+          resource = createVolumeResource(streamInfo.stream, {
+            inputType: streamInfo.type,
+          });
+        }
+      }
+    } else {
+      throw new Error('Track has no URL');
+    }
+
+    // Apply volume and play
+    playWithVolume(state, resource);
+    state.nowPlaying = track.title;
+    state.currentTrack = track;
+    state.currentTrackSource = track.isLocal ? null : track.url || null;
+    state.playbackStartTime = Date.now() - seekSeconds * 1000; // Offset to account for seek
+    state.totalPausedTime = 0;
+    state.pauseStartTime = null;
+
+    // Pause if needed
+    if (isPaused) {
+      state.player.pause();
+      state.pauseStartTime = Date.now();
+    }
+
+    log.info(`Resumed: ${track.title} at ${seekSeconds}s`);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to resume ${track.title}: ${err.message}`);
+    throw err;
+  }
 }
 
 /**

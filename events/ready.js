@@ -11,9 +11,14 @@ module.exports = {
   async execute(client) {
     log.info(`Logged in as ${client.user.tag}`);
 
-    // Restore saved queue snapshots from previous session
+    // Restore saved queue snapshots from previous session (crash recovery)
     try {
-      const { restoreAllQueueSnapshots } = require('../dist/utils/voiceManager');
+      const { restoreAllQueueSnapshots, startAutoSave } = require('../dist/utils/voiceManager');
+
+      // Start periodic auto-save (every 30s) for crash recovery
+      startAutoSave();
+
+      // Restore any queues that were active before shutdown/crash
       const restored = await restoreAllQueueSnapshots(client);
       if (restored > 0) {
         log.info(`Restored ${restored} queue snapshot(s) from previous session`);

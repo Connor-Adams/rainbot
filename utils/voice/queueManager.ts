@@ -4,6 +4,7 @@
 import { Mutex } from 'async-mutex';
 import { AudioPlayerStatus } from '@discordjs/voice';
 import { createLogger } from '../logger';
+import * as stats from '../statistics';
 import { getVoiceState } from './connectionManager';
 import type { Track, QueueInfo } from '../../types/voice';
 
@@ -11,6 +12,36 @@ const log = createLogger('QUEUE');
 
 /** Map of guildId -> queue mutex */
 const queueMutexes = new Map<string, Mutex>();
+
+/** Map of guildId -> debounce timer for snapshot saves */
+const saveDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Debounce delay for snapshot saves (5 seconds) */
+const SAVE_DEBOUNCE_MS = 5000;
+
+/**
+ * Schedule a debounced queue snapshot save
+ */
+function scheduleSave(guildId: string): void {
+  // Clear existing timer
+  const existing = saveDebounceTimers.get(guildId);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  // Schedule new save
+  const timer = setTimeout(async () => {
+    saveDebounceTimers.delete(guildId);
+    try {
+      const { saveQueueSnapshot } = await import('./snapshotPersistence');
+      await saveQueueSnapshot(guildId);
+    } catch (error) {
+      log.debug(`Debounced save failed for ${guildId}: ${(error as Error).message}`);
+    }
+  }, SAVE_DEBOUNCE_MS);
+
+  saveDebounceTimers.set(guildId, timer);
+}
 
 /**
  * Get or create a mutex for a guild's queue operations
@@ -51,6 +82,9 @@ export async function addToQueue(
     state.queue.push(...tracks);
     log.info(`Added ${tracks.length} track(s) to queue`);
 
+    // Schedule snapshot save
+    scheduleSave(guildId);
+
     return {
       added: tracks.length,
       tracks: tracks,
@@ -61,7 +95,11 @@ export async function addToQueue(
 /**
  * Skip current track(s)
  */
-export async function skip(guildId: string, count: number = 1): Promise<string[]> {
+export async function skip(
+  guildId: string,
+  count: number = 1,
+  skippedBy: string | null = null
+): Promise<string[]> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
@@ -71,6 +109,9 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
     if (!state.nowPlaying && state.queue.length === 0) {
       throw new Error('Nothing is playing');
     }
+
+    // End track engagement - track was skipped
+    stats.endTrackEngagement(guildId, true, 'user_skip', skippedBy, null);
 
     const skipped: string[] = [];
     if (state.nowPlaying) {
@@ -89,6 +130,10 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
     }
 
     state.player.stop();
+
+    // Schedule snapshot save
+    scheduleSave(guildId);
+
     return skipped;
   });
 }
@@ -96,16 +141,28 @@ export async function skip(guildId: string, count: number = 1): Promise<string[]
 /**
  * Clear the queue
  */
-export async function clearQueue(guildId: string): Promise<number> {
+export async function clearQueue(
+  guildId: string,
+  clearedBy: string | null = null
+): Promise<number> {
   return withQueueLock(guildId, () => {
     const state = getVoiceState(guildId);
     if (!state) {
       throw new Error('Bot is not connected to a voice channel');
     }
 
+    // End track engagement if something is playing - queue was cleared
+    if (state.nowPlaying) {
+      stats.endTrackEngagement(guildId, true, 'queue_clear', clearedBy, null);
+    }
+
     const cleared = state.queue.length;
     state.queue = [];
     log.info(`Cleared ${cleared} tracks from queue`);
+
+    // Schedule snapshot save (will delete the snapshot since queue is empty)
+    scheduleSave(guildId);
+
     return cleared;
   });
 }
@@ -129,6 +186,10 @@ export async function removeTrackFromQueue(guildId: string, index: number): Prom
       throw new Error('Track not found at index');
     }
     log.info(`Removed track "${removed.title}" from queue at index ${index}`);
+
+    // Schedule snapshot save
+    scheduleSave(guildId);
+
     return removed;
   });
 }

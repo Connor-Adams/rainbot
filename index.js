@@ -81,24 +81,28 @@ if (!config.token) {
 client.login(config.token);
 
 // Graceful shutdown - save queue snapshots and flush statistics
-process.on('SIGINT', async () => {
-  log.info('Shutting down gracefully...');
-  const { saveAllQueueSnapshots } = require('./dist/utils/voiceManager');
-  await saveAllQueueSnapshots();
-  const { flushAll } = require('./dist/utils/statistics');
-  await flushAll();
-  const { close } = require('./dist/utils/database');
-  await close();
-  process.exit(0);
-});
+async function gracefulShutdown(signal) {
+  log.info(`Received ${signal}, shutting down gracefully...`);
 
-process.on('SIGTERM', async () => {
-  log.info('Shutting down gracefully...');
-  const { saveAllQueueSnapshots } = require('./dist/utils/voiceManager');
+  const { saveAllQueueSnapshots, stopAutoSave } = require('./dist/utils/voiceManager');
+
+  // Stop auto-save interval
+  stopAutoSave();
+
+  // Save final queue snapshots
   await saveAllQueueSnapshots();
+
+  // Flush statistics buffers
   const { flushAll } = require('./dist/utils/statistics');
   await flushAll();
+
+  // Close database connection
   const { close } = require('./dist/utils/database');
   await close();
+
+  log.info('Shutdown complete');
   process.exit(0);
-});
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
