@@ -2,7 +2,8 @@ import { getUserSoundsHandler } from '../stats';
 
 // Mock the database module used by the handler
 jest.mock('../../../utils/database', () => ({
-  query: jest.fn(async (q: string, params?: any[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: jest.fn(async (_q: string, _params?: any[]) => {
     return {
       rows: [
         {
@@ -19,9 +20,11 @@ jest.mock('../../../utils/database', () => ({
 
 describe('getUserSoundsHandler', () => {
   it('returns 400 if userId missing', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req: any = { query: {} };
     const json = jest.fn();
     const status = jest.fn(() => ({ json }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res: any = { status, json };
 
     await getUserSoundsHandler(req, res);
@@ -31,9 +34,11 @@ describe('getUserSoundsHandler', () => {
   });
 
   it('returns sounds for a given userId', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req: any = { query: { userId: '123', limit: '10' } };
     const json = jest.fn();
     const status = jest.fn(() => ({ json }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res: any = { status, json };
 
     await getUserSoundsHandler(req, res);
