@@ -2,8 +2,20 @@ import express, { Request, Response } from 'express';
 import { query } from '../../utils/database';
 import { requireAuth } from '../middleware/auth';
 import { statsEmitter } from '../../utils/statistics';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+
+// Rate limiter for stats endpoints
+// Protects against abuse and DoS attacks
+// Allows 100 requests per 15 minutes per IP
+const statsRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 /**
  * Parse and validate a date string
@@ -89,7 +101,7 @@ function buildWhereClause(filters: WhereFilters, params: (string | boolean | Dat
 }
 
 // GET /api/stats/summary - Overall summary
-router.get('/summary', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/summary', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const { startDate, endDate } = parseDateRange(req);
     const params: Date[] = [];
@@ -169,7 +181,7 @@ router.get('/summary', requireAuth, async (req: Request, res: Response): Promise
 });
 
 // GET /api/stats/commands - Command usage stats
-router.get('/commands', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/commands', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters: WhereFilters = {
@@ -228,7 +240,7 @@ router.get('/commands', requireAuth, async (req: Request, res: Response): Promis
 });
 
 // GET /api/stats/sounds - Sound playback stats
-router.get('/sounds', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/sounds', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -319,7 +331,7 @@ router.get('/sounds', requireAuth, async (req: Request, res: Response): Promise<
 });
 
 // GET /api/stats/users - User activity stats
-router.get('/users', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/users', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -450,10 +462,10 @@ export async function getUserSoundsHandler(req: Request, res: Response): Promise
   }
 }
 
-router.get('/user-sounds', requireAuth, getUserSoundsHandler);
+router.get('/user-sounds', statsRateLimiter, requireAuth, getUserSoundsHandler);
 
 // GET /api/stats/guilds - Guild activity stats
-router.get('/guilds', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/guilds', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -516,7 +528,7 @@ router.get('/guilds', requireAuth, async (req: Request, res: Response): Promise<
 });
 
 // GET /api/stats/time - Time-based trends
-router.get('/time', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/time', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const granularity = (req.query['granularity'] as string) || 'day'; // hour, day, week, month
     const filters = {
@@ -596,7 +608,7 @@ router.get('/time', requireAuth, async (req: Request, res: Response): Promise<vo
 });
 
 // GET /api/stats/queue - Queue operation stats
-router.get('/queue', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/queue', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters: WhereFilters = {
@@ -632,7 +644,7 @@ router.get('/queue', requireAuth, async (req: Request, res: Response): Promise<v
 });
 
 // GET /api/stats/history - Get listening history (all users or filtered by userId)
-router.get('/history', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/history', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req.query['userId'] as string) || null; // null means all users
     const guildId = (req.query['guildId'] as string) || null;
@@ -661,7 +673,7 @@ router.get('/history', requireAuth, async (req: Request, res: Response): Promise
 });
 
 // GET /api/stats/errors - Error breakdown by type and command
-router.get('/errors', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/errors', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = {
       guildId: req.query['guildId'] as string | undefined,
@@ -735,7 +747,7 @@ router.get('/errors', requireAuth, async (req: Request, res: Response): Promise<
 });
 
 // GET /api/stats/performance - Command execution time percentiles
-router.get('/performance', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/performance', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = {
       guildId: req.query['guildId'] as string | undefined,
@@ -807,7 +819,7 @@ router.get('/performance', requireAuth, async (req: Request, res: Response): Pro
 });
 
 // GET /api/stats/sessions - Voice session analytics
-router.get('/sessions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/sessions', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -884,7 +896,7 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response): Promis
 });
 
 // GET /api/stats/retention - User retention and cohort analysis
-router.get('/retention', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/retention', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = {
       guildId: req.query['guildId'] as string | undefined,
@@ -950,7 +962,7 @@ router.get('/retention', requireAuth, async (req: Request, res: Response): Promi
 });
 
 // GET /api/stats/search - Search query analytics
-router.get('/search', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/search', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1025,7 +1037,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response): Promise<
 });
 
 // GET /api/stats/user-sessions - User voice session analytics
-router.get('/user-sessions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/user-sessions', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1107,7 +1119,7 @@ router.get('/user-sessions', requireAuth, async (req: Request, res: Response): P
 });
 
 // GET /api/stats/user-tracks - User track listening analytics
-router.get('/user-tracks', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/user-tracks', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1183,7 +1195,7 @@ router.get('/user-tracks', requireAuth, async (req: Request, res: Response): Pro
 });
 
 // GET /api/stats/user/:userId - Individual user statistics
-router.get('/user/:userId', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/user/:userId', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.params['userId'];
     const guildId = req.query['guildId'] as string | undefined;
@@ -1257,7 +1269,7 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response): Pr
 });
 
 // GET /api/stats/engagement - Track engagement analytics (completion vs skip)
-router.get('/engagement', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/engagement', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1344,7 +1356,7 @@ router.get('/engagement', requireAuth, async (req: Request, res: Response): Prom
 });
 
 // GET /api/stats/interactions - Interaction events (buttons vs commands)
-router.get('/interactions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/interactions', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1436,7 +1448,7 @@ router.get('/interactions', requireAuth, async (req: Request, res: Response): Pr
 });
 
 // GET /api/stats/playback-states - Playback state changes (volume, pause, etc)
-router.get('/playback-states', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/playback-states', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = {
       guildId: req.query['guildId'] as string | undefined,
@@ -1511,7 +1523,7 @@ router.get('/playback-states', requireAuth, async (req: Request, res: Response):
 });
 
 // GET /api/stats/web-analytics - Web dashboard usage analytics
-router.get('/web-analytics', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/web-analytics', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1588,7 +1600,7 @@ router.get('/web-analytics', requireAuth, async (req: Request, res: Response): P
 });
 
 // GET /api/stats/guild-events - Guild join/leave events
-router.get('/guild-events', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/guild-events', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
     const filters = {
@@ -1659,7 +1671,7 @@ router.get('/guild-events', requireAuth, async (req: Request, res: Response): Pr
 });
 
 // GET /api/stats/api-latency - API performance metrics
-router.get('/api-latency', requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/api-latency', statsRateLimiter, requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const filters = {
       endpoint: req.query['endpoint'] as string | undefined,
@@ -1735,7 +1747,7 @@ router.get('/api-latency', requireAuth, async (req: Request, res: Response): Pro
 export default router;
 
 // Server-Sent Events stream for stats updates
-router.get('/stream', requireAuth, (req: Request, res: Response) => {
+router.get('/stream', statsRateLimiter, requireAuth, (req: Request, res: Response) => {
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1773,7 +1785,7 @@ router.get('/stream', requireAuth, (req: Request, res: Response) => {
 });
 
 // GET /api/stats/check-tables - quick diagnostic: returns row counts for key stats tables
-router.get('/check-tables', requireAuth, async (_req: Request, res: Response) => {
+router.get('/check-tables', statsRateLimiter, requireAuth, async (_req: Request, res: Response) => {
   try {
     const tables = [
       'command_stats',
