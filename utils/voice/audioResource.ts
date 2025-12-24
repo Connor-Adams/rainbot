@@ -303,6 +303,10 @@ export async function createTrackResourceForAny(
 
 /**
  * Create audio resource with seek position
+ * 
+ * Note: For YouTube URLs with cookies enabled, seeking is not supported due to yt-dlp
+ * limitations. The function will play from the start and return actualSeek=0. 
+ * For other platforms, play-dl is used which may support seeking.
  */
 export async function createResourceWithSeek(
   track: Track,
@@ -351,12 +355,12 @@ export async function createResourceWithSeek(
   
   if (ytMatch && seekSeconds > 0) {
     // For YouTube with seek, try to use yt-dlp with cookie support
+    // Note: yt-dlp's getUrl mode doesn't support seeking, so we fetch from start
     try {
-      log.debug(`Using yt-dlp with seek to ${seekSeconds}s for YouTube`);
+      log.debug(`Attempting YouTube playback for seek request (will play from start with cookies)`);
       const streamUrl = await getStreamUrl(track.url);
       
-      // Fetch the stream starting from the beginning (yt-dlp doesn't support seek in getUrl mode)
-      // Note: Actual seeking for YouTube would require downloading sections or using play-dl
+      // Fetch the stream (plays from beginning - yt-dlp getUrl doesn't support seek)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -385,15 +389,13 @@ export async function createResourceWithSeek(
         log.debug(`Stream error (expected on skip/stop): ${err.message}`);
       });
 
-      // Note: This doesn't actually seek, just plays from start
-      // For true seek support with YouTube + cookies, we'd need a different approach
-      log.warn(`YouTube seek not fully supported with yt-dlp, playing from start`);
+      log.info(`YouTube seek not supported with cookie auth - playing from start instead`);
       return {
         resource: createVolumeResource(nodeStream, { inputType: StreamType.Arbitrary }),
-        actualSeek: 0, // Indicate that seek didn't work
+        actualSeek: 0, // Indicate that seek wasn't applied
       };
     } catch (error) {
-      log.warn(`yt-dlp seek failed for YouTube, falling back to play-dl: ${(error as Error).message}`);
+      log.warn(`yt-dlp failed for YouTube seek, falling back to play-dl: ${(error as Error).message}`);
       // Fall through to play-dl fallback below
     }
   }
