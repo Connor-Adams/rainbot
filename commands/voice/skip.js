@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
+const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
 
 const log = createLogger('SKIP');
 
@@ -20,13 +21,9 @@ module.exports = {
     const guildId = interaction.guildId;
     const count = interaction.options.getInteger('count') || 1;
 
-    const status = voiceManager.getStatus(guildId);
-    if (!status) {
-      return interaction.reply({
-        content:
-          "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
-      });
+    const connectionCheck = validateVoiceConnection(interaction, voiceManager);
+    if (!connectionCheck.isValid) {
+      return interaction.reply(connectionCheck.error);
     }
 
     try {
@@ -56,10 +53,7 @@ module.exports = {
       await interaction.reply(replyText);
     } catch (error) {
       log.error(`Skip error: ${error.message}`);
-      await interaction.reply({
-        content: `❌ ${error.message}`,
-        ephemeral: true,
-      });
+      await interaction.reply(createErrorResponse(error));
     }
   },
 };
