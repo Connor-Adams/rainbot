@@ -39,7 +39,19 @@ npm install
    - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
    - **Linux**: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or `sudo yum install ffmpeg` (CentOS/RHEL)
 
-4. Configure the bot:
+4. **(Optional) Configure YouTube Authentication:**
+   
+   YouTube playback may fail with 403 errors if Google blocks the bot's requests. To fix this:
+   
+   1. Install the "cookies.txt" browser extension ([Chrome](https://chrome.google.com/webstore/detail/cookiestxt/njabckikapfpffapmjgojcnbfjonfjfg) / [Firefox](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/))
+   2. Go to [YouTube.com](https://youtube.com) and sign in to your account
+   3. Export cookies using the extension (saves a `cookies.txt` file)
+   4. Place the file somewhere accessible (e.g., `/path/to/cookies.txt`)
+   5. Set the environment variable: `YTDLP_COOKIES=/path/to/cookies.txt`
+   
+   **Note:** Cookies expire periodically. If YouTube playback breaks again, export fresh cookies.
+
+5. Configure the bot:
 
    Create a `.env` file in the project root:
 
