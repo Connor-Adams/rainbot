@@ -70,6 +70,7 @@ export async function playSoundboardDirect(
   discriminator: string | null
 ): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
+  // Soundboard plays at full volume (no inlineVolume)
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
   // Kill any existing overlay
@@ -221,7 +222,7 @@ export async function playSoundboardOverlay(
       }
     });
 
-    // Create audio resource from FFmpeg output
+    // Create audio resource from FFmpeg output (no volume control for soundboard overlay)
     const resource = createAudioResource(ffmpeg.stdout!, {
       inputType: StreamType.OggOpus,
     });

@@ -113,7 +113,10 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
       return {
-        resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
+        resource: createAudioResource(nodeStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true,
+        }),
       };
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -416,7 +419,7 @@ export async function playSoundboardOverlay(
     throw new Error(`Sound file not found: ${soundName}`);
   }
 
-  // For now, just play soundboard directly (full FFmpeg overlay would go here)
+  // Soundboard plays at full volume (no volume control)
   log.info(`Playing soundboard: ${soundName}`);
   const soundStream = await storage.getSoundStream(soundName);
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });

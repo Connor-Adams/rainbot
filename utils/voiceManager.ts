@@ -218,7 +218,7 @@ export async function playSound(
         };
       } catch (overlayError) {
         log.warn(`Overlay failed, playing soundboard directly: ${(overlayError as Error).message}`);
-        // Fallback handled by playbackManager
+        // Fallback - soundboard plays at full volume
         const soundStream = await storage.getSoundStream(source);
         const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
@@ -236,7 +236,7 @@ export async function playSound(
         };
       }
     } else {
-      // No music - play soundboard directly
+      // No music - play soundboard directly at full volume
       log.info(`Soundboard file detected, playing immediately (no music): ${source}`);
       const soundStream = await storage.getSoundStream(source);
       const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });

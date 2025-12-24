@@ -133,7 +133,10 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
       return {
-        resource: createAudioResource(nodeStream, { inputType: StreamType.Arbitrary }),
+        resource: createAudioResource(nodeStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true,
+        }),
       };
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -189,6 +192,7 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
   return {
     resource: createAudioResource(subprocess.stdout as Readable, {
       inputType: StreamType.Arbitrary,
+      inlineVolume: true,
     }),
     subprocess,
   };
