@@ -322,6 +322,9 @@ export async function playNext(guildId: string): Promise<Track | null> {
       }
     }
 
+    // Increment session track count
+    stats.incrementSessionTracks(guildId);
+
     return nextTrack;
   } catch (error) {
     const err = error as Error;

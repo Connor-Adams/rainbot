@@ -227,33 +227,135 @@ export async function initializeSchema(): Promise<boolean> {
 
     // Add username/discriminator columns if they don't exist (migration)
     await pool.query(`
-            DO $$ 
+            DO $$
             BEGIN
                 IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
+                    SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'command_stats' AND column_name = 'username'
                 ) THEN
                     ALTER TABLE command_stats ADD COLUMN username VARCHAR(100);
                 END IF;
                 IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
+                    SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'command_stats' AND column_name = 'discriminator'
                 ) THEN
                     ALTER TABLE command_stats ADD COLUMN discriminator VARCHAR(10);
                 END IF;
                 IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
+                    SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'sound_stats' AND column_name = 'username'
                 ) THEN
                     ALTER TABLE sound_stats ADD COLUMN username VARCHAR(100);
                 END IF;
                 IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
+                    SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'sound_stats' AND column_name = 'discriminator'
                 ) THEN
                     ALTER TABLE sound_stats ADD COLUMN discriminator VARCHAR(10);
                 END IF;
             END $$;
+        `);
+
+    // ============================================================================
+    // NEW STATS IMPROVEMENTS - Migration for enhanced analytics
+    // ============================================================================
+
+    // Add execution_time_ms to command_stats for performance tracking
+    await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'command_stats' AND column_name = 'execution_time_ms'
+                ) THEN
+                    ALTER TABLE command_stats ADD COLUMN execution_time_ms INTEGER;
+                END IF;
+            END $$;
+        `);
+
+    // Add error_type enum for error classification
+    await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'command_stats' AND column_name = 'error_type'
+                ) THEN
+                    ALTER TABLE command_stats ADD COLUMN error_type VARCHAR(20)
+                    CHECK (error_type IN ('validation', 'permission', 'not_found', 'rate_limit', 'external_api', 'internal', 'timeout', NULL));
+                END IF;
+            END $$;
+        `);
+
+    // Add first_seen_at to user_profiles for retention analysis
+    await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'user_profiles' AND column_name = 'first_seen_at'
+                ) THEN
+                    ALTER TABLE user_profiles ADD COLUMN first_seen_at TIMESTAMP DEFAULT NOW();
+                END IF;
+            END $$;
+        `);
+
+    // Add skip tracking columns to sound_stats
+    await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'sound_stats' AND column_name = 'skipped_at_seconds'
+                ) THEN
+                    ALTER TABLE sound_stats ADD COLUMN skipped_at_seconds INTEGER;
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'sound_stats' AND column_name = 'completed'
+                ) THEN
+                    ALTER TABLE sound_stats ADD COLUMN completed BOOLEAN DEFAULT NULL;
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'sound_stats' AND column_name = 'listened_duration'
+                ) THEN
+                    ALTER TABLE sound_stats ADD COLUMN listened_duration INTEGER;
+                END IF;
+            END $$;
+        `);
+
+    // Create voice_sessions table for session duration tracking
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS voice_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(36) NOT NULL UNIQUE,
+                guild_id VARCHAR(20) NOT NULL,
+                channel_id VARCHAR(20) NOT NULL,
+                channel_name VARCHAR(255),
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                ended_at TIMESTAMP,
+                duration_seconds INTEGER,
+                tracks_played INTEGER DEFAULT 0,
+                user_count_peak INTEGER DEFAULT 1,
+                source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api'))
+            )
+        `);
+
+    // Create search_stats table for discovery tracking
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS search_stats (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(20) NOT NULL,
+                guild_id VARCHAR(20) NOT NULL,
+                query TEXT NOT NULL,
+                query_type VARCHAR(20) NOT NULL CHECK (query_type IN ('search', 'url', 'playlist', 'soundboard')),
+                results_count INTEGER,
+                selected_index INTEGER,
+                selected_title VARCHAR(500),
+                searched_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api'))
+            )
         `);
 
     // Create indexes
@@ -318,10 +420,51 @@ export async function initializeSchema(): Promise<boolean> {
       `CREATE INDEX IF NOT EXISTS idx_listening_history_queued_by ON listening_history(queued_by)`
     );
 
-    // Create views
+    // New composite indexes for better query performance
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_guild_date ON command_stats(guild_id, executed_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_command_stats_user_date ON command_stats(user_id, executed_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_stats_guild_date ON sound_stats(guild_id, played_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_stats_user_guild_date ON sound_stats(user_id, guild_id, played_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_guild_date ON listening_history(guild_id, played_at DESC)`
+    );
+
+    // Indexes for new tables
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_voice_sessions_guild_id ON voice_sessions(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_voice_sessions_started_at ON voice_sessions(started_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_voice_sessions_guild_started ON voice_sessions(guild_id, started_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_search_stats_user_id ON search_stats(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_search_stats_guild_id ON search_stats(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_search_stats_searched_at ON search_stats(searched_at)`
+    );
+
+    // Create views - drop and recreate in transaction to allow column changes
+    // Using transaction to minimize window where view doesn't exist
     await pool.query(`
-            CREATE OR REPLACE VIEW user_stats_view AS
-            SELECT 
+            DO $$
+            BEGIN
+                DROP VIEW IF EXISTS user_stats_view;
+                CREATE VIEW user_stats_view AS
+            SELECT
                 COALESCE(c.user_id, s.user_id) AS user_id,
                 COALESCE(c.guild_id, s.guild_id) AS guild_id,
                 COALESCE(MAX(u.username), MAX(c.username), MAX(s.username)) AS username,
@@ -332,7 +475,8 @@ export async function initializeSchema(): Promise<boolean> {
             FROM command_stats c
             FULL OUTER JOIN sound_stats s ON c.user_id = s.user_id AND c.guild_id = s.guild_id
             LEFT JOIN user_profiles u ON u.user_id = COALESCE(c.user_id, s.user_id)
-            GROUP BY COALESCE(c.user_id, s.user_id), COALESCE(c.guild_id, s.guild_id)
+            GROUP BY COALESCE(c.user_id, s.user_id), COALESCE(c.guild_id, s.guild_id);
+            END $$;
         `);
 
     await pool.query(`

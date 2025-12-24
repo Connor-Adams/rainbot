@@ -77,6 +77,9 @@ export async function joinChannel(
   // Track voice join event
   stats.trackVoiceEvent('join', channel.guild.id, channel.id, channel.name, 'discord');
 
+  // Start a voice session for duration tracking
+  stats.startVoiceSession(channel.guild.id, channel.id, channel.name, 'discord');
+
   return result;
 }
 
@@ -114,6 +117,11 @@ export function leaveChannel(guildId: string): boolean {
   if (result && channelId) {
     stats.trackVoiceEvent('leave', guildId, channelId, channelName, 'discord');
   }
+
+  // End the voice session for duration tracking
+  stats.endVoiceSession(guildId).catch((err) => {
+    log.error(`Failed to end voice session: ${(err as Error).message}`);
+  });
 
   return result;
 }
