@@ -62,9 +62,9 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
-// Load handlers
-require('./dist/handlers/commandHandler')(client);
-require('./dist/handlers/eventHandler')(client);
+// Load handlers (still JS files, not in dist)
+require('./handlers/commandHandler')(client);
+require('./handlers/eventHandler')(client);
 
 // Start Express server once bot is ready
 client.once(Events.ClientReady, async () => {

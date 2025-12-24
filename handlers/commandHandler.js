@@ -1,14 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const { Collection } = require('discord.js');
-const { createLogger } = require('../utils/logger');
+const { createLogger } = require('../dist/utils/logger');
 
 const log = createLogger('COMMANDS');
 
 module.exports = (client) => {
   client.commands = new Collection();
 
-  const commandsPath = path.join(__dirname, '..', 'commands');
+  // Look in dist/commands for compiled TypeScript commands
+  const commandsPath = path.join(__dirname, '..', 'dist', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 
   for (const folder of commandFolders) {
