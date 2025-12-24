@@ -346,7 +346,59 @@ export async function createResourceWithSeek(
     throw new Error('Track URL is required for seek');
   }
 
-  // Streams: play-dl supports seek option
+  // Check if it's a YouTube URL
+  const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  
+  if (ytMatch && seekSeconds > 0) {
+    // For YouTube with seek, try to use yt-dlp with cookie support
+    try {
+      log.debug(`Using yt-dlp with seek to ${seekSeconds}s for YouTube`);
+      const streamUrl = await getStreamUrl(track.url);
+      
+      // Fetch the stream starting from the beginning (yt-dlp doesn't support seek in getUrl mode)
+      // Note: Actual seeking for YouTube would require downloading sections or using play-dl
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+      const response = await fetch(streamUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity',
+          Range: 'bytes=0-',
+          Referer: 'https://www.youtube.com/',
+          Origin: 'https://www.youtube.com',
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Stream fetch failed: ${response.status}`);
+      }
+
+      const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      nodeStream.on('error', (err) => {
+        log.debug(`Stream error (expected on skip/stop): ${err.message}`);
+      });
+
+      // Note: This doesn't actually seek, just plays from start
+      // For true seek support with YouTube + cookies, we'd need a different approach
+      log.warn(`YouTube seek not fully supported with yt-dlp, playing from start`);
+      return {
+        resource: createVolumeResource(nodeStream, { inputType: StreamType.Arbitrary }),
+        actualSeek: 0, // Indicate that seek didn't work
+      };
+    } catch (error) {
+      log.warn(`yt-dlp seek failed for YouTube, falling back to play-dl: ${(error as Error).message}`);
+      // Fall through to play-dl fallback below
+    }
+  }
+
+  // For non-YouTube URLs or YouTube without seek, or if yt-dlp failed, use play-dl
   try {
     const streamInfo = await play.stream(track.url, {
       quality: 2,

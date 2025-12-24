@@ -545,7 +545,7 @@ export async function playWithSeek(
     state.nowPlaying = track.title;
     state.currentTrack = track;
     state.currentTrackSource = track.isLocal ? null : track.url || null;
-    state.playbackStartTime = Date.now() - (result.actualSeek || seekSeconds) * 1000; // Offset to account for actual seek
+    state.playbackStartTime = Date.now() - (result.actualSeek ?? seekSeconds) * 1000; // Offset to account for actual seek
     state.totalPausedTime = 0;
     state.pauseStartTime = null;
 
@@ -555,7 +555,7 @@ export async function playWithSeek(
       state.pauseStartTime = Date.now();
     }
 
-    log.info(`Resumed: ${track.title} at ${result.actualSeek || seekSeconds}s`);
+    log.info(`Resumed: ${track.title} at ${result.actualSeek ?? seekSeconds}s`);
   } catch (error) {
     const err = error as Error;
     log.error(`Failed to resume ${track.title}: ${err.message}`);
