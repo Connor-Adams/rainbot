@@ -44,6 +44,12 @@ export async function joinChannel(
     const state = voiceStates.get(guildId);
     if (!state) return;
 
+    // If we're transitioning to a soundboard overlay, don't advance the queue
+    if (state.isTransitioningToOverlay === true) {
+      log.debug('Ignoring idle event - transitioning to soundboard overlay');
+      return;
+    }
+
     // End track engagement - track completed naturally
     stats.endTrackEngagement(guildId, false, 'next_track', null, null);
 
@@ -105,6 +111,7 @@ export async function joinChannel(
     preBuffered: null,
     currentTrackSource: null,
     lastPlayedTrack: null,
+    isTransitioningToOverlay: false,
   };
 
   voiceStates.set(guildId, state);
