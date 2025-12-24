@@ -12,6 +12,9 @@ import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
 import { createLogger } from '../logger';
 import { getVoiceState } from './connectionManager';
+import * as stats from '../statistics';
+import * as listeningHistory from '../listeningHistory';
+import { detectSourceType } from '../sourceType';
 import type { Track } from '../../types/voice';
 import type { VoiceState } from '../../types/voice-modules';
 
@@ -275,6 +278,49 @@ export async function playNext(guildId: string): Promise<Track | null> {
 
     log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
     log.info(`Now playing: ${nextTrack.title}`);
+
+    // Track non-soundboard plays in statistics and listening history
+    if (!nextTrack.isSoundboard) {
+      const userId = nextTrack.userId || state.lastUserId || '';
+      const username = nextTrack.username || state.lastUsername || null;
+      const discriminator = nextTrack.discriminator || state.lastDiscriminator || null;
+      const trackSource = nextTrack.source || 'discord';
+      const sourceType = detectSourceType(nextTrack);
+
+      if (userId) {
+        // Track in sound_stats
+        stats.trackSound(
+          nextTrack.title,
+          userId,
+          guildId,
+          sourceType,
+          false, // not soundboard
+          nextTrack.duration || null,
+          trackSource,
+          username,
+          discriminator
+        );
+
+        // Track in listening_history
+        listeningHistory
+          .trackPlayed(
+            userId,
+            guildId,
+            {
+              title: nextTrack.title,
+              url: nextTrack.url,
+              duration: nextTrack.duration,
+              isLocal: nextTrack.isLocal,
+              isSoundboard: false,
+              source: trackSource,
+            },
+            nextTrack.userId || state.lastUserId || null
+          )
+          .catch((err) =>
+            log.error(`Failed to track listening history: ${(err as Error).message}`)
+          );
+      }
+    }
 
     return nextTrack;
   } catch (error) {
