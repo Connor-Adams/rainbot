@@ -136,11 +136,14 @@ export async function playSoundboardOverlay(
       try {
         // Set flag to prevent idle handler from calling playNext
         state.isTransitioningToOverlay = true;
-        state.overlayProcess = null; // Clear before stopping to avoid race conditions
         existingOverlay.kill('SIGKILL');
+        // Clear after kill to maintain consistent state during cleanup
+        state.overlayProcess = null;
         state.player.stop();
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
+        // Ensure overlayProcess is cleared even if kill fails
+        state.overlayProcess = null;
       }
     } else {
       // First overlay - stop current music and set flag to prevent idle handler

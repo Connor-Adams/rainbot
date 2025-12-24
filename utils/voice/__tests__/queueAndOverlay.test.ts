@@ -15,6 +15,7 @@ describe('Queue and Overlay Management', () => {
   describe('Overlay completion behavior', () => {
     it('should resume music after overlay finishes, not advance queue', () => {
       // Setup: Create a mock voice state with a track playing and overlay active
+      const mockOverlayProcess = { pid: 12345 }; // Mock FFmpeg process
       const mockState: Partial<VoiceState> = {
         nowPlaying: 'Test Track',
         currentTrack: {
@@ -31,7 +32,7 @@ describe('Queue and Overlay Management', () => {
         playbackStartTime: Date.now() - 30000, // Started 30 seconds ago
         totalPausedTime: 0,
         pauseStartTime: null,
-        overlayProcess: {} as unknown, // Simulates active overlay
+        overlayProcess: mockOverlayProcess as unknown, // Simulates active overlay
       };
 
       // The key assertion: overlayProcess being set indicates an overlay is active
@@ -60,6 +61,7 @@ describe('Queue and Overlay Management', () => {
     });
 
     it('should handle multiple overlays in sequence without consuming queue', () => {
+      const mockOverlayProcess = { pid: 12345 }; // Mock FFmpeg process
       const mockState: Partial<VoiceState> = {
         nowPlaying: 'Test Track',
         currentTrack: {
@@ -72,7 +74,7 @@ describe('Queue and Overlay Management', () => {
           { title: 'Track 2' } as Track,
           { title: 'Track 3' } as Track,
         ],
-        overlayProcess: {} as unknown,
+        overlayProcess: mockOverlayProcess as unknown,
         isTransitioningToOverlay: false,
       };
 
@@ -110,8 +112,10 @@ describe('Queue and Overlay Management', () => {
     });
 
     it('should clear overlay process before stopping player to avoid race condition', () => {
+      const mockKillFn = jest.fn();
+      const mockOverlayProcess = { kill: mockKillFn, pid: 12345 };
       const mockState: Partial<VoiceState> = {
-        overlayProcess: { kill: jest.fn() } as unknown,
+        overlayProcess: mockOverlayProcess as unknown,
         isTransitioningToOverlay: false,
       };
 
@@ -165,10 +169,11 @@ describe('Queue and Overlay Management', () => {
     });
 
     it('should handle overlay when no current track exists', () => {
+      const mockOverlayProcess = { pid: 12345 }; // Mock FFmpeg process
       const mockState: Partial<VoiceState> = {
         currentTrack: null,
         currentTrackSource: null,
-        overlayProcess: {} as unknown,
+        overlayProcess: mockOverlayProcess as unknown,
         queue: [{ title: 'Track 1' } as Track],
       };
 
