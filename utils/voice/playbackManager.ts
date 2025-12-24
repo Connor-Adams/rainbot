@@ -15,13 +15,50 @@ import { getVoiceState } from './connectionManager';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { detectSourceType } from '../sourceType';
+import { getClient } from '../../server/client';
 import type { Track } from '../../types/voice';
 import type { VoiceState } from '../../types/voice-modules';
+import type { TextChannel, VoiceChannel } from 'discord.js';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 const log = createLogger('PLAYBACK');
+
+/**
+ * Send a "Now Playing" update to the voice channel
+ */
+async function sendNowPlayingUpdate(guildId: string, track: Track): Promise<void> {
+  try {
+    const client = getClient();
+    if (!client) return;
+
+    const state = getVoiceState(guildId);
+    if (!state) return;
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const channel = guild.channels.cache.get(state.channelId) as
+      | VoiceChannel
+      | TextChannel
+      | undefined;
+    if (!channel || !('send' in channel)) return;
+
+    // Format duration if available
+    let durationStr = '';
+    if (track.duration) {
+      const minutes = Math.floor(track.duration / 60);
+      const seconds = track.duration % 60;
+      durationStr = ` (${minutes}:${seconds.toString().padStart(2, '0')})`;
+    }
+
+    await channel.send(`🎵 Now playing: **${track.title}**${durationStr}`);
+  } catch (error) {
+    const err = error as Error;
+    log.debug(`Failed to send now playing update: ${err.message}`);
+  }
+}
 
 /** Cache expiration time for stream URLs (2 hours) */
 const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000;
@@ -278,6 +315,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
 
     log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
     log.info(`Now playing: ${nextTrack.title}`);
+
+    // Send now playing update to voice channel (not for soundboard)
+    if (!nextTrack.isSoundboard) {
+      sendNowPlayingUpdate(guildId, nextTrack);
+    }
 
     // Track non-soundboard plays in statistics and listening history
     if (!nextTrack.isSoundboard) {
