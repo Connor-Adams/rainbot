@@ -37,7 +37,7 @@ interface GuildEvent {
   guild_name: string
   member_count: string
   created_at: string
-  metadata?: any
+  metadata?: Record<string, unknown>
 }
 
 interface GrowthEntry {
