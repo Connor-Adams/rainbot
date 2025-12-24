@@ -55,10 +55,15 @@ export function extractAuthUser(user: unknown): {
   }
 
   const userObj = user as Record<string, unknown>;
+
+  const id = typeof userObj.id === 'string' ? userObj.id : null;
+  const username = typeof userObj.username === 'string' ? userObj.username : null;
+  const discriminator = typeof userObj.discriminator === 'string' ? userObj.discriminator : null;
+
   return {
-    id: (userObj.id as string) || null,
-    username: (userObj.username as string) || null,
-    discriminator: (userObj.discriminator as string) || null,
+    id,
+    username,
+    discriminator,
   };
 }
 
