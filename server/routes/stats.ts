@@ -1740,13 +1740,14 @@ router.get('/stream', requireAuth, (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   res.flushHeaders && res.flushHeaders();
 
-  const send = (event: string, data: any) => {
+  const send = (event: string, data: unknown) => {
     try {
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
-    } catch (err) {
+    } catch {
       // ignore write errors
     }
   };
@@ -1765,14 +1766,14 @@ router.get('/stream', requireAuth, (req: Request, res: Response) => {
     statsEmitter.off('flushed', onFlush);
     try {
       res.end();
-    } catch (e) {
+    } catch {
       // no-op
     }
   });
 });
 
 // GET /api/stats/check-tables - quick diagnostic: returns row counts for key stats tables
-router.get('/check-tables', requireAuth, async (req: Request, res: Response) => {
+router.get('/check-tables', requireAuth, async (_req: Request, res: Response) => {
   try {
     const tables = [
       'command_stats',
@@ -1795,7 +1796,7 @@ router.get('/check-tables', requireAuth, async (req: Request, res: Response) => 
       try {
         const r = await query(`SELECT COUNT(*) as count FROM ${t}`);
         counts[t] = parseInt(r?.rows[0]?.count || '0');
-      } catch (err) {
+      } catch {
         counts[t] = -1; // error reading
       }
     }

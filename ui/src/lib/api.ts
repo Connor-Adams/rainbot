@@ -163,22 +163,56 @@ export const statsApi = {
   retention: (params?: { guildId?: string }) => api.get('/stats/retention', { params }),
   search: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
     api.get('/stats/search', { params }),
-  userSessions: (params?: { limit?: number; guildId?: string; userId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/user-sessions', { params }),
-  userTracks: (params?: { limit?: number; guildId?: string; userId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/user-tracks', { params }),
-  user: (userId: string, params?: { guildId?: string }) => api.get(`/stats/user/${encodeURIComponent(userId)}`, { params }),
-  engagement: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/engagement', { params }),
-  interactions: (params?: { limit?: number; guildId?: string; interactionType?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/interactions', { params }),
-  playbackStates: (params?: { guildId?: string; stateType?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/playback-states', { params }),
-  webAnalytics: (params?: { limit?: number; guildId?: string; userId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/web-analytics', { params }),
-  guildEvents: (params?: { limit?: number; eventType?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/guild-events', { params }),
-  apiLatency: (params?: { endpoint?: string; startDate?: string; endDate?: string }) => api.get('/stats/api-latency', { params }),
+  userSessions: (params?: {
+    limit?: number;
+    guildId?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/user-sessions', { params }),
+  userTracks: (params?: {
+    limit?: number;
+    guildId?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/user-tracks', { params }),
+  user: (userId: string, params?: { guildId?: string }) =>
+    api.get(`/stats/user/${encodeURIComponent(userId)}`, { params }),
+  engagement: (params?: {
+    limit?: number;
+    guildId?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/engagement', { params }),
+  interactions: (params?: {
+    limit?: number;
+    guildId?: string;
+    interactionType?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/interactions', { params }),
+  playbackStates: (params?: {
+    guildId?: string;
+    stateType?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/playback-states', { params }),
+  webAnalytics: (params?: {
+    limit?: number;
+    guildId?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/web-analytics', { params }),
+  guildEvents: (params?: {
+    limit?: number;
+    eventType?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/stats/guild-events', { params }),
+  apiLatency: (params?: { endpoint?: string; startDate?: string; endDate?: string }) =>
+    api.get('/stats/api-latency', { params }),
 };
 
 export default api;

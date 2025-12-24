@@ -11,6 +11,28 @@ const log = createLogger('AUDIO_RESOURCE');
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
+// Cookie file path for YouTube authentication (fixes 403 errors)
+const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
+
+/**
+ * Get common yt-dlp options including cookies if configured
+ */
+function getYtdlpOptions(): Record<string, unknown> {
+  const options: Record<string, unknown> = {
+    noPlaylist: true,
+    noWarnings: true,
+    quiet: true,
+    noCheckCertificates: true,
+  };
+
+  if (COOKIES_FILE) {
+    options['cookies'] = COOKIES_FILE;
+    log.debug(`Using cookies file: ${COOKIES_FILE}`);
+  }
+
+  return options;
+}
+
 /**
  * Cache expiration time for stream URLs (2 hours)
  */
@@ -68,12 +90,9 @@ export async function getStreamUrl(videoUrl: string): Promise<string> {
 
   // Get direct URL from yt-dlp
   const result = (await youtubedl(videoUrl, {
+    ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio/best',
     getUrl: true,
-    noPlaylist: true,
-    noWarnings: true,
-    quiet: true,
-    noCheckCertificates: true,
   })) as unknown as string;
 
   const streamUrl = result.trim();
@@ -126,6 +145,11 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // Invalidate cache on 403 (URL expired or blocked)
+        if (response.status === 403) {
+          urlCache.delete(track.url!);
+          log.warn(`403 Forbidden - cached URL invalidated for ${track.url}`);
+        }
         log.warn(`Stream fetch failed (${response.status}), falling back to yt-dlp piping`);
         throw new Error(`Stream fetch failed: ${response.status}`);
       }
@@ -173,12 +197,9 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
   if (!ytMatch) return null;
 
   const subprocess = youtubedl.exec(track.url, {
+    ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio',
     output: '-',
-    noPlaylist: true,
-    noWarnings: true,
-    quiet: true,
-    noCheckCertificates: true,
     preferFreeFormats: true,
     bufferSize: '16K',
   });

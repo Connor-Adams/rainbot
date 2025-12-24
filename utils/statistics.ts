@@ -780,7 +780,7 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         count: events.length,
         ts: new Date().toISOString(),
       });
-    } catch (err) {
+    } catch {
       /* ignore emitter errors */
     }
   } catch (error) {
@@ -1169,7 +1169,7 @@ export async function flushAll(): Promise<void> {
   }
   try {
     statsEmitter.emit('flushed', { ts: new Date().toISOString() });
-  } catch (err) {
+  } catch {
     /* ignore */
   }
 }
