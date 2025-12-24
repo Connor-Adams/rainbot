@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { query } from '../../utils/database';
 import { requireAuth } from '../middleware/auth';
+import { statsEmitter } from '../../utils/statistics';
 
 const router = express.Router();
 
@@ -1732,3 +1733,77 @@ router.get('/api-latency', requireAuth, async (req: Request, res: Response): Pro
 });
 
 export default router;
+
+// Server-Sent Events stream for stats updates
+router.get('/stream', requireAuth, (req: Request, res: Response) => {
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  res.flushHeaders && res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    try {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      // ignore write errors
+    }
+  };
+
+  const onBatch = (payload: unknown) => send('stats-update', payload);
+  const onFlush = (payload: unknown) => send('stats-flushed', payload);
+
+  statsEmitter.on('batchInserted', onBatch);
+  statsEmitter.on('flushed', onFlush);
+
+  // Immediately send a ping so client knows connection is live
+  send('connected', { ts: new Date().toISOString() });
+
+  req.on('close', () => {
+    statsEmitter.off('batchInserted', onBatch);
+    statsEmitter.off('flushed', onFlush);
+    try {
+      res.end();
+    } catch {
+      // no-op
+    }
+  });
+});
+
+// GET /api/stats/check-tables - quick diagnostic: returns row counts for key stats tables
+router.get('/check-tables', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const tables = [
+      'command_stats',
+      'sound_stats',
+      'queue_operations',
+      'voice_events',
+      'search_stats',
+      'user_voice_sessions',
+      'user_track_listens',
+      'track_engagement',
+      'interaction_events',
+      'playback_state_changes',
+      'web_events',
+      'guild_events',
+      'api_latency',
+    ];
+
+    const counts: Record<string, number> = {};
+    for (const t of tables) {
+      try {
+        const r = await query(`SELECT COUNT(*) as count FROM ${t}`);
+        counts[t] = parseInt(r?.rows[0]?.count || '0');
+      } catch {
+        counts[t] = -1; // error reading
+      }
+    }
+
+    res.json({ tables: counts, ts: new Date().toISOString() });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});

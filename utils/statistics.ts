@@ -1,8 +1,12 @@
 import { query } from './database';
 import { createLogger } from './logger';
+import { EventEmitter } from 'events';
 import type { SourceType } from './sourceType';
 
 const log = createLogger('STATS');
+
+// Emitter for notifying runtime listeners (SSE/WebSocket) about stats writes
+export const statsEmitter = new EventEmitter();
 
 // Batch processing configuration
 const BATCH_SIZE = 100;
@@ -767,6 +771,18 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
     }
 
     log.debug(`Inserted ${events.length} ${type} events`);
+    try {
+      // Notify listeners that a batch was inserted
+      // Provide type/table/count and timestamp
+      (statsEmitter as EventEmitter).emit('batchInserted', {
+        type,
+        table,
+        count: events.length,
+        ts: new Date().toISOString(),
+      });
+    } catch {
+      /* ignore emitter errors */
+    }
   } catch (error) {
     const err = error as Error;
     log.error(`Failed to insert ${type} batch: ${err.message}`);
@@ -1150,6 +1166,11 @@ export async function flushAll(): Promise<void> {
   if (batchTimer) {
     clearInterval(batchTimer);
     batchTimer = null;
+  }
+  try {
+    statsEmitter.emit('flushed', { ts: new Date().toISOString() });
+  } catch {
+    /* ignore */
   }
 }
 
