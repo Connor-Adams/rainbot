@@ -1,24 +1,22 @@
 import { useState } from 'react'
-import StatsSummary from './stats/components/StatsSummary'
-import CommandsStats from './stats/components/CommandsStats'
-import SoundsStats from './stats/components/SoundsStats'
-import UsersStats from '../stats/UsersStats'
-import UserSoundsStats from '../stats/UserSoundsStats'
-import GuildsStats from './stats/components/GuildsStats'
-import QueueStats from './stats/components/QueueStats'
-import TimeStats from './stats/components/TimeStats'
-import HistoryStats from './stats/components/HistoryStats'
-import SessionsStats from './stats/components/SessionsStats'
-import PerformanceStats from './stats/components/PerformanceStats'
-import ErrorsStats from './stats/components/ErrorsStats'
-import RetentionStats from './stats/components/RetentionStats'
+import StatsSummary from './components/StatsSummary'
+import CommandsStats from './components/CommandsStats'
+import SoundsStats from './components/SoundsStats'
+import UsersStats from './components/UsersStats'
+import GuildsStats from './components/GuildsStats'
+import QueueStats from './components/QueueStats'
+import TimeStats from './components/TimeStats'
+import HistoryStats from './components/HistoryStats'
+import SessionsStats from './components/SessionsStats'
+import PerformanceStats from './components/PerformanceStats'
+import ErrorsStats from './components/ErrorsStats'
+import RetentionStats from './components/RetentionStats'
 
 type StatsTab =
   | 'summary'
   | 'commands'
   | 'sounds'
   | 'users'
-  | 'user-sounds'
   | 'guilds'
   | 'queue'
   | 'time'
@@ -30,7 +28,6 @@ type StatsTab =
 
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
   return (
     <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
@@ -60,12 +57,6 @@ export default function StatisticsTab() {
             onClick={() => setActiveTab('users')}
           >
             Users
-          </button>
-          <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'user-sounds' ? 'active' : ''}`}
-            onClick={() => setActiveTab('user-sounds')}
-          >
-            User Sounds
           </button>
           <button
             className={`stats-tab-btn px-4 py-2 ${activeTab === 'guilds' ? 'active' : ''}`}
@@ -121,15 +112,7 @@ export default function StatisticsTab() {
         {activeTab === 'summary' && <StatsSummary />}
         {activeTab === 'commands' && <CommandsStats />}
         {activeTab === 'sounds' && <SoundsStats />}
-        {activeTab === 'users' && (
-          <UsersStats
-            onSelectUser={(userId: string) => {
-              setSelectedUserId(userId)
-              setActiveTab('user-sounds')
-            }}
-          />
-        )}
-        {activeTab === 'user-sounds' && <UserSoundsStats userId={selectedUserId || ''} />}
+        {activeTab === 'users' && <UsersStats />}
         {activeTab === 'guilds' && <GuildsStats />}
         {activeTab === 'queue' && <QueueStats />}
         {activeTab === 'time' && <TimeStats />}

@@ -388,6 +388,69 @@ router.get('/users', requireAuth, async (req: Request, res: Response): Promise<v
   }
 });
 
+// GET /api/stats/user-sounds - Which sounds a specific user played (breakdown)
+export async function getUserSoundsHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req.query['userId'] as string) || null;
+    if (!userId) {
+      res.status(400).json({ error: 'Missing required query parameter: userId' });
+      return;
+    }
+
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 100, 1000);
+    const guildId = (req.query['guildId'] as string) || undefined;
+    const startDate = parseValidDate(req.query['startDate'] as string | undefined);
+    const endDate = parseValidDate(req.query['endDate'] as string | undefined);
+
+    const params: (string | Date | boolean)[] = [];
+    let idx = 1;
+    const where: string[] = [];
+
+    where.push(`user_id = $${idx++}`);
+    params.push(userId);
+
+    if (guildId) {
+      where.push(`guild_id = $${idx++}`);
+      params.push(guildId);
+    }
+    if (startDate) {
+      where.push(`played_at >= $${idx++}`);
+      params.push(startDate);
+    }
+    if (endDate) {
+      where.push(`played_at <= $${idx++}`);
+      params.push(endDate);
+    }
+
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+    const q = `
+      SELECT sound_name,
+             is_soundboard,
+             COUNT(*) AS play_count,
+             MAX(played_at) AS last_played,
+             AVG(duration) AS avg_duration
+      FROM sound_stats
+      ${whereClause}
+      GROUP BY sound_name, is_soundboard
+      ORDER BY play_count DESC, last_played DESC
+      LIMIT $${idx}
+    `;
+
+    params.push(limit as unknown as string);
+
+    const result = await query(q, params);
+
+    res.json({ sounds: result?.rows || [] });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+}
+
+router.get('/user-sounds', requireAuth, getUserSoundsHandler);
+
 // GET /api/stats/guilds - Guild activity stats
 router.get('/guilds', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {

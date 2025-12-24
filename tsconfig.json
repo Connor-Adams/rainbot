@@ -12,7 +12,6 @@
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
 
     /* Emit */
     "declaration": true,
