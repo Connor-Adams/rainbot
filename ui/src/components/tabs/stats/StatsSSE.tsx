@@ -11,7 +11,7 @@ export default function StatsSSE() {
     const connect = () => {
       try {
         es = new EventSource('/api/stats/stream')
-      } catch (e) {
+      } catch {
         es = null
       }
 
@@ -19,16 +19,16 @@ export default function StatsSSE() {
 
       es.addEventListener('stats-update', (e: MessageEvent) => {
         try {
-          const payload = JSON.parse(e.data)
+          JSON.parse(e.data)
           // Invalidate all stats queries when any batch is inserted
-          qc.invalidateQueries(['stats'])
-        } catch (err) {
-          qc.invalidateQueries(['stats'])
+          qc.invalidateQueries({ queryKey: ['stats'] })
+        } catch {
+          qc.invalidateQueries({ queryKey: ['stats'] })
         }
       })
 
       es.addEventListener('stats-flushed', () => {
-        qc.invalidateQueries(['stats'])
+        qc.invalidateQueries({ queryKey: ['stats'] })
       })
 
       es.onopen = () => {
