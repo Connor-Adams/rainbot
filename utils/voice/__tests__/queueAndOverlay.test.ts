@@ -13,7 +13,7 @@ import type { Track } from '../../../types/voice';
 
 describe('Queue and Overlay Management', () => {
   describe('Overlay completion behavior', () => {
-    it('should resume music after overlay finishes, not advance queue', () => {
+    it('should allow music to complete through overlay, not advance queue prematurely', () => {
       // Setup: Create a mock voice state with a track playing and overlay active
       const mockOverlayProcess = { pid: 12345 }; // Mock FFmpeg process
       const mockState: Partial<VoiceState> = {
@@ -36,19 +36,19 @@ describe('Queue and Overlay Management', () => {
       };
 
       // The key assertion: overlayProcess being set indicates an overlay is active
-      // When idle handler detects this, it should resume the current track, not pop from queue
+      // FFmpeg is mixing soundboard over music and playing both together
       expect(mockState.overlayProcess).toBeTruthy();
       expect(mockState.currentTrack).toBeTruthy();
       expect(mockState.queue).toHaveLength(1);
       
-      // After overlay finishes and music resumes:
-      // - overlayProcess should be null
-      // - currentTrack should still be "Test Track" (not "Next Track")
-      // - queue should still have 1 item
+      // When overlay finishes (music track completed), idle handler should:
+      // - Clear overlayProcess
+      // - NOT resume music (already played through overlay)
+      // - Continue with normal flow (playNext if queue has items)
       expect(mockState.queue[0]?.title).toBe('Next Track');
     });
 
-    it('should calculate correct playback position for music resumption', () => {
+    it('should calculate correct playback position for overlay creation', () => {
       const startTime = Date.now() - 45000; // Started 45 seconds ago
       const pausedTime = 5000; // Was paused for 5 seconds
       
