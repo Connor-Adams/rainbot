@@ -9,23 +9,27 @@ export default function HistoryStats() {
   const { selectedGuildId } = useGuildStore()
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  // Applied filters (in queryKey) - only updated when Filter button is clicked
+  const [appliedStartDate, setAppliedStartDate] = useState('')
+  const [appliedEndDate, setAppliedEndDate] = useState('')
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['stats', 'history', selectedGuildId, startDate, endDate],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['stats', 'history', selectedGuildId, appliedStartDate, appliedEndDate],
     queryFn: () =>
       statsApi
         .history({
           guildId: selectedGuildId || undefined,
           limit: 100,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+          startDate: appliedStartDate || undefined,
+          endDate: appliedEndDate || undefined,
         })
         .then((res) => res.data),
     refetchInterval: 30000,
   })
 
   const handleFilter = () => {
-    refetch()
+    setAppliedStartDate(startDate)
+    setAppliedEndDate(endDate)
   }
 
   if (isLoading) {
