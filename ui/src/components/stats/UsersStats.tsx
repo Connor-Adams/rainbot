@@ -3,7 +3,7 @@ import { statsApi } from '@/lib/api'
 import type { UserStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
 
-export default function UsersStats() {
+export default function UsersStats({ onSelectUser }: { onSelectUser?: (userId: string) => void }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['stats', 'users'],
     queryFn: () => statsApi.users().then((res) => res.data),
@@ -49,7 +49,11 @@ export default function UsersStats() {
               ? `${user.username}${user.discriminator && user.discriminator !== '0' ? `#${user.discriminator}` : ''}`
               : 'Unknown'
             return (
-              <tr key={`${user.user_id}-${user.guild_id}`} className="hover:bg-gray-700/50 transition-colors">
+              <tr
+                key={`${user.user_id}-${user.guild_id}`}
+                className="hover:bg-gray-700/50 transition-colors cursor-pointer"
+                onClick={() => onSelectUser && onSelectUser(user.user_id)}
+              >
                 <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(username)}</td>
                 <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(user.user_id)}</td>
                 <td className="px-4 py-3 text-sm text-gray-400 font-mono">{escapeHtml(user.guild_id)}</td>

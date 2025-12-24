@@ -30,6 +30,7 @@ type StatsTab =
 
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
   return (
     <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
@@ -120,8 +121,15 @@ export default function StatisticsTab() {
         {activeTab === 'summary' && <StatsSummary />}
         {activeTab === 'commands' && <CommandsStats />}
         {activeTab === 'sounds' && <SoundsStats />}
-        {activeTab === 'users' && <UsersStats />}
-        {activeTab === 'user-sounds' && <UserSoundsStats />}
+        {activeTab === 'users' && (
+          <UsersStats
+            onSelectUser={(userId: string) => {
+              setSelectedUserId(userId)
+              setActiveTab('user-sounds')
+            }}
+          />
+        )}
+        {activeTab === 'user-sounds' && <UserSoundsStats userId={selectedUserId || ''} />}
         {activeTab === 'guilds' && <GuildsStats />}
         {activeTab === 'queue' && <QueueStats />}
         {activeTab === 'time' && <TimeStats />}

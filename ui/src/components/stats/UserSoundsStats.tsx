@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
 
-export default function UserSoundsStats() {
+export default function UserSoundsStats({ userId: initialUserId = '' }: { userId?: string }) {
   const { selectedGuildId } = useGuildStore()
-  const [userId, setUserId] = useState('')
+  const [userId, setUserId] = useState(initialUserId || '')
+  useEffect(() => {
+    if (initialUserId) setUserId(initialUserId)
+  }, [initialUserId])
   const [limit, setLimit] = useState(100)
 
   const { data, isLoading, error, refetch } = useQuery({
