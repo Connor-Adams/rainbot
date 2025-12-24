@@ -1,29 +1,39 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
 
-export default function UserSoundsStats({ userId: initialUserId = '' }: { userId?: string }) {
+type SoundRow = {
+  sound_name: string
+  is_soundboard: boolean
+  play_count: number
+  last_played: string | null
+  avg_duration: number | null
+}
+
+export default function UserSoundsStats({ userId: propUserId = '' }: { userId?: string }) {
   const { selectedGuildId } = useGuildStore()
-  const [userId, setUserId] = useState(initialUserId || '')
-  useEffect(() => {
-    if (initialUserId) setUserId(initialUserId)
-  }, [initialUserId])
+  const [localUserId, setLocalUserId] = useState(propUserId || '')
   const [limit, setLimit] = useState(100)
 
+  // Use propUserId if provided, otherwise fall back to localUserId
+  const queryUserId = propUserId || localUserId
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['stats', 'user-sounds', userId, selectedGuildId, limit],
+    queryKey: ['stats', 'user-sounds', queryUserId, selectedGuildId, limit],
     queryFn: () =>
       statsApi
-        .userSounds({ userId, guildId: selectedGuildId || undefined, limit })
+        .userSounds({ userId: queryUserId, guildId: selectedGuildId || undefined, limit })
         .then((res) => res.data),
-    enabled: !!userId,
+    enabled: !!queryUserId,
     refetchInterval: 30000,
   })
 
   const handleFilter = () => refetch()
 
-  if (!userId) {
+  const inputUserId = propUserId || localUserId
+
+  if (!inputUserId) {
     return (
       <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">User Sounds</h3>
@@ -31,8 +41,8 @@ export default function UserSoundsStats({ userId: initialUserId = '' }: { userId
         <div className="mt-4 flex gap-2">
           <input
             type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            value={inputUserId}
+            onChange={(e) => setLocalUserId(e.target.value)}
             placeholder="User ID"
             className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm"
           />
@@ -56,7 +66,7 @@ export default function UserSoundsStats({ userId: initialUserId = '' }: { userId
     )
   }
 
-  const sounds = data?.sounds || []
+  const sounds: SoundRow[] = data?.sounds || []
 
   return (
     <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
@@ -94,7 +104,7 @@ export default function UserSoundsStats({ userId: initialUserId = '' }: { userId
             </tr>
           </thead>
           <tbody>
-            {sounds.map((s: any, i: number) => (
+            {sounds.map((s: SoundRow, i: number) => (
               <tr key={i} className="hover:bg-gray-700/50 transition-colors">
                 <td className="px-4 py-3 text-white">{s.sound_name}</td>
                 <td className="px-4 py-3 text-gray-400">{s.is_soundboard ? 'Soundboard' : 'Regular'}</td>
