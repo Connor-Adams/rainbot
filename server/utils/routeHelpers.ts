@@ -20,8 +20,9 @@ export function sendError(res: Response, statusCode: number, message: string, de
  */
 export function sendSuccess<T>(res: Response, data: T, message?: string): void {
   res.json({
+    success: true,
     ...(message && { message }),
-    ...data,
+    data,
   });
 }
 
