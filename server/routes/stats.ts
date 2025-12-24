@@ -389,7 +389,7 @@ router.get('/users', requireAuth, async (req: Request, res: Response): Promise<v
 });
 
 // GET /api/stats/user-sounds - Which sounds a specific user played (breakdown)
-router.get('/user-sounds', requireAuth, async (req: Request, res: Response): Promise<void> => {
+export async function getUserSoundsHandler(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req.query['userId'] as string) || null;
     if (!userId) {
@@ -447,7 +447,9 @@ router.get('/user-sounds', requireAuth, async (req: Request, res: Response): Pro
     const status = err.message.includes('Invalid date') ? 400 : 500;
     res.status(status).json({ error: err.message });
   }
-});
+}
+
+router.get('/user-sounds', requireAuth, getUserSoundsHandler);
 
 // GET /api/stats/guilds - Guild activity stats
 router.get('/guilds', requireAuth, async (req: Request, res: Response): Promise<void> => {

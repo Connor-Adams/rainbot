@@ -1,0 +1,41 @@
+import React, { useEffect, useState } from 'react';
+import api from '../lib/api';
+
+export default function UserSounds({ userId, guildId }: { userId: string; guildId?: string }) {
+  const [loading, setLoading] = useState(false);
+  const [sounds, setSounds] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    setLoading(true);
+    api
+      .get('/stats/user-sounds', { params: { userId, guildId } })
+      .then((res) => {
+        setSounds(res.data.sounds || []);
+      })
+      .catch((err) => setError(err.message || 'Failed to load'))
+      .finally(() => setLoading(false));
+  }, [userId, guildId]);
+
+  if (!userId) return <div>Select a user to view sounds</div>;
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <div>
+      <h3>User Sounds</h3>
+      {sounds.length === 0 ? (
+        <div>No sounds found</div>
+      ) : (
+        <ul>
+          {sounds.map((s) => (
+            <li key={`${s.sound_name}-${s.is_soundboard}`}> 
+              <strong>{s.sound_name}</strong> — plays: {s.play_count} — last: {s.last_played} — avg: {s.avg_duration}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

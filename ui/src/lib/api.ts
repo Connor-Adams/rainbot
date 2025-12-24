@@ -142,6 +142,13 @@ export const statsApi = {
     startDate?: string;
     endDate?: string;
   }) => api.get('/stats/history', { params }),
+  userSounds: (params?: {
+    userId: string;
+    guildId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }) => api.get('/stats/user-sounds', { params }),
   // New stats endpoints
   errors: (params?: { guildId?: string; startDate?: string; endDate?: string }) =>
     api.get('/stats/errors', { params }),

@@ -3,6 +3,7 @@ import StatsSummary from '../stats/StatsSummary'
 import CommandsStats from '../stats/CommandsStats'
 import SoundsStats from '../stats/SoundsStats'
 import UsersStats from '../stats/UsersStats'
+import UserSoundsStats from '../stats/UserSoundsStats'
 import GuildsStats from '../stats/GuildsStats'
 import QueueStats from '../stats/QueueStats'
 import TimeStats from '../stats/TimeStats'
@@ -17,6 +18,7 @@ type StatsTab =
   | 'commands'
   | 'sounds'
   | 'users'
+  | 'user-sounds'
   | 'guilds'
   | 'queue'
   | 'time'
@@ -57,6 +59,12 @@ export default function StatisticsTab() {
             onClick={() => setActiveTab('users')}
           >
             Users
+          </button>
+          <button
+            className={`stats-tab-btn px-4 py-2 ${activeTab === 'user-sounds' ? 'active' : ''}`}
+            onClick={() => setActiveTab('user-sounds')}
+          >
+            User Sounds
           </button>
           <button
             className={`stats-tab-btn px-4 py-2 ${activeTab === 'guilds' ? 'active' : ''}`}
@@ -113,6 +121,7 @@ export default function StatisticsTab() {
         {activeTab === 'commands' && <CommandsStats />}
         {activeTab === 'sounds' && <SoundsStats />}
         {activeTab === 'users' && <UsersStats />}
+        {activeTab === 'user-sounds' && <UserSoundsStats />}
         {activeTab === 'guilds' && <GuildsStats />}
         {activeTab === 'queue' && <QueueStats />}
         {activeTab === 'time' && <TimeStats />}
