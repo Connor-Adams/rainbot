@@ -152,6 +152,11 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
 
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
+      // Handle stream errors to prevent crashes
+      nodeStream.on('error', (err) => {
+        log.debug(`Stream error (expected on skip/stop): ${err.message}`);
+      });
+
       return {
         resource: createAudioResource(nodeStream, {
           inputType: StreamType.Arbitrary,

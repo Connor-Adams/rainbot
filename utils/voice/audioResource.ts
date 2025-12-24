@@ -132,6 +132,11 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
 
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
+      // Handle stream errors to prevent crashes
+      nodeStream.on('error', (err) => {
+        log.debug(`Stream error (expected on skip/stop): ${err.message}`);
+      });
+
       return {
         resource: createAudioResource(nodeStream, {
           inputType: StreamType.Arbitrary,
@@ -187,6 +192,11 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
     if (!msg.includes('Broken pipe')) {
       log.debug(`yt-dlp: ${msg}`);
     }
+  });
+
+  // Handle stdout errors to prevent crashes
+  subprocess.stdout?.on('error', (err) => {
+    log.debug(`yt-dlp stdout error (expected on skip/stop): ${err.message}`);
   });
 
   return {

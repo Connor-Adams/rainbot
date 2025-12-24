@@ -200,7 +200,15 @@ export async function playSoundboardOverlay(
 
     // Pipe soundboard stream
     const soundStream = await storage.getSoundStream(soundName);
+    soundStream.on('error', (err) => {
+      log.debug(`Soundboard stream error: ${err.message}`);
+    });
     soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
+
+    // Handle stdout errors
+    ffmpeg.stdout?.on('error', (err) => {
+      log.debug(`FFmpeg stdout error: ${err.message}`);
+    });
 
     ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
