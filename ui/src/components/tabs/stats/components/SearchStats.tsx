@@ -90,17 +90,19 @@ export default function SearchStats() {
   }
 
   const topQueriesColumns = [
-    { header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
+    { id: 'query', header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
     {
+      id: 'type',
       header: 'Type',
       render: (query: TopQuery) => (
         <span className="px-2 py-1 rounded text-xs bg-gray-700">{query.query_type}</span>
       ),
       className: 'px-4 py-2',
     },
-    { header: 'Count', key: 'count', className: 'px-4 py-2' },
-    { header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
+    { id: 'count', header: 'Count', key: 'count', className: 'px-4 py-2' },
+    { id: 'avg_results', header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
     {
+      id: 'avg_position',
       header: 'Avg Position',
       render: (query: TopQuery) => query.avg_selected_position || 'N/A',
       className: 'px-4 py-2',
@@ -108,15 +110,16 @@ export default function SearchStats() {
   ]
 
   const queryTypesColumns = [
-    { header: 'Type', key: 'query_type', className: 'px-4 py-2' },
-    { header: 'Count', key: 'count', className: 'px-4 py-2' },
-    { header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
-    { header: 'Selections', key: 'selections', className: 'px-4 py-2' },
+    { id: 'type', header: 'Type', key: 'query_type', className: 'px-4 py-2' },
+    { id: 'count', header: 'Count', key: 'count', className: 'px-4 py-2' },
+    { id: 'avg_results', header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
+    { id: 'selections', header: 'Selections', key: 'selections', className: 'px-4 py-2' },
   ]
 
   const zeroResultsColumns = [
-    { header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
+    { id: 'query', header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
     {
+      id: 'attempts',
       header: 'Attempts',
       render: (query: ZeroResult) => <span className="text-yellow-400">{query.count}</span>,
       className: 'px-4 py-2',

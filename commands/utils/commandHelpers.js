@@ -27,7 +27,9 @@ function validateVoiceConnection(interaction, voiceManager) {
  */
 function createErrorResponse(error, context = '', additionalTip = '') {
   const message = error.message || 'An unknown error occurred';
-  const content = `❌ ${context ? `${context}: ` : ''}${message}${additionalTip ? `\n\n${additionalTip}` : ''}`;
+  const contextPrefix = context ? `${context}: ` : '';
+  const tipSuffix = additionalTip ? `\n\n${additionalTip}` : '';
+  const content = `❌ ${contextPrefix}${message}${tipSuffix}`;
   return {
     content,
     ephemeral: true,
