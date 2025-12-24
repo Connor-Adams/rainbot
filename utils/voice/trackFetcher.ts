@@ -59,18 +59,50 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         cleanSource = `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`;
       }
 
+      // Fetch actual video info to get the title
+      let title = 'Unknown Track';
+      let duration: number | undefined;
+      try {
+        const videoInfo = await play.video_basic_info(cleanSource);
+        if (videoInfo?.video_details) {
+          title = videoInfo.video_details.title || 'Unknown Track';
+          duration = videoInfo.video_details.durationInSec;
+          log.info(`Fetched video info: "${title}"`);
+        }
+      } catch (error) {
+        log.warn(`Could not fetch video info: ${(error as Error).message}`);
+      }
+
       tracks.push({
-        title: 'Loading...',
+        title,
         url: cleanSource,
+        duration,
         isLocal: false,
       });
     }
     // TODO: Handle playlists, Spotify, SoundCloud
     else {
       log.warn(`URL type ${urlType} not fully implemented yet`);
+
+      // Try to get video info for YouTube-like URLs
+      let title = 'Unknown Track';
+      let duration: number | undefined;
+      if (urlType?.startsWith('yt_') || urlType === 'so_track') {
+        try {
+          const videoInfo = await play.video_basic_info(source);
+          if (videoInfo?.video_details) {
+            title = videoInfo.video_details.title || 'Unknown Track';
+            duration = videoInfo.video_details.durationInSec;
+          }
+        } catch {
+          // Fall back to Unknown Track
+        }
+      }
+
       tracks.push({
-        title: 'Loading...',
+        title,
         url: source,
+        duration,
         isLocal: false,
       });
     }
