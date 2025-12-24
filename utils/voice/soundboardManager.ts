@@ -137,20 +137,17 @@ export async function playSoundboardOverlay(
         // Set flag to prevent idle handler from calling playNext
         state.isTransitioningToOverlay = true;
         existingOverlay.kill('SIGKILL');
-        // Clear after kill to maintain consistent state during cleanup
-        state.overlayProcess = null;
         state.player.stop();
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
-        // Ensure overlayProcess is cleared even if kill fails
-        state.overlayProcess = null;
       }
+      state.overlayProcess = null;
     } else {
-      // First overlay - stop current music and set flag to prevent idle handler
-      log.debug('Starting first overlay, stopping current music');
+      // Set flag even for first overlay to prevent race conditions
       state.isTransitioningToOverlay = true;
-      state.player.stop();
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
