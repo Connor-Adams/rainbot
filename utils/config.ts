@@ -2,6 +2,9 @@ import { createLogger } from './logger';
 
 const log = createLogger('CONFIG');
 
+// Cache the config so we only load/log once
+let cachedConfig: AppConfig | null = null;
+
 export interface AppConfig {
   // Bot configuration
   token: string | undefined;
@@ -44,8 +47,14 @@ export interface AppConfig {
  * Load configuration from environment variables (.env file or process.env)
  * dotenv is loaded in index.js before this module is required
  * Provides consistent config loading across the application
+ * Results are cached to avoid duplicate logging
  */
 export function loadConfig(): AppConfig {
+  // Return cached config if already loaded
+  if (cachedConfig) {
+    return cachedConfig;
+  }
+
   // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_ or STORAGE_
   // Also includes Railway's auto-injected bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
   const relevantEnvVars = Object.keys(process.env).filter(
@@ -196,5 +205,7 @@ export function loadConfig(): AppConfig {
     log.warn(`Missing required configuration: ${missing.join(', ')}`);
   }
 
+  // Cache for future calls
+  cachedConfig = config;
   return config;
 }
