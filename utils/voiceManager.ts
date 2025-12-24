@@ -7,6 +7,7 @@ import * as queueManager from './voice/queueManager';
 import * as playbackManager from './voice/playbackManager';
 import * as trackFetcher from './voice/trackFetcher';
 import * as snapshotPersistence from './voice/snapshotPersistence';
+import * as soundboardManager from './voice/soundboardManager';
 
 import { createLogger } from './logger';
 import * as stats from './statistics';
@@ -135,23 +136,30 @@ export async function playSoundboardOverlay(
   username: string | null = null,
   discriminator: string | null = null
 ): Promise<{ overlaid: boolean; sound: string; message: string }> {
-  const result = await playbackManager.playSoundboardOverlay(guildId, soundName);
-
-  // Track soundboard usage
   const state = connectionManager.getVoiceState(guildId);
-  const trackUserId = userId || state?.lastUserId;
-  const trackUsername = username || state?.lastUsername;
-  const trackDiscriminator = discriminator || state?.lastDiscriminator;
+  if (!state) {
+    throw new Error('Bot is not connected to a voice channel');
+  }
 
+  // Get user info for tracking
+  const trackUserId = userId || state.lastUserId || '';
+  const trackUsername = username || state.lastUsername;
+  const trackDiscriminator = discriminator || state.lastDiscriminator;
+
+  // Use soundboardManager for proper FFmpeg overlay
+  const result = await soundboardManager.playSoundboardOverlay(
+    state,
+    guildId,
+    soundName,
+    trackUserId,
+    source,
+    trackUsername,
+    trackDiscriminator
+  );
+
+  // Tracking is already done in soundboardManager, but log here
   if (trackUserId) {
-    trackSoundboardUsage(
-      soundName,
-      trackUserId,
-      guildId,
-      source,
-      trackUsername,
-      trackDiscriminator
-    );
+    log.debug(`Soundboard "${soundName}" played by ${trackUserId}`);
   }
 
   return result;
