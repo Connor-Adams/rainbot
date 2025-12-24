@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
-const { createLogger } = require('../utils/logger');
-const { deployCommands } = require('../utils/deployCommands');
-const { loadConfig } = require('../utils/config');
+const { createLogger } = require('../dist/utils/logger');
+const { deployCommands } = require('../dist/utils/deployCommands');
+const { loadConfig } = require('../dist/utils/config');
 
 const log = createLogger('BOT');
 
@@ -13,7 +13,7 @@ module.exports = {
 
     // Restore saved queue snapshots from previous session
     try {
-      const { restoreAllQueueSnapshots } = require('../utils/voiceManager');
+      const { restoreAllQueueSnapshots } = require('../dist/utils/voiceManager');
       const restored = await restoreAllQueueSnapshots(client);
       if (restored > 0) {
         log.info(`Restored ${restored} queue snapshot(s) from previous session`);

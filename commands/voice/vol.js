@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const voiceManager = require('../../utils/voiceManager');
-const { createLogger } = require('../../utils/logger');
+const voiceManager = require('../../dist/utils/voiceManager');
+const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('VOLUME');
 

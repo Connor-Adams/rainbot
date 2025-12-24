@@ -10,9 +10,9 @@ if (dotenvResult.error) {
 }
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
-const server = require('./server');
-const { loadConfig } = require('./utils/config');
-const { createLogger } = require('./utils/logger');
+const server = require('./dist/server');
+const { loadConfig } = require('./dist/utils/config');
+const { createLogger } = require('./dist/utils/logger');
 
 const log = createLogger('MAIN');
 
@@ -55,14 +55,14 @@ if (config.spotifyClientId && config.spotifyClientSecret) {
 }
 
 // Initialize database (non-blocking, handles errors gracefully)
-const { initDatabase } = require('./utils/database');
+const { initDatabase } = require('./dist/utils/database');
 initDatabase();
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
-// Load handlers
+// Load handlers (still JS files, not in dist)
 require('./handlers/commandHandler')(client);
 require('./handlers/eventHandler')(client);
 
@@ -83,22 +83,22 @@ client.login(config.token);
 // Graceful shutdown - save queue snapshots and flush statistics
 process.on('SIGINT', async () => {
   log.info('Shutting down gracefully...');
-  const { saveAllQueueSnapshots } = require('./utils/voiceManager');
+  const { saveAllQueueSnapshots } = require('./dist/utils/voiceManager');
   await saveAllQueueSnapshots();
-  const { flushAll } = require('./utils/statistics');
+  const { flushAll } = require('./dist/utils/statistics');
   await flushAll();
-  const { close } = require('./utils/database');
+  const { close } = require('./dist/utils/database');
   await close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   log.info('Shutting down gracefully...');
-  const { saveAllQueueSnapshots } = require('./utils/voiceManager');
+  const { saveAllQueueSnapshots } = require('./dist/utils/voiceManager');
   await saveAllQueueSnapshots();
-  const { flushAll } = require('./utils/statistics');
+  const { flushAll } = require('./dist/utils/statistics');
   await flushAll();
-  const { close } = require('./utils/database');
+  const { close } = require('./dist/utils/database');
   await close();
   process.exit(0);
 });

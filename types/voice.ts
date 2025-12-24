@@ -9,7 +9,14 @@ export interface Track {
   duration?: number;
   isLocal?: boolean;
   isSoundboard?: boolean;
-  source?: 'youtube' | 'soundcloud' | 'spotify' | 'local' | 'other';
+  isStream?: boolean;
+  source?: string;
+  sourceType?: 'youtube' | 'soundcloud' | 'spotify' | 'local' | 'other';
+  userId?: string;
+  username?: string;
+  discriminator?: string;
+  spotifyId?: string;
+  spotifyUrl?: string;
 }
 
 export interface QueueInfo {

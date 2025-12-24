@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
-const { createLogger } = require('../utils/logger');
-const voiceManager = require('../utils/voiceManager');
-const stats = require('../utils/statistics');
+const { createLogger } = require('../dist/utils/logger');
+const voiceManager = require('../dist/utils/voiceManager');
+const stats = require('../dist/utils/statistics');
 
 const log = createLogger('INTERACTION');
 

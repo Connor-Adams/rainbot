@@ -5,8 +5,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const { createLogger } = require('../utils/logger');
-const listeningHistory = require('../utils/listeningHistory');
+const { createLogger } = require('../dist/utils/logger');
+const listeningHistory = require('../dist/utils/listeningHistory');
 
 const log = createLogger('VOICE_STATE');
 
@@ -14,7 +14,7 @@ const log = createLogger('VOICE_STATE');
 let voiceManager = null;
 function getVoiceManager() {
   if (!voiceManager) {
-    voiceManager = require('../utils/voiceManager');
+    voiceManager = require('../dist/utils/voiceManager');
   }
   return voiceManager;
 }

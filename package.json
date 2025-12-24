@@ -23,7 +23,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "prepare": "husky install",
+    "prepare": "[ -d .git ] && husky || true",
     "validate": "npm run type-check && npm run lint && npm run format:check && npm run test"
   },
   "dependencies": {
@@ -49,7 +49,8 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0",
-    "youtube-dl-exec": "^3.0.28"
+    "youtube-dl-exec": "^3.0.28",
+    "express-rate-limit": "^8.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
