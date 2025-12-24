@@ -134,12 +134,17 @@ export async function playSoundboardOverlay(
     if (existingOverlay) {
       log.debug('Killing existing overlay process for new soundboard');
       try {
+        // Set flag to prevent idle handler from calling playNext
+        state.isTransitioningToOverlay = true;
         existingOverlay.kill('SIGKILL');
         state.player.stop();
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
       }
       state.overlayProcess = null;
+    } else {
+      // Set flag even for first overlay to prevent race conditions
+      state.isTransitioningToOverlay = true;
     }
 
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -245,6 +250,9 @@ export async function playSoundboardOverlay(
     state.overlayProcess = ffmpeg;
     state.playbackStartTime = Date.now() - playbackPosition * 1000;
     state.totalPausedTime = 0;
+    
+    // Clear the transition flag now that overlay is playing
+    state.isTransitioningToOverlay = false;
 
     log.info(`Soundboard "${soundName}" overlaid on music`);
 
@@ -257,6 +265,8 @@ export async function playSoundboardOverlay(
     };
   } catch (error) {
     log.error(`Failed to overlay soundboard: ${(error as Error).message}`);
+    // Clear the transition flag on error
+    state.isTransitioningToOverlay = false;
     // Fallback to direct playback
     return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
   }
