@@ -74,8 +74,8 @@ export default function UserSoundsStats({ userId: propUserId = '' }: { userId?: 
       <div className="mb-4 flex gap-2">
         <input
           type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          value={inputUserId}
+          onChange={(e) => setLocalUserId(e.target.value)}
           placeholder="User ID"
           className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm"
         />
