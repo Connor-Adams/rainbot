@@ -419,6 +419,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Try to play next track automatically
     if (state.queue.length > 0) {
       log.info(`Auto-advancing to next track in queue...`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       return playNext(guildId);
     } else {
       state.nowPlaying = null;

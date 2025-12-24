@@ -50,15 +50,13 @@ export async function joinChannel(
       return;
     }
 
-    // Check if an overlay just finished (not a regular track)
-    if (state.overlayProcess) {
-      log.debug('Overlay finished - music track completed through overlay');
-      state.overlayProcess = null;
-      // The overlay already played the music through to completion, so just continue with queue
-    }
-
     // End track engagement - track completed naturally
     stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+
+    // Clean up overlay process if it was running
+    if (state.overlayProcess) {
+      state.overlayProcess = null;
+    }
 
     // Check if there's more in queue
     if (state.queue.length > 0) {
