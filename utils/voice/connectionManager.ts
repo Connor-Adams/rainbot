@@ -50,13 +50,47 @@ export async function joinChannel(
       return;
     }
 
+    // Check if an overlay just finished (not a regular track)
+    if (state.overlayProcess) {
+      log.debug('Overlay finished, resuming current music track');
+      state.overlayProcess = null;
+      
+      // Resume the current track that was playing during the overlay
+      if (state.currentTrack && state.currentTrackSource) {
+        try {
+          // Dynamic import to avoid circular dependency
+          const { playWithSeek } = await import('./playbackManager');
+          
+          // Calculate current position
+          let playbackPosition = 0;
+          if (state.playbackStartTime) {
+            const elapsed = Date.now() - state.playbackStartTime;
+            const pausedTime = state.totalPausedTime || 0;
+            const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+            playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
+          }
+          
+          const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
+          await playWithSeek(state, state.currentTrack, playbackPosition, isPaused);
+          log.debug(`Resumed music at ${playbackPosition}s after overlay`);
+        } catch (error) {
+          const err = error as Error;
+          log.error(`Failed to resume track after overlay: ${err.message}`);
+          // If resume fails, continue to next track
+          const { playNext } = await import('./playbackManager');
+          await playNext(guildId);
+        }
+      } else {
+        // No current track to resume, play next from queue
+        log.debug('No track to resume after overlay, playing next');
+        const { playNext } = await import('./playbackManager');
+        await playNext(guildId);
+      }
+      return;
+    }
+
     // End track engagement - track completed naturally
     stats.endTrackEngagement(guildId, false, 'next_track', null, null);
-
-    // Clean up overlay process if it was running
-    if (state.overlayProcess) {
-      state.overlayProcess = null;
-    }
 
     // Check if there's more in queue
     if (state.queue.length > 0) {

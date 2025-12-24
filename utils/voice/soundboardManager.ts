@@ -136,15 +136,17 @@ export async function playSoundboardOverlay(
       try {
         // Set flag to prevent idle handler from calling playNext
         state.isTransitioningToOverlay = true;
+        state.overlayProcess = null; // Clear before stopping to avoid race conditions
         existingOverlay.kill('SIGKILL');
         state.player.stop();
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
       }
-      state.overlayProcess = null;
     } else {
-      // Set flag even for first overlay to prevent race conditions
+      // First overlay - stop current music and set flag to prevent idle handler
+      log.debug('Starting first overlay, stopping current music');
       state.isTransitioningToOverlay = true;
+      state.player.stop();
     }
 
     await new Promise((resolve) => setTimeout(resolve, 50));
