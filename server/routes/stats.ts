@@ -960,4 +960,236 @@ router.get('/search', requireAuth, async (req: Request, res: Response): Promise<
   }
 });
 
+// GET /api/stats/user-sessions - User voice session analytics
+router.get('/user-sessions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      userId: req.query['userId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.userId) {
+      whereConditions.push(`user_id = $${paramIndex++}`);
+      params.push(filters.userId);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`joined_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`joined_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Session summary
+    const summaryResult = await query(
+      `SELECT
+         COUNT(*) as total_sessions,
+         COUNT(DISTINCT user_id) as unique_users,
+         ROUND(AVG(duration_seconds), 0) as avg_duration_seconds,
+         SUM(duration_seconds) as total_duration_seconds,
+         ROUND(AVG(tracks_heard), 1) as avg_tracks_per_session,
+         SUM(tracks_heard) as total_tracks_heard
+       FROM user_voice_sessions ${whereClause}`,
+      params
+    );
+
+    // Recent sessions
+    const sessionsResult = await query(
+      `SELECT session_id, user_id, username, guild_id, channel_name,
+              joined_at, left_at, duration_seconds, tracks_heard
+       FROM user_voice_sessions ${whereClause}
+       ORDER BY joined_at DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Top listeners
+    const topListenersResult = await query(
+      `SELECT user_id, username,
+              COUNT(*) as session_count,
+              SUM(duration_seconds) as total_duration,
+              SUM(tracks_heard) as total_tracks
+       FROM user_voice_sessions ${whereClause}
+       GROUP BY user_id, username
+       ORDER BY total_duration DESC NULLS LAST
+       LIMIT 20`,
+      params
+    );
+
+    res.json({
+      summary: summaryResult?.rows[0] || {},
+      sessions: sessionsResult?.rows || [],
+      topListeners: topListenersResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/user-tracks - User track listening analytics
+router.get('/user-tracks', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+    const filters = {
+      guildId: req.query['guildId'] as string | undefined,
+      userId: req.query['userId'] as string | undefined,
+      startDate: parseValidDate(req.query['startDate'] as string | undefined),
+      endDate: parseValidDate(req.query['endDate'] as string | undefined),
+    };
+
+    const params: (string | Date)[] = [];
+    const whereConditions: string[] = [];
+    let paramIndex = 1;
+
+    if (filters.guildId) {
+      whereConditions.push(`guild_id = $${paramIndex++}`);
+      params.push(filters.guildId);
+    }
+    if (filters.userId) {
+      whereConditions.push(`user_id = $${paramIndex++}`);
+      params.push(filters.userId);
+    }
+    if (filters.startDate) {
+      whereConditions.push(`listened_at >= $${paramIndex++}`);
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push(`listened_at <= $${paramIndex++}`);
+      params.push(filters.endDate);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Top tracks heard
+    const topTracksResult = await query(
+      `SELECT track_title, track_url, source_type,
+              COUNT(*) as listen_count,
+              COUNT(DISTINCT user_id) as unique_listeners
+       FROM user_track_listens ${whereClause}
+       GROUP BY track_title, track_url, source_type
+       ORDER BY listen_count DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Recent listens
+    const recentResult = await query(
+      `SELECT user_id, track_title, track_url, source_type, listened_at, queued_by
+       FROM user_track_listens ${whereClause}
+       ORDER BY listened_at DESC
+       LIMIT $${paramIndex}`,
+      [...params, limit]
+    );
+
+    // Source type breakdown
+    const sourceTypesResult = await query(
+      `SELECT source_type, COUNT(*) as count
+       FROM user_track_listens ${whereClause}
+       GROUP BY source_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    res.json({
+      topTracks: topTracksResult?.rows || [],
+      recentListens: recentResult?.rows || [],
+      sourceTypes: sourceTypesResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    const status = err.message.includes('Invalid date') ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/stats/user/:userId - Individual user statistics
+router.get('/user/:userId', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params['userId'];
+    const guildId = req.query['guildId'] as string | undefined;
+
+    if (!userId) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+
+    const params: string[] = [userId];
+    let guildFilter = '';
+    if (guildId) {
+      guildFilter = 'AND guild_id = $2';
+      params.push(guildId);
+    }
+
+    // User session stats
+    const sessionStatsResult = await query(
+      `SELECT
+         COUNT(*) as total_sessions,
+         SUM(duration_seconds) as total_listening_time,
+         ROUND(AVG(duration_seconds), 0) as avg_session_duration,
+         SUM(tracks_heard) as total_tracks_heard,
+         MAX(joined_at) as last_session
+       FROM user_voice_sessions
+       WHERE user_id = $1 ${guildFilter}`,
+      params
+    );
+
+    // Recent sessions
+    const recentSessionsResult = await query(
+      `SELECT session_id, guild_id, channel_name, joined_at, left_at,
+              duration_seconds, tracks_heard
+       FROM user_voice_sessions
+       WHERE user_id = $1 ${guildFilter}
+       ORDER BY joined_at DESC
+       LIMIT 10`,
+      params
+    );
+
+    // Top tracks heard by this user
+    const topTracksResult = await query(
+      `SELECT track_title, track_url, source_type, COUNT(*) as listen_count
+       FROM user_track_listens
+       WHERE user_id = $1 ${guildFilter}
+       GROUP BY track_title, track_url, source_type
+       ORDER BY listen_count DESC
+       LIMIT 20`,
+      params
+    );
+
+    // User profile info
+    const profileResult = await query(
+      `SELECT username, discriminator, first_seen_at, last_active_at
+       FROM user_profiles
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    res.json({
+      userId,
+      profile: profileResult?.rows[0] || null,
+      sessionStats: sessionStatsResult?.rows[0] || {},
+      recentSessions: recentSessionsResult?.rows || [],
+      topTracks: topTracksResult?.rows || [],
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

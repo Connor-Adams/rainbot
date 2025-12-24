@@ -358,6 +358,41 @@ export async function initializeSchema(): Promise<boolean> {
             )
         `);
 
+    // Create user_voice_sessions table for tracking individual user listening sessions
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_voice_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL UNIQUE,
+                bot_session_id VARCHAR(64),
+                user_id VARCHAR(20) NOT NULL,
+                username VARCHAR(100),
+                discriminator VARCHAR(10),
+                guild_id VARCHAR(20) NOT NULL,
+                channel_id VARCHAR(20) NOT NULL,
+                channel_name VARCHAR(255),
+                joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                left_at TIMESTAMP,
+                duration_seconds INTEGER,
+                tracks_heard INTEGER DEFAULT 0
+            )
+        `);
+
+    // Create user_track_listens table for tracking which tracks each user heard
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_track_listens (
+                id SERIAL PRIMARY KEY,
+                user_session_id VARCHAR(64) NOT NULL,
+                user_id VARCHAR(20) NOT NULL,
+                guild_id VARCHAR(20) NOT NULL,
+                track_title VARCHAR(500) NOT NULL,
+                track_url TEXT,
+                source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('local', 'youtube', 'spotify', 'soundcloud', 'other')),
+                duration INTEGER,
+                listened_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                queued_by VARCHAR(20)
+            )
+        `);
+
     // Create indexes
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_command_stats_guild_id ON command_stats(guild_id)`
@@ -457,6 +492,43 @@ export async function initializeSchema(): Promise<boolean> {
       `CREATE INDEX IF NOT EXISTS idx_search_stats_searched_at ON search_stats(searched_at)`
     );
 
+    // Indexes for user_voice_sessions
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_user_id ON user_voice_sessions(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_guild_id ON user_voice_sessions(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_joined_at ON user_voice_sessions(joined_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_bot_session ON user_voice_sessions(bot_session_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_user_guild ON user_voice_sessions(user_id, guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_voice_sessions_guild_joined ON user_voice_sessions(guild_id, joined_at DESC)`
+    );
+
+    // Indexes for user_track_listens
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_track_listens_user_id ON user_track_listens(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_track_listens_user_session ON user_track_listens(user_session_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_track_listens_listened_at ON user_track_listens(listened_at)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_track_listens_guild_id ON user_track_listens(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_track_listens_track_title ON user_track_listens(track_title)`
+    );
+
     // Create views - drop and recreate in transaction to allow column changes
     // Using transaction to minimize window where view doesn't exist
     await pool.query(`
@@ -494,14 +566,14 @@ export async function initializeSchema(): Promise<boolean> {
 
     await pool.query(`
             CREATE OR REPLACE VIEW daily_stats_view AS
-            SELECT 
+            SELECT
                 COALESCE(c.date, s.date) AS date,
                 COALESCE(c.command_count, 0) AS command_count,
                 COALESCE(s.sound_count, 0) AS sound_count,
                 COALESCE(c.unique_users, 0) + COALESCE(s.unique_users, 0) AS unique_users,
                 GREATEST(COALESCE(c.unique_guilds, 0), COALESCE(s.unique_guilds, 0)) AS unique_guilds
             FROM (
-                SELECT 
+                SELECT
                     DATE(executed_at) AS date,
                     COUNT(*) AS command_count,
                     COUNT(DISTINCT user_id) AS unique_users,
@@ -510,7 +582,7 @@ export async function initializeSchema(): Promise<boolean> {
                 GROUP BY DATE(executed_at)
             ) c
             FULL OUTER JOIN (
-                SELECT 
+                SELECT
                     DATE(played_at) AS date,
                     COUNT(*) AS sound_count,
                     COUNT(DISTINCT user_id) AS unique_users,
@@ -518,6 +590,26 @@ export async function initializeSchema(): Promise<boolean> {
                 FROM sound_stats
                 GROUP BY DATE(played_at)
             ) s ON c.date = s.date
+        `);
+
+    // User listening stats view for aggregated user session analytics
+    await pool.query(`
+            CREATE OR REPLACE VIEW user_listening_stats_view AS
+            SELECT
+                uvs.user_id,
+                uvs.guild_id,
+                COALESCE(up.username, MAX(uvs.username)) AS username,
+                COALESCE(up.discriminator, MAX(uvs.discriminator)) AS discriminator,
+                COUNT(DISTINCT uvs.session_id) AS total_sessions,
+                SUM(uvs.duration_seconds) AS total_listening_seconds,
+                SUM(uvs.tracks_heard) AS total_tracks_heard,
+                ROUND(AVG(uvs.duration_seconds), 0) AS avg_session_duration,
+                MAX(uvs.joined_at) AS last_session_at,
+                MIN(uvs.joined_at) AS first_session_at
+            FROM user_voice_sessions uvs
+            LEFT JOIN user_profiles up ON uvs.user_id = up.user_id
+            WHERE uvs.left_at IS NOT NULL
+            GROUP BY uvs.user_id, uvs.guild_id, up.username, up.discriminator
         `);
 
     schemaInitialized = true;

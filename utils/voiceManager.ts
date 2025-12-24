@@ -80,6 +80,20 @@ export async function joinChannel(
   // Start a voice session for duration tracking
   stats.startVoiceSession(channel.guild.id, channel.id, channel.name, 'discord');
 
+  // Start user sessions for all existing members in the channel (excluding bots)
+  for (const [memberId, member] of channel.members) {
+    if (!member.user.bot) {
+      stats.startUserSession(
+        memberId,
+        channel.guild.id,
+        channel.id,
+        channel.name,
+        member.user.username,
+        member.user.discriminator
+      );
+    }
+  }
+
   return result;
 }
 
@@ -107,6 +121,11 @@ export function leaveChannel(guildId: string): boolean {
       queueInfo.currentTrack || null
     );
   }
+
+  // End all user sessions for this guild before leaving
+  stats.endAllUserSessionsForGuild(guildId).catch((err) => {
+    log.error(`Failed to end user sessions: ${(err as Error).message}`);
+  });
 
   const channelId = state?.channelId || null;
   const channelName = state?.channelName || null;

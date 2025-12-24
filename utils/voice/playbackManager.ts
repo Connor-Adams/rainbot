@@ -372,6 +372,20 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Increment session track count
     stats.incrementSessionTracks(guildId);
 
+    // Track that all users in channel heard this track
+    if (!nextTrack.isSoundboard) {
+      const sourceType = detectSourceType(nextTrack);
+      stats.trackUserListen(
+        guildId,
+        state.channelId,
+        nextTrack.title,
+        nextTrack.url || null,
+        sourceType,
+        nextTrack.duration || null,
+        nextTrack.userId || state.lastUserId || null
+      );
+    }
+
     return nextTrack;
   } catch (error) {
     const err = error as Error;

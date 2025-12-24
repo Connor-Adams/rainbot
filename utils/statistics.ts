@@ -99,7 +99,63 @@ const queueBuffer: QueueEvent[] = [];
 const voiceBuffer: VoiceEvent[] = [];
 const searchBuffer: SearchEvent[] = [];
 
-type BufferType = 'commands' | 'sounds' | 'queue' | 'voice' | 'search';
+type BufferType =
+  | 'commands'
+  | 'sounds'
+  | 'queue'
+  | 'voice'
+  | 'search'
+  | 'userSessions'
+  | 'userTrackListens';
+
+// User session tracking interfaces
+interface ActiveUserSession {
+  sessionId: string;
+  botSessionId: string | null;
+  userId: string;
+  username: string | null;
+  discriminator: string | null;
+  guildId: string;
+  channelId: string;
+  channelName: string | null;
+  joinedAt: Date;
+  tracksHeard: number;
+  trackTitles: string[]; // For deduplication
+}
+
+interface UserSessionEvent {
+  session_id: string;
+  bot_session_id: string | null;
+  user_id: string;
+  username: string | null;
+  discriminator: string | null;
+  guild_id: string;
+  channel_id: string;
+  channel_name: string | null;
+  joined_at: Date;
+  left_at: Date;
+  duration_seconds: number;
+  tracks_heard: number;
+}
+
+interface UserTrackListenEvent {
+  user_session_id: string;
+  user_id: string;
+  guild_id: string;
+  track_title: string;
+  track_url: string | null;
+  source_type: SourceType;
+  duration: number | null;
+  listened_at: Date;
+  queued_by: string | null;
+}
+
+// User session buffers
+const userSessionBuffer: UserSessionEvent[] = [];
+const userTrackListenBuffer: UserTrackListenEvent[] = [];
+
+// Active user sessions: keyed by `${guildId}:${channelId}:${userId}`
+const activeUserSessions = new Map<string, ActiveUserSession>();
 
 const bufferMap: Record<BufferType, unknown[]> = {
   commands: commandBuffer,
@@ -107,6 +163,8 @@ const bufferMap: Record<BufferType, unknown[]> = {
   queue: queueBuffer,
   voice: voiceBuffer,
   search: searchBuffer,
+  userSessions: userSessionBuffer,
+  userTrackListens: userTrackListenBuffer,
 };
 
 // Active voice sessions for tracking duration
@@ -137,6 +195,8 @@ async function flushBatches(): Promise<void> {
     { name: 'queue', buffer: queueBuffer, table: 'queue_operations' },
     { name: 'voice', buffer: voiceBuffer, table: 'voice_events' },
     { name: 'search', buffer: searchBuffer, table: 'search_stats' },
+    { name: 'userSessions', buffer: userSessionBuffer, table: 'user_voice_sessions' },
+    { name: 'userTrackListens', buffer: userTrackListenBuffer, table: 'user_track_listens' },
   ];
 
   // Collect non-empty batches
@@ -339,6 +399,61 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
 
       await query(
         `INSERT INTO search_stats (user_id, guild_id, query, query_type, results_count, selected_index, selected_title, searched_at, source) VALUES ${values}`,
+        params
+      );
+    } else if (table === 'user_voice_sessions') {
+      const sessionEvents = events as UserSessionEvent[];
+      const values = sessionEvents
+        .map(
+          (_, i) =>
+            `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`
+        )
+        .join(', ');
+
+      const params = sessionEvents.flatMap((e) => [
+        e.session_id,
+        e.bot_session_id,
+        e.user_id,
+        e.username,
+        e.discriminator,
+        e.guild_id,
+        e.channel_id,
+        e.channel_name,
+        e.joined_at,
+        e.left_at,
+        e.duration_seconds,
+        e.tracks_heard,
+      ]);
+
+      await query(
+        `INSERT INTO user_voice_sessions (session_id, bot_session_id, user_id, username, discriminator, guild_id, channel_id, channel_name, joined_at, left_at, duration_seconds, tracks_heard) VALUES ${values}`,
+        params
+      );
+
+      await upsertUserProfiles(sessionEvents);
+    } else if (table === 'user_track_listens') {
+      const listenEvents = events as UserTrackListenEvent[];
+      const values = listenEvents
+        .map(
+          (_, i) =>
+            `($${i * 9 + 1}, $${i * 9 + 2}, $${i * 9 + 3}, $${i * 9 + 4}, $${i * 9 + 5}, $${i * 9 + 6}, $${i * 9 + 7}, $${i * 9 + 8}, $${i * 9 + 9})`
+        )
+        .join(', ');
+
+      const params = listenEvents.flatMap((e) => [
+        e.user_session_id,
+        e.user_id,
+        e.guild_id,
+        e.track_title,
+        e.track_url,
+        e.source_type,
+        e.duration,
+        e.listened_at,
+        e.queued_by,
+      ]);
+
+      await query(
+        `INSERT INTO user_track_listens (user_session_id, user_id, guild_id, track_title, track_url, source_type, duration, listened_at, queued_by) VALUES ${values}`,
         params
       );
     }
@@ -710,7 +825,15 @@ export function getActiveSession(guildId: string): VoiceSessionEvent | undefined
  * Flush all pending events (useful for graceful shutdown)
  */
 export async function flushAll(): Promise<void> {
-  // End all active sessions
+  // End all active user sessions first
+  for (const [key, session] of activeUserSessions) {
+    const parts = key.split(':');
+    const guildId = parts[0] || '';
+    const channelId = parts[1] || '';
+    await endUserSession(session.userId, guildId, channelId);
+  }
+
+  // End all active bot sessions
   for (const guildId of activeSessions.keys()) {
     await endVoiceSession(guildId);
   }
@@ -720,4 +843,213 @@ export async function flushAll(): Promise<void> {
     clearInterval(batchTimer);
     batchTimer = null;
   }
+}
+
+// ============================================================================
+// USER SESSION TRACKING
+// ============================================================================
+
+/**
+ * Start tracking a user's voice session when they join the bot's channel
+ */
+export function startUserSession(
+  userId: string,
+  guildId: string,
+  channelId: string,
+  channelName: string | null = null,
+  username: string | null = null,
+  discriminator: string | null = null
+): string {
+  const key = `${guildId}:${channelId}:${userId}`;
+
+  // Don't create duplicate sessions
+  if (activeUserSessions.has(key)) {
+    return activeUserSessions.get(key)!.sessionId;
+  }
+
+  const sessionId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const botSession = activeSessions.get(guildId);
+
+  const session: ActiveUserSession = {
+    sessionId,
+    botSessionId: botSession?.session_id || null,
+    userId,
+    username,
+    discriminator,
+    guildId,
+    channelId,
+    channelName,
+    joinedAt: new Date(),
+    tracksHeard: 0,
+    trackTitles: [],
+  };
+
+  activeUserSessions.set(key, session);
+  log.debug(`Started user session ${sessionId} for user ${userId} in guild ${guildId}`);
+
+  // Update peak users for bot session
+  updatePeakUsersForGuild(guildId, channelId);
+
+  return sessionId;
+}
+
+/**
+ * End a user's voice session when they leave the bot's channel
+ */
+export async function endUserSession(
+  userId: string,
+  guildId: string,
+  channelId: string
+): Promise<void> {
+  const key = `${guildId}:${channelId}:${userId}`;
+  const session = activeUserSessions.get(key);
+
+  if (!session) {
+    log.debug(`No active user session found for user ${userId} in guild ${guildId}`);
+    return;
+  }
+
+  const leftAt = new Date();
+  const durationSeconds = Math.floor((leftAt.getTime() - session.joinedAt.getTime()) / 1000);
+
+  // Add to buffer for batch processing
+  userSessionBuffer.push({
+    session_id: session.sessionId,
+    bot_session_id: session.botSessionId,
+    user_id: session.userId,
+    username: session.username,
+    discriminator: session.discriminator,
+    guild_id: session.guildId,
+    channel_id: session.channelId,
+    channel_name: session.channelName,
+    joined_at: session.joinedAt,
+    left_at: leftAt,
+    duration_seconds: durationSeconds,
+    tracks_heard: session.tracksHeard,
+  });
+
+  activeUserSessions.delete(key);
+  log.debug(
+    `Ended user session ${session.sessionId} - duration: ${durationSeconds}s, tracks: ${session.tracksHeard}`
+  );
+
+  // Trigger flush if buffer is full
+  if (userSessionBuffer.length >= BATCH_SIZE) {
+    await flushBatches();
+  }
+
+  startBatchProcessor();
+}
+
+/**
+ * Track that users heard a track (called when a track starts playing)
+ */
+export function trackUserListen(
+  guildId: string,
+  channelId: string,
+  trackTitle: string,
+  trackUrl: string | null,
+  sourceType: SourceType,
+  duration: number | null,
+  queuedBy: string | null
+): void {
+  // Find all active user sessions in this channel
+  const usersInChannel = getUsersInChannel(guildId, channelId);
+
+  for (const session of usersInChannel) {
+    // Avoid duplicate tracking for the same track in same session
+    if (session.trackTitles.includes(trackTitle)) continue;
+
+    session.tracksHeard++;
+    session.trackTitles.push(trackTitle);
+
+    // Add to buffer for batch processing
+    userTrackListenBuffer.push({
+      user_session_id: session.sessionId,
+      user_id: session.userId,
+      guild_id: guildId,
+      track_title: trackTitle,
+      track_url: trackUrl,
+      source_type: sourceType,
+      duration,
+      listened_at: new Date(),
+      queued_by: queuedBy,
+    });
+  }
+
+  // Trigger flush if buffer is full
+  if (userTrackListenBuffer.length >= BATCH_SIZE) {
+    flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
+  }
+
+  startBatchProcessor();
+}
+
+/**
+ * Get all active user sessions in a specific channel
+ */
+export function getUsersInChannel(guildId: string, channelId: string): ActiveUserSession[] {
+  const users: ActiveUserSession[] = [];
+
+  for (const [key, session] of activeUserSessions) {
+    if (key.startsWith(`${guildId}:${channelId}:`)) {
+      users.push(session);
+    }
+  }
+
+  return users;
+}
+
+/**
+ * Update peak user count for a guild's bot session
+ */
+function updatePeakUsersForGuild(guildId: string, channelId: string): void {
+  const botSession = activeSessions.get(guildId);
+  if (!botSession) return;
+
+  // Count users in the channel
+  const userCount = getUsersInChannel(guildId, channelId).length;
+
+  // Call existing function to update peak
+  updateSessionPeakUsers(guildId, userCount);
+}
+
+/**
+ * End all user sessions for a guild (called when bot leaves)
+ */
+export async function endAllUserSessionsForGuild(guildId: string): Promise<void> {
+  const sessionsToEnd: Array<{ userId: string; channelId: string }> = [];
+
+  for (const [key, session] of activeUserSessions) {
+    if (session.guildId === guildId) {
+      const parts = key.split(':');
+      const channelId = parts[1] || '';
+      sessionsToEnd.push({ userId: session.userId, channelId });
+    }
+  }
+
+  for (const { userId, channelId } of sessionsToEnd) {
+    await endUserSession(userId, guildId, channelId);
+  }
+
+  log.debug(`Ended ${sessionsToEnd.length} user sessions for guild ${guildId}`);
+}
+
+/**
+ * Get active session for a specific user
+ */
+export function getActiveUserSession(
+  userId: string,
+  guildId: string,
+  channelId: string
+): ActiveUserSession | undefined {
+  const key = `${guildId}:${channelId}:${userId}`;
+  return activeUserSessions.get(key);
+}
+
+/**
+ * Get count of active users in a guild's channel
+ */
+export function getActiveUserCount(guildId: string, channelId: string): number {
+  return getUsersInChannel(guildId, channelId).length;
 }
