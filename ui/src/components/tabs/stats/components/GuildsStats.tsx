@@ -59,7 +59,12 @@ export default function GuildsStats() {
 
   return (
     <StatsSection title="Top Guilds">
-      <StatsTable columns={columns} data={data.guilds || []} emptyMessage="No guild data available" />
+      <StatsTable
+        columns={columns}
+        data={data.guilds || []}
+        emptyMessage="No guild data available"
+        getRowKey={(guild: GuildStat) => guild.guild_id}
+      />
     </StatsSection>
   )
 }

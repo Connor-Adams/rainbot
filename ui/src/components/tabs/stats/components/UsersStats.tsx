@@ -68,7 +68,12 @@ export default function UsersStats() {
 
   return (
     <StatsSection title="Top Users">
-      <StatsTable columns={columns} data={data.users || []} emptyMessage="No user data available" />
+      <StatsTable
+        columns={columns}
+        data={data.users || []}
+        emptyMessage="No user data available"
+        getRowKey={(user: UserStat) => `${user.user_id}-${user.guild_id}`}
+      />
     </StatsSection>
   )
 }

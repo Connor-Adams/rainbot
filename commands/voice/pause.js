@@ -34,9 +34,9 @@ module.exports = {
       }
     } catch (error) {
       log.error(`Pause error: ${error.message}`);
-      const response = createErrorResponse(error);
-      response.content += '\n\n💡 **Tip:** Make sure something is playing before trying to pause.';
-      await interaction.reply(response);
+      await interaction.reply(
+        createErrorResponse(error, '', '💡 **Tip:** Make sure something is playing before trying to pause.')
+      );
     }
   },
 };

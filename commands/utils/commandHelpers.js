@@ -25,10 +25,11 @@ function validateVoiceConnection(interaction, voiceManager) {
 /**
  * Standard error response handler for commands
  */
-function createErrorResponse(error, context = '') {
+function createErrorResponse(error, context = '', additionalTip = '') {
   const message = error.message || 'An unknown error occurred';
+  const content = `❌ ${context ? `${context}: ` : ''}${message}${additionalTip ? `\n\n${additionalTip}` : ''}`;
   return {
-    content: `❌ ${context ? `${context}: ` : ''}${message}`,
+    content,
     ephemeral: true,
   };
 }

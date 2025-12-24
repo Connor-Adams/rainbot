@@ -5,6 +5,7 @@ interface Column<T = Record<string, unknown>> {
   key?: string
   render?: (row: T) => ReactNode
   className?: string
+  id?: string // Unique identifier for the column
 }
 
 interface StatsTableProps<T = Record<string, unknown>> {
@@ -12,6 +13,7 @@ interface StatsTableProps<T = Record<string, unknown>> {
   data: T[]
   emptyMessage?: string
   className?: string
+  getRowKey?: (row: T, index: number) => string | number // Function to extract unique key from row
 }
 
 export default function StatsTable<T = Record<string, unknown>>({
@@ -19,6 +21,7 @@ export default function StatsTable<T = Record<string, unknown>>({
   data,
   emptyMessage = 'No data available',
   className = '',
+  getRowKey,
 }: StatsTableProps<T>) {
   if (data.length === 0) {
     return (
@@ -35,7 +38,7 @@ export default function StatsTable<T = Record<string, unknown>>({
         <thead>
           <tr>
             {columns.map((col, idx) => (
-              <th key={idx} className={col.className}>
+              <th key={col.id || col.header || idx} className={col.className}>
                 {col.header}
               </th>
             ))}
@@ -43,9 +46,9 @@ export default function StatsTable<T = Record<string, unknown>>({
         </thead>
         <tbody>
           {data.map((row, rowIdx) => (
-            <tr key={rowIdx} className="hover:bg-gray-700/50 transition-colors">
+            <tr key={getRowKey ? getRowKey(row, rowIdx) : rowIdx} className="hover:bg-gray-700/50 transition-colors">
               {columns.map((col, colIdx) => (
-                <td key={colIdx} className={col.className || 'px-4 py-3 text-sm text-gray-400'}>
+                <td key={col.id || col.header || colIdx} className={col.className || 'px-4 py-3 text-sm text-gray-400'}>
                   {col.render
                     ? col.render(row)
                     : col.key

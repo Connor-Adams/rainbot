@@ -153,13 +153,21 @@ export default function SearchStats() {
 
       {data.topQueries.length > 0 && (
         <StatsSection title="Top Search Queries">
-          <StatsTable columns={topQueriesColumns} data={data.topQueries} />
+          <StatsTable
+            columns={topQueriesColumns}
+            data={data.topQueries}
+            getRowKey={(query: TopQuery, idx: number) => `${query.query}-${query.query_type}-${idx}`}
+          />
         </StatsSection>
       )}
 
       {data.queryTypes.length > 0 && (
         <StatsSection title="Query Types Breakdown">
-          <StatsTable columns={queryTypesColumns} data={data.queryTypes} />
+          <StatsTable
+            columns={queryTypesColumns}
+            data={data.queryTypes}
+            getRowKey={(type: QueryType) => type.query_type}
+          />
         </StatsSection>
       )}
 
@@ -168,7 +176,11 @@ export default function SearchStats() {
           <div className="text-sm text-gray-400 mb-4">
             These queries returned zero results - opportunities to improve search or content
           </div>
-          <StatsTable columns={zeroResultsColumns} data={data.zeroResults} />
+          <StatsTable
+            columns={zeroResultsColumns}
+            data={data.zeroResults}
+            getRowKey={(query: ZeroResult, idx: number) => `${query.query}-${idx}`}
+          />
         </StatsSection>
       )}
     </div>

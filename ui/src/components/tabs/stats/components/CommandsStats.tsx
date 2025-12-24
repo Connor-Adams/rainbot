@@ -109,6 +109,7 @@ export default function CommandsStats() {
           columns={columns}
           data={data.commands || []}
           emptyMessage="No command data available"
+          getRowKey={(cmd: CommandStat) => cmd.command_name}
         />
       </StatsSection>
     </>

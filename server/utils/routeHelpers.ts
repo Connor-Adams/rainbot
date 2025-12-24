@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
 /**
  * Server utilities for API routes
@@ -71,8 +71,8 @@ export function extractAuthUser(user: unknown): {
  * Async handler wrapper for route handlers to catch errors
  */
 export function asyncHandler(
-  fn: (req: Request, res: Response, next: unknown) => Promise<void>
-): (req: Request, res: Response, next: unknown) => void {
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
+): (req: Request, res: Response, next: NextFunction) => void {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
