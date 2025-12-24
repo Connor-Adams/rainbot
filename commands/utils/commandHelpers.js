@@ -60,24 +60,6 @@ function getYouTubeThumbnail(url) {
 }
 
 /**
- * Handle command execution with standard error handling
- */
-async function executeWithErrorHandling(interaction, executor, logger) {
-  try {
-    await executor();
-  } catch (error) {
-    logger.error(`Command error: ${error.message}`);
-    const response = createErrorResponse(error);
-    
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(response);
-    } else {
-      await interaction.reply(response);
-    }
-  }
-}
-
-/**
  * Check if user has required voice channel permissions
  */
 function checkVoicePermissions(voiceChannel, botUser) {
@@ -103,6 +85,5 @@ module.exports = {
   createErrorResponse,
   formatDuration,
   getYouTubeThumbnail,
-  executeWithErrorHandling,
   checkVoicePermissions,
 };
