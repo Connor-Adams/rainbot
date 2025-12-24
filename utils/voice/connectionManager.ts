@@ -38,6 +38,33 @@ export async function joinChannel(
   const player = createAudioPlayer();
   connection.subscribe(player);
 
+  // Handle when audio finishes playing
+  player.on(AudioPlayerStatus.Idle, async () => {
+    const state = voiceStates.get(guildId);
+    if (!state) return;
+
+    // Clean up overlay process if it was running
+    if (state.overlayProcess) {
+      state.overlayProcess = null;
+    }
+
+    // Check if there's more in queue
+    if (state.queue.length > 0) {
+      log.debug(`Track finished, playing next in queue (${state.queue.length} remaining)`);
+      // Dynamic import to avoid circular dependency
+      const { playNext } = await import('./playbackManager');
+      await playNext(guildId);
+    } else {
+      // Queue empty - clear now playing
+      log.debug(`Queue empty, clearing now playing state`);
+      state.nowPlaying = null;
+      state.currentTrack = null;
+      state.currentResource = null;
+      state.currentTrackSource = null;
+      state.playbackStartTime = null;
+    }
+  });
+
   // Handle connection state changes
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
