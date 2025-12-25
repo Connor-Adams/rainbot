@@ -185,6 +185,22 @@ export function createVolumeResource(
 }
 
 /**
+ * Helper to create audio resource with conditional volume control based on track type
+ * Soundboard tracks never have volume control (always 100%), other tracks do
+ */
+function createTrackResourceHelper(
+  input: Readable | string,
+  isSoundboard: boolean,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
+  if (isSoundboard) {
+    return createAudioResource(input, options);
+  } else {
+    return createVolumeResource(input, options);
+  }
+}
+
+/**
  * Play a resource with volume applied
  */
 export function playWithVolume(state: VoiceState, resource: AudioResource): void {
@@ -229,24 +245,18 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Handle local/soundboard files
     if (nextTrack.isLocal) {
       if (nextTrack.isStream && nextTrack.source) {
-        // Soundboard files should NOT have volume control
-        if (nextTrack.isSoundboard) {
-          resource = createAudioResource(nextTrack.source as unknown as Readable, {
-            inputType: StreamType.Arbitrary,
-          });
-        } else {
-          resource = createVolumeResource(nextTrack.source as unknown as Readable, {
-            inputType: StreamType.Arbitrary,
-          });
-        }
+        resource = createTrackResourceHelper(
+          nextTrack.source as unknown as Readable,
+          nextTrack.isSoundboard || false,
+          { inputType: StreamType.Arbitrary }
+        );
       } else if (nextTrack.source) {
         const soundStream = await storage.getSoundStream(nextTrack.source);
-        // Soundboard files should NOT have volume control
-        if (nextTrack.isSoundboard) {
-          resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
-        } else {
-          resource = createVolumeResource(soundStream);
-        }
+        resource = createTrackResourceHelper(
+          soundStream,
+          nextTrack.isSoundboard || false,
+          { inputType: StreamType.Arbitrary }
+        );
       } else {
         throw new Error('Local track missing source');
       }

@@ -78,6 +78,23 @@ export function createVolumeResource(
 }
 
 /**
+ * Helper to create audio resource with conditional volume control based on track type
+ * Soundboard tracks never have volume control (always 100%), other tracks do
+ */
+export function createTrackResource(
+  input: Readable | string,
+  track: Track,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
+  // Soundboard files should NOT have volume control
+  if (track.isSoundboard) {
+    return createAudioResource(input, options);
+  } else {
+    return createVolumeResource(input, options);
+  }
+}
+
+/**
  * Get direct stream URL from yt-dlp (cached for speed)
  */
 export async function getStreamUrl(videoUrl: string): Promise<string> {
@@ -242,32 +259,16 @@ export async function createTrackResourceForAny(
   // Handle local files/streams
   if (track.isLocal) {
     if (track.isStream && track.source) {
-      // Soundboard files should NOT have volume control
-      if (track.isSoundboard) {
-        return {
-          resource: createAudioResource(track.source as unknown as Readable, {
-            inputType: StreamType.Arbitrary,
-          }),
-        };
-      } else {
-        return {
-          resource: createVolumeResource(track.source as unknown as Readable, {
-            inputType: StreamType.Arbitrary,
-          }),
-        };
-      }
+      return {
+        resource: createTrackResource(track.source as unknown as Readable, track, {
+          inputType: StreamType.Arbitrary,
+        }),
+      };
     } else if (track.source) {
       const soundStream = await storage.getSoundStream(track.source);
-      // Soundboard files should NOT have volume control
-      if (track.isSoundboard) {
-        return {
-          resource: createAudioResource(soundStream, { inputType: StreamType.Arbitrary }),
-        };
-      } else {
-        return {
-          resource: createVolumeResource(soundStream),
-        };
-      }
+      return {
+        resource: createTrackResource(soundStream, track, { inputType: StreamType.Arbitrary }),
+      };
     }
     throw new Error('Local track missing source');
   }
@@ -353,16 +354,11 @@ export async function createResourceWithSeek(
     soundStream.pipe(ffmpeg.stdin as NodeJS.WritableStream);
     ffmpeg.stderr?.on('data', () => {}); // Suppress stderr
 
-    // Soundboard files should NOT have volume control
-    if (track.isSoundboard) {
-      return {
-        resource: createAudioResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
-      };
-    } else {
-      return {
-        resource: createVolumeResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
-      };
-    }
+    return {
+      resource: createTrackResource(ffmpeg.stdout as Readable, track, {
+        inputType: StreamType.OggOpus,
+      }),
+    };
   }
 
   if (!track.url) {
