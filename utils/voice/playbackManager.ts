@@ -331,7 +331,8 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Soundboard tracks play at full volume without volume control
     if (nextTrack.isSoundboard) {
       state.player.play(resource);
-      // Don't set currentResource - soundboard plays at full volume
+      // Don't set currentResource - this prevents volume control from affecting soundboard playback
+      // (soundboard should always play at 100% volume regardless of user's volume setting)
       state.currentResource = null;
     } else {
       playWithVolume(state, resource);
