@@ -53,10 +53,8 @@ export function initDatabase(): Pool | null {
       .then(async () => {
         log.info('✓ Database connection pool initialized');
         // Automatically setup schema if not already initialized
-        // Wait a bit to ensure connection is fully ready
-        setTimeout(async () => {
-          await initializeSchema();
-        }, 1000);
+        // Call initializeSchema directly without setTimeout to ensure it completes ASAP
+        await initializeSchema();
       })
       .catch((err) => {
         log.error(`Database connection test failed: ${err.message}`);
@@ -76,6 +74,30 @@ export function initDatabase(): Pool | null {
  */
 export function getPool(): Pool | null {
   return pool;
+}
+
+/**
+ * Check if database schema is initialized
+ */
+export function isSchemaInitialized(): boolean {
+  return schemaInitialized;
+}
+
+/**
+ * Wait for schema to be initialized (with timeout)
+ * @param timeoutMs Maximum time to wait in milliseconds (default: 30000)
+ * @returns true if schema initialized, false if timeout
+ */
+export async function waitForSchema(timeoutMs: number = 30000): Promise<boolean> {
+  if (schemaInitialized) return true;
+  if (!pool) return false;
+
+  const startTime = Date.now();
+  while (!schemaInitialized && Date.now() - startTime < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  return schemaInitialized;
 }
 
 /**
@@ -157,6 +179,7 @@ export async function initializeSchema(): Promise<boolean> {
             )
         `);
 
+    log.debug('Creating guild_queue_snapshots table...');
     await pool.query(`
             CREATE TABLE IF NOT EXISTS guild_queue_snapshots (
                 guild_id VARCHAR(20) PRIMARY KEY,
@@ -170,6 +193,7 @@ export async function initializeSchema(): Promise<boolean> {
                 saved_at TIMESTAMP DEFAULT NOW()
             )
         `);
+    log.debug('✓ guild_queue_snapshots table created/verified');
 
     await pool.query(`
             CREATE TABLE IF NOT EXISTS queue_operations (
