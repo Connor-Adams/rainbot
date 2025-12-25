@@ -93,8 +93,9 @@ export async function waitForSchema(timeoutMs: number = 30000): Promise<boolean>
   if (!pool) return false;
 
   const startTime = Date.now();
+  // Poll every 500ms to reduce CPU overhead while maintaining reasonable responsiveness
   while (!schemaInitialized && Date.now() - startTime < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   return schemaInitialized;
