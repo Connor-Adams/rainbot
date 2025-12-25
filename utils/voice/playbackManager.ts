@@ -229,12 +229,24 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Handle local/soundboard files
     if (nextTrack.isLocal) {
       if (nextTrack.isStream && nextTrack.source) {
-        resource = createVolumeResource(nextTrack.source as unknown as Readable, {
-          inputType: StreamType.Arbitrary,
-        });
+        // Soundboard files should NOT have volume control
+        if (nextTrack.isSoundboard) {
+          resource = createAudioResource(nextTrack.source as unknown as Readable, {
+            inputType: StreamType.Arbitrary,
+          });
+        } else {
+          resource = createVolumeResource(nextTrack.source as unknown as Readable, {
+            inputType: StreamType.Arbitrary,
+          });
+        }
       } else if (nextTrack.source) {
         const soundStream = await storage.getSoundStream(nextTrack.source);
-        resource = createVolumeResource(soundStream);
+        // Soundboard files should NOT have volume control
+        if (nextTrack.isSoundboard) {
+          resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+        } else {
+          resource = createVolumeResource(soundStream);
+        }
       } else {
         throw new Error('Local track missing source');
       }
@@ -305,7 +317,16 @@ export async function playNext(guildId: string): Promise<Track | null> {
     }
 
     log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
-    playWithVolume(state, resource);
+    
+    // Soundboard tracks play at full volume without volume control
+    if (nextTrack.isSoundboard) {
+      state.player.play(resource);
+      // Don't set currentResource - soundboard plays at full volume
+      state.currentResource = null;
+    } else {
+      playWithVolume(state, resource);
+    }
+    
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
     state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;

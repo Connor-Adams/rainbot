@@ -242,16 +242,32 @@ export async function createTrackResourceForAny(
   // Handle local files/streams
   if (track.isLocal) {
     if (track.isStream && track.source) {
-      return {
-        resource: createVolumeResource(track.source as unknown as Readable, {
-          inputType: StreamType.Arbitrary,
-        }),
-      };
+      // Soundboard files should NOT have volume control
+      if (track.isSoundboard) {
+        return {
+          resource: createAudioResource(track.source as unknown as Readable, {
+            inputType: StreamType.Arbitrary,
+          }),
+        };
+      } else {
+        return {
+          resource: createVolumeResource(track.source as unknown as Readable, {
+            inputType: StreamType.Arbitrary,
+          }),
+        };
+      }
     } else if (track.source) {
       const soundStream = await storage.getSoundStream(track.source);
-      return {
-        resource: createVolumeResource(soundStream),
-      };
+      // Soundboard files should NOT have volume control
+      if (track.isSoundboard) {
+        return {
+          resource: createAudioResource(soundStream, { inputType: StreamType.Arbitrary }),
+        };
+      } else {
+        return {
+          resource: createVolumeResource(soundStream),
+        };
+      }
     }
     throw new Error('Local track missing source');
   }
@@ -337,9 +353,16 @@ export async function createResourceWithSeek(
     soundStream.pipe(ffmpeg.stdin as NodeJS.WritableStream);
     ffmpeg.stderr?.on('data', () => {}); // Suppress stderr
 
-    return {
-      resource: createVolumeResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
-    };
+    // Soundboard files should NOT have volume control
+    if (track.isSoundboard) {
+      return {
+        resource: createAudioResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
+      };
+    } else {
+      return {
+        resource: createVolumeResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
+      };
+    }
   }
 
   if (!track.url) {
