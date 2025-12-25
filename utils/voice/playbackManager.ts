@@ -252,11 +252,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
         );
       } else if (nextTrack.source) {
         const soundStream = await storage.getSoundStream(nextTrack.source);
-        resource = createTrackResourceHelper(
-          soundStream,
-          nextTrack.isSoundboard || false,
-          { inputType: StreamType.Arbitrary }
-        );
+        resource = createTrackResourceHelper(soundStream, nextTrack.isSoundboard || false);
       } else {
         throw new Error('Local track missing source');
       }
@@ -298,9 +294,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
             log.warn(`yt-dlp methods failed for ${nextTrack.title}, trying play-dl...`);
             try {
               const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-              resource = createVolumeResource(streamInfo.stream, {
-                inputType: streamInfo.type,
-              });
+              resource = createTrackResourceHelper(
+                streamInfo.stream,
+                nextTrack.isSoundboard || false,
+                { inputType: streamInfo.type }
+              );
             } catch (playDlError) {
               const playErr = playDlError as Error;
               log.error(
@@ -314,9 +312,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
           const urlType = await play.validate(nextTrack.url);
           if (urlType) {
             const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-            resource = createVolumeResource(streamInfo.stream, {
-              inputType: streamInfo.type,
-            });
+            resource = createTrackResourceHelper(
+              streamInfo.stream,
+              nextTrack.isSoundboard || false,
+              { inputType: streamInfo.type }
+            );
           } else {
             throw new Error('URL no longer valid');
           }
@@ -693,7 +693,7 @@ export async function playWithSeek(
     if (track.isLocal) {
       if (track.source) {
         const soundStream = await storage.getSoundStream(track.source);
-        resource = createVolumeResource(soundStream);
+        resource = createTrackResourceHelper(soundStream, track.isSoundboard || false);
       } else {
         throw new Error('Local track missing source');
       }
@@ -756,9 +756,11 @@ export async function playWithSeek(
         } else {
           // Fallback to play-dl
           const streamInfo = await play.stream(track.url, { quality: 2 });
-          resource = createVolumeResource(streamInfo.stream, {
-            inputType: streamInfo.type,
-          });
+          resource = createTrackResourceHelper(
+            streamInfo.stream,
+            track.isSoundboard || false,
+            { inputType: streamInfo.type }
+          );
         }
       }
     } else {

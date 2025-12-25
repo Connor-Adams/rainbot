@@ -267,7 +267,7 @@ export async function createTrackResourceForAny(
     } else if (track.source) {
       const soundStream = await storage.getSoundStream(track.source);
       return {
-        resource: createTrackResource(soundStream, track, { inputType: StreamType.Arbitrary }),
+        resource: createTrackResource(soundStream, track),
       };
     }
     throw new Error('Local track missing source');
@@ -290,7 +290,7 @@ export async function createTrackResourceForAny(
       try {
         const streamInfo = await play.stream(track.url, { quality: 2 });
         return {
-          resource: createVolumeResource(streamInfo.stream, {
+          resource: createTrackResource(streamInfo.stream, track, {
             inputType: streamInfo.type,
           }),
         };
@@ -309,7 +309,7 @@ export async function createTrackResourceForAny(
   if (urlType) {
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return {
-      resource: createVolumeResource(streamInfo.stream, {
+      resource: createTrackResource(streamInfo.stream, track, {
         inputType: streamInfo.type,
       }),
     };
