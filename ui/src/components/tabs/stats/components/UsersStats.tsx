@@ -17,6 +17,7 @@ export default function UsersStats() {
 
   const columns = [
     {
+      id: 'username',
       header: 'Username',
       render: (user: UserStat) => {
         const username = user.username
@@ -27,16 +28,19 @@ export default function UsersStats() {
       className: 'px-4 py-3 text-sm text-white',
     },
     {
+      id: 'user_id',
       header: 'User ID',
       render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.user_id)}</span>,
       className: 'px-4 py-3 text-sm text-white',
     },
     {
+      id: 'guild_id',
       header: 'Guild ID',
       render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.guild_id)}</span>,
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'commands',
       header: 'Commands',
       render: (user: UserStat) => (
         <span className="font-mono">{parseInt(user.command_count || '0').toLocaleString()}</span>
@@ -44,6 +48,7 @@ export default function UsersStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'sounds',
       header: 'Sounds',
       render: (user: UserStat) => (
         <span className="font-mono">{parseInt(user.sound_count || '0').toLocaleString()}</span>
@@ -51,6 +56,7 @@ export default function UsersStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'total',
       header: 'Total',
       render: (user: UserStat) => {
         const total = parseInt(user.command_count || '0') + parseInt(user.sound_count || '0')
@@ -59,6 +65,7 @@ export default function UsersStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'last_active',
       header: 'Last Active',
       render: (user: UserStat) =>
         user.last_active ? new Date(user.last_active).toLocaleString() : 'Never',

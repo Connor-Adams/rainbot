@@ -30,11 +30,13 @@ module.exports = {
       );
     } catch (error) {
       console.error('Error joining voice channel:', error);
-      const baseResponse = createErrorResponse(error, 'Failed to join the voice channel');
-      await interaction.reply({
-        ...baseResponse,
-        content: `${baseResponse.content}\n\n💡 Make sure I have the necessary permissions and try again.`,
-      });
+      await interaction.reply(
+        createErrorResponse(
+          error,
+          'Failed to join the voice channel',
+          '💡 Make sure I have the necessary permissions and try again.'
+        )
+      );
     }
   },
 };

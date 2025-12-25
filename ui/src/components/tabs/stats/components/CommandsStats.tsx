@@ -58,11 +58,13 @@ export default function CommandsStats() {
 
   const columns = [
     {
+      id: 'command',
       header: 'Command',
       render: (cmd: CommandStat) => escapeHtml(cmd.command_name),
       className: 'px-4 py-3 text-sm text-white',
     },
     {
+      id: 'count',
       header: 'Count',
       render: (cmd: CommandStat) => (
         <span className="font-mono">{parseInt(cmd.count).toLocaleString()}</span>
@@ -70,6 +72,7 @@ export default function CommandsStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'success',
       header: 'Success',
       render: (cmd: CommandStat) => (
         <span className="font-mono">{parseInt(cmd.success_count || '0').toLocaleString()}</span>
@@ -77,6 +80,7 @@ export default function CommandsStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'errors',
       header: 'Errors',
       render: (cmd: CommandStat) => (
         <span className="font-mono">{parseInt(cmd.error_count || '0').toLocaleString()}</span>
@@ -84,6 +88,7 @@ export default function CommandsStats() {
       className: 'px-4 py-3 text-sm text-gray-400',
     },
     {
+      id: 'success_rate',
       header: 'Success Rate',
       render: (cmd: CommandStat) => {
         const successCount = parseInt(cmd.success_count || '0')
