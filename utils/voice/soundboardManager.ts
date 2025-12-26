@@ -129,33 +129,10 @@ export async function playSoundboardOverlay(
   log.info(`Overlaying soundboard "${soundName}" on music`);
 
   try {
-    // Clean up any existing overlay process
-    const existingOverlay = state.overlayProcess as ChildProcess | null;
-    if (existingOverlay) {
-      log.debug('Killing existing overlay process for new soundboard');
-      try {
-        // Set flag to prevent idle handler from calling playNext
-        state.isTransitioningToOverlay = true;
-        existingOverlay.kill('SIGKILL');
-        // Clear after kill to maintain consistent state during cleanup
-        state.overlayProcess = null;
-        state.player.stop();
-      } catch (err) {
-        log.debug(`Error killing old overlay: ${(err as Error).message}`);
-        // Ensure overlayProcess is cleared even if kill fails
-        state.overlayProcess = null;
-      }
-    } else {
-      // First overlay - stop current music and set flag to prevent idle handler
-      log.debug('Starting first overlay, stopping current music');
-      state.isTransitioningToOverlay = true;
-      state.player.stop();
-    }
-
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
 
-    // Calculate current playback position
+    // Calculate current playback position BEFORE stopping player
     let playbackPosition = 0;
     if (state.playbackStartTime) {
       const elapsed = Date.now() - state.playbackStartTime;
@@ -246,7 +223,27 @@ export async function playSoundboardOverlay(
       inputType: StreamType.OggOpus,
     });
 
-    // Play the mixed audio
+    // Clean up any existing overlay process and stop player JUST before playing new overlay
+    // This minimizes the gap between stop and play for seamless transition
+    const existingOverlay = state.overlayProcess as ChildProcess | null;
+    if (existingOverlay) {
+      log.debug('Killing existing overlay process for new soundboard');
+      try {
+        // Set flag to prevent idle handler from calling playNext
+        state.isTransitioningToOverlay = true;
+        existingOverlay.kill('SIGKILL');
+        state.overlayProcess = null;
+      } catch (err) {
+        log.debug(`Error killing old overlay: ${(err as Error).message}`);
+        state.overlayProcess = null;
+      }
+    } else {
+      // First overlay - set flag to prevent idle handler from advancing queue
+      log.debug('Starting first overlay');
+      state.isTransitioningToOverlay = true;
+    }
+
+    // Play the mixed audio immediately (seamless transition)
     state.player.play(resource);
     // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
