@@ -39,9 +39,9 @@ describe('Stats Rate Limiting', () => {
   });
 
   it('enforces rate limit after excessive requests', async () => {
-    // Make many requests to trigger rate limit
+    // Make many requests to trigger rate limit (more than 500)
     const requests = [];
-    for (let i = 0; i < 102; i++) {
+    for (let i = 0; i < 502; i++) {
       requests.push(request(app).get('/api/stats/summary'));
     }
 
