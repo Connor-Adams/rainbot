@@ -157,6 +157,7 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
         log.debug(`Stream error (expected on skip/stop): ${err.message}`);
       });
 
+      // Extract resource to allow adding error handler to playStream after creation
       const resource = createAudioResource(nodeStream, {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
