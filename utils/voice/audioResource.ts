@@ -78,6 +78,23 @@ export function createVolumeResource(
 }
 
 /**
+ * Helper to create audio resource with conditional volume control based on track type
+ * Soundboard tracks never have volume control (always 100%), other tracks do
+ */
+export function createResourceForTrack(
+  input: Readable | string,
+  track: Track,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
+  // Soundboard files should NOT have volume control
+  if (track.isSoundboard) {
+    return createAudioResource(input, options);
+  } else {
+    return createVolumeResource(input, options);
+  }
+}
+
+/**
  * Get direct stream URL from yt-dlp (cached for speed)
  */
 export async function getStreamUrl(videoUrl: string): Promise<string> {
@@ -164,7 +181,7 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
       return {
         resource: createAudioResource(nodeStream, {
           inputType: StreamType.Arbitrary,
-          inlineVolume: true,
+          inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
         }),
       };
     } catch (fetchError) {
@@ -223,7 +240,7 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
   return {
     resource: createAudioResource(subprocess.stdout as Readable, {
       inputType: StreamType.Arbitrary,
-      inlineVolume: true,
+      inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
     }),
     subprocess,
   };
@@ -243,14 +260,14 @@ export async function createTrackResourceForAny(
   if (track.isLocal) {
     if (track.isStream && track.source) {
       return {
-        resource: createVolumeResource(track.source as unknown as Readable, {
+        resource: createResourceForTrack(track.source as unknown as Readable, track, {
           inputType: StreamType.Arbitrary,
         }),
       };
     } else if (track.source) {
       const soundStream = await storage.getSoundStream(track.source);
       return {
-        resource: createVolumeResource(soundStream),
+        resource: createResourceForTrack(soundStream, track),
       };
     }
     throw new Error('Local track missing source');
@@ -273,7 +290,7 @@ export async function createTrackResourceForAny(
       try {
         const streamInfo = await play.stream(track.url, { quality: 2 });
         return {
-          resource: createVolumeResource(streamInfo.stream, {
+          resource: createResourceForTrack(streamInfo.stream, track, {
             inputType: streamInfo.type,
           }),
         };
@@ -292,7 +309,7 @@ export async function createTrackResourceForAny(
   if (urlType) {
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return {
-      resource: createVolumeResource(streamInfo.stream, {
+      resource: createResourceForTrack(streamInfo.stream, track, {
         inputType: streamInfo.type,
       }),
     };
@@ -338,7 +355,9 @@ export async function createResourceWithSeek(
     ffmpeg.stderr?.on('data', () => {}); // Suppress stderr
 
     return {
-      resource: createVolumeResource(ffmpeg.stdout as Readable, { inputType: StreamType.OggOpus }),
+      resource: createResourceForTrack(ffmpeg.stdout as Readable, track, {
+        inputType: StreamType.OggOpus,
+      }),
     };
   }
 
@@ -353,7 +372,7 @@ export async function createResourceWithSeek(
       seek: seekSeconds,
     });
     return {
-      resource: createVolumeResource(streamInfo.stream, { inputType: streamInfo.type }),
+      resource: createResourceForTrack(streamInfo.stream, track, { inputType: streamInfo.type }),
       actualSeek: seekSeconds,
     };
   } catch (error) {
@@ -362,7 +381,7 @@ export async function createResourceWithSeek(
     // Fall back to streaming from start
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return {
-      resource: createVolumeResource(streamInfo.stream, { inputType: streamInfo.type }),
+      resource: createResourceForTrack(streamInfo.stream, track, { inputType: streamInfo.type }),
       actualSeek: 0,
     };
   }

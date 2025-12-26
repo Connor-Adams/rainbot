@@ -185,6 +185,22 @@ export function createVolumeResource(
 }
 
 /**
+ * Helper to create audio resource with conditional volume control based on track type
+ * Soundboard tracks never have volume control (always 100%), other tracks do
+ */
+function createTrackResourceHelper(
+  input: Readable | string,
+  isSoundboard: boolean,
+  options: { inputType?: StreamType } = {}
+): AudioResource {
+  if (isSoundboard) {
+    return createAudioResource(input, options);
+  } else {
+    return createVolumeResource(input, options);
+  }
+}
+
+/**
  * Play a resource with volume applied
  */
 export function playWithVolume(state: VoiceState, resource: AudioResource): void {
@@ -229,12 +245,14 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Handle local/soundboard files
     if (nextTrack.isLocal) {
       if (nextTrack.isStream && nextTrack.source) {
-        resource = createVolumeResource(nextTrack.source as unknown as Readable, {
-          inputType: StreamType.Arbitrary,
-        });
+        resource = createTrackResourceHelper(
+          nextTrack.source as unknown as Readable,
+          nextTrack.isSoundboard || false,
+          { inputType: StreamType.Arbitrary }
+        );
       } else if (nextTrack.source) {
         const soundStream = await storage.getSoundStream(nextTrack.source);
-        resource = createVolumeResource(soundStream);
+        resource = createTrackResourceHelper(soundStream, nextTrack.isSoundboard || false);
       } else {
         throw new Error('Local track missing source');
       }
@@ -276,9 +294,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
             log.warn(`yt-dlp methods failed for ${nextTrack.title}, trying play-dl...`);
             try {
               const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-              resource = createVolumeResource(streamInfo.stream, {
-                inputType: streamInfo.type,
-              });
+              resource = createTrackResourceHelper(
+                streamInfo.stream,
+                nextTrack.isSoundboard || false,
+                { inputType: streamInfo.type }
+              );
             } catch (playDlError) {
               const playErr = playDlError as Error;
               log.error(
@@ -292,9 +312,11 @@ export async function playNext(guildId: string): Promise<Track | null> {
           const urlType = await play.validate(nextTrack.url);
           if (urlType) {
             const streamInfo = await play.stream(nextTrack.url, { quality: 2 });
-            resource = createVolumeResource(streamInfo.stream, {
-              inputType: streamInfo.type,
-            });
+            resource = createTrackResourceHelper(
+              streamInfo.stream,
+              nextTrack.isSoundboard || false,
+              { inputType: streamInfo.type }
+            );
           } else {
             throw new Error('URL no longer valid');
           }
@@ -305,7 +327,17 @@ export async function playNext(guildId: string): Promise<Track | null> {
     }
 
     log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
-    playWithVolume(state, resource);
+    
+    // Soundboard tracks play at full volume without volume control
+    if (nextTrack.isSoundboard) {
+      state.player.play(resource);
+      // Don't set currentResource - this prevents volume control from affecting soundboard playback
+      // (soundboard should always play at 100% volume regardless of user's volume setting)
+      state.currentResource = null;
+    } else {
+      playWithVolume(state, resource);
+    }
+    
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
     state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;
@@ -662,7 +694,7 @@ export async function playWithSeek(
     if (track.isLocal) {
       if (track.source) {
         const soundStream = await storage.getSoundStream(track.source);
-        resource = createVolumeResource(soundStream);
+        resource = createTrackResourceHelper(soundStream, track.isSoundboard || false);
       } else {
         throw new Error('Local track missing source');
       }
@@ -725,9 +757,11 @@ export async function playWithSeek(
         } else {
           // Fallback to play-dl
           const streamInfo = await play.stream(track.url, { quality: 2 });
-          resource = createVolumeResource(streamInfo.stream, {
-            inputType: streamInfo.type,
-          });
+          resource = createTrackResourceHelper(
+            streamInfo.stream,
+            track.isSoundboard || false,
+            { inputType: streamInfo.type }
+          );
         }
       }
     } else {
