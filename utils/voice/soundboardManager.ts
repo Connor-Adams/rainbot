@@ -206,17 +206,19 @@ export async function playSoundboardOverlay(
       stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     });
 
+    // Handle stdout errors BEFORE creating resource to prevent unhandled error events
+    if (ffmpeg.stdout) {
+      ffmpeg.stdout.on('error', (err) => {
+        log.debug(`FFmpeg stdout error: ${err.message}`);
+      });
+    }
+
     // Pipe soundboard stream
     const soundStream = await storage.getSoundStream(soundName);
     soundStream.on('error', (err) => {
       log.debug(`Soundboard stream error: ${err.message}`);
     });
     soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
-
-    // Handle stdout errors
-    ffmpeg.stdout?.on('error', (err) => {
-      log.debug(`FFmpeg stdout error: ${err.message}`);
-    });
 
     ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
@@ -245,6 +247,13 @@ export async function playSoundboardOverlay(
     const resource = createAudioResource(ffmpeg.stdout!, {
       inputType: StreamType.OggOpus,
     });
+
+    // Add error handler to the resource's readable stream to catch any wrapped stream errors
+    if (resource.playStream) {
+      resource.playStream.on('error', (err) => {
+        log.debug(`AudioResource stream error: ${err.message}`);
+      });
+    }
 
     // Play the mixed audio
     state.player.play(resource);
