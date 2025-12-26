@@ -14,6 +14,19 @@ module.exports = {
     // Restore saved queue snapshots from previous session (crash recovery)
     try {
       const { restoreAllQueueSnapshots, startAutoSave } = require('../dist/utils/voiceManager');
+      const { waitForSchema, getPool } = require('../dist/utils/database');
+
+      // Wait for database schema to be ready before restoring snapshots
+      const pool = getPool();
+      if (pool) {
+        log.info('Waiting for database schema initialization...');
+        const schemaReady = await waitForSchema(30000); // Wait up to 30 seconds
+        if (!schemaReady) {
+          log.warn('Database schema initialization timeout - snapshot restore may fail');
+        } else {
+          log.info('Database schema ready');
+        }
+      }
 
       // Start periodic auto-save (every 30s) for crash recovery
       startAutoSave();
