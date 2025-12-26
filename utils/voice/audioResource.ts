@@ -178,11 +178,20 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
         log.debug(`Stream error (expected on skip/stop): ${err.message}`);
       });
 
+      const resource = createAudioResource(nodeStream, {
+        inputType: StreamType.Arbitrary,
+        inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
+      });
+
+      // Add error handler to the resource's readable stream to catch any wrapped stream errors
+      if (resource.playStream) {
+        resource.playStream.on('error', (err) => {
+          log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
+        });
+      }
+
       return {
-        resource: createAudioResource(nodeStream, {
-          inputType: StreamType.Arbitrary,
-          inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
-        }),
+        resource,
       };
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -237,11 +246,20 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
     log.debug(`yt-dlp stdout error (expected on skip/stop): ${err.message}`);
   });
 
+  const resource = createAudioResource(subprocess.stdout as Readable, {
+    inputType: StreamType.Arbitrary,
+    inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
+  });
+
+  // Add error handler to the resource's readable stream to catch any wrapped stream errors
+  if (resource.playStream) {
+    resource.playStream.on('error', (err) => {
+      log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
+    });
+  }
+
   return {
-    resource: createAudioResource(subprocess.stdout as Readable, {
-      inputType: StreamType.Arbitrary,
-      inlineVolume: !track.isSoundboard, // Soundboard tracks should NOT have volume control
-    }),
+    resource,
     subprocess,
   };
 }
