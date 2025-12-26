@@ -1,6 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
-const { validateVoiceConnection, formatDuration, getYouTubeThumbnail } = require('../utils/commandHelpers');
+const {
+  validateVoiceConnection,
+  formatDuration,
+  getYouTubeThumbnail,
+} = require('../utils/commandHelpers');
 
 module.exports = {
   data: new SlashCommandBuilder()

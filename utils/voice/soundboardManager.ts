@@ -253,7 +253,7 @@ export async function playSoundboardOverlay(
     state.overlayProcess = ffmpeg;
     state.playbackStartTime = Date.now() - playbackPosition * 1000;
     state.totalPausedTime = 0;
-    
+
     // Clear the transition flag now that overlay is playing
     state.isTransitioningToOverlay = false;
 
