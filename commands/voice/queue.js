@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
+const { validateVoiceConnection, formatDuration, getYouTubeThumbnail } = require('../utils/commandHelpers');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,13 +10,9 @@ module.exports = {
   async execute(interaction) {
     const guildId = interaction.guildId;
 
-    const status = voiceManager.getStatus(guildId);
-    if (!status) {
-      return interaction.reply({
-        content:
-          "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
-      });
+    const connectionCheck = validateVoiceConnection(interaction, voiceManager);
+    if (!connectionCheck.isValid) {
+      return interaction.reply(connectionCheck.error);
     }
 
     const queueInfo = voiceManager.getQueue(guildId);
@@ -29,28 +26,6 @@ module.exports = {
       isPaused,
       channelName,
     } = queueInfo;
-
-    // Format duration helper
-    const formatDuration = (seconds) => {
-      if (!seconds || isNaN(seconds)) return null;
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      const secs = Math.floor(seconds % 60);
-      if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      }
-      return `${minutes}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Get YouTube thumbnail if available
-    const getYouTubeThumbnail = (url) => {
-      if (!url) return null;
-      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-      if (match) {
-        return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
-      }
-      return null;
-    };
 
     // Determine embed color based on state
     let embedColor = 0x6366f1; // Default blue

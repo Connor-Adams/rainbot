@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -11,6 +9,9 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { StatsLoading, StatsError, ChartContainer, StatsSection, StatsTable } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -41,14 +42,14 @@ interface SearchStatsData {
 }
 
 export default function SearchStats() {
-  const { data, isLoading, error } = useQuery<SearchStatsData>({
+  const { data, isLoading, error } = useStatsQuery<SearchStatsData>({
     queryKey: ['stats', 'search'],
-    queryFn: () => statsApi.search().then((r) => r.data),
+    queryFn: () => statsApi.search(),
     refetchInterval: 10000,
   })
 
-  if (isLoading) return <div className="stats-loading text-center py-12">Loading search analytics...</div>
-  if (error) return <div className="stats-error text-center py-12">Error loading search analytics</div>
+  if (isLoading) return <StatsLoading message="Loading search analytics..." />
+  if (error) return <StatsError error={error} message="Error loading search analytics" />
   if (!data) return null
 
   const queryTypesData = {
@@ -88,134 +89,102 @@ export default function SearchStats() {
     ],
   }
 
+  const topQueriesColumns = [
+    { id: 'query', header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
+    {
+      id: 'type',
+      header: 'Type',
+      render: (query: TopQuery) => (
+        <span className="px-2 py-1 rounded text-xs bg-gray-700">{query.query_type}</span>
+      ),
+      className: 'px-4 py-2',
+    },
+    { id: 'count', header: 'Count', key: 'count', className: 'px-4 py-2' },
+    { id: 'avg_results', header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
+    {
+      id: 'avg_position',
+      header: 'Avg Position',
+      render: (query: TopQuery) => query.avg_selected_position || 'N/A',
+      className: 'px-4 py-2',
+    },
+  ]
+
+  const queryTypesColumns = [
+    { id: 'type', header: 'Type', key: 'query_type', className: 'px-4 py-2' },
+    { id: 'count', header: 'Count', key: 'count', className: 'px-4 py-2' },
+    { id: 'avg_results', header: 'Avg Results', key: 'avg_results', className: 'px-4 py-2' },
+    { id: 'selections', header: 'Selections', key: 'selections', className: 'px-4 py-2' },
+  ]
+
+  const zeroResultsColumns = [
+    { id: 'query', header: 'Query', key: 'query', className: 'px-4 py-2 font-mono text-sm' },
+    {
+      id: 'attempts',
+      header: 'Attempts',
+      render: (query: ZeroResult) => <span className="text-yellow-400">{query.count}</span>,
+      className: 'px-4 py-2',
+    },
+  ]
+
   return (
     <div className="space-y-6">
-      {/* Query Types Distribution */}
       {data.queryTypes.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Query Types Distribution</h3>
-          <div className="max-h-[400px]">
-            <Doughnut
-              data={queryTypesData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: { labels: { color: '#9ca3af' } },
-                },
-              }}
-            />
-          </div>
-        </div>
+        <ChartContainer title="Query Types Distribution">
+          <Doughnut
+            data={queryTypesData}
+            options={{
+              responsive: true,
+              plugins: { legend: { labels: { color: '#9ca3af' } } },
+            }}
+          />
+        </ChartContainer>
       )}
 
-      {/* Top Queries Chart */}
       {data.topQueries.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Most Popular Searches</h3>
-          <div className="max-h-[400px]">
-            <Bar
-              data={topQueriesData}
-              options={{
-                responsive: true,
-                indexAxis: 'y',
-                scales: { x: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
-          </div>
-        </div>
+        <ChartContainer title="Most Popular Searches">
+          <Bar
+            data={topQueriesData}
+            options={{
+              responsive: true,
+              indexAxis: 'y',
+              scales: { x: { beginAtZero: true } },
+              plugins: { legend: { labels: { color: '#9ca3af' } } },
+            }}
+          />
+        </ChartContainer>
       )}
 
-      {/* Top Queries Table */}
       {data.topQueries.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Search Queries</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="pb-2 px-4">Query</th>
-                  <th className="pb-2 px-4">Type</th>
-                  <th className="pb-2 px-4">Count</th>
-                  <th className="pb-2 px-4">Avg Results</th>
-                  <th className="pb-2 px-4">Avg Position</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.topQueries.map((query, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4 font-mono text-sm">{query.query}</td>
-                    <td className="py-2 px-4">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-700">
-                        {query.query_type}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4">{query.count}</td>
-                    <td className="py-2 px-4">{query.avg_results}</td>
-                    <td className="py-2 px-4">{query.avg_selected_position || 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Top Search Queries">
+          <StatsTable
+            columns={topQueriesColumns}
+            data={data.topQueries}
+            getRowKey={(query: TopQuery, idx: number) => `${query.query}-${query.query_type}-${idx}`}
+          />
+        </StatsSection>
       )}
 
-      {/* Query Types Details */}
       {data.queryTypes.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Query Types Breakdown</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="pb-2 px-4">Type</th>
-                  <th className="pb-2 px-4">Count</th>
-                  <th className="pb-2 px-4">Avg Results</th>
-                  <th className="pb-2 px-4">Selections</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.queryTypes.map((type, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{type.query_type}</td>
-                    <td className="py-2 px-4">{type.count}</td>
-                    <td className="py-2 px-4">{type.avg_results}</td>
-                    <td className="py-2 px-4">{type.selections}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Query Types Breakdown">
+          <StatsTable
+            columns={queryTypesColumns}
+            data={data.queryTypes}
+            getRowKey={(type: QueryType) => type.query_type}
+          />
+        </StatsSection>
       )}
 
-      {/* Zero Results Queries */}
       {data.zeroResults.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Queries with No Results</h3>
+        <StatsSection title="Queries with No Results">
           <div className="text-sm text-gray-400 mb-4">
             These queries returned zero results - opportunities to improve search or content
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="pb-2 px-4">Query</th>
-                  <th className="pb-2 px-4">Attempts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.zeroResults.map((query, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4 font-mono text-sm">{query.query}</td>
-                    <td className="py-2 px-4 text-yellow-400">{query.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <StatsTable
+            columns={zeroResultsColumns}
+            data={data.zeroResults}
+            getRowKey={(query: ZeroResult, idx: number) => `${query.query}-${idx}`}
+          />
+        </StatsSection>
       )}
     </div>
   )

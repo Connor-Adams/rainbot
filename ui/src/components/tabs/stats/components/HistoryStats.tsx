@@ -1,30 +1,27 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
 import type { ListeningHistoryEntry } from '@/types'
 import { escapeHtml, formatDurationLong } from '@/lib/utils'
+import { StatsLoading, StatsError, StatsSection } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
 
 export default function HistoryStats() {
   const { selectedGuildId } = useGuildStore()
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  // Applied filters (in queryKey) - only updated when Filter button is clicked
   const [appliedStartDate, setAppliedStartDate] = useState('')
   const [appliedEndDate, setAppliedEndDate] = useState('')
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'history', selectedGuildId, appliedStartDate, appliedEndDate],
     queryFn: () =>
-      statsApi
-        .history({
-          guildId: selectedGuildId || undefined,
-          limit: 100,
-          startDate: appliedStartDate || undefined,
-          endDate: appliedEndDate || undefined,
-        })
-        .then((res) => res.data),
-    refetchInterval: 30000,
+      statsApi.history({
+        guildId: selectedGuildId || undefined,
+        limit: 100,
+        startDate: appliedStartDate || undefined,
+        endDate: appliedEndDate || undefined,
+      }),
   })
 
   const handleFilter = () => {
@@ -32,23 +29,13 @@ export default function HistoryStats() {
     setAppliedEndDate(endDate)
   }
 
-  if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading listening history...</div>
-  }
-
-  if (error) {
-    return (
-      <div className="stats-error text-center py-12 text-red-400">
-        Error: {error instanceof Error ? error.message : 'Unknown error'}
-      </div>
-    )
-  }
+  if (isLoading) return <StatsLoading message="Loading listening history..." />
+  if (error) return <StatsError error={error} />
 
   const history = data?.history || []
 
   return (
-    <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Listening History</h3>
+    <StatsSection title="Listening History">
       <div className="history-filters flex gap-3 mb-6">
         <input
           type="date"
@@ -129,7 +116,7 @@ export default function HistoryStats() {
           </table>
         )}
       </div>
-    </div>
+    </StatsSection>
   )
 }
 

@@ -1,65 +1,77 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import type { GuildStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
+import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 export default function GuildsStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'guilds'],
-    queryFn: () => statsApi.guilds().then((res) => res.data),
-    refetchInterval: 30000,
+    queryFn: () => statsApi.guilds(),
   })
 
-  if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading guild statistics...</div>
-  }
-
-  if (error) {
-    return (
-      <div className="stats-error text-center py-12 text-red-400">
-        Error: {error instanceof Error ? error.message : 'Unknown error'}
-      </div>
-    )
-  }
-
+  if (isLoading) return <StatsLoading message="Loading guild statistics..." />
+  if (error) return <StatsError error={error} />
   if (!data) return null
 
+  const columns = [
+    {
+      id: 'guild_id',
+      header: 'Guild ID',
+      render: (guild: GuildStat) => <span className="font-mono">{escapeHtml(guild.guild_id)}</span>,
+      className: 'px-4 py-3 text-sm text-white',
+    },
+    {
+      id: 'commands',
+      header: 'Commands',
+      render: (guild: GuildStat) => (
+        <span className="font-mono">{parseInt(guild.command_count || '0').toLocaleString()}</span>
+      ),
+      className: 'px-4 py-3 text-sm text-gray-400',
+    },
+    {
+      id: 'sounds',
+      header: 'Sounds',
+      render: (guild: GuildStat) => (
+        <span className="font-mono">{parseInt(guild.sound_count || '0').toLocaleString()}</span>
+      ),
+      className: 'px-4 py-3 text-sm text-gray-400',
+    },
+    {
+      id: 'unique_users',
+      header: 'Unique Users',
+      render: (guild: GuildStat) => (
+        <span className="font-mono">{parseInt(guild.unique_users || '0').toLocaleString()}</span>
+      ),
+      className: 'px-4 py-3 text-sm text-gray-400',
+    },
+    {
+      id: 'total',
+      header: 'Total',
+      render: (guild: GuildStat) => {
+        const total = parseInt(guild.command_count || '0') + parseInt(guild.sound_count || '0')
+        return <span className="font-mono">{total.toLocaleString()}</span>
+      },
+      className: 'px-4 py-3 text-sm text-gray-400',
+    },
+    {
+      id: 'last_active',
+      header: 'Last Active',
+      render: (guild: GuildStat) =>
+        guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never',
+      className: 'px-4 py-3 text-sm text-gray-400',
+    },
+  ]
+
   return (
-    <div className="stats-table-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Top Guilds</h3>
-      <table className="stats-table w-full">
-        <thead>
-          <tr>
-            <th>Guild ID</th>
-            <th>Commands</th>
-            <th>Sounds</th>
-            <th>Unique Users</th>
-            <th>Total</th>
-            <th>Last Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(data.guilds || []).map((guild: GuildStat) => {
-            const commandCount = parseInt(guild.command_count || '0')
-            const soundCount = parseInt(guild.sound_count || '0')
-            const total = commandCount + soundCount
-            const lastActive = guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never'
-            return (
-              <tr key={guild.guild_id} className="hover:bg-gray-700/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-white font-mono">{escapeHtml(guild.guild_id)}</td>
-                <td className="px-4 py-3 text-sm text-gray-400 font-mono">{commandCount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-sm text-gray-400 font-mono">{soundCount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-sm text-gray-400 font-mono">
-                  {parseInt(guild.unique_users || '0').toLocaleString()}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-400 font-mono">{total.toLocaleString()}</td>
-                <td className="px-4 py-3 text-sm text-gray-400">{lastActive}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <StatsSection title="Top Guilds">
+      <StatsTable
+        columns={columns}
+        data={data.guilds || []}
+        emptyMessage="No guild data available"
+        getRowKey={(guild: GuildStat) => guild.guild_id}
+      />
+    </StatsSection>
   )
 }
 
