@@ -327,7 +327,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     }
 
     log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
-    
+
     // Soundboard tracks play at full volume without volume control
     if (nextTrack.isSoundboard) {
       state.player.play(resource);
@@ -337,7 +337,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     } else {
       playWithVolume(state, resource);
     }
-    
+
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
     state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;
@@ -757,11 +757,9 @@ export async function playWithSeek(
         } else {
           // Fallback to play-dl
           const streamInfo = await play.stream(track.url, { quality: 2 });
-          resource = createTrackResourceHelper(
-            streamInfo.stream,
-            track.isSoundboard || false,
-            { inputType: streamInfo.type }
-          );
+          resource = createTrackResourceHelper(streamInfo.stream, track.isSoundboard || false, {
+            inputType: streamInfo.type,
+          });
         }
       }
     } else {

@@ -12,6 +12,7 @@
 This comprehensive code audit examined the Rainbot Discord bot codebase for security vulnerabilities, code quality issues, outdated dependencies, and adherence to best practices. The audit identified **1 high-severity security vulnerability** which has been remediated, along with several recommendations for dependency updates and code improvements.
 
 **Key Findings:**
+
 - ✅ **Security:** 1 high-severity vulnerability found and fixed
 - ✅ **Code Quality:** All linting and type checking passes
 - ✅ **Testing:** 100% of tests (100 tests) passing
@@ -25,6 +26,7 @@ This comprehensive code audit examined the Rainbot Discord bot codebase for secu
 ### 1.1 Vulnerability Assessment
 
 #### 🔴 HIGH SEVERITY - Fixed
+
 **Package:** `@discordjs/opus` v0.9.0  
 **CVE:** GHSA-43wq-xrcm-3vgr  
 **Severity:** High (CVSS 7.5)  
@@ -32,11 +34,13 @@ This comprehensive code audit examined the Rainbot Discord bot codebase for secu
 **Status:** ✅ **FIXED** - Upgraded to v0.10.0
 
 **Details:**
+
 - Vulnerability affects all versions <= 0.9.0
 - Could allow attackers to cause DoS through improper input validation
 - Fix available in version 0.10.0
 
 **Remediation:**
+
 - Upgraded `@discordjs/opus` from 0.9.0 to 0.10.0 in package.json
 - Verified fix with `npm audit` - 0 vulnerabilities remain
 - All 100 tests continue to pass after upgrade
@@ -46,12 +50,14 @@ This comprehensive code audit examined the Rainbot Discord bot codebase for secu
 ✅ **No hardcoded secrets found**
 
 Examined all source files for:
+
 - API keys
 - Tokens
 - Passwords
 - Connection strings
 
 **Findings:**
+
 - All sensitive configuration properly loaded from environment variables via `utils/config.ts`
 - Secrets are masked when logged (showing only first/last 4 characters)
 - `.env` file properly excluded from version control via `.gitignore`
@@ -62,11 +68,13 @@ Examined all source files for:
 ✅ **No dangerous code execution patterns found**
 
 **Checked for:**
+
 - `eval()` calls - ❌ None found
 - Unsafe `exec()` usage - ❌ None found
 - Dynamic require/import - ❌ None found
 
 **Safe usage identified:**
+
 - `child_process` used only for FFmpeg audio processing in:
   - `utils/voice/soundboardManager.ts` - Audio overlay mixing
   - `utils/voice/audioResource.ts` - Stream processing
@@ -78,6 +86,7 @@ Examined all source files for:
 **Vulnerable Packages:** 0 (after fix)
 
 **npm audit results:**
+
 ```
 found 0 vulnerabilities
 ```
@@ -93,6 +102,7 @@ found 0 vulnerabilities
 ✅ **TypeScript:** Type checking passes with no errors
 
 **Commands run:**
+
 ```bash
 npm run lint      # No errors
 npm run type-check # No errors
@@ -104,11 +114,13 @@ npm run format:check # All files properly formatted
 ✅ **Test Status:** All tests passing
 
 **Test Summary:**
+
 - Test Suites: 9 passed, 9 total
 - Tests: 100 passed, 100 total
 - Execution Time: ~2 seconds
 
 **Test Coverage Areas:**
+
 - Voice module (queue, overlay, metadata, constants)
 - Server routes (stats, user-sounds, rate limiting)
 - Utility functions (listening history, player embed, source type)
@@ -120,7 +132,7 @@ npm run format:check # All files properly formatted
 ```
 rainbot/
 ├── commands/       # Discord slash commands
-├── events/         # Discord event handlers  
+├── events/         # Discord event handlers
 ├── server/         # Express API & dashboard
 ├── utils/          # Shared utilities
 │   └── voice/     # Modular voice system
@@ -129,6 +141,7 @@ rainbot/
 ```
 
 **Strengths:**
+
 - Voice manager split into focused modules (audioResource, queueManager, playbackManager, etc.)
 - Dependency injection setup with InversifyJS
 - Comprehensive TypeScript types
@@ -139,6 +152,7 @@ rainbot/
 ⚠️ **8 files contain console.log/error/warn statements**
 
 Most are acceptable (dev tools, UI code), but could be replaced with the Winston logger:
+
 - `index.js` - 1 occurrence
 - `dev-server.js` - 8 occurrences (dev tool, acceptable)
 - `deploy-commands.js` - 3 occurrences
@@ -153,6 +167,7 @@ Most are acceptable (dev tools, UI code), but could be replaced with the Winston
 ### 2.5 Technical Debt
 
 **TODO/FIXME Comments:** 1 found
+
 - `utils/voice/trackFetcher.ts:83` - "TODO: Handle playlists, Spotify, SoundCloud"
   - This is documented future work, not urgent
 
@@ -164,20 +179,21 @@ Most are acceptable (dev tools, UI code), but could be replaced with the Winston
 
 **11 packages have updates available** (non-breaking or major version updates):
 
-| Package | Current | Latest | Priority |
-|---------|---------|--------|----------|
-| `@discordjs/opus` | 0.9.0 | 0.10.0 | ✅ **Fixed** |
-| `@aws-sdk/client-s3` | 3.957.0 | 3.958.0 | Low (patch) |
-| `@types/jest` | 29.5.14 | 30.0.0 | Low (major) |
-| `@types/multer` | 1.4.13 | 2.0.0 | Low (major) |
-| `connect-redis` | 7.1.1 | 9.0.0 | Medium (major) |
-| `dotenv` | 16.6.1 | 17.2.3 | Low (major) |
-| `inversify` | 6.2.2 | 7.10.8 | Medium (major) |
-| `jest` | 29.7.0 | 30.2.0 | Low (major) |
-| `lint-staged` | 15.5.2 | 16.2.7 | Low (major) |
-| `redis` | 4.7.1 | 5.10.0 | Medium (major) |
+| Package              | Current | Latest  | Priority       |
+| -------------------- | ------- | ------- | -------------- |
+| `@discordjs/opus`    | 0.9.0   | 0.10.0  | ✅ **Fixed**   |
+| `@aws-sdk/client-s3` | 3.957.0 | 3.958.0 | Low (patch)    |
+| `@types/jest`        | 29.5.14 | 30.0.0  | Low (major)    |
+| `@types/multer`      | 1.4.13  | 2.0.0   | Low (major)    |
+| `connect-redis`      | 7.1.1   | 9.0.0   | Medium (major) |
+| `dotenv`             | 16.6.1  | 17.2.3  | Low (major)    |
+| `inversify`          | 6.2.2   | 7.10.8  | Medium (major) |
+| `jest`               | 29.7.0  | 30.2.0  | Low (major)    |
+| `lint-staged`        | 15.5.2  | 16.2.7  | Low (major)    |
+| `redis`              | 4.7.1   | 5.10.0  | Medium (major) |
 
 **Recommendations:**
+
 - ✅ Critical security update completed (@discordjs/opus)
 - Consider updating other packages in future maintenance cycle
 - Major version updates should be tested thoroughly before deployment
@@ -185,9 +201,10 @@ Most are acceptable (dev tools, UI code), but could be replaced with the Winston
 ### 3.2 Deprecated Packages
 
 **Warnings from npm install:**
+
 - `inflight@1.0.6` - Memory leak, consider using lru-cache
 - `npmlog@5.0.1` - No longer supported
-- `rimraf@3.0.2` - Versions prior to v4 no longer supported  
+- `rimraf@3.0.2` - Versions prior to v4 no longer supported
 - `glob@7.x` - Versions prior to v9 no longer supported
 - `gauge@3.0.2` - No longer supported
 
@@ -321,6 +338,7 @@ The Rainbot codebase is **well-maintained, secure, and follows modern best pract
 ## 8. Audit Methodology
 
 This audit was conducted using:
+
 - **npm audit** - Vulnerability scanning
 - **ESLint** - Code quality analysis
 - **TypeScript compiler** - Type checking
