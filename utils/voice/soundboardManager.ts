@@ -132,7 +132,7 @@ export async function playSoundboardOverlay(
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
 
-    // Calculate current playback position BEFORE stopping player
+    // Calculate current playback position before transitioning to overlay
     let playbackPosition = 0;
     if (state.playbackStartTime) {
       const elapsed = Date.now() - state.playbackStartTime;
@@ -235,6 +235,9 @@ export async function playSoundboardOverlay(
         state.overlayProcess = null;
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
+        // Even if killing the old overlay fails, clear the reference here because we are
+        // about to replace it with the new overlay process (see assignment below). Keeping
+        // a stale reference could cause other logic to treat the old process as the active overlay.
         state.overlayProcess = null;
       }
     } else {
