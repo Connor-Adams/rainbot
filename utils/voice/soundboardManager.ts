@@ -70,8 +70,21 @@ export async function playSoundboardDirect(
   discriminator: string | null
 ): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
+  
+  // Handle stream errors to prevent crashes
+  soundStream.on('error', (err) => {
+    log.debug(`Soundboard stream error: ${err.message}`);
+  });
+  
   // Soundboard plays at full volume (no inlineVolume)
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+
+  // Add error handler to the resource's readable stream to catch any wrapped stream errors
+  if (resource.playStream) {
+    resource.playStream.on('error', (err) => {
+      log.debug(`AudioResource stream error: ${err.message}`);
+    });
+  }
 
   // Kill any existing overlay
   const overlayProcess = state.overlayProcess as ChildProcess | null;
