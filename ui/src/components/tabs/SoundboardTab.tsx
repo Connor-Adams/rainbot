@@ -184,6 +184,8 @@ export default function SoundboardTab() {
 
     audio.play().catch((error) => {
       console.error('Error playing preview:', error)
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
       setPreviewingSound(null)
     })
 
