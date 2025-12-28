@@ -124,6 +124,35 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
   }
 });
 
+// GET /api/sounds/:name/preview - Stream a sound file for preview
+router.get('/sounds/:name/preview', async (req, res: Response) => {
+  try {
+    const filename = req.params.name;
+    const stream = await storage.getSoundStream(filename);
+
+    // Get the appropriate audio content type based on file extension
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const contentTypeMap: Record<string, string> = {
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      ogg: 'audio/ogg',
+      m4a: 'audio/mp4',
+      webm: 'audio/webm',
+      flac: 'audio/flac',
+    };
+    const contentType = ext ? contentTypeMap[ext] || 'audio/mpeg' : 'audio/mpeg';
+
+    // Set headers for inline playback
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    stream.pipe(res);
+  } catch (error) {
+    const err = error as Error;
+    res.status(404).json({ error: err.message });
+  }
+});
+
 // POST /api/sounds - Upload one or more sounds
 router.post(
   '/sounds',
