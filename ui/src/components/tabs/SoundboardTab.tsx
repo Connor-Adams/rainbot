@@ -11,6 +11,9 @@ interface SoundCustomization {
   emoji?: string
 }
 
+// Constants
+const PREVIEW_VOLUME = 0.5
+
 function getSoundCustomizations(): Record<string, SoundCustomization> {
   try {
     return JSON.parse(localStorage.getItem('soundCustomizations') || '{}')
@@ -151,32 +154,31 @@ export default function SoundboardTab() {
     setEditEmoji('')
   }
 
+  const cleanupAudio = (audio: HTMLAudioElement | null) => {
+    if (audio) {
+      audio.pause()
+      audio.src = ''
+      audio.onended = null
+      audio.onerror = null
+    }
+  }
+
   const handlePreview = (name: string) => {
     // If already previewing this sound, stop it
     if (previewingSound === name) {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-        audioRef.current.onended = null
-        audioRef.current.onerror = null
-        audioRef.current = null
-      }
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
       setPreviewingSound(null)
       return
     }
 
     // Stop any currently playing preview
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.src = ''
-      audioRef.current.onended = null
-      audioRef.current.onerror = null
-      audioRef.current = null
-    }
+    cleanupAudio(audioRef.current)
+    audioRef.current = null
 
     // Start new preview
     const audio = new Audio(soundsApi.previewUrl(name))
-    audio.volume = 0.5 // Start at 50% volume
+    audio.volume = PREVIEW_VOLUME
     audioRef.current = audio
     setPreviewingSound(name)
 
@@ -204,13 +206,8 @@ export default function SoundboardTab() {
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-        audioRef.current.onended = null
-        audioRef.current.onerror = null
-        audioRef.current = null
-      }
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
     }
   }, [])
 

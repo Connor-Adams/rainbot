@@ -11,6 +11,16 @@ import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
+// Audio content type mapping for sound preview
+const AUDIO_CONTENT_TYPES: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  webm: 'audio/webm',
+  flac: 'audio/flac',
+};
+
 const uploadRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -132,15 +142,7 @@ router.get('/sounds/:name/preview', async (req, res: Response) => {
 
     // Get the appropriate audio content type based on file extension
     const ext = filename.split('.').pop()?.toLowerCase();
-    const contentTypeMap: Record<string, string> = {
-      mp3: 'audio/mpeg',
-      wav: 'audio/wav',
-      ogg: 'audio/ogg',
-      m4a: 'audio/mp4',
-      webm: 'audio/webm',
-      flac: 'audio/flac',
-    };
-    const contentType = ext ? contentTypeMap[ext] || 'audio/mpeg' : 'audio/mpeg';
+    const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
 
     // Set headers for inline playback
     res.setHeader('Content-Type', contentType);
