@@ -154,7 +154,13 @@ export default function SoundboardTab() {
   const handlePreview = (name: string) => {
     // If already previewing this sound, stop it
     if (previewingSound === name) {
-      audioRef.current?.pause()
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+        audioRef.current.onended = null
+        audioRef.current.onerror = null
+        audioRef.current = null
+      }
       setPreviewingSound(null)
       return
     }
@@ -162,6 +168,9 @@ export default function SoundboardTab() {
     // Stop any currently playing preview
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.src = ''
+      audioRef.current.onended = null
+      audioRef.current.onerror = null
       audioRef.current = null
     }
 
@@ -178,11 +187,17 @@ export default function SoundboardTab() {
 
     audio.onended = () => {
       setPreviewingSound(null)
+      if (audioRef.current === audio) {
+        audioRef.current = null
+      }
     }
 
     audio.onerror = () => {
       console.error('Error loading audio')
       setPreviewingSound(null)
+      if (audioRef.current === audio) {
+        audioRef.current = null
+      }
     }
   }
 
@@ -191,6 +206,9 @@ export default function SoundboardTab() {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
+        audioRef.current.src = ''
+        audioRef.current.onended = null
+        audioRef.current.onerror = null
         audioRef.current = null
       }
     }
