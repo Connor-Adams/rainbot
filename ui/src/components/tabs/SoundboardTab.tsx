@@ -351,7 +351,6 @@ export default function SoundboardTab() {
                       onClick={(e) => {
                         e.stopPropagation()
                         handlePreview(sound.name)
-                        setOpenMenuId(null)
                       }}
                     >
                       {previewingSound === sound.name ? '⏸️ Stop Preview' : '▶️ Preview'}
