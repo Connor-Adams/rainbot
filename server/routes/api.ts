@@ -135,7 +135,7 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
 });
 
 // GET /api/sounds/:name/preview - Stream a sound file for preview
-router.get('/sounds/:name/preview', async (req, res: Response) => {
+router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
   try {
     const filename = req.params.name;
     const stream = await storage.getSoundStream(filename);
