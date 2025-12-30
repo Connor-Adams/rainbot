@@ -37,7 +37,7 @@
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "express-session": "^1.18.1",
-    "inversify": "^6.0.2",
+    "inversify": "^7.10.8",
     "libsodium-wrappers": "^0.7.15",
     "opusscript": "^0.1.1",
     "multer": "^2.0.2",
