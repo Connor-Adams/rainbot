@@ -90,11 +90,13 @@ module.exports = {
           error.message,
           null
         );
-        await interaction.update({
-          content: `❌ Failed to resume: ${error.message}`,
-          embeds: [],
-          components: [],
-        });
+        await interaction
+          .update({
+            content: `❌ Failed to resume: ${error.message}`,
+            embeds: [],
+            components: [],
+          })
+          .catch(() => {});
       }
       return;
     }
