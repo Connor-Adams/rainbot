@@ -48,6 +48,20 @@ const MAX_CACHE_SIZE = 500;
  */
 const FETCH_TIMEOUT_MS = 10000;
 
+/**
+ * HTTP headers for YouTube stream fetching
+ */
+const YOUTUBE_FETCH_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Accept: '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'identity',
+  Range: 'bytes=0-',
+  Referer: 'https://www.youtube.com/',
+  Origin: 'https://www.youtube.com',
+};
+
 interface CacheEntry {
   url: string;
   expires: number;
@@ -147,16 +161,7 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
     try {
       const response = await fetch(streamUrl, {
         signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept: '*/*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'identity',
-          Range: 'bytes=0-',
-          Referer: 'https://www.youtube.com/',
-          Origin: 'https://www.youtube.com',
-        },
+        headers: YOUTUBE_FETCH_HEADERS,
       });
 
       clearTimeout(timeoutId);
@@ -168,7 +173,7 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
           log.warn(`403 Forbidden - cached URL invalidated, retrying with fresh URL for ${track.url}`);
           
           // Retry once with fresh URL from yt-dlp
-          const freshStreamUrl = await getStreamUrl(track.url);
+          const freshStreamUrl = await getStreamUrl(track.url!);
           log.debug(`Got fresh stream URL, retrying fetch...`);
           
           const retryController = new AbortController();
@@ -177,16 +182,7 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
           try {
             const retryResponse = await fetch(freshStreamUrl, {
               signal: retryController.signal,
-              headers: {
-                'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                Accept: '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'identity',
-                Range: 'bytes=0-',
-                Referer: 'https://www.youtube.com/',
-                Origin: 'https://www.youtube.com',
-              },
+              headers: YOUTUBE_FETCH_HEADERS,
             });
             
             clearTimeout(retryTimeoutId);
