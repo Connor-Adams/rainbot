@@ -137,11 +137,11 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
 // GET /api/sounds/:name/preview - Stream a sound file for preview
 router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
   try {
-    const filename = req.params.name;
-    const stream = await storage.getSoundStream(filename);
+    const filename = req.params['name'];
+    const stream = await storage.getSoundStream(filename!);
 
     // Get the appropriate audio content type based on file extension
-    const ext = filename.split('.').pop()?.toLowerCase();
+    const ext = filename!.split('.').pop()?.toLowerCase();
     const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
 
     // Set headers for inline playback
