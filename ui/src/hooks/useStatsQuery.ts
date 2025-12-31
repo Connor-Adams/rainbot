@@ -1,12 +1,12 @@
-import type { UseQueryResult } from '@tanstack/react-query'
-import { useQuery } from '@tanstack/react-query'
-import type { AxiosResponse } from 'axios'
+import type { UseQueryResult } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import type { AxiosResponse } from 'axios';
 
 interface UseStatsQueryOptions<T> {
-  queryKey: readonly unknown[]
-  queryFn: () => Promise<AxiosResponse<T>>
-  refetchInterval?: number
-  enabled?: boolean
+  queryKey: readonly unknown[];
+  queryFn: () => Promise<AxiosResponse<T>>;
+  refetchInterval?: number;
+  enabled?: boolean;
 }
 
 /**
@@ -18,5 +18,5 @@ export function useStatsQuery<T>(options: UseStatsQueryOptions<T>): UseQueryResu
     queryFn: () => options.queryFn().then((res) => res.data),
     refetchInterval: options.refetchInterval ?? 30000,
     enabled: options.enabled,
-  })
+  });
 }
