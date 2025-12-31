@@ -48,20 +48,6 @@ const MAX_CACHE_SIZE = 500;
  */
 const FETCH_TIMEOUT_MS = 10000;
 
-/**
- * HTTP headers for YouTube stream fetching
- */
-const YOUTUBE_FETCH_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  Accept: '*/*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'identity',
-  Range: 'bytes=0-',
-  Referer: 'https://www.youtube.com/',
-  Origin: 'https://www.youtube.com',
-};
-
 interface CacheEntry {
   url: string;
   expires: number;
@@ -161,66 +147,25 @@ export async function createTrackResourceAsync(track: Track): Promise<TrackResou
     try {
       const response = await fetch(streamUrl, {
         signal: controller.signal,
-        headers: YOUTUBE_FETCH_HEADERS,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity',
+          Range: 'bytes=0-',
+          Referer: 'https://www.youtube.com/',
+          Origin: 'https://www.youtube.com',
+        },
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Invalidate cache on 403 (URL expired or blocked) and retry once with fresh URL
+        // Invalidate cache on 403 (URL expired or blocked)
         if (response.status === 403) {
           urlCache.delete(track.url!);
-          log.warn(`403 Forbidden - cached URL invalidated, retrying with fresh URL for ${track.url}`);
-          
-          // Retry once with fresh URL from yt-dlp
-          const freshStreamUrl = await getStreamUrl(track.url!);
-          log.debug(`Got fresh stream URL, retrying fetch...`);
-          
-          const retryController = new AbortController();
-          const retryTimeoutId = setTimeout(() => retryController.abort(), FETCH_TIMEOUT_MS);
-          
-          try {
-            const retryResponse = await fetch(freshStreamUrl, {
-              signal: retryController.signal,
-              headers: YOUTUBE_FETCH_HEADERS,
-            });
-            
-            clearTimeout(retryTimeoutId);
-            
-            if (!retryResponse.ok) {
-              log.warn(`Retry failed with ${retryResponse.status}, falling back to yt-dlp piping`);
-              throw new Error(`Stream fetch failed after retry: ${retryResponse.status}`);
-            }
-            
-            const retryNodeStream = Readable.fromWeb(retryResponse.body as Parameters<typeof Readable.fromWeb>[0]);
-            retryNodeStream.on('error', (err) => {
-              log.debug(`Stream error (expected on skip/stop): ${err.message}`);
-            });
-            
-            const retryResource = createAudioResource(retryNodeStream, {
-              inputType: StreamType.Arbitrary,
-              inlineVolume: !track.isSoundboard,
-            });
-            
-            if (retryResource.playStream) {
-              retryResource.playStream.on('error', (err) => {
-                log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
-              });
-            }
-            
-            log.info(`Successfully recovered from 403 with fresh URL for ${track.title}`);
-            return {
-              resource: retryResource,
-            };
-          } catch (retryError) {
-            clearTimeout(retryTimeoutId);
-            const retryErr = retryError as Error;
-            if (retryErr.name === 'AbortError') {
-              log.warn('Retry fetch timeout, falling back to yt-dlp piping');
-              throw new Error('Stream fetch timeout after retry');
-            }
-            throw retryError;
-          }
+          log.warn(`403 Forbidden - cached URL invalidated for ${track.url}`);
         }
         log.warn(`Stream fetch failed (${response.status}), falling back to yt-dlp piping`);
         throw new Error(`Stream fetch failed: ${response.status}`);
