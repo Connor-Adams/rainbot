@@ -672,12 +672,12 @@ export async function playSoundboardOverlay(
   // Soundboard plays at full volume (no volume control)
   log.info(`Playing soundboard: ${soundName}`);
   const soundStream = await storage.getSoundStream(soundName);
-  
+
   // Handle stream errors to prevent crashes
   soundStream.on('error', (err) => {
     log.debug(`Soundboard stream error: ${err.message}`);
   });
-  
+
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
   // Add error handler to the resource's readable stream to catch any wrapped stream errors

@@ -70,12 +70,12 @@ export async function playSoundboardDirect(
   discriminator: string | null
 ): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
-  
+
   // Handle stream errors to prevent crashes
   soundStream.on('error', (err) => {
     log.debug(`Soundboard stream error: ${err.message}`);
   });
-  
+
   // Soundboard plays at full volume (no inlineVolume)
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
