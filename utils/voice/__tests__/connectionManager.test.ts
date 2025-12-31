@@ -7,7 +7,6 @@
  * 3. Error recovery attempts to play next track
  */
 
-import { AudioPlayerStatus } from '@discordjs/voice';
 import type { VoiceState } from '../../../types/voice-modules';
 import type { Track } from '../../../types/voice';
 
