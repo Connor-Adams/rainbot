@@ -83,13 +83,13 @@ export async function joinChannel(
       // Try to continue with next track anyway if queue has items
       const state = voiceStates.get(guildId);
       if (state && state.queue.length > 0) {
-        log.info('Attempting to recover by playing next track...');
+        log.info(`Attempting to recover by playing next track for guild ${guildId}...`);
         try {
           const { playNext } = await import('./playbackManager');
           await playNext(guildId);
         } catch (retryError) {
           const retryErr = retryError as Error;
-          log.error(`Failed to recover: ${retryErr.message}`);
+          log.error(`Failed to recover for guild ${guildId}: ${retryErr.message}`);
         }
       }
     }
