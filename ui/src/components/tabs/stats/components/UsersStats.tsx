@@ -1,14 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
 import type { UserStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
+import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { statsApi } from '@/lib/api'
 
 export default function UsersStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery<{ users: UserStat[] }>({
     queryKey: ['stats', 'users'],
-    queryFn: () => statsApi.users().then((res) => res.data),
-    refetchInterval: 60000, // Increased from 30s to 60s to reduce load
+    queryFn: () => statsApi.users(),
   })
 
   if (isLoading) return <StatsLoading message="Loading user statistics..." />
