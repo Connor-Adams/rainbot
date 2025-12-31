@@ -70,8 +70,21 @@ export async function playSoundboardDirect(
   discriminator: string | null
 ): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
+  
+  // Handle stream errors to prevent crashes
+  soundStream.on('error', (err) => {
+    log.debug(`Soundboard stream error: ${err.message}`);
+  });
+  
   // Soundboard plays at full volume (no inlineVolume)
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+
+  // Add error handler to the resource's readable stream to catch any wrapped stream errors
+  if (resource.playStream) {
+    resource.playStream.on('error', (err) => {
+      log.debug(`AudioResource stream error: ${err.message}`);
+    });
+  }
 
   // Kill any existing overlay
   const overlayProcess = state.overlayProcess as ChildProcess | null;
@@ -183,17 +196,19 @@ export async function playSoundboardOverlay(
       stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     });
 
+    // Handle stdout errors BEFORE creating resource to prevent unhandled error events
+    if (ffmpeg.stdout) {
+      ffmpeg.stdout.on('error', (err) => {
+        log.debug(`FFmpeg stdout error: ${err.message}`);
+      });
+    }
+
     // Pipe soundboard stream
     const soundStream = await storage.getSoundStream(soundName);
     soundStream.on('error', (err) => {
       log.debug(`Soundboard stream error: ${err.message}`);
     });
     soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
-
-    // Handle stdout errors
-    ffmpeg.stdout?.on('error', (err) => {
-      log.debug(`FFmpeg stdout error: ${err.message}`);
-    });
 
     ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
@@ -246,7 +261,6 @@ export async function playSoundboardOverlay(
       state.isTransitioningToOverlay = true;
     }
 
-    // Play the mixed audio immediately (seamless transition)
     state.player.play(resource);
     // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
