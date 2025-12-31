@@ -11,6 +11,9 @@ interface SoundCustomization {
   emoji?: string
 }
 
+// Constants
+const PREVIEW_VOLUME = 0.5
+
 function getSoundCustomizations(): Record<string, SoundCustomization> {
   try {
     return JSON.parse(localStorage.getItem('soundCustomizations') || '{}')
@@ -39,8 +42,10 @@ export default function SoundboardTab() {
   const [editName, setEditName] = useState('')
   const [editEmoji, setEditEmoji] = useState('')
   const [customizations, setCustomizations] = useState<Record<string, SoundCustomization>>(getSoundCustomizations)
+  const [previewingSound, setPreviewingSound] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const queryClient = useQueryClient()
 
   // Close menu when clicking outside
@@ -148,6 +153,65 @@ export default function SoundboardTab() {
     setEditName('')
     setEditEmoji('')
   }
+
+  const cleanupAudio = (audio: HTMLAudioElement | null) => {
+    if (audio) {
+      audio.pause()
+      audio.src = ''
+      audio.onended = null
+      audio.onerror = null
+    }
+  }
+
+  const handlePreview = (name: string) => {
+    // If already previewing this sound, stop it
+    if (previewingSound === name) {
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
+      setPreviewingSound(null)
+      return
+    }
+
+    // Stop any currently playing preview
+    cleanupAudio(audioRef.current)
+    audioRef.current = null
+
+    // Start new preview
+    const audio = new Audio(soundsApi.previewUrl(name))
+    audio.volume = PREVIEW_VOLUME
+    audioRef.current = audio
+    setPreviewingSound(name)
+
+    audio.play().catch((error) => {
+      console.error('Error playing preview:', error)
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
+      setPreviewingSound(null)
+    })
+
+    audio.onended = () => {
+      setPreviewingSound(null)
+      if (audioRef.current === audio) {
+        audioRef.current = null
+      }
+    }
+
+    audio.onerror = () => {
+      console.error('Error loading audio')
+      setPreviewingSound(null)
+      if (audioRef.current === audio) {
+        audioRef.current = null
+      }
+    }
+  }
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      cleanupAudio(audioRef.current)
+      audioRef.current = null
+    }
+  }, [])
 
   const getDisplayName = (sound: Sound) => {
     const custom = customizations[sound.name]
@@ -281,7 +345,16 @@ export default function SoundboardTab() {
                   </svg>
                 </button>
                 {openMenuId === sound.name && (
-                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 min-w-[140px] overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 min-w-[140px] overflow-hidden max-h-[280px] overflow-y-auto">
+                    <button
+                      className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handlePreview(sound.name)
+                      }}
+                    >
+                      {previewingSound === sound.name ? '⏸️ Stop Preview' : '▶️ Preview'}
+                    </button>
                     <button
                       className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
                       onClick={(e) => {

@@ -11,6 +11,16 @@ import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
+// Audio content type mapping for sound preview
+const AUDIO_CONTENT_TYPES: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  webm: 'audio/webm',
+  flac: 'audio/flac',
+};
+
 const uploadRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -116,6 +126,27 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
     // Set headers for download
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+
+    stream.pipe(res);
+  } catch (error) {
+    const err = error as Error;
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// GET /api/sounds/:name/preview - Stream a sound file for preview
+router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
+  try {
+    const filename = req.params.name;
+    const stream = await storage.getSoundStream(filename);
+
+    // Get the appropriate audio content type based on file extension
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
+
+    // Set headers for inline playback
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
 
     stream.pipe(res);
   } catch (error) {
