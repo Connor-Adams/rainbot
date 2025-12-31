@@ -434,7 +434,7 @@ export async function getUserSoundsHandler(req: Request, res: Response): Promise
       return;
     }
 
-    const limit = Math.min(parseInt(req.query['limit'] as string) || 100, 1000);
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 200);
     const guildId = (req.query['guildId'] as string) || undefined;
     const startDate = parseValidDate(req.query['startDate'] as string | undefined);
     const endDate = parseValidDate(req.query['endDate'] as string | undefined);
@@ -695,7 +695,7 @@ router.get(
     try {
       const userId = (req.query['userId'] as string) || null; // null means all users
       const guildId = (req.query['guildId'] as string) || null;
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 100);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const startDate = parseValidDate(req.query['startDate'] as string | undefined);
       const endDate = parseValidDate(req.query['endDate'] as string | undefined);
 
