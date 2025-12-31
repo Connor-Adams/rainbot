@@ -19,6 +19,11 @@ import { getClient } from '../../server/client';
 import type { Track } from '../../types/voice';
 import type { VoiceState } from '../../types/voice-modules';
 import type { TextChannel, VoiceChannel } from 'discord.js';
+import {
+  createTrackResourceAsync,
+  getStreamUrl,
+  type TrackResourceResult,
+} from './audioResource';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -60,126 +65,8 @@ async function sendNowPlayingUpdate(guildId: string, track: Track): Promise<void
   }
 }
 
-/** Cache expiration time for stream URLs (2 hours) */
-const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000;
-/** Maximum number of cached stream URLs before LRU eviction */
-const MAX_CACHE_SIZE = 500;
 /** Timeout for fetch operations */
 const FETCH_TIMEOUT_MS = 10000;
-
-interface CacheEntry {
-  url: string;
-  expires: number;
-}
-
-/** Cache of video URL -> stream URL */
-const urlCache = new Map<string, CacheEntry>();
-
-/**
- * Get direct stream URL from yt-dlp (cached for speed)
- */
-async function getStreamUrl(videoUrl: string): Promise<string> {
-  // Check cache first
-  const cached = urlCache.get(videoUrl);
-  if (cached && cached.expires > Date.now()) {
-    log.debug(`Using cached stream URL for ${videoUrl}`);
-    return cached.url;
-  }
-
-  // Get direct URL from yt-dlp
-  const result = (await youtubedl(videoUrl, {
-    format: 'bestaudio[acodec=opus]/bestaudio/best',
-    getUrl: true,
-    noPlaylist: true,
-    noWarnings: true,
-    quiet: true,
-    noCheckCertificates: true,
-  })) as unknown as string;
-
-  const streamUrl = result.trim();
-
-  // LRU eviction if cache is too large
-  if (urlCache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = urlCache.keys().next().value;
-    if (oldestKey) urlCache.delete(oldestKey);
-  }
-
-  // Cache with expiration
-  urlCache.set(videoUrl, { url: streamUrl, expires: Date.now() + CACHE_EXPIRATION_MS });
-
-  return streamUrl;
-}
-
-interface TrackResourceResult {
-  resource: AudioResource;
-  subprocess?: { kill: () => void };
-}
-
-/**
- * Create track resource using async fetch method (fastest)
- */
-async function createTrackResourceAsync(track: Track): Promise<TrackResourceResult | null> {
-  if (!track.url) return null;
-
-  const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch) {
-    const streamUrl = await getStreamUrl(track.url);
-    log.debug(`Got stream URL, starting fetch...`);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(streamUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept: '*/*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'identity',
-          Range: 'bytes=0-',
-          Referer: 'https://www.youtube.com/',
-          Origin: 'https://www.youtube.com',
-        },
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`Stream fetch failed: ${response.status}`);
-      }
-
-      const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-
-      // Handle stream errors to prevent crashes
-      nodeStream.on('error', (err) => {
-        log.debug(`Stream error (expected on skip/stop): ${err.message}`);
-      });
-
-      // Extract resource to allow adding error handler to playStream after creation
-      const resource = createAudioResource(nodeStream, {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: true,
-      });
-
-      // Add error handler to the resource's readable stream to catch any wrapped stream errors
-      if (resource.playStream) {
-        resource.playStream.on('error', (err) => {
-          log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
-        });
-      }
-
-      return {
-        resource,
-      };
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      throw fetchError;
-    }
-  }
-  return null;
-}
 
 /**
  * Helper to create audio resource with inline volume support
