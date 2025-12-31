@@ -157,11 +157,21 @@ async function createTrackResourceAsync(track: Track): Promise<TrackResourceResu
         log.debug(`Stream error (expected on skip/stop): ${err.message}`);
       });
 
+      // Extract resource to allow adding error handler to playStream after creation
+      const resource = createAudioResource(nodeStream, {
+        inputType: StreamType.Arbitrary,
+        inlineVolume: true,
+      });
+
+      // Add error handler to the resource's readable stream to catch any wrapped stream errors
+      if (resource.playStream) {
+        resource.playStream.on('error', (err) => {
+          log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
+        });
+      }
+
       return {
-        resource: createAudioResource(nodeStream, {
-          inputType: StreamType.Arbitrary,
-          inlineVolume: true,
-        }),
+        resource,
       };
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -327,7 +337,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     }
 
     log.debug(`[TIMING] playNext: resource created (${Date.now() - playStartTime}ms)`);
-    
+
     // Soundboard tracks play at full volume without volume control
     if (nextTrack.isSoundboard) {
       state.player.play(resource);
@@ -337,7 +347,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     } else {
       playWithVolume(state, resource);
     }
-    
+
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
     state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;
@@ -662,7 +672,20 @@ export async function playSoundboardOverlay(
   // Soundboard plays at full volume (no volume control)
   log.info(`Playing soundboard: ${soundName}`);
   const soundStream = await storage.getSoundStream(soundName);
+
+  // Handle stream errors to prevent crashes
+  soundStream.on('error', (err) => {
+    log.debug(`Soundboard stream error: ${err.message}`);
+  });
+
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+
+  // Add error handler to the resource's readable stream to catch any wrapped stream errors
+  if (resource.playStream) {
+    resource.playStream.on('error', (err) => {
+      log.debug(`AudioResource stream error: ${err.message}`);
+    });
+  }
 
   playSoundImmediate(guildId, resource, `🔊 ${soundName}`);
 
@@ -749,6 +772,13 @@ export async function playWithSeek(
           inputType: StreamType.Arbitrary,
           inlineVolume: true,
         });
+
+        // Add error handler to the resource's readable stream to catch any wrapped stream errors
+        if (resource.playStream) {
+          resource.playStream.on('error', (err) => {
+            log.debug(`AudioResource stream error (expected on skip/stop): ${err.message}`);
+          });
+        }
       } else {
         // No seek needed or not YouTube, use normal playback
         const result = await createTrackResourceAsync(track);
@@ -757,11 +787,9 @@ export async function playWithSeek(
         } else {
           // Fallback to play-dl
           const streamInfo = await play.stream(track.url, { quality: 2 });
-          resource = createTrackResourceHelper(
-            streamInfo.stream,
-            track.isSoundboard || false,
-            { inputType: streamInfo.type }
-          );
+          resource = createTrackResourceHelper(streamInfo.stream, track.isSoundboard || false, {
+            inputType: streamInfo.type,
+          });
         }
       }
     } else {

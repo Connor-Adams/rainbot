@@ -70,8 +70,21 @@ export async function playSoundboardDirect(
   discriminator: string | null
 ): Promise<SoundboardResult> {
   const soundStream = await storage.getSoundStream(soundName);
+
+  // Handle stream errors to prevent crashes
+  soundStream.on('error', (err) => {
+    log.debug(`Soundboard stream error: ${err.message}`);
+  });
+
   // Soundboard plays at full volume (no inlineVolume)
   const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
+
+  // Add error handler to the resource's readable stream to catch any wrapped stream errors
+  if (resource.playStream) {
+    resource.playStream.on('error', (err) => {
+      log.debug(`AudioResource stream error: ${err.message}`);
+    });
+  }
 
   // Kill any existing overlay
   const overlayProcess = state.overlayProcess as ChildProcess | null;
@@ -129,33 +142,10 @@ export async function playSoundboardOverlay(
   log.info(`Overlaying soundboard "${soundName}" on music`);
 
   try {
-    // Clean up any existing overlay process
-    const existingOverlay = state.overlayProcess as ChildProcess | null;
-    if (existingOverlay) {
-      log.debug('Killing existing overlay process for new soundboard');
-      try {
-        // Set flag to prevent idle handler from calling playNext
-        state.isTransitioningToOverlay = true;
-        existingOverlay.kill('SIGKILL');
-        // Clear after kill to maintain consistent state during cleanup
-        state.overlayProcess = null;
-        state.player.stop();
-      } catch (err) {
-        log.debug(`Error killing old overlay: ${(err as Error).message}`);
-        // Ensure overlayProcess is cleared even if kill fails
-        state.overlayProcess = null;
-      }
-    } else {
-      // First overlay - stop current music and set flag to prevent idle handler
-      log.debug('Starting first overlay, stopping current music');
-      state.isTransitioningToOverlay = true;
-      state.player.stop();
-    }
-
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
 
-    // Calculate current playback position
+    // Calculate current playback position before transitioning to overlay
     let playbackPosition = 0;
     if (state.playbackStartTime) {
       const elapsed = Date.now() - state.playbackStartTime;
@@ -206,17 +196,19 @@ export async function playSoundboardOverlay(
       stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     });
 
+    // Handle stdout errors BEFORE creating resource to prevent unhandled error events
+    if (ffmpeg.stdout) {
+      ffmpeg.stdout.on('error', (err) => {
+        log.debug(`FFmpeg stdout error: ${err.message}`);
+      });
+    }
+
     // Pipe soundboard stream
     const soundStream = await storage.getSoundStream(soundName);
     soundStream.on('error', (err) => {
       log.debug(`Soundboard stream error: ${err.message}`);
     });
     soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
-
-    // Handle stdout errors
-    ffmpeg.stdout?.on('error', (err) => {
-      log.debug(`FFmpeg stdout error: ${err.message}`);
-    });
 
     ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
@@ -246,14 +238,36 @@ export async function playSoundboardOverlay(
       inputType: StreamType.OggOpus,
     });
 
-    // Play the mixed audio
+    // Clean up any existing overlay process and stop player JUST before playing new overlay
+    // This minimizes the gap between stop and play for seamless transition
+    const existingOverlay = state.overlayProcess as ChildProcess | null;
+    if (existingOverlay) {
+      log.debug('Killing existing overlay process for new soundboard');
+      try {
+        // Set flag to prevent idle handler from calling playNext
+        state.isTransitioningToOverlay = true;
+        existingOverlay.kill('SIGKILL');
+        state.overlayProcess = null;
+      } catch (err) {
+        log.debug(`Error killing old overlay: ${(err as Error).message}`);
+        // Even if killing the old overlay fails, clear the reference here because we are
+        // about to replace it with the new overlay process (see assignment below). Keeping
+        // a stale reference could cause other logic to treat the old process as the active overlay.
+        state.overlayProcess = null;
+      }
+    } else {
+      // First overlay - set flag to prevent idle handler from advancing queue
+      log.debug('Starting first overlay');
+      state.isTransitioningToOverlay = true;
+    }
+
     state.player.play(resource);
     // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
     state.overlayProcess = ffmpeg;
     state.playbackStartTime = Date.now() - playbackPosition * 1000;
     state.totalPausedTime = 0;
-    
+
     // Clear the transition flag now that overlay is playing
     state.isTransitioningToOverlay = false;
 

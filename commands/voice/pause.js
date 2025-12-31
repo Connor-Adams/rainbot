@@ -35,7 +35,11 @@ module.exports = {
     } catch (error) {
       log.error(`Pause error: ${error.message}`);
       await interaction.reply(
-        createErrorResponse(error, '', '💡 **Tip:** Make sure something is playing before trying to pause.')
+        createErrorResponse(
+          error,
+          '',
+          '💡 **Tip:** Make sure something is playing before trying to pause.'
+        )
       );
     }
   },

@@ -1,6 +1,6 @@
 /**
  * Tests for queue management and soundboard overlay functionality
- * 
+ *
  * These tests verify:
  * 1. Queue items are not consumed when soundboard overlays finish
  * 2. Music resumes at correct position after overlay completes
@@ -40,7 +40,7 @@ describe('Queue and Overlay Management', () => {
       expect(mockState.overlayProcess).toBeTruthy();
       expect(mockState.currentTrack).toBeTruthy();
       expect(mockState.queue).toHaveLength(1);
-      
+
       // When overlay finishes (music track completed), idle handler should:
       // - Clear overlayProcess
       // - NOT resume music (already played through overlay)
@@ -51,11 +51,11 @@ describe('Queue and Overlay Management', () => {
     it('should calculate correct playback position for overlay creation', () => {
       const startTime = Date.now() - 45000; // Started 45 seconds ago
       const pausedTime = 5000; // Was paused for 5 seconds
-      
+
       // Expected position: 45 seconds elapsed - 5 seconds paused = 40 seconds
       const elapsed = Date.now() - startTime;
       const expectedPosition = Math.floor((elapsed - pausedTime) / 1000);
-      
+
       expect(expectedPosition).toBeGreaterThanOrEqual(39);
       expect(expectedPosition).toBeLessThanOrEqual(41);
     });
@@ -70,10 +70,7 @@ describe('Queue and Overlay Management', () => {
           duration: 180,
         } as Track,
         currentTrackSource: 'https://youtube.com/watch?v=test123',
-        queue: [
-          { title: 'Track 2' } as Track,
-          { title: 'Track 3' } as Track,
-        ],
+        queue: [{ title: 'Track 2' } as Track, { title: 'Track 3' } as Track],
         overlayProcess: mockOverlayProcess as unknown,
         isTransitioningToOverlay: false,
       };
@@ -81,15 +78,15 @@ describe('Queue and Overlay Management', () => {
       // First overlay finishes
       // State should still have 2 items in queue
       expect(mockState.queue).toHaveLength(2);
-      
+
       // Second overlay starts while first is finishing
       // isTransitioningToOverlay flag should prevent idle handler from running
       expect(mockState.isTransitioningToOverlay).toBe(false); // Initially false
-      
+
       // When transitioning, flag should be true
       const transitioningState = { ...mockState, isTransitioningToOverlay: true };
       expect(transitioningState.isTransitioningToOverlay).toBe(true);
-      
+
       // After transition completes, queue should be unchanged
       expect(mockState.queue).toHaveLength(2);
       expect(mockState.queue[0]?.title).toBe('Track 2');
@@ -106,7 +103,7 @@ describe('Queue and Overlay Management', () => {
       // When starting first overlay (no existing overlay)
       // Flag should be set to true
       mockState.isTransitioningToOverlay = true;
-      
+
       expect(mockState.isTransitioningToOverlay).toBe(true);
       expect(mockState.overlayProcess).toBeNull();
     });
@@ -123,7 +120,7 @@ describe('Queue and Overlay Management', () => {
       mockState.isTransitioningToOverlay = true;
       const oldProcess = mockState.overlayProcess;
       mockState.overlayProcess = null; // Should be cleared BEFORE player.stop()
-      
+
       expect(mockState.overlayProcess).toBeNull();
       expect(mockState.isTransitioningToOverlay).toBe(true);
       expect(oldProcess).toBeTruthy();
@@ -135,11 +132,11 @@ describe('Queue and Overlay Management', () => {
       const playingState = {
         status: AudioPlayerStatus.Playing,
       };
-      
+
       const idleState = {
         status: AudioPlayerStatus.Idle,
       };
-      
+
       const pausedState = {
         status: AudioPlayerStatus.Paused,
       };
@@ -148,7 +145,7 @@ describe('Queue and Overlay Management', () => {
       expect(playingState.status).toBe(AudioPlayerStatus.Playing);
       expect(idleState.status).toBe(AudioPlayerStatus.Idle);
       expect(pausedState.status).toBe(AudioPlayerStatus.Paused);
-      
+
       // Playing or Paused should not call playNext when adding to queue
       expect(playingState.status === AudioPlayerStatus.Playing).toBe(true);
       expect(pausedState.status === AudioPlayerStatus.Playing).toBe(false);
@@ -159,12 +156,12 @@ describe('Queue and Overlay Management', () => {
     it('should handle overlay finishing when track duration has elapsed', () => {
       const trackDuration = 180; // 3 minutes
       const startTime = Date.now() - 185000; // Started 3 minutes 5 seconds ago
-      
+
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      
+
       // Track should be considered finished
       expect(elapsed).toBeGreaterThan(trackDuration);
-      
+
       // In this case, should play next track instead of resuming
     });
 

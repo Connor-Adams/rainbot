@@ -41,39 +41,57 @@ export async function joinChannel(
 
   // Handle when audio finishes playing
   player.on(AudioPlayerStatus.Idle, async () => {
-    const state = voiceStates.get(guildId);
-    if (!state) return;
+    try {
+      const state = voiceStates.get(guildId);
+      if (!state) return;
 
-    // If we're transitioning to a soundboard overlay, don't advance the queue
-    if (state.isTransitioningToOverlay === true) {
-      log.debug('Ignoring idle event - transitioning to soundboard overlay');
-      return;
-    }
+      // If we're transitioning to a soundboard overlay, don't advance the queue
+      if (state.isTransitioningToOverlay === true) {
+        log.debug('Ignoring idle event - transitioning to soundboard overlay');
+        return;
+      }
 
-    // Check if an overlay just finished (not a regular track)
-    if (state.overlayProcess) {
-      log.debug('Overlay finished - music track completed through overlay');
-      state.overlayProcess = null;
-      // The overlay already played the music through to completion, so just continue with queue
-    }
+      // Check if an overlay just finished (not a regular track)
+      if (state.overlayProcess) {
+        log.debug('Overlay finished - music track completed through overlay');
+        state.overlayProcess = null;
+        // The overlay already played the music through to completion, so just continue with queue
+      }
 
-    // End track engagement - track completed naturally
-    stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+      // End track engagement - track completed naturally
+      stats.endTrackEngagement(guildId, false, 'next_track', null, null);
 
-    // Check if there's more in queue
-    if (state.queue.length > 0) {
-      log.debug(`Track finished, playing next in queue (${state.queue.length} remaining)`);
-      // Dynamic import to avoid circular dependency
-      const { playNext } = await import('./playbackManager');
-      await playNext(guildId);
-    } else {
-      // Queue empty - clear now playing
-      log.debug(`Queue empty, clearing now playing state`);
-      state.nowPlaying = null;
-      state.currentTrack = null;
-      state.currentResource = null;
-      state.currentTrackSource = null;
-      state.playbackStartTime = null;
+      // Check if there's more in queue
+      if (state.queue.length > 0) {
+        log.debug(`Track finished, playing next in queue (${state.queue.length} remaining)`);
+        // Dynamic import to avoid circular dependency
+        const { playNext } = await import('./playbackManager');
+        await playNext(guildId);
+      } else {
+        // Queue empty - clear now playing
+        log.debug(`Queue empty, clearing now playing state`);
+        state.nowPlaying = null;
+        state.currentTrack = null;
+        state.currentResource = null;
+        state.currentTrackSource = null;
+        state.playbackStartTime = null;
+      }
+    } catch (error) {
+      const err = error as Error;
+      log.error(`Error in Idle event handler for guild ${guildId}: ${err.message}`);
+      log.error(`Stack trace: ${err.stack}`);
+      // Try to continue with next track anyway if queue has items
+      const state = voiceStates.get(guildId);
+      if (state && state.queue.length > 0) {
+        log.info(`Attempting to recover by playing next track for guild ${guildId}...`);
+        try {
+          const { playNext } = await import('./playbackManager');
+          await playNext(guildId);
+        } catch (retryError) {
+          const retryErr = retryError as Error;
+          log.error(`Failed to recover for guild ${guildId}: ${retryErr.message}`);
+        }
+      }
     }
   });
 
