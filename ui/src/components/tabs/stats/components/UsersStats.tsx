@@ -8,7 +8,7 @@ export default function UsersStats() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['stats', 'users'],
     queryFn: () => statsApi.users().then((res) => res.data),
-    refetchInterval: 30000,
+    refetchInterval: 60000, // Increased from 30s to 60s to reduce load
   })
 
   if (isLoading) return <StatsLoading message="Loading user statistics..." />

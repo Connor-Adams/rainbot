@@ -192,7 +192,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters: WhereFilters = {
         guildId: req.query['guildId'] as string | undefined,
         userId: req.query['userId'] as string | undefined,
@@ -256,7 +256,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         userId: req.query['userId'] as string | undefined,
@@ -355,7 +355,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
@@ -495,7 +495,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
         endDate: parseValidDate(req.query['endDate'] as string | undefined),
@@ -652,7 +652,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters: WhereFilters = {
         guildId: req.query['guildId'] as string | undefined,
         operationType: req.query['operationType'] as string | undefined,
@@ -695,7 +695,7 @@ router.get(
     try {
       const userId = (req.query['userId'] as string) || null; // null means all users
       const guildId = (req.query['guildId'] as string) || null;
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 100, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 100);
       const startDate = parseValidDate(req.query['startDate'] as string | undefined);
       const endDate = parseValidDate(req.query['endDate'] as string | undefined);
 
@@ -883,7 +883,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
@@ -1037,7 +1037,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
@@ -1118,7 +1118,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         userId: req.query['userId'] as string | undefined,
@@ -1206,7 +1206,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         userId: req.query['userId'] as string | undefined,
@@ -1367,7 +1367,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
@@ -1460,7 +1460,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         interactionType: req.query['interactionType'] as string | undefined,
@@ -1639,7 +1639,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         guildId: req.query['guildId'] as string | undefined,
         userId: req.query['userId'] as string | undefined,
@@ -1722,7 +1722,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const limit = Math.min(parseInt(req.query['limit'] as string) || 50, 500);
+      const limit = Math.min(parseInt(req.query['limit'] as string) || 25, 100);
       const filters = {
         eventType: req.query['eventType'] as string | undefined,
         startDate: parseValidDate(req.query['startDate'] as string | undefined),
