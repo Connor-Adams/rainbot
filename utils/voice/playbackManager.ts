@@ -25,6 +25,28 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 const log = createLogger('PLAYBACK');
 
+// Cookie file path for YouTube authentication (fixes 403 errors)
+const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
+
+/**
+ * Get common yt-dlp options including cookies if configured
+ */
+function getYtdlpOptions(): Record<string, unknown> {
+  const options: Record<string, unknown> = {
+    noPlaylist: true,
+    noWarnings: true,
+    quiet: true,
+    noCheckCertificates: true,
+  };
+
+  if (COOKIES_FILE) {
+    options['cookies'] = COOKIES_FILE;
+    log.debug(`Using cookies file: ${COOKIES_FILE}`);
+  }
+
+  return options;
+}
+
 /**
  * Send a "Now Playing" update to the voice channel
  */
@@ -88,12 +110,9 @@ async function getStreamUrl(videoUrl: string): Promise<string> {
 
   // Get direct URL from yt-dlp
   const result = (await youtubedl(videoUrl, {
+    ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio/best',
     getUrl: true,
-    noPlaylist: true,
-    noWarnings: true,
-    quiet: true,
-    noCheckCertificates: true,
   })) as unknown as string;
 
   const streamUrl = result.trim();
