@@ -19,6 +19,11 @@ sessions/
 .env.local
 .env.*.local
 
+# YouTube authentication cookies (contains sensitive tokens)
+cookies.txt
+youtube-cookies.txt
+*.cookies.txt
+
 # OS files
 .DS_Store
 .DS_Store?
