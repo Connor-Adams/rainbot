@@ -25,8 +25,8 @@ export default function CommandsStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📊</span>
-        <p className="text-sm text-gray-400">No command data available yet</p>
-        <small className="text-xs text-gray-500">Command statistics will appear as users interact with the bot</small>
+        <p className="text-sm text-text-secondary">No command data available yet</p>
+        <small className="text-xs text-text-muted">Command statistics will appear as users interact with the bot</small>
       </div>
     )
   }
@@ -112,16 +112,16 @@ export default function CommandsStats() {
       {/* Charts */}
       <div className="grid md:grid-cols-2 gap-6">
         {canRenderBar && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Top Commands</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Top Commands</h3>
             <div className="max-h-[300px]">
               <Bar data={barData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
             </div>
           </div>
         )}
         {(successCount > 0 || errorCount > 0) && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Success Rate</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Success Rate</h3>
             <div className="max-h-[300px]">
               <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: true }} />
             </div>

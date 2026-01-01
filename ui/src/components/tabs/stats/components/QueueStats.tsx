@@ -48,8 +48,8 @@ export default function QueueStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📋</span>
-        <p className="text-sm text-gray-400">No queue data available yet</p>
-        <small className="text-xs text-gray-500">Queue statistics will appear as users add and manage songs</small>
+        <p className="text-sm text-text-secondary">No queue data available yet</p>
+        <small className="text-xs text-text-muted">Queue statistics will appear as users add and manage songs</small>
       </div>
     )
   }

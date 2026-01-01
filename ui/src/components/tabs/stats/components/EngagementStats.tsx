@@ -151,8 +151,8 @@ export default function EngagementStats() {
           </div>
         )}
         {canRenderSkip && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-xl text-text-primary mb-4">Skip Reasons</h3>
             <div className="max-h-[400px]">
               <Bar data={skipReasonsData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
             </div>

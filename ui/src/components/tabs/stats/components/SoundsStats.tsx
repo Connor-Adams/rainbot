@@ -35,8 +35,8 @@ export default function SoundsStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">🔊</span>
-        <p className="text-sm text-gray-400">No sound data available yet</p>
-        <small className="text-xs text-gray-500">Sound statistics will appear as users play sounds</small>
+        <p className="text-sm text-text-secondary">No sound data available yet</p>
+        <small className="text-xs text-text-muted">Sound statistics will appear as users play sounds</small>
       </div>
     )
   }

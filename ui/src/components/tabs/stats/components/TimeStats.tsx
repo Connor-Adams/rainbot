@@ -25,8 +25,8 @@ export default function TimeStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📈</span>
-        <p className="text-sm text-gray-400">No time trend data available yet</p>
-        <small className="text-xs text-gray-500">Trend data will appear as users interact with the bot</small>
+        <p className="text-sm text-text-secondary">No time trend data available yet</p>
+        <small className="text-xs text-text-muted">Trend data will appear as users interact with the bot</small>
       </div>
     )
   }
@@ -70,14 +70,14 @@ export default function TimeStats() {
   }
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Usage Over Time</h3>
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h3 className="text-xl text-text-primary mb-4">Usage Over Time</h3>
       {canRender ? (
         <div className="max-h-[400px]">
           <Line data={lineData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
         </div>
       ) : (
-        <p className="text-gray-400">Not enough data to display chart</p>
+        <p className="text-text-secondary">Not enough data to display chart</p>
       )}
     </div>
   )
