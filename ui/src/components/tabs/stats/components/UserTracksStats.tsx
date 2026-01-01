@@ -92,9 +92,9 @@ export default function UserTracksStats() {
   return (
     <div className="space-y-6">
       {/* Source Types Distribution */}
-      {canRenderSource && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Track Sources</h3>
+      {data.sourceTypes.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Track Sources</h3>
           <div className="max-h-[400px]">
             <Doughnut data={sourceTypesData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
@@ -102,9 +102,9 @@ export default function UserTracksStats() {
       )}
 
       {/* Top Tracks Chart */}
-      {canRenderTopTracks && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Most Listened Tracks</h3>
+      {data.topTracks.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Most Listened Tracks</h3>
           <div className="max-h-[400px]">
             <Bar data={topTracksData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
@@ -112,13 +112,13 @@ export default function UserTracksStats() {
       )}
 
       {/* Top Tracks Table */}
-      {topTracks.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Tracks Details</h3>
+      {data.topTracks.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Top Tracks Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Source</th>
                   <th className="pb-2 px-4">Listens</th>
@@ -126,8 +126,8 @@ export default function UserTracksStats() {
                 </tr>
               </thead>
               <tbody>
-                {topTracks.map((track, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                {data.topTracks.map((track, idx) => (
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">
                       {track.track_url ? (
                         <a
@@ -143,8 +143,8 @@ export default function UserTracksStats() {
                       )}
                     </td>
                     <td className="py-2 px-4">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-700">
-                        {track.source_type || 'Unknown'}
+                      <span className="px-2 py-1 rounded text-xs bg-surface-elevated">
+                        {track.source_type}
                       </span>
                     </td>
                     <td className="py-2 px-4">{track.listen_count || '0'}</td>
@@ -158,13 +158,13 @@ export default function UserTracksStats() {
       )}
 
       {/* Recent Listens */}
-      {recentListens.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Recent Listens</h3>
+      {data.recentListens.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Recent Listens</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Source</th>
                   <th className="pb-2 px-4">Queued By</th>
@@ -172,12 +172,12 @@ export default function UserTracksStats() {
                 </tr>
               </thead>
               <tbody>
-                {recentListens.slice(0, 15).map((listen, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{listen.track_title || 'Unknown'}</td>
+                {data.recentListens.slice(0, 15).map((listen, idx) => (
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
+                    <td className="py-2 px-4">{listen.track_title}</td>
                     <td className="py-2 px-4">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-700">
-                        {listen.source_type || 'Unknown'}
+                      <span className="px-2 py-1 rounded text-xs bg-surface-elevated">
+                        {listen.source_type}
                       </span>
                     </td>
                     <td className="py-2 px-4 font-mono text-sm">{listen.queued_by || 'Unknown'}</td>

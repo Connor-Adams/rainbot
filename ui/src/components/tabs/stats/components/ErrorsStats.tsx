@@ -54,12 +54,12 @@ export default function ErrorsStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading error statistics...</div>
+    return <div className="stats-loading text-center py-12 text-text-secondary">Loading error statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="stats-error text-center py-12 text-danger">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -88,36 +88,36 @@ export default function ErrorsStats() {
   return (
     <div className="space-y-6">
       {/* Error Summary */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Error Overview</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Error Overview</h3>
         {totalErrors > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-red-400">{summary.total_errors || 0}</div>
-              <div className="text-sm text-gray-400">Total Errors</div>
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-danger">{summary.total_errors || 0}</div>
+              <div className="text-sm text-text-secondary">Total Errors</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-orange-400">{summary.unique_commands || 0}</div>
-              <div className="text-sm text-gray-400">Affected Commands</div>
+              <div className="text-sm text-text-secondary">Affected Commands</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-lg font-bold text-yellow-400 truncate" title={summary.most_common_error || '-'}>
                 {summary.most_common_error || '-'}
               </div>
-              <div className="text-sm text-gray-400">Most Common Type</div>
+              <div className="text-sm text-text-secondary">Most Common Type</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div
                 className="text-lg font-bold text-purple-400 truncate font-mono"
                 title={summary.most_failing_command || '-'}
               >
                 {summary.most_failing_command || '-'}
               </div>
-              <div className="text-sm text-gray-400">Most Failing Command</div>
+              <div className="text-sm text-text-secondary">Most Failing Command</div>
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-text-secondary py-8">
             No errors recorded. Your bot is running smoothly!
           </div>
         )}
@@ -126,8 +126,8 @@ export default function ErrorsStats() {
       {/* Error Distribution */}
       {byType.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-xl text-white mb-4">Errors by Type</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-xl text-text-primary mb-4">Errors by Type</h3>
             <div className="max-w-[300px] mx-auto">
               <Doughnut
                 data={doughnutData}
@@ -144,8 +144,8 @@ export default function ErrorsStats() {
             </div>
           </div>
 
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-xl text-white mb-4">Error Type Breakdown</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-xl text-text-primary mb-4">Error Type Breakdown</h3>
             <div className="space-y-3">
               {byType.map((item) => {
                 const count = parseInt(item.count)
@@ -157,9 +157,9 @@ export default function ErrorsStats() {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: errorTypeColors[item.error_type] || errorTypeColors.unknown }}
                     />
-                    <span className="text-gray-300 flex-1">{errorTypeLabels[item.error_type] || item.error_type}</span>
-                    <span className="text-gray-400">{count}</span>
-                    <span className="text-gray-500 text-sm w-16 text-right">{percentageDisplay}%</span>
+                    <span className="text-text-secondary flex-1">{errorTypeLabels[item.error_type] || item.error_type}</span>
+                    <span className="text-text-secondary">{count}</span>
+                    <span className="text-text-muted text-sm w-16 text-right">{percentageDisplay}%</span>
                   </div>
                 )
               })}
@@ -170,12 +170,12 @@ export default function ErrorsStats() {
 
       {/* Command Error Rates */}
       {byCommand.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Command Error Rates</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Command Error Rates</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2">Command</th>
                   <th className="pb-2">Errors</th>
                   <th className="pb-2">Successes</th>
@@ -190,7 +190,7 @@ export default function ErrorsStats() {
                   let statusColor = 'text-green-400'
                   let statusText = 'Healthy'
                   if (errorRate > 10) {
-                    statusColor = 'text-red-400'
+                    statusColor = 'text-danger'
                     statusText = 'Critical'
                   } else if (errorRate > 5) {
                     statusColor = 'text-orange-400'
@@ -200,9 +200,9 @@ export default function ErrorsStats() {
                     statusText = 'Minor'
                   }
                   return (
-                    <tr key={cmd.command_name} className="border-b border-gray-700/50 text-gray-300">
+                    <tr key={cmd.command_name} className="border-b border-border/50 text-text-secondary">
                       <td className="py-2 font-mono">{cmd.command_name}</td>
-                      <td className="py-2 text-red-400">{cmd.error_count}</td>
+                      <td className="py-2 text-danger">{cmd.error_count}</td>
                       <td className="py-2 text-green-400">{cmd.success_count}</td>
                       <td className="py-2">{errorRateDisplay}%</td>
                       <td className={`py-2 ${statusColor}`}>{statusText}</td>

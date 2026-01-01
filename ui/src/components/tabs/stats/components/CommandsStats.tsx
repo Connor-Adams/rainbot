@@ -67,7 +67,7 @@ export default function CommandsStats() {
       id: 'command',
       header: 'Command',
       render: (cmd: CommandStat) => escapeHtml(cmd.command_name),
-      className: 'px-4 py-3 text-sm text-white',
+      className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'count',
@@ -75,7 +75,7 @@ export default function CommandsStats() {
       render: (cmd: CommandStat) => (
         <span className="font-mono">{safeInt(cmd.count).toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'success',
@@ -83,7 +83,7 @@ export default function CommandsStats() {
       render: (cmd: CommandStat) => (
         <span className="font-mono">{safeInt(cmd.success_count).toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'errors',
@@ -91,7 +91,7 @@ export default function CommandsStats() {
       render: (cmd: CommandStat) => (
         <span className="font-mono">{safeInt(cmd.error_count).toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'success_rate',
@@ -103,7 +103,7 @@ export default function CommandsStats() {
         const rate = total > 0 ? ((sc / total) * 100).toFixed(1) : '0'
         return <span className="font-mono">{rate}%</span>
       },
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ]
 

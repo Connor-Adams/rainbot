@@ -25,7 +25,7 @@ export default function StatsTable<T = Record<string, unknown>>({
 }: StatsTableProps<T>) {
   if (data.length === 0) {
     return (
-      <p className="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
+      <p className="empty-state text-text-muted text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
         <span className="text-2xl opacity-50">📭</span>
         {emptyMessage}
       </p>
@@ -46,9 +46,9 @@ export default function StatsTable<T = Record<string, unknown>>({
         </thead>
         <tbody>
           {data.map((row, rowIdx) => (
-            <tr key={getRowKey ? getRowKey(row, rowIdx) : rowIdx} className="hover:bg-gray-700/50 transition-colors">
+            <tr key={getRowKey ? getRowKey(row, rowIdx) : rowIdx} className="hover:bg-surface-elevated/50 transition-colors">
               {columns.map((col, colIdx) => (
-                <td key={col.id || col.header || colIdx} className={col.className || 'px-4 py-3 text-sm text-gray-400'}>
+                <td key={col.id || col.header || colIdx} className={col.className || 'px-4 py-3 text-sm text-text-secondary'}>
                   {col.render
                     ? col.render(row)
                     : col.key

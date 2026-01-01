@@ -1,3 +1,5 @@
+import { ChevronRightIcon } from './icons'
+
 interface DisplayCardProps {
   name: string
 }
@@ -27,98 +29,19 @@ export default function DisplayCard({ name }: DisplayCardProps) {
   const gradientStyle = `linear-gradient(135deg, ${startColor}, ${endColor})`
   const initials = name.charAt(0).toUpperCase()
 
-  // Base card styles
-  const cardClasses = [
-    'display-card',
-    'relative',
-    'overflow-hidden',
-    'rounded-xl',
-    'bg-gradient-to-br from-gray-800 to-gray-900',
-    'border border-gray-700',
-    'p-4',
-    'transition-all duration-300',
-    'hover:border-gray-600',
-    'hover:shadow-lg hover:shadow-blue-500/20',
-    'group',
-  ].join(' ')
-
-  // Background gradient overlay (appears on hover)
-  const backgroundOverlayClasses = [
-    'absolute',
-    'inset-0',
-    'opacity-0',
-    'group-hover:opacity-10',
-    'transition-opacity duration-300',
-  ].join(' ')
-
-  // Avatar circle styles
-  const avatarClasses = [
-    'flex-shrink-0',
-    'w-12 h-12',
-    'rounded-full',
-    'flex items-center justify-center',
-    'text-white font-bold text-lg',
-    'shadow-lg',
-    'transition-transform duration-300',
-    'group-hover:scale-110',
-  ].join(' ')
-
-  // Content container
-  const contentClasses = [
-    'relative',
-    'z-10',
-    'flex items-center gap-3',
-  ].join(' ')
-
-  // Title text styles
-  const titleClasses = [
-    'text-white',
-    'font-semibold',
-    'text-sm',
-    'truncate',
-    'group-hover:text-blue-400',
-    'transition-colors duration-300',
-  ].join(' ')
-
-  // Subtitle text styles
-  const subtitleClasses = [
-    'text-gray-400',
-    'text-xs',
-    'mt-0.5',
-  ].join(' ')
-
-  // Arrow icon styles
-  const arrowClasses = [
-    'w-5 h-5',
-    'text-gray-500',
-    'group-hover:text-blue-400',
-    'transition-all duration-300',
-    'group-hover:translate-x-1',
-  ].join(' ')
-
-  // Shine effect overlay (sweeps across on hover)
-  const shineClasses = [
-    'absolute',
-    'inset-0',
-    '-translate-x-full',
-    'group-hover:translate-x-full',
-    'transition-transform duration-700',
-    'bg-gradient-to-r from-transparent via-white/10 to-transparent',
-  ].join(' ')
-
   return (
-    <div className={cardClasses}>
+    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-surface to-surface-elevated border border-border p-4 transition-all duration-300 hover:border-border-hover hover:shadow-lg hover:shadow-primary/20 group">
       {/* Animated gradient background overlay */}
       <div
-        className={backgroundOverlayClasses}
+        className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
         style={{ background: gradientStyle }}
       />
 
       {/* Main content container */}
-      <div className={contentClasses}>
+      <div className="relative z-10 flex items-center gap-3">
         {/* Avatar circle with server initial */}
         <div
-          className={avatarClasses}
+          className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-text-primary font-bold text-lg shadow-lg transition-transform duration-300 group-hover:scale-110"
           style={{ background: gradientStyle }}
         >
           {initials}
@@ -126,32 +49,23 @@ export default function DisplayCard({ name }: DisplayCardProps) {
 
         {/* Text content section */}
         <div className="flex-1 min-w-0">
-          <h3 className={titleClasses}>
+          <h3 className="text-text-primary font-semibold text-sm truncate group-hover:text-primary transition-colors duration-300">
             {name}
           </h3>
-          <p className={subtitleClasses}>
+          <p className="text-text-secondary text-xs mt-0.5">
             Server
           </p>
         </div>
 
         {/* Arrow indicator icon */}
-        <svg
-          className={arrowClasses}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
+        <ChevronRightIcon 
+          size={20}
+          className="text-text-muted group-hover:text-primary transition-all duration-300 group-hover:translate-x-1"
+        />
       </div>
 
       {/* Shine effect overlay */}
-      <div className={shineClasses} />
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
     </div>
   )
 }

@@ -103,44 +103,44 @@ export default function PlayerTab() {
         <NowPlayingCard queueData={queueData} guildId={selectedGuildId} />
       )}
 
-      <section className="panel player-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+      <section className="bg-surface rounded-2xl border border-border p-6">
+        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
+          <span className="w-0.5 h-4 bg-gradient-to-b from-primary to-secondary rounded-full shadow-glow" />
           Add to Queue
         </h2>
-        <div className="url-player space-y-4">
-          <div className="input-group flex gap-3">
+        <div className="space-y-4">
+          <div className="flex gap-3">
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-500"
+              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-text-muted hover:border-border-hover"
               placeholder="YouTube, Spotify, SoundCloud, or direct URL..."
             />
           </div>
-          <div className="player-controls flex gap-3">
+          <div className="flex gap-3">
             <button
-              className="btn btn-primary"
+              className="px-6 py-3 bg-gradient-to-r from-primary to-primary-dark text-text-primary font-medium rounded-lg shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               onClick={handlePlay}
               disabled={playMutation.isPending || !selectedGuildId}
             >
-              <span className="btn-icon">▶</span> Add to Queue
+              <span>▶</span> Add to Queue
             </button>
             <button
-              className="btn btn-danger"
+              className="px-6 py-3 bg-gradient-to-r from-danger to-danger-dark text-text-primary font-medium rounded-lg shadow-sm hover:shadow-glow-danger hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               onClick={() => stopMutation.mutate()}
               disabled={stopMutation.isPending || !selectedGuildId}
             >
-              <span className="btn-icon">■</span> Stop
+              <span>■</span> Stop
             </button>
           </div>
         </div>
 
         {/* Volume Control */}
-        <div className="volume-control mt-6 pt-6 border-t border-gray-700">
+        <div className="mt-6 pt-6 border-t border-border">
           <div className="flex items-center gap-4">
-            <span className="text-gray-400 text-sm w-6">
+            <span className="text-text-secondary text-sm w-6">
               {volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}
             </span>
             <input
@@ -150,9 +150,9 @@ export default function PlayerTab() {
               value={volume}
               onChange={handleVolumeChange}
               disabled={!selectedGuildId}
-              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 h-2 bg-surface-input rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <span className="text-gray-400 text-sm font-mono w-12 text-right">
+            <span className="text-text-secondary text-sm font-mono w-12 text-right">
               {volume}%
             </span>
           </div>

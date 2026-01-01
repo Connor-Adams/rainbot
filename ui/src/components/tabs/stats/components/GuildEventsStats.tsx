@@ -103,19 +103,25 @@ export default function GuildEventsStats() {
   return (
     <div className="space-y-6">
       {/* Event Summary */}
-      {canRenderSummary && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Events Summary</h3>
-          <div className="max-h-[400px]">
-            <Doughnut data={summaryData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
-          </div>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Guild Events Summary</h3>
+        <div className="max-h-[400px]">
+          <Doughnut
+            data={summaryData}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { labels: { color: '#9ca3af' } },
+              },
+            }}
+          />
         </div>
       )}
 
       {/* Growth Over Time */}
-      {canRenderGrowth && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
+      {data.growth.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Guild Growth Over Time</h3>
           <div className="max-h-[400px]">
             <Line data={growthData} options={{ responsive: true, maintainAspectRatio: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
@@ -123,13 +129,13 @@ export default function GuildEventsStats() {
       )}
 
       {/* Recent Events */}
-      {recentEvents.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Recent Guild Events</h3>
+      {data.recentEvents.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Recent Guild Events</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Event</th>
                   <th className="pb-2 px-4">Guild</th>
                   <th className="pb-2 px-4">Members</th>
@@ -137,14 +143,14 @@ export default function GuildEventsStats() {
                 </tr>
               </thead>
               <tbody>
-                {recentEvents.slice(0, 10).map((event, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                {data.recentEvents.slice(0, 10).map((event, idx) => (
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">
                       <span
                         className={`px-2 py-1 rounded text-xs ${
                           event.event_type === 'bot_added'
                             ? 'bg-green-900/30 text-green-400'
-                            : 'bg-red-900/30 text-red-400'
+                            : 'bg-red-900/30 text-danger'
                         }`}
                       >
                         {event.event_type.replace('bot_', '')}

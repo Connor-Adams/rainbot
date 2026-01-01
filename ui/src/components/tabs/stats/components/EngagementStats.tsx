@@ -100,37 +100,54 @@ export default function EngagementStats() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">{totalTracks}</div>
-          <div className="text-sm text-gray-400">Total Tracks</div>
+          <div className="text-sm text-text-secondary">Total Tracks</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-green-400">{completed}</div>
-          <div className="text-sm text-gray-400">Completed</div>
+          <div className="text-sm text-text-secondary">Completed</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{skipped}</div>
-          <div className="text-sm text-gray-400">Skipped</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger">{skipped}</div>
+          <div className="text-sm text-text-secondary">Skipped</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-gray-400">{other}</div>
-          <div className="text-sm text-gray-400">Other</div>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">{avgCompletionDisplay}%</div>
-          <div className="text-sm text-gray-400">Avg Completion</div>
+          <div className="text-sm text-text-secondary">Avg Completion</div>
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {canRenderCompletion && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-xl text-white mb-4">Completion vs Skips</h3>
-            <div className="max-h-[400px]">
-              <Doughnut data={completionData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
-            </div>
+      {/* Completion vs Skips Chart */}
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Completion vs Skips</h3>
+        <div className="max-h-[400px]">
+          <Doughnut
+            data={completionData}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { labels: { color: '#9ca3af' } },
+              },
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Skip Reasons */}
+      {data.skipReasons.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Skip Reasons</h3>
+          <div className="max-h-[400px]">
+            <Bar
+              data={skipReasonsData}
+              options={{
+                responsive: true,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { labels: { color: '#9ca3af' } } },
+              }}
+            />
           </div>
         )}
         {canRenderSkip && (
@@ -144,23 +161,23 @@ export default function EngagementStats() {
       </div>
 
       {/* Most Skipped Tracks */}
-      {mostSkipped.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Most Skipped Tracks</h3>
+      {data.mostSkipped.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Most Skipped Tracks</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Skip Count</th>
                   <th className="pb-2 px-4">Avg Skip Position</th>
                 </tr>
               </thead>
               <tbody>
-                {mostSkipped.map((track, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{track.track_title || 'Unknown'}</td>
-                    <td className="py-2 px-4">{track.skip_count || '0'}</td>
+                {data.mostSkipped.map((track, idx) => (
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
+                    <td className="py-2 px-4">{track.track_title}</td>
+                    <td className="py-2 px-4">{track.skip_count}</td>
                     <td className="py-2 px-4">{track.avg_skip_position ? `${track.avg_skip_position}s` : 'N/A'}</td>
                   </tr>
                 ))}
@@ -171,22 +188,22 @@ export default function EngagementStats() {
       )}
 
       {/* Most Completed Tracks */}
-      {mostCompleted.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Most Completed Tracks</h3>
+      {data.mostCompleted.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Most Completed Tracks</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Completion Count</th>
                 </tr>
               </thead>
               <tbody>
-                {mostCompleted.map((track, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{track.track_title || 'Unknown'}</td>
-                    <td className="py-2 px-4">{track.completion_count || '0'}</td>
+                {data.mostCompleted.map((track, idx) => (
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
+                    <td className="py-2 px-4">{track.track_title}</td>
+                    <td className="py-2 px-4">{track.completion_count}</td>
                   </tr>
                 ))}
               </tbody>

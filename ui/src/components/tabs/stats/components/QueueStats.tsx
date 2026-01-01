@@ -30,12 +30,12 @@ export default function QueueStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading queue statistics...</div>
+    return <div className="text-center py-12 text-text-secondary">Loading queue statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="text-center py-12 text-danger">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -79,22 +79,11 @@ export default function QueueStats() {
   }
 
   return (
-    <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Queue Operations</h3>
-      {canRenderChart ? (
-        <div className="max-h-[400px]">
-          <Bar data={barData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {operations.map((o: QueueOperation, idx: number) => (
-            <div key={idx} className="bg-gray-700 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-orange-400">{safeInt(o.count)}</div>
-              <div className="text-sm text-gray-400">{o.operation_type || 'Unknown'}</div>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h3 className="text-xl text-text-primary mb-4">Queue Operations</h3>
+      <div className="max-h-[400px]">
+        <Bar data={barData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
+      </div>
     </div>
   )
 }

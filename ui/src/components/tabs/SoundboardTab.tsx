@@ -151,14 +151,14 @@ export default function SoundboardTab() {
   )
 
   return (
-    <section className="panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+    <section className="panel bg-surface rounded-2xl border border-border p-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
           <span className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40" />
           Soundboard
           {sounds.length > 0 && (
-            <span className="text-sm text-gray-400 font-normal">({sounds.length})</span>
+            <span className="text-sm text-text-secondary font-normal">({sounds.length})</span>
           )}
         </h2>
         <UploadButton
@@ -175,7 +175,7 @@ export default function SoundboardTab() {
       {/* Sounds Grid */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
         {isLoadingSounds ? (
-          <div className="col-span-full text-center py-12 text-gray-500">
+          <div className="col-span-full text-center py-12 text-text-muted">
             <div className="animate-spin text-4xl mb-2">⏳</div>
             <p>Loading sounds...</p>
           </div>
