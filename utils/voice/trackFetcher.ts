@@ -156,7 +156,33 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
 export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
   try {
     // Only support YouTube URLs for now
-    if (!lastTrack.url || (!lastTrack.url.includes('youtube.com') && !lastTrack.url.includes('youtu.be'))) {
+    if (!lastTrack.url) {
+      log.debug('Cannot get related track: no URL provided');
+      return null;
+    }
+
+    let youtubeHost = '';
+    try {
+      const parsed = new URL(lastTrack.url);
+      youtubeHost = parsed.hostname.toLowerCase();
+    } catch {
+      log.debug('Cannot get related track: invalid URL');
+      return null;
+    }
+
+    const allowedYoutubeHosts = new Set([
+      'youtube.com',
+      'www.youtube.com',
+      'm.youtube.com',
+      'music.youtube.com',
+      'youtu.be'
+    ]);
+
+    const isYoutubeHost =
+      allowedYoutubeHosts.has(youtubeHost) ||
+      (youtubeHost.endsWith('.youtube.com') && youtubeHost.length > 'youtube.com'.length);
+
+    if (!isYoutubeHost) {
       log.debug('Cannot get related track: not a YouTube URL');
       return null;
     }
