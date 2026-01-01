@@ -61,6 +61,11 @@ export default function QueueList() {
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
           <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
           Queue
+          {queueData?.autoplay && (
+            <span className="ml-2 text-xs text-blue-400 font-normal" title="Autoplay enabled">
+              🔁
+            </span>
+          )}
         </h2>
         <div className="flex items-center gap-3">
           <span className="queue-count text-sm font-semibold text-gray-300">{totalInQueue}</span>
@@ -82,6 +87,11 @@ export default function QueueList() {
             Queue is empty
             <br />
             <small className="block mt-2 text-sm">Add tracks to start playing</small>
+            {queueData?.autoplay && (
+              <small className="block mt-3 text-xs text-blue-400">
+                🔁 Autoplay is enabled - similar tracks will play automatically
+              </small>
+            )}
           </p>
         ) : (
           queue.map((track: Track, index: number) => {
