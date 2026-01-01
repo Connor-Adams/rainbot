@@ -28,7 +28,7 @@ export default function SoundboardTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Custom hooks
-  const { customizations, updateCustomization, deleteCustomization, getCustomization } =
+  const { updateCustomization, deleteCustomization, getCustomization } =
     useSoundCustomization()
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
