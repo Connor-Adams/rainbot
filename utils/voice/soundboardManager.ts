@@ -255,11 +255,13 @@ export async function playSoundboardOverlay(
       log.debug('Starting first overlay');
     }
 
+    // Set the overlay process reference before playing to ensure it's tracked even if play() fails
+    state.overlayProcess = ffmpeg;
+
     // Immediately play the new overlay to minimize audio gap
     state.player.play(resource);
     // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
-    state.overlayProcess = ffmpeg;
     state.playbackStartTime = Date.now() - playbackPosition * 1000;
     state.totalPausedTime = 0;
 
@@ -279,6 +281,17 @@ export async function playSoundboardOverlay(
     log.error(`Failed to overlay soundboard: ${(error as Error).message}`);
     // Clear the transition flag on error
     state.isTransitioningToOverlay = false;
+    
+    // Clean up the overlay process if we set it but failed to play
+    if (state.overlayProcess && state.overlayProcess !== existingOverlay) {
+      try {
+        (state.overlayProcess as ChildProcess).kill('SIGKILL');
+      } catch (killErr) {
+        log.debug(`Error killing failed overlay: ${(killErr as Error).message}`);
+      }
+      state.overlayProcess = null;
+    }
+    
     // Fallback to direct playback
     return playSoundboardDirect(state, soundName, userId, source, username, discriminator);
   }
