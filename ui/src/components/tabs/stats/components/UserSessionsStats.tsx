@@ -1,15 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -57,19 +51,21 @@ export default function UserSessionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading user sessions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading user sessions</div>
-  if (!data) return null
+  
+  // Safe data access with defaults
+  const summary: SessionSummary = data?.summary || { total_sessions: '0', unique_users: '0', avg_duration_seconds: '0', total_duration_seconds: '0', avg_tracks_per_session: '0', total_tracks_heard: '0' }
+  const sessions = Array.isArray(data?.sessions) ? data.sessions : []
+  const topListeners = Array.isArray(data?.topListeners) ? data.topListeners : []
+  const totalSessions = parseInt(summary.total_sessions || '0') || 0
 
-  const topListenersData = {
-    labels: data.topListeners.slice(0, 10).map((l) => l.username || l.user_id.substring(0, 8)),
-    datasets: [
-      {
-        label: 'Total Duration (seconds)',
-        data: data.topListeners.slice(0, 10).map((l) => parseInt(l.total_duration || '0')),
-        backgroundColor: 'rgba(59, 130, 246, 0.6)',
-        borderColor: 'rgba(59, 130, 246, 1)',
-        borderWidth: 1,
-      },
-    ],
+  if (!data || (totalSessions === 0 && sessions.length === 0)) {
+    return (
+      <EmptyState
+        icon="👤"
+        message="No user session data available"
+        submessage="User listening sessions will appear here once users join voice channels"
+      />
+    )
   }
 
   const formatDuration = (seconds: number) => {
@@ -77,6 +73,22 @@ export default function UserSessionsStats() {
     const minutes = Math.floor((seconds % 3600) / 60)
     if (hours > 0) return `${hours}h ${minutes}m`
     return `${minutes}m`
+  }
+
+  // Prepare safe chart data
+  const chartLabels = topListeners.slice(0, 10).map((l) => safeString(l.username, l.user_id ? l.user_id.substring(0, 8) : 'Unknown'))
+  const chartValues = topListeners.slice(0, 10).map((l) => safeInt(l.total_duration))
+  const canRenderChart = chartLabels.length > 0 && chartValues.every(Number.isFinite)
+
+  const topListenersData = {
+    labels: chartLabels,
+    datasets: [{
+      label: 'Total Duration (seconds)',
+      data: chartValues,
+      backgroundColor: 'rgba(59, 130, 246, 0.6)',
+      borderColor: 'rgba(59, 130, 246, 1)',
+      borderWidth: 1,
+    }],
   }
 
   return (
@@ -93,20 +105,20 @@ export default function UserSessionsStats() {
         </div>
         <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">
-            {formatDuration(parseInt(data.summary.avg_duration_seconds || '0'))}
+            {formatDuration(safeInt(summary.avg_duration_seconds))}
           </div>
           <div className="text-sm text-text-secondary">Avg Duration</div>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-orange-400">
-            {formatDuration(parseInt(data.summary.total_duration_seconds || '0'))}
+            {formatDuration(safeInt(summary.total_duration_seconds))}
           </div>
           <div className="text-sm text-text-secondary">Total Duration</div>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-yellow-400">
             {(() => {
-              const avg = parseFloat(data.summary.avg_tracks_per_session || '0')
+              const avg = parseFloat(summary.avg_tracks_per_session || '0')
               return isNaN(avg) ? '0.0' : avg.toFixed(1)
             })()}
           </div>
@@ -123,15 +135,7 @@ export default function UserSessionsStats() {
         <div className="bg-surface border border-border rounded-xl p-6">
           <h3 className="text-xl text-text-primary mb-4">Top Listeners (by duration)</h3>
           <div className="max-h-[400px]">
-            <Bar
-              data={topListenersData}
-              options={{
-                responsive: true,
-                indexAxis: 'y',
-                scales: { x: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
+            <Bar data={topListenersData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}

@@ -5,3 +5,4 @@ export { default as StatsSection } from './StatsSection';
 export { default as StatCard } from './StatCard';
 export { default as StatsTable } from './StatsTable';
 export { default as ChartContainer } from './ChartContainer';
+export { default as EmptyState } from './EmptyState';

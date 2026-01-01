@@ -53,10 +53,10 @@ export default function SearchStats() {
   if (!data) return null
 
   const queryTypesData = {
-    labels: data.queryTypes.map((qt) => qt.query_type || 'Unknown'),
+    labels: (data.queryTypes || []).map((qt) => qt.query_type || 'Unknown'),
     datasets: [
       {
-        data: data.queryTypes.map((qt) => parseInt(qt.count)),
+        data: (data.queryTypes || []).map((qt) => parseInt(qt.count)),
         backgroundColor: [
           'rgba(59, 130, 246, 0.7)',
           'rgba(34, 197, 94, 0.7)',
@@ -77,11 +77,11 @@ export default function SearchStats() {
   }
 
   const topQueriesData = {
-    labels: data.topQueries.slice(0, 10).map((q) => q.query.substring(0, 30)),
+    labels: (data.topQueries || []).slice(0, 10).map((q) => q.query.substring(0, 30)),
     datasets: [
       {
         label: 'Search Count',
-        data: data.topQueries.slice(0, 10).map((q) => parseInt(q.count)),
+        data: (data.topQueries || []).slice(0, 10).map((q) => parseInt(q.count)),
         backgroundColor: 'rgba(168, 85, 247, 0.6)',
         borderColor: 'rgba(168, 85, 247, 1)',
         borderWidth: 1,
@@ -128,7 +128,7 @@ export default function SearchStats() {
 
   return (
     <div className="space-y-6">
-      {data.queryTypes.length > 0 && (
+      {(data.queryTypes || []).length > 0 && (
         <ChartContainer title="Query Types Distribution">
           <Doughnut
             data={queryTypesData}
@@ -140,7 +140,7 @@ export default function SearchStats() {
         </ChartContainer>
       )}
 
-      {data.topQueries.length > 0 && (
+      {(data.topQueries || []).length > 0 && (
         <ChartContainer title="Most Popular Searches">
           <Bar
             data={topQueriesData}
@@ -154,7 +154,7 @@ export default function SearchStats() {
         </ChartContainer>
       )}
 
-      {data.topQueries.length > 0 && (
+      {(data.topQueries || []).length > 0 && (
         <StatsSection title="Top Search Queries">
           <StatsTable
             columns={topQueriesColumns}
@@ -164,7 +164,7 @@ export default function SearchStats() {
         </StatsSection>
       )}
 
-      {data.queryTypes.length > 0 && (
+      {(data.queryTypes || []).length > 0 && (
         <StatsSection title="Query Types Breakdown">
           <StatsTable
             columns={queryTypesColumns}
@@ -174,7 +174,7 @@ export default function SearchStats() {
         </StatsSection>
       )}
 
-      {data.zeroResults.length > 0 && (
+      {(data.zeroResults || []).length > 0 && (
         <StatsSection title="Queries with No Results">
           <div className="text-sm text-text-secondary mb-4">
             These queries returned zero results - opportunities to improve search or content

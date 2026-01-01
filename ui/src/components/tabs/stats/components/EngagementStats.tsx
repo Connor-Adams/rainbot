@@ -1,16 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Doughnut, Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -50,41 +43,58 @@ export default function EngagementStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading engagement...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>
-  if (!data) return null
-
-  const completed = parseInt(data.summary.completed || '0')
-  const skipped = parseInt(data.summary.skipped || '0')
-  const totalTracks = parseInt(data.summary.total_tracks || '0')
-  const avgCompletionPercent = parseFloat(data.summary.avg_completion_percent || '0')
+  
+  // Safe data access with defaults
+  const summary: EngagementSummary = data?.summary || { total_tracks: '0', completed: '0', skipped: '0', avg_played_seconds: '0', avg_completion_percent: '0' }
+  const skipReasons = Array.isArray(data?.skipReasons) ? data.skipReasons : []
+  const mostSkipped = Array.isArray(data?.mostSkipped) ? data.mostSkipped : []
+  const mostCompleted = Array.isArray(data?.mostCompleted) ? data.mostCompleted : []
+  
+  const completed = parseInt(summary.completed || '0') || 0
+  const skipped = parseInt(summary.skipped || '0') || 0
+  const totalTracks = parseInt(summary.total_tracks || '0') || 0
+  const avgCompletionPercent = parseFloat(summary.avg_completion_percent || '0')
   const avgCompletionDisplay = isNaN(avgCompletionPercent) ? '0.0' : avgCompletionPercent.toFixed(1)
+
+  if (!data || totalTracks === 0) {
+    return (
+      <EmptyState
+        icon="📈"
+        message="No track engagement data available"
+        submessage="Engagement statistics will appear here once tracks are played"
+      />
+    )
+  }
+
+  const other = Math.max(0, totalTracks - completed - skipped)
+
+  // Prepare safe chart data
+  const completionValues = [completed, skipped, other]
+  const canRenderCompletion = completionValues.every(Number.isFinite) && completionValues.some(v => v > 0)
 
   const completionData = {
     labels: ['Completed', 'Skipped', 'Other'],
-    datasets: [
-      {
-        data: [completed, skipped, Math.max(0, totalTracks - completed - skipped)],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(156, 163, 175, 0.5)',
-        ],
-        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
-        borderWidth: 1,
-      },
-    ],
+    datasets: [{
+      data: completionValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(156, 163, 175, 0.5)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
+      borderWidth: 1,
+    }],
   }
 
+  const skipLabels = skipReasons.map((r) => safeString(r.skip_reason, 'Unknown'))
+  const skipValues = skipReasons.map((r) => safeInt(r.count))
+  const canRenderSkip = skipLabels.length > 0 && skipValues.every(Number.isFinite)
+
   const skipReasonsData = {
-    labels: data.skipReasons.map((r) => r.skip_reason || 'Unknown'),
-    datasets: [
-      {
-        label: 'Skip Count',
-        data: data.skipReasons.map((r) => parseInt(r.count)),
-        backgroundColor: 'rgba(239, 68, 68, 0.6)',
-        borderColor: 'rgba(239, 68, 68, 1)',
-        borderWidth: 1,
-      },
-    ],
+    labels: skipLabels,
+    datasets: [{
+      label: 'Skip Count',
+      data: skipValues,
+      backgroundColor: 'rgba(239, 68, 68, 0.6)',
+      borderColor: 'rgba(239, 68, 68, 1)',
+      borderWidth: 1,
+    }],
   }
 
   return (
@@ -139,8 +149,16 @@ export default function EngagementStats() {
               }}
             />
           </div>
-        </div>
-      )}
+        )}
+        {canRenderSkip && (
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
+            <div className="max-h-[400px]">
+              <Bar data={skipReasonsData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Most Skipped Tracks */}
       {data.mostSkipped.length > 0 && (

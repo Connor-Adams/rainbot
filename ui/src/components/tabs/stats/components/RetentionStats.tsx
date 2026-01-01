@@ -12,6 +12,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -96,6 +97,16 @@ export default function RetentionStats() {
   }
 
   const hasData = mau > 0 || cohorts.length > 0
+
+  if (!hasData) {
+    return (
+      <EmptyState
+        icon="📊"
+        message="No retention data available"
+        submessage="User retention analytics will appear here as users interact with the bot over time"
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -50,10 +50,10 @@ export default function WebAnalyticsStats() {
   if (!data) return null
 
   const eventTypesData = {
-    labels: data.eventTypes.map((e) => e.event_type),
+    labels: (data.eventTypes || []).map((e) => e.event_type),
     datasets: [
       {
-        data: data.eventTypes.map((e) => parseInt(e.count)),
+        data: (data.eventTypes || []).map((e) => parseInt(e.count)),
         backgroundColor: [
           'rgba(59, 130, 246, 0.7)',
           'rgba(34, 197, 94, 0.7)',
@@ -74,11 +74,11 @@ export default function WebAnalyticsStats() {
   }
 
   const topTargetsData = {
-    labels: data.topTargets.slice(0, 10).map((t) => `${t.event_type}: ${t.event_target}`.substring(0, 30)),
+    labels: (data.topTargets || []).slice(0, 10).map((t) => `${t.event_type}: ${t.event_target}`.substring(0, 30)),
     datasets: [
       {
         label: 'Events',
-        data: data.topTargets.slice(0, 10).map((t) => parseInt(t.count)),
+        data: (data.topTargets || []).slice(0, 10).map((t) => parseInt(t.count)),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,

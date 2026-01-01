@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -76,6 +77,16 @@ export default function PerformanceStats() {
   }
 
   const hasData = parseInt(overall.sample_count || '0') > 0
+
+  if (!hasData) {
+    return (
+      <EmptyState
+        icon="⏱️"
+        message="No performance data available"
+        submessage="Command execution time tracking will populate as commands are run"
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">

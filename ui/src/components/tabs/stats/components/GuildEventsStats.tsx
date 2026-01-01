@@ -1,30 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Line, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
+import { EmptyState } from '@/components/common'
+import { safeInt, safeDateLabel, safeString } from '@/lib/chartSafety'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 interface EventSummary {
   event_type: string
@@ -61,30 +42,48 @@ export default function GuildEventsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading guild events...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading guild events</div>
-  if (!data) return null
 
-  const summaryData = {
-    labels: data.summary.map((s) => s.event_type.replace('bot_', '')),
-    datasets: [
-      {
-        data: data.summary.map((s) => parseInt(s.count)),
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
-        ],
-        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(59, 130, 246, 1)'],
-        borderWidth: 1,
-      },
-    ],
+  // Safe data access with defaults
+  const summary = Array.isArray(data?.summary) ? data.summary : []
+  const recentEvents = Array.isArray(data?.recentEvents) ? data.recentEvents : []
+  const growth = Array.isArray(data?.growth) ? data.growth : []
+
+  if (!data || (summary.length === 0 && recentEvents.length === 0)) {
+    return (
+      <EmptyState
+        icon="🏠"
+        message="No guild event data available"
+        submessage="Guild join/leave events will appear here as the bot is added to or removed from servers"
+      />
+    )
   }
 
+  // Prepare safe chart data
+  const summaryLabels = summary.map((s) => safeString(s.event_type, 'Unknown').replace('bot_', ''))
+  const summaryValues = summary.map((s) => safeInt(s.count))
+  const canRenderSummary = summaryLabels.length > 0 && summaryValues.every(Number.isFinite) && summaryValues.some(v => v > 0)
+
+  const summaryData = {
+    labels: summaryLabels,
+    datasets: [{
+      data: summaryValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(59, 130, 246, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(59, 130, 246, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const growthLabels = growth.slice(-30).map((g) => safeDateLabel(g.date))
+  const joinValues = growth.slice(-30).map((g) => safeInt(g.joins))
+  const leaveValues = growth.slice(-30).map((g) => safeInt(g.leaves))
+  const canRenderGrowth = growthLabels.length > 0 && joinValues.every(Number.isFinite) && leaveValues.every(Number.isFinite)
+
   const growthData = {
-    labels: data.growth.map((g) => new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+    labels: growthLabels,
     datasets: [
       {
         label: 'Joins',
-        data: data.growth.map((g) => parseInt(g.joins)),
+        data: joinValues,
         borderColor: 'rgba(34, 197, 94, 1)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         fill: true,
@@ -92,7 +91,7 @@ export default function GuildEventsStats() {
       },
       {
         label: 'Leaves',
-        data: data.growth.map((g) => parseInt(g.leaves)),
+        data: leaveValues,
         borderColor: 'rgba(239, 68, 68, 1)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         fill: true,
@@ -117,29 +116,14 @@ export default function GuildEventsStats() {
             }}
           />
         </div>
-      </div>
+      )}
 
       {/* Growth Over Time */}
       {data.growth.length > 0 && (
         <div className="bg-surface border border-border rounded-xl p-6">
           <h3 className="text-xl text-text-primary mb-4">Guild Growth Over Time</h3>
           <div className="max-h-[400px]">
-            <Line
-              data={growthData}
-              options={{
-                responsive: true,
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
-                scales: {
-                  y: { beginAtZero: true },
-                },
-                plugins: {
-                  legend: { labels: { color: '#9ca3af' } },
-                },
-              }}
-            />
+            <Line data={growthData} options={{ responsive: true, maintainAspectRatio: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}

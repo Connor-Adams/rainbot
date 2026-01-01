@@ -1,16 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import { safeInt, safeString } from '@/lib/chartSafety'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -51,43 +43,50 @@ export default function UserTracksStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading user tracks...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading user tracks</div>
-  if (!data) return null
-
-  const topTracksData = {
-    labels: data.topTracks.slice(0, 10).map((t) => t.track_title.substring(0, 30)),
-    datasets: [
-      {
-        label: 'Listen Count',
-        data: data.topTracks.slice(0, 10).map((t) => parseInt(t.listen_count)),
-        backgroundColor: 'rgba(168, 85, 247, 0.6)',
-        borderColor: 'rgba(168, 85, 247, 1)',
-        borderWidth: 1,
-      },
-    ],
+  
+  // Safe data access with defaults
+  const topTracks = Array.isArray(data?.topTracks) ? data.topTracks : []
+  const recentListens = Array.isArray(data?.recentListens) ? data.recentListens : []
+  const sourceTypes = Array.isArray(data?.sourceTypes) ? data.sourceTypes : []
+  
+  if (!data || (topTracks.length === 0 && recentListens.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
+        <span className="text-3xl opacity-50">🎵</span>
+        <p className="text-sm text-gray-400">No user track data available yet</p>
+        <small className="text-xs text-gray-500">Track data will appear as users listen to music</small>
+      </div>
+    )
   }
 
+  // Prepare safe chart data
+  const topTracksLabels = topTracks.slice(0, 10).map((t) => safeString(t.track_title, 'Unknown').substring(0, 30))
+  const topTracksValues = topTracks.slice(0, 10).map((t) => safeInt(t.listen_count))
+  const canRenderTopTracks = topTracksLabels.length > 0 && topTracksValues.every(Number.isFinite)
+
+  const topTracksData = {
+    labels: topTracksLabels,
+    datasets: [{
+      label: 'Listen Count',
+      data: topTracksValues,
+      backgroundColor: 'rgba(168, 85, 247, 0.6)',
+      borderColor: 'rgba(168, 85, 247, 1)',
+      borderWidth: 1,
+    }],
+  }
+
+  const sourceLabels = sourceTypes.map((s) => safeString(s.source_type, 'Unknown'))
+  const sourceValues = sourceTypes.map((s) => safeInt(s.count))
+  const canRenderSource = sourceLabels.length > 0 && sourceValues.every(Number.isFinite) && sourceValues.some(v => v > 0)
+
   const sourceTypesData = {
-    labels: data.sourceTypes.map((s) => s.source_type || 'Unknown'),
-    datasets: [
-      {
-        data: data.sourceTypes.map((s) => parseInt(s.count)),
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(251, 146, 60, 0.7)',
-          'rgba(168, 85, 247, 0.7)',
-          'rgba(236, 72, 153, 0.7)',
-        ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(251, 146, 60, 1)',
-          'rgba(168, 85, 247, 1)',
-          'rgba(236, 72, 153, 1)',
-        ],
-        borderWidth: 1,
-      },
-    ],
+    labels: sourceLabels,
+    datasets: [{
+      data: sourceValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(251, 146, 60, 0.7)', 'rgba(168, 85, 247, 0.7)', 'rgba(236, 72, 153, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(59, 130, 246, 1)', 'rgba(251, 146, 60, 1)', 'rgba(168, 85, 247, 1)', 'rgba(236, 72, 153, 1)'],
+      borderWidth: 1,
+    }],
   }
 
   return (
@@ -97,15 +96,7 @@ export default function UserTracksStats() {
         <div className="bg-surface border border-border rounded-xl p-6">
           <h3 className="text-xl text-text-primary mb-4">Track Sources</h3>
           <div className="max-h-[400px]">
-            <Doughnut
-              data={sourceTypesData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: { labels: { color: '#9ca3af' } },
-                },
-              }}
-            />
+            <Doughnut data={sourceTypesData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}
@@ -115,15 +106,7 @@ export default function UserTracksStats() {
         <div className="bg-surface border border-border rounded-xl p-6">
           <h3 className="text-xl text-text-primary mb-4">Most Listened Tracks</h3>
           <div className="max-h-[400px]">
-            <Bar
-              data={topTracksData}
-              options={{
-                responsive: true,
-                indexAxis: 'y',
-                scales: { x: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
+            <Bar data={topTracksData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}
@@ -153,10 +136,10 @@ export default function UserTracksStats() {
                           rel="noopener noreferrer"
                           className="text-blue-400 hover:underline"
                         >
-                          {track.track_title}
+                          {track.track_title || 'Unknown'}
                         </a>
                       ) : (
-                        track.track_title
+                        track.track_title || 'Unknown'
                       )}
                     </td>
                     <td className="py-2 px-4">
@@ -164,8 +147,8 @@ export default function UserTracksStats() {
                         {track.source_type}
                       </span>
                     </td>
-                    <td className="py-2 px-4">{track.listen_count}</td>
-                    <td className="py-2 px-4">{track.unique_listeners}</td>
+                    <td className="py-2 px-4">{track.listen_count || '0'}</td>
+                    <td className="py-2 px-4">{track.unique_listeners || '0'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -197,9 +180,9 @@ export default function UserTracksStats() {
                         {listen.source_type}
                       </span>
                     </td>
-                    <td className="py-2 px-4 font-mono text-sm">{listen.queued_by}</td>
+                    <td className="py-2 px-4 font-mono text-sm">{listen.queued_by || 'Unknown'}</td>
                     <td className="py-2 px-4 text-sm">
-                      {new Date(listen.listened_at).toLocaleString()}
+                      {listen.listened_at ? new Date(listen.listened_at).toLocaleString() : 'Unknown'}
                     </td>
                   </tr>
                 ))}

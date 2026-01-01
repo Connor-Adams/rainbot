@@ -1,16 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -59,62 +52,73 @@ export default function InteractionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading interactions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading interactions</div>
-  if (!data) return null
+  
+  // Safe data access with defaults
+  const typeBreakdown = Array.isArray(data?.typeBreakdown) ? data.typeBreakdown : []
+  const topActions = Array.isArray(data?.topActions) ? data.topActions : []
+  const errors = Array.isArray(data?.errors) ? data.errors : []
+  const rtd: ResponseTimeDist = data?.responseTimeDistribution || { under_100ms: '0', between_100_500ms: '0', between_500_1000ms: '0', over_1000ms: '0' }
+
+  // Check if there's any meaningful data
+  const hasTypeData = typeBreakdown.length > 0
+  const hasActionData = topActions.length > 0
+  const hasResponseTimeData =
+    (parseInt(rtd.under_100ms || '0') || 0) > 0 ||
+    (parseInt(rtd.between_100_500ms || '0') || 0) > 0 ||
+    (parseInt(rtd.between_500_1000ms || '0') || 0) > 0 ||
+    (parseInt(rtd.over_1000ms || '0') || 0) > 0
+
+  if (!data || (!hasTypeData && !hasActionData && !hasResponseTimeData)) {
+    return (
+      <EmptyState
+        icon="🔘"
+        message="No interaction data available"
+        submessage="Interaction statistics will appear here once users start using buttons and menus"
+      />
+    )
+  }
+
+  // Prepare safe chart data
+  const typeLabels = typeBreakdown.map((t) => safeString(t.interaction_type, 'Unknown'))
+  const typeValues = typeBreakdown.map((t) => safeInt(t.count))
+  const canRenderType = typeLabels.length > 0 && typeValues.every(Number.isFinite) && typeValues.some(v => v > 0)
 
   const typeBreakdownData = {
-    labels: data.typeBreakdown.map((t) => t.interaction_type),
-    datasets: [
-      {
-        data: data.typeBreakdown.map((t) => parseInt(t.count)),
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(251, 146, 60, 0.7)',
-        ],
-        borderColor: ['rgba(59, 130, 246, 1)', 'rgba(34, 197, 94, 1)', 'rgba(251, 146, 60, 1)'],
-        borderWidth: 1,
-      },
-    ],
+    labels: typeLabels,
+    datasets: [{
+      data: typeValues,
+      backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(34, 197, 94, 0.7)', 'rgba(251, 146, 60, 0.7)'],
+      borderColor: ['rgba(59, 130, 246, 1)', 'rgba(34, 197, 94, 1)', 'rgba(251, 146, 60, 1)'],
+      borderWidth: 1,
+    }],
   }
 
-  const topActionsData = {
-    labels: data.topActions.slice(0, 10).map((a) => a.custom_id),
-    datasets: [
-      {
-        label: 'Usage Count',
-        data: data.topActions.slice(0, 10).map((a) => parseInt(a.count)),
-        backgroundColor: 'rgba(168, 85, 247, 0.6)',
-        borderColor: 'rgba(168, 85, 247, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }
+  const responseTimeValues = [safeInt(rtd.under_100ms), safeInt(rtd.between_100_500ms), safeInt(rtd.between_500_1000ms), safeInt(rtd.over_1000ms)]
+  const canRenderRT = responseTimeValues.every(Number.isFinite) && responseTimeValues.some(v => v > 0)
 
   const responseTimeData = {
     labels: ['< 100ms', '100-500ms', '500-1000ms', '> 1000ms'],
-    datasets: [
-      {
-        data: [
-          parseInt(data.responseTimeDistribution.under_100ms || '0'),
-          parseInt(data.responseTimeDistribution.between_100_500ms || '0'),
-          parseInt(data.responseTimeDistribution.between_500_1000ms || '0'),
-          parseInt(data.responseTimeDistribution.over_1000ms || '0'),
-        ],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(251, 191, 36, 0.7)',
-          'rgba(251, 146, 60, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-        ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(251, 191, 36, 1)',
-          'rgba(251, 146, 60, 1)',
-          'rgba(239, 68, 68, 1)',
-        ],
-        borderWidth: 1,
-      },
-    ],
+    datasets: [{
+      data: responseTimeValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(251, 191, 36, 0.7)', 'rgba(251, 146, 60, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(251, 191, 36, 1)', 'rgba(251, 146, 60, 1)', 'rgba(239, 68, 68, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const actionLabels = topActions.slice(0, 10).map((a) => safeString(a.custom_id, 'Unknown'))
+  const actionValues = topActions.slice(0, 10).map((a) => safeInt(a.count))
+  const canRenderAction = actionLabels.length > 0 && actionValues.every(Number.isFinite)
+
+  const topActionsData = {
+    labels: actionLabels,
+    datasets: [{
+      label: 'Usage Count',
+      data: actionValues,
+      backgroundColor: 'rgba(168, 85, 247, 0.6)',
+      borderColor: 'rgba(168, 85, 247, 1)',
+      borderWidth: 1,
+    }],
   }
 
   return (
@@ -156,15 +160,7 @@ export default function InteractionsStats() {
         <div className="bg-surface border border-border rounded-xl p-6">
           <h3 className="text-xl text-text-primary mb-4">Top Interactions</h3>
           <div className="max-h-[400px]">
-            <Bar
-              data={topActionsData}
-              options={{
-                responsive: true,
-                indexAxis: 'y',
-                scales: { x: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
+            <Bar data={topActionsData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}
@@ -185,9 +181,9 @@ export default function InteractionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.topActions.slice(0, 10).map((action, idx) => {
-                  const count = parseInt(action.count)
-                  const successCount = parseInt(action.success_count)
+                {topActions.slice(0, 10).map((action, idx) => {
+                  const count = parseInt(action.count) || 0
+                  const successCount = parseInt(action.success_count) || 0
                   const successRate = count > 0 ? (successCount / count) * 100 : 0
                   const successRateDisplay = isNaN(successRate) ? '0.0' : successRate.toFixed(1)
                   return (
@@ -200,7 +196,7 @@ export default function InteractionsStats() {
                           {successRateDisplay}%
                         </span>
                       </td>
-                      <td className="py-2 px-4">{action.avg_response_time_ms}ms</td>
+                      <td className="py-2 px-4">{action.avg_response_time_ms || '0'}ms</td>
                     </tr>
                   )
                 })}

@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -53,19 +54,34 @@ export default function ApiLatencyStats() {
   if (error) return <div className="stats-error text-center py-12">Error loading API latency</div>
   if (!data) return null
 
+  const overall = data.overall || {}
+  const totalRequests = parseInt(overall.total_requests || '0')
+  const statusCodes = data.statusCodes || []
+  const byEndpoint = data.byEndpoint || []
+
+  if (totalRequests === 0 && statusCodes.length === 0) {
+    return (
+      <EmptyState
+        icon="⚡"
+        message="No API latency data available"
+        submessage="API performance metrics will appear here once requests are made"
+      />
+    )
+  }
+
   const statusCodesData = {
-    labels: data.statusCodes.map((s) => `${s.status_code}`),
+    labels: statusCodes.map((s) => `${s.status_code}`),
     datasets: [
       {
-        data: data.statusCodes.map((s) => parseInt(s.count)),
-        backgroundColor: data.statusCodes.map((s) => {
+        data: statusCodes.map((s) => parseInt(s.count)),
+        backgroundColor: statusCodes.map((s) => {
           const code = parseInt(s.status_code)
           if (code >= 200 && code < 300) return 'rgba(34, 197, 94, 0.7)'
           if (code >= 300 && code < 400) return 'rgba(59, 130, 246, 0.7)'
           if (code >= 400 && code < 500) return 'rgba(251, 146, 60, 0.7)'
           return 'rgba(239, 68, 68, 0.7)'
         }),
-        borderColor: data.statusCodes.map((s) => {
+        borderColor: statusCodes.map((s) => {
           const code = parseInt(s.status_code)
           if (code >= 200 && code < 300) return 'rgba(34, 197, 94, 1)'
           if (code >= 300 && code < 400) return 'rgba(59, 130, 246, 1)'
@@ -78,11 +94,11 @@ export default function ApiLatencyStats() {
   }
 
   const endpointLatencyData = {
-    labels: data.byEndpoint.slice(0, 10).map((e) => `${e.method} ${e.endpoint}`.substring(0, 40)),
+    labels: byEndpoint.slice(0, 10).map((e) => `${e.method} ${e.endpoint}`.substring(0, 40)),
     datasets: [
       {
         label: 'P95 Latency (ms)',
-        data: data.byEndpoint.slice(0, 10).map((e) => parseFloat(e.p95_ms)),
+        data: byEndpoint.slice(0, 10).map((e) => parseFloat(e.p95_ms)),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,

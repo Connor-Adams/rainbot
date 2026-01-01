@@ -27,6 +27,7 @@ export interface VoiceState {
   lastPlayedTrack: Track | null; // For replay functionality (not soundboard)
   isTransitioningToOverlay: boolean; // Flag to prevent idle handler from playing next during overlay transition
   autoplay: boolean; // Auto keep playing mode - automatically adds related tracks when queue is empty
+  wasManuallySkipped: boolean; // Flag to prevent double-tracking stats when skip is called
 }
 
 export interface StreamUrlCache {
