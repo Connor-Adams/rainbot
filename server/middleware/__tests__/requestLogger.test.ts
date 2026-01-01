@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import requestLogger from '../requestLogger';
 
-// Mock logger instance
+// Mock logger instance - must be defined before the mock
 const mockLogger = {
   debug: jest.fn(),
   http: jest.fn(),
@@ -14,6 +13,8 @@ const mockLogger = {
 jest.mock('../../../utils/logger', () => ({
   createLogger: jest.fn(() => mockLogger),
 }));
+
+import requestLogger from '../requestLogger';
 
 describe('requestLogger middleware', () => {
   let mockRequest: Partial<Request>;
