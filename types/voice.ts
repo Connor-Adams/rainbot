@@ -28,7 +28,6 @@ export interface QueueInfo {
   channelName?: string | null;
   currentTrack?: Track | null;
   isPaused?: boolean;
-  autoplay?: boolean;
 }
 
 export interface VoiceStatus {
@@ -39,7 +38,6 @@ export interface VoiceStatus {
   queueLength: number;
   canReplay: boolean;
   lastPlayedTitle: string | null;
-  autoplay: boolean;
 }
 
 export interface PlayResult {

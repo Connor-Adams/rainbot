@@ -3,15 +3,11 @@
  */
 import play from 'play-dl';
 import path from 'path';
-import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
 import type { Track } from '../../types/voice';
 
 const log = createLogger('FETCHER');
-
-// Use system yt-dlp if available
-const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 /**
  * Fetch tracks from a source (URL, search query, or local file)
@@ -147,140 +143,4 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
   }
 
   return tracks;
-}
-
-/**
- * Get a related track for autoplay (based on the last played track).
- * Attempts to use YouTube's built-in related videos metadata from yt-dlp,
- * falling back to search-based approach if related videos are unavailable.
- */
-export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
-  try {
-    // Only support YouTube URLs for now
-    if (!lastTrack.url) {
-      log.debug('Cannot get related track: no URL provided');
-      return null;
-    }
-
-    let youtubeHost = '';
-    try {
-      const parsed = new URL(lastTrack.url);
-      youtubeHost = parsed.hostname.toLowerCase();
-    } catch {
-      log.debug('Cannot get related track: invalid URL');
-      return null;
-    }
-
-    const allowedYoutubeHosts = new Set([
-      'youtube.com',
-      'www.youtube.com',
-      'm.youtube.com',
-      'music.youtube.com',
-      'youtu.be',
-    ]);
-
-    const isYoutubeHost =
-      allowedYoutubeHosts.has(youtubeHost) ||
-      (youtubeHost.endsWith('.youtube.com') && youtubeHost.length > 'youtube.com'.length);
-
-    if (!isYoutubeHost) {
-      log.debug('Cannot get related track: not a YouTube URL');
-      return null;
-    }
-
-    log.info(`Finding related track for: "${lastTrack.title}"`);
-
-    try {
-      // Get video info which includes related videos metadata from YouTube
-      const info = (await youtubedl(lastTrack.url, {
-        dumpSingleJson: true,
-        noPlaylist: true,
-        noWarnings: true,
-        quiet: true,
-      })) as {
-        title?: string;
-        duration?: number;
-        webpage_url?: string;
-        related_videos?: Array<{
-          id?: string;
-          title?: string;
-          url?: string;
-          duration?: number;
-        }>;
-      };
-
-      // First, try to use YouTube's actual related videos metadata
-      if (info.related_videos && info.related_videos.length > 0) {
-        log.debug(`Found ${info.related_videos.length} related videos from YouTube metadata`);
-
-        for (const relatedVideo of info.related_videos) {
-          // Skip videos without proper data
-          if (!relatedVideo.id && !relatedVideo.url) {
-            continue;
-          }
-
-          // Construct the URL if only ID is provided
-          const videoUrl = relatedVideo.url || `https://www.youtube.com/watch?v=${relatedVideo.id}`;
-
-          // Skip if it's the same video
-          if (videoUrl === lastTrack.url) {
-            continue;
-          }
-
-          log.info(`Found related track from YouTube metadata: "${relatedVideo.title}"`);
-          return {
-            title: relatedVideo.title || 'Unknown Track',
-            url: videoUrl,
-            duration: relatedVideo.duration,
-            isLocal: false,
-          };
-        }
-      }
-
-      // Fallback: use search with the video title if no related videos found
-      log.debug('No related videos in metadata, falling back to search');
-      // Use the title from yt-dlp if available, otherwise use lastTrack.title
-      const searchQuery = info.title || lastTrack.title;
-      log.debug(`Searching for similar tracks: "${searchQuery}"`);
-
-      const ytResults = await play.search(searchQuery, { limit: 5 });
-
-      if (!ytResults || ytResults.length === 0) {
-        log.warn('No search results found for autoplay');
-        return null;
-      }
-
-      // Skip the first result if it's the same as the current video
-      for (const result of ytResults) {
-        if (result.url !== lastTrack.url) {
-          log.info(`Found related track via search: "${result.title}"`);
-          return {
-            title: result.title || 'Unknown Track',
-            url: result.url,
-            duration: result.durationInSec || undefined,
-            isLocal: false,
-          };
-        }
-      }
-
-      log.warn('No different related track found');
-      return null;
-    } catch (error) {
-      const err = error as Error;
-      // Handle specific error cases
-      if (err.message.includes('403') || err.message.includes('Forbidden')) {
-        log.error('YouTube access forbidden - autoplay may require authentication');
-      } else if (err.message.includes('429') || err.message.includes('rate limit')) {
-        log.error('Rate limited by YouTube - autoplay temporarily unavailable');
-      } else if (err.message.includes('unavailable') || err.message.includes('deleted')) {
-        log.warn('Video unavailable for autoplay source');
-      } else {
-        log.error(`Error getting related track: ${err.message}`);
-      }
-      return null;
-    }
-  } catch (error) {
-    log.error(`Failed to get related track: ${(error as Error).message}`);
-    return null;
-  }
 }

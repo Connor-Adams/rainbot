@@ -1,8 +1,20 @@
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
 import type { TimeDataPoint } from '@/types'
-import { StatsLoading, StatsError } from '@/components/common'
+import { StatsLoading, StatsError, ChartContainer } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
-import { safeInt, safeDateLabel } from '@/lib/chartSafety'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -12,66 +24,49 @@ export default function TimeStats() {
 
   if (isLoading) return <StatsLoading message="Loading time trends..." />
   if (error) return <StatsError error={error} />
-  
-  const commands = Array.isArray(data?.commands) ? data.commands : []
-  const sounds = Array.isArray(data?.sounds) ? data.sounds : []
-  
-  if (!data || (commands.length === 0 && sounds.length === 0)) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
-        <span className="text-3xl opacity-50">📈</span>
-        <p className="text-sm text-gray-400">No time trend data available yet</p>
-        <small className="text-xs text-gray-500">Trend data will appear as users interact with the bot</small>
-      </div>
-    )
+  if (!data) return null
+
+  const dates = [
+    ...new Set([
+      ...(data.commands || []).map((c: TimeDataPoint) => c.date),
+      ...(data.sounds || []).map((s: TimeDataPoint) => s.date),
+    ]),
+  ].sort()
+
+  const commandData = dates.map((date) => {
+    const cmd = (data.commands || []).find((c: TimeDataPoint) => c.date === date)
+    return cmd ? parseInt(cmd.command_count || '0') : 0
+  })
+
+  const soundData = dates.map((date) => {
+    const snd = (data.sounds || []).find((s: TimeDataPoint) => s.date === date)
+    return snd ? parseInt(snd.sound_count || '0') : 0
+  })
+
+  const lineData = {
+    labels: dates.map((d) => new Date(d).toLocaleDateString()),
+    datasets: [
+      {
+        label: 'Commands',
+        data: commandData,
+        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+      },
+      {
+        label: 'Sounds',
+        data: soundData,
+        borderColor: 'rgba(139, 92, 246, 1)',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        tension: 0.4,
+      },
+    ],
   }
 
-  const recentCommands = commands.slice(-14)
-  const recentSounds = sounds.slice(-14)
-
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Usage Over Time</h3>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <h4 className="text-lg text-blue-400 mb-3">Commands by Day</h4>
-          <div className="space-y-2">
-            {recentCommands.map((c: TimeDataPoint, idx: number) => {
-              const maxVal = Math.max(...recentCommands.map((x: TimeDataPoint) => safeInt(x.command_count)), 1)
-              const val = safeInt(c.command_count)
-              const pct = (val / maxVal) * 100
-              return (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-20">{safeDateLabel(c.date)}</span>
-                  <div className="flex-1 bg-gray-700 rounded h-3">
-                    <div className="h-full bg-blue-500 rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-300 w-8 text-right">{val}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        <div>
-          <h4 className="text-lg text-purple-400 mb-3">Sounds by Day</h4>
-          <div className="space-y-2">
-            {recentSounds.map((s: TimeDataPoint, idx: number) => {
-              const maxVal = Math.max(...recentSounds.map((x: TimeDataPoint) => safeInt(x.sound_count)), 1)
-              const val = safeInt(s.sound_count)
-              const pct = (val / maxVal) * 100
-              return (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-20">{safeDateLabel(s.date)}</span>
-                  <div className="flex-1 bg-gray-700 rounded h-3">
-                    <div className="h-full bg-purple-500 rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-300 w-8 text-right">{val}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
+    <ChartContainer title="Usage Over Time">
+      <Line data={lineData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
+    </ChartContainer>
   )
 }
+

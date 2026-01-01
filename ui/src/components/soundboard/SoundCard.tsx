@@ -1,4 +1,4 @@
-import type { Sound } from '@/types'
+import { Sound } from '@/types'
 import { escapeHtml, formatSize } from '@/lib/utils'
 import type { SoundCustomization } from '@/hooks/useSoundCustomization'
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface EditModalProps {
   soundName: string
@@ -15,10 +15,14 @@ export function EditModal({
   onSave,
   onCancel,
 }: EditModalProps) {
-  // Use a key prop on the modal instead of syncing state in useEffect
-  // The parent should add key={soundName} to reset state when sound changes
   const [displayName, setDisplayName] = useState(initialDisplayName)
   const [emoji, setEmoji] = useState(initialEmoji)
+
+  // Update when props change (for reusability)
+  useEffect(() => {
+    setDisplayName(initialDisplayName)
+    setEmoji(initialEmoji)
+  }, [soundName, initialDisplayName, initialEmoji])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

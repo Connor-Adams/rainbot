@@ -40,10 +40,10 @@ export default function PlaybackStatesStats() {
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-white text-lg mb-4">Playback State Changes</h3>
 
-        {(data.stateTypes || []).map((playbackState: PlaybackState) => {
+        {data.stateTypes.map((playbackState: PlaybackState) => {
           const playbackStateCount = Number(playbackState.count)
           const maxPlaybackStateCount = Math.max(
-            ...(data.stateTypes || []).map((stateEntry: PlaybackState) => Number(stateEntry.count))
+            ...data.stateTypes.map((stateEntry: PlaybackState) => Number(stateEntry.count))
           )
           const playbackStateBarWidth =
             (playbackStateCount / maxPlaybackStateCount) * 100
@@ -70,10 +70,10 @@ export default function PlaybackStatesStats() {
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-white text-lg mb-4">Volume Levels</h3>
 
-        {(data.volumeDistribution || []).map((volumeEntry: VolumeDistributionEntry) => {
+        {data.volumeDistribution.map((volumeEntry: VolumeDistributionEntry) => {
           const volumeLevelCount = Number(volumeEntry.count)
           const maxVolumeLevelCount = Math.max(
-            ...(data.volumeDistribution || []).map(
+            ...data.volumeDistribution.map(
               (volumeLevelEntry: VolumeDistributionEntry) => Number(volumeLevelEntry.count)
             )
           )
@@ -102,7 +102,7 @@ export default function PlaybackStatesStats() {
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-white text-lg mb-4">Pauses & Resumes by Hour</h3>
 
-        {(data.pausePatternByHour || []).map(
+        {data.pausePatternByHour.map(
           (hourlyPauseResumeStats: PausePatternByHourEntry) => {
             const pauseCount = Number(hourlyPauseResumeStats.pauses)
             const resumeCount = Number(hourlyPauseResumeStats.resumes)

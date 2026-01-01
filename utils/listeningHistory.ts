@@ -118,10 +118,6 @@ export async function trackPlayed(
     // Determine source type using shared utility
     const sourceType = detectSourceType(track);
 
-    // Normalize source to match database constraint (only 'discord' or 'api' allowed)
-    // 'autoplay' and other sources from Discord bot features should be 'discord'
-    const normalizedSource = track.source === 'api' ? 'api' : 'discord';
-
     // Store in database
     await query(
       `INSERT INTO listening_history 
@@ -135,7 +131,7 @@ export async function trackPlayed(
         sourceType,
         track.isSoundboard || false,
         track.duration || null,
-        normalizedSource,
+        track.source || 'discord',
         queuedBy || null,
         track.spotifyId || track.spotifyUrl
           ? JSON.stringify({ spotifyId: track.spotifyId, spotifyUrl: track.spotifyUrl })

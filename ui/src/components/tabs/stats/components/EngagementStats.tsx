@@ -1,18 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { EmptyState } from '@/components/common'
-import { safeInt } from '@/lib/chartSafety'
+import { Doughnut, Bar } from 'react-chartjs-2'
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
+  Chart as ChartJS,
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
+  Legend,
+} from 'chart.js'
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface EngagementSummary {
   total_tracks: string
@@ -23,15 +23,22 @@ interface EngagementSummary {
 }
 
 interface SkipReason {
-  skip_reason: string
+  skip_reason: string | null
   count: string
+}
+
+interface TrackStat {
+  track_title: string
+  skip_count?: string
+  completion_count?: string
+  avg_skip_position?: string
 }
 
 interface EngagementData {
   summary: EngagementSummary
   skipReasons: SkipReason[]
-  mostSkipped: unknown[]
-  mostCompleted: unknown[]
+  mostSkipped: TrackStat[]
+  mostCompleted: TrackStat[]
 }
 
 export default function EngagementStats() {
@@ -45,37 +52,44 @@ export default function EngagementStats() {
   if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>
   if (!data) return null
 
-  const summary: EngagementSummary = data.summary || {
-    total_tracks: '0', completed: '0', skipped: '0', avg_played_seconds: '0', avg_completion_percent: '0',
+  const completed = parseInt(data.summary.completed || '0')
+  const skipped = parseInt(data.summary.skipped || '0')
+  const totalTracks = parseInt(data.summary.total_tracks || '0')
+  const avgCompletionPercent = parseFloat(data.summary.avg_completion_percent || '0')
+
+  const completionData = {
+    labels: ['Completed', 'Skipped', 'Other'],
+    datasets: [
+      {
+        data: [completed, skipped, Math.max(0, totalTracks - completed - skipped)],
+        backgroundColor: [
+          'rgba(34, 197, 94, 0.7)',
+          'rgba(239, 68, 68, 0.7)',
+          'rgba(156, 163, 175, 0.5)',
+        ],
+        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
+        borderWidth: 1,
+      },
+    ],
   }
-  const completed = safeInt(summary.completed)
-  const skipped = safeInt(summary.skipped)
-  const totalTracks = safeInt(summary.total_tracks)
-  const avgCompletionPercent = parseFloat(summary.avg_completion_percent || '0')
-  const avgCompletionDisplay = isNaN(avgCompletionPercent) ? '0.0' : avgCompletionPercent.toFixed(1)
-  const skipReasons = Array.isArray(data.skipReasons) ? data.skipReasons : []
 
-  if (totalTracks === 0) {
-    return <EmptyState icon="📈" message="No track engagement data available" submessage="Engagement statistics will appear here once tracks are played" />
+  const skipReasonsData = {
+    labels: data.skipReasons.map((r) => r.skip_reason || 'Unknown'),
+    datasets: [
+      {
+        label: 'Skip Count',
+        data: data.skipReasons.map((r) => parseInt(r.count)),
+        backgroundColor: 'rgba(239, 68, 68, 0.6)',
+        borderColor: 'rgba(239, 68, 68, 1)',
+        borderWidth: 1,
+      },
+    ],
   }
-
-  const other = Math.max(0, totalTracks - completed - skipped)
-  const completionData = [
-    { name: 'Completed', value: completed, color: 'rgb(34, 197, 94)' },
-    { name: 'Skipped', value: skipped, color: 'rgb(239, 68, 68)' },
-    { name: 'Other', value: other, color: 'rgb(156, 163, 175)' },
-  ].filter(d => d.value > 0)
-
-  const skipColors = ['rgb(239, 68, 68)', 'rgb(251, 146, 60)', 'rgb(251, 191, 36)']
-  const skipData = skipReasons.map((r, idx) => ({
-    name: r.skip_reason || 'Unknown',
-    value: safeInt(r.count),
-    color: skipColors[idx % 3],
-  }))
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">{totalTracks}</div>
           <div className="text-sm text-gray-400">Total Tracks</div>
@@ -89,65 +103,95 @@ export default function EngagementStats() {
           <div className="text-sm text-gray-400">Skipped</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-gray-400">{other}</div>
-          <div className="text-sm text-gray-400">Other</div>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{avgCompletionDisplay}%</div>
+          <div className="text-2xl font-bold text-purple-400">{avgCompletionPercent.toFixed(1)}%</div>
           <div className="text-sm text-gray-400">Avg Completion</div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {completionData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Completion vs Skips</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={completionData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={({ name, percent }: { name: string; percent: number }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {completionData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-        
-        {skipData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Skip Reasons</h3>
-            <div style={{ width: '100%', height: Math.max(200, skipData.length * 32) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={skipData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={75} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {skipData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
+      {/* Completion vs Skips Chart */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl text-white mb-4">Completion vs Skips</h3>
+        <div className="max-h-[400px]">
+          <Doughnut
+            data={completionData}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { labels: { color: '#9ca3af' } },
+              },
+            }}
+          />
+        </div>
       </div>
+
+      {/* Skip Reasons */}
+      {data.skipReasons.length > 0 && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
+          <div className="max-h-[400px]">
+            <Bar
+              data={skipReasonsData}
+              options={{
+                responsive: true,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { labels: { color: '#9ca3af' } } },
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Most Skipped Tracks */}
+      {data.mostSkipped.length > 0 && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Most Skipped Tracks</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="pb-2 px-4">Track</th>
+                  <th className="pb-2 px-4">Skip Count</th>
+                  <th className="pb-2 px-4">Avg Skip Position</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.mostSkipped.map((track, idx) => (
+                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                    <td className="py-2 px-4">{track.track_title}</td>
+                    <td className="py-2 px-4">{track.skip_count}</td>
+                    <td className="py-2 px-4">{track.avg_skip_position ? `${track.avg_skip_position}s` : 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Most Completed Tracks */}
+      {data.mostCompleted.length > 0 && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Most Completed Tracks</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="pb-2 px-4">Track</th>
+                  <th className="pb-2 px-4">Completion Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.mostCompleted.map((track, idx) => (
+                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                    <td className="py-2 px-4">{track.track_title}</td>
+                    <td className="py-2 px-4">{track.completion_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

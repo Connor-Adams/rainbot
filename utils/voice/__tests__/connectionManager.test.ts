@@ -69,6 +69,7 @@ describe('Connection Manager Error Handling', () => {
         try {
           throw new Error('playNext failed');
         } catch (_error) {
+          console.log('error', _error);
           // Should attempt recovery if queue has items
           if (mockState.queue && mockState.queue.length > 0) {
             recoveryCalled = true;
@@ -112,6 +113,7 @@ describe('Connection Manager Error Handling', () => {
           try {
             mockEndTrackEngagement();
           } catch (e) {
+            console.error('error', e);
             // Should still continue with playNext
           }
 
@@ -120,6 +122,7 @@ describe('Connection Manager Error Handling', () => {
             playNextCalled = true;
           }
         } catch (_error) {
+          console.log('error', _error);
           // Outer error handler
         }
       };
@@ -139,6 +142,7 @@ describe('Connection Manager Error Handling', () => {
           // This should not be reached
           throw new Error('Should not reach here');
         } catch (_error) {
+          console.log('error', _error);
           // Should not throw
         }
       };
@@ -164,6 +168,7 @@ describe('Connection Manager Error Handling', () => {
 
           playNextCalled = true;
         } catch (_error) {
+          console.error('error', _error);
           // Error handler
         }
       };

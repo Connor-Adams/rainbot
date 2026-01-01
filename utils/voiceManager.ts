@@ -492,7 +492,6 @@ export function getStatus(guildId: string): VoiceStatus | null {
     queueLength: state.queue.length,
     canReplay: !!state.lastPlayedTrack,
     lastPlayedTitle: state.lastPlayedTrack?.title || null,
-    autoplay: state.autoplay,
   };
 }
 
@@ -623,24 +622,4 @@ export function startAutoSave(): void {
  */
 export function stopAutoSave(): void {
   return snapshotPersistence.stopAutoSave();
-}
-
-/**
- * Toggle autoplay mode (auto keep playing related tracks when queue is empty)
- */
-export function toggleAutoplay(guildId: string, enabled?: boolean | null): { enabled: boolean } {
-  const state = connectionManager.getVoiceState(guildId);
-  if (!state) {
-    throw new Error('Bot is not connected to a voice channel');
-  }
-
-  // If enabled is specified, set it; otherwise toggle
-  if (enabled !== null && enabled !== undefined) {
-    state.autoplay = enabled;
-  } else {
-    state.autoplay = !state.autoplay;
-  }
-
-  log.info(`Autoplay ${state.autoplay ? 'enabled' : 'disabled'} for guild ${guildId}`);
-  return { enabled: state.autoplay };
 }

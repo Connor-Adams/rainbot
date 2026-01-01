@@ -32,7 +32,6 @@ export interface QueueData {
   queue: Track[];
   totalInQueue: number;
   isPaused?: boolean;
-  autoplay?: boolean;
 }
 
 export interface BotStatus {

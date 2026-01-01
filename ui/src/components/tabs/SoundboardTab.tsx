@@ -28,7 +28,7 @@ export default function SoundboardTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Custom hooks
-  const { updateCustomization, deleteCustomization, getCustomization } =
+  const { customizations, updateCustomization, deleteCustomization, getCustomization } =
     useSoundCustomization()
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
@@ -213,7 +213,6 @@ export default function SoundboardTab() {
       {/* Edit Modal */}
       {editingSound && (
         <EditModal
-          key={editingSound}
           soundName={editingSound}
           initialDisplayName={getCustomization(editingSound)?.displayName}
           initialEmoji={getCustomization(editingSound)?.emoji}
