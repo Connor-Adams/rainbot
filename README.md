@@ -7,6 +7,7 @@ A Discord voice bot with a web dashboard for playing sounds, YouTube/SoundCloud 
 - 🎵 **Play audio from multiple sources**: Local sound files, YouTube URLs, SoundCloud URLs, and playlists
 - 🔊 **Voice channel management**: Join, leave, and manage voice connections
 - 📋 **Queue system**: Queue multiple tracks and manage playback
+- 🔁 **Auto keep playing mode**: Automatically plays related tracks when the queue is empty
 - 🎛️ **Web Dashboard**: Beautiful web interface for managing sounds and playing URLs
 - 📤 **Sound upload**: Upload and manage sound files through the web dashboard
 - 🎮 **Slash commands**: Easy-to-use Discord slash commands
@@ -119,6 +120,7 @@ See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions
 - `/pause` - Pause playback
 - `/stop` - Stop playback
 - `/clear` - Clear the queue
+- `/autoplay [enabled]` - Toggle auto keep playing mode (automatically plays related tracks when queue is empty)
 
 ### Utility Commands
 
