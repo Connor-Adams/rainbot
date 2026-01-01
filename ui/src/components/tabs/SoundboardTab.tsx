@@ -28,12 +28,12 @@ export default function SoundboardTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Custom hooks
-  const { customizations, updateCustomization, deleteCustomization, getCustomization } =
+  const { updateCustomization, deleteCustomization, getCustomization } =
     useSoundCustomization()
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
   // Close menu when clicking outside
-  useClickOutside(menuRef, () => setOpenMenuId(null))
+  useClickOutside(menuRef as React.RefObject<HTMLElement>, () => setOpenMenuId(null))
 
   // Queries
   const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({
