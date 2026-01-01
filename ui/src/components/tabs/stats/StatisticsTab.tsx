@@ -183,27 +183,27 @@ export default function StatisticsTab() {
         </div>
       </div>
       <div id="stats-content" className="space-y-6">
-        {activeTab === 'summary' && <StatsSummary />}
-        {activeTab === 'commands' && <CommandsStats />}
-        {activeTab === 'sounds' && <SoundsStats />}
-        {activeTab === 'users' && <UsersStats />}
-        {activeTab === 'guilds' && <GuildsStats />}
-        {activeTab === 'queue' && <QueueStats />}
-        {activeTab === 'time' && <TimeStats />}
-        {activeTab === 'history' && <HistoryStats />}
-        {activeTab === 'sessions' && <SessionsStats />}
-        {activeTab === 'performance' && <PerformanceStats />}
-        {activeTab === 'errors' && <ErrorsStats />}
-        {activeTab === 'retention' && <RetentionStats />}
-        {activeTab === 'search' && <SearchStats />}
-        {activeTab === 'user-sessions' && <UserSessionsStats />}
-        {activeTab === 'user-tracks' && <UserTracksStats />}
-        {activeTab === 'engagement' && <EngagementStats />}
-        {activeTab === 'interactions' && <InteractionsStats />}
-        {activeTab === 'playback-states' && <PlaybackStatesStats />}
-        {activeTab === 'web-analytics' && <WebAnalyticsStats />}
-        {activeTab === 'guild-events' && <GuildEventsStats />}
-        {activeTab === 'api-latency' && <ApiLatencyStats />}
+        {activeTab === 'summary' && <StatsSummary key="summary" />}
+        {activeTab === 'commands' && <CommandsStats key="commands" />}
+        {activeTab === 'sounds' && <SoundsStats key="sounds" />}
+        {activeTab === 'users' && <UsersStats key="users" />}
+        {activeTab === 'guilds' && <GuildsStats key="guilds" />}
+        {activeTab === 'queue' && <QueueStats key="queue" />}
+        {activeTab === 'time' && <TimeStats key="time" />}
+        {activeTab === 'history' && <HistoryStats key="history" />}
+        {activeTab === 'sessions' && <SessionsStats key="sessions" />}
+        {activeTab === 'performance' && <PerformanceStats key="performance" />}
+        {activeTab === 'errors' && <ErrorsStats key="errors" />}
+        {activeTab === 'retention' && <RetentionStats key="retention" />}
+        {activeTab === 'search' && <SearchStats key="search" />}
+        {activeTab === 'user-sessions' && <UserSessionsStats key="user-sessions" />}
+        {activeTab === 'user-tracks' && <UserTracksStats key="user-tracks" />}
+        {activeTab === 'engagement' && <EngagementStats key="engagement" />}
+        {activeTab === 'interactions' && <InteractionsStats key="interactions" />}
+        {activeTab === 'playback-states' && <PlaybackStatesStats key="playback-states" />}
+        {activeTab === 'web-analytics' && <WebAnalyticsStats key="web-analytics" />}
+        {activeTab === 'guild-events' && <GuildEventsStats key="guild-events" />}
+        {activeTab === 'api-latency' && <ApiLatencyStats key="api-latency" />}
       </div>
     </section>
   )

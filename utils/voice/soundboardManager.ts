@@ -238,6 +238,13 @@ export async function playSoundboardOverlay(
       inputType: StreamType.OggOpus,
     });
 
+    // Add error handler to the resource's readable stream to catch any wrapped stream errors
+    if (resource.playStream) {
+      resource.playStream.on('error', (err) => {
+        log.debug(`AudioResource stream error: ${err.message}`);
+      });
+    }
+
     // Clean up any existing overlay process and stop player JUST before playing new overlay
     // This minimizes the gap between stop and play for seamless transition
     const existingOverlay = state.overlayProcess as ChildProcess | null;
