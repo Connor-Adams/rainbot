@@ -52,6 +52,32 @@ export async function joinChannel(
   const player = createAudioPlayer();
   connection.subscribe(player);
 
+  // Handle audio player errors (critical for debugging silent failures)
+  player.on('error', (error) => {
+    log.error(`Audio player error in guild ${guildId}: ${error.message}`);
+    log.error(`Error details: ${error.stack}`);
+    // Try to recover by playing next track
+    const state = voiceStates.get(guildId);
+    if (state && state.queue.length > 0) {
+      log.info(`Attempting to recover by playing next track...`);
+      import('./playbackManager').then(({ playNext }) => {
+        playNext(guildId).catch((err) => {
+          log.error(`Recovery failed: ${(err as Error).message}`);
+        });
+      });
+    }
+  });
+
+  // Log when player starts playing (debugging)
+  player.on(AudioPlayerStatus.Playing, () => {
+    log.debug(`Player entered PLAYING state in guild ${guildId}`);
+  });
+
+  // Log when player is buffering (debugging)
+  player.on(AudioPlayerStatus.Buffering, () => {
+    log.debug(`Player is BUFFERING in guild ${guildId}`);
+  });
+
   // Handle when audio finishes playing
   player.on(AudioPlayerStatus.Idle, async () => {
     try {
@@ -151,6 +177,11 @@ export async function joinChannel(
         }
       }
     }
+  });
+
+  // Log when connection becomes ready
+  connection.on(VoiceConnectionStatus.Ready, () => {
+    log.info(`Voice connection READY in guild ${guildId}`);
   });
 
   // Handle connection state changes
