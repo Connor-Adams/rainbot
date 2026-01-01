@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Bar, Doughnut } from 'react-chartjs-2'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface TypeBreakdown {
   interaction_type: string
@@ -74,43 +78,80 @@ export default function InteractionsStats() {
     )
   }
 
+  // Prepare safe chart data
+  const typeLabels = typeBreakdown.map((t) => safeString(t.interaction_type, 'Unknown'))
+  const typeValues = typeBreakdown.map((t) => safeInt(t.count))
+  const canRenderType = typeLabels.length > 0 && typeValues.every(Number.isFinite) && typeValues.some(v => v > 0)
+
+  const typeBreakdownData = {
+    labels: typeLabels,
+    datasets: [{
+      data: typeValues,
+      backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(34, 197, 94, 0.7)', 'rgba(251, 146, 60, 0.7)'],
+      borderColor: ['rgba(59, 130, 246, 1)', 'rgba(34, 197, 94, 1)', 'rgba(251, 146, 60, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const responseTimeValues = [safeInt(rtd.under_100ms), safeInt(rtd.between_100_500ms), safeInt(rtd.between_500_1000ms), safeInt(rtd.over_1000ms)]
+  const canRenderRT = responseTimeValues.every(Number.isFinite) && responseTimeValues.some(v => v > 0)
+
+  const responseTimeData = {
+    labels: ['< 100ms', '100-500ms', '500-1000ms', '> 1000ms'],
+    datasets: [{
+      data: responseTimeValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(251, 191, 36, 0.7)', 'rgba(251, 146, 60, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(251, 191, 36, 1)', 'rgba(251, 146, 60, 1)', 'rgba(239, 68, 68, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const actionLabels = topActions.slice(0, 10).map((a) => safeString(a.custom_id, 'Unknown'))
+  const actionValues = topActions.slice(0, 10).map((a) => safeInt(a.count))
+  const canRenderAction = actionLabels.length > 0 && actionValues.every(Number.isFinite)
+
+  const topActionsData = {
+    labels: actionLabels,
+    datasets: [{
+      label: 'Usage Count',
+      data: actionValues,
+      backgroundColor: 'rgba(168, 85, 247, 0.6)',
+      borderColor: 'rgba(168, 85, 247, 1)',
+      borderWidth: 1,
+    }],
+  }
+
   return (
     <div className="space-y-6">
-      {/* Interaction Type Breakdown - Charts disabled for debugging */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Interaction Types</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {typeBreakdown.map((t, idx) => (
-            <div key={idx} className="bg-gray-700 p-3 rounded text-center">
-              <div className="text-xl font-bold text-blue-400">{parseInt(t.count) || 0}</div>
-              <div className="text-sm text-gray-400">{t.interaction_type || 'Unknown'}</div>
+      {/* Charts */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {canRenderType && (
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            <h3 className="text-xl text-white mb-4">Interaction Types</h3>
+            <div className="max-h-[400px]">
+              <Doughnut data={typeBreakdownData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+        {canRenderRT && (
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            <h3 className="text-xl text-white mb-4">Response Time Distribution</h3>
+            <div className="max-h-[400px]">
+              <Doughnut data={responseTimeData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Response Time Distribution - Charts disabled */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Response Time Distribution</h3>
-        <div className="grid grid-cols-4 gap-2">
-          <div className="bg-gray-700 p-3 rounded text-center">
-            <div className="text-xl font-bold text-green-400">{parseInt(rtd.under_100ms || '0') || 0}</div>
-            <div className="text-sm text-gray-400">&lt; 100ms</div>
-          </div>
-          <div className="bg-gray-700 p-3 rounded text-center">
-            <div className="text-xl font-bold text-yellow-400">{parseInt(rtd.between_100_500ms || '0') || 0}</div>
-            <div className="text-sm text-gray-400">100-500ms</div>
-          </div>
-          <div className="bg-gray-700 p-3 rounded text-center">
-            <div className="text-xl font-bold text-orange-400">{parseInt(rtd.between_500_1000ms || '0') || 0}</div>
-            <div className="text-sm text-gray-400">500-1000ms</div>
-          </div>
-          <div className="bg-gray-700 p-3 rounded text-center">
-            <div className="text-xl font-bold text-red-400">{parseInt(rtd.over_1000ms || '0') || 0}</div>
-            <div className="text-sm text-gray-400">&gt; 1000ms</div>
+      {/* Top Actions */}
+      {canRenderAction && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Top Interactions</h3>
+          <div className="max-h-[400px]">
+            <Bar data={topActionsData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
-      </div>
+      )}
 
       {/* Top Actions Table */}
       {topActions.length > 0 && (

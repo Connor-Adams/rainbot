@@ -1,8 +1,12 @@
-// CHARTS DISABLED FOR DEBUGGING
+import { Line } from 'react-chartjs-2'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js'
 import type { TimeDataPoint } from '@/types'
 import { StatsLoading, StatsError } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
+import { safeInt, safeDateLabel } from '@/lib/chartSafety'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -27,57 +31,54 @@ export default function TimeStats() {
     )
   }
 
-  // Get last 14 days for display
-  const recentCommands = commands.slice(-14)
-  const recentSounds = sounds.slice(-14)
+  // Build combined date list and limit to last 30 days
+  const commandDates = commands.filter((c: TimeDataPoint) => c?.date).map((c: TimeDataPoint) => c.date)
+  const soundDates = sounds.filter((s: TimeDataPoint) => s?.date).map((s: TimeDataPoint) => s.date)
+  const allDates = [...new Set([...commandDates, ...soundDates])].sort().slice(-30)
+
+  const commandData = allDates.map((date) => {
+    const cmd = commands.find((c: TimeDataPoint) => c.date === date)
+    return cmd ? safeInt(cmd.command_count) : 0
+  })
+
+  const soundData = allDates.map((date) => {
+    const snd = sounds.find((s: TimeDataPoint) => s.date === date)
+    return snd ? safeInt(snd.sound_count) : 0
+  })
+
+  const labels = allDates.map((d) => safeDateLabel(d))
+  const canRender = labels.length > 0 && commandData.every(Number.isFinite) && soundData.every(Number.isFinite)
+
+  const lineData = {
+    labels,
+    datasets: [
+      {
+        label: 'Commands',
+        data: commandData,
+        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+      },
+      {
+        label: 'Sounds',
+        data: soundData,
+        borderColor: 'rgba(139, 92, 246, 1)',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        tension: 0.4,
+      },
+    ],
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Usage Over Time (Charts disabled for debugging)</h3>
-        <p className="text-gray-400 text-sm mb-4">Data points: {commands.length} commands, {sounds.length} sounds</p>
-        
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="text-lg text-blue-400 mb-2">Commands by Day</h4>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="pb-2">Date</th>
-                  <th className="pb-2">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentCommands.map((c: TimeDataPoint, idx: number) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-1">{c.date ? new Date(c.date).toLocaleDateString() : 'Unknown'}</td>
-                    <td className="py-1">{parseInt(c.command_count || '0') || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <h4 className="text-lg text-purple-400 mb-2">Sounds by Day</h4>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="pb-2">Date</th>
-                  <th className="pb-2">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentSounds.map((s: TimeDataPoint, idx: number) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-1">{s.date ? new Date(s.date).toLocaleDateString() : 'Unknown'}</td>
-                    <td className="py-1">{parseInt(s.sound_count || '0') || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+      <h3 className="text-xl text-white mb-4">Usage Over Time</h3>
+      {canRender ? (
+        <div className="max-h-[400px]">
+          <Line data={lineData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
         </div>
-      </div>
+      ) : (
+        <p className="text-gray-400">Not enough data to display chart</p>
+      )}
     </div>
   )
 }

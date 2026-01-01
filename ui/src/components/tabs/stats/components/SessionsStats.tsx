@@ -1,19 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// TEMPORARILY DISABLED CHARTS FOR DEBUGGING
-// import { Bar } from 'react-chartjs-2'
-// import {
-//   Chart as ChartJS,
-//   CategoryScale,
-//   LinearScale,
-//   BarElement,
-//   Title,
-//   Tooltip,
-//   Legend,
-// } from 'chart.js'
+import { Bar } from 'react-chartjs-2'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import { EmptyState } from '@/components/common'
+import { safeInt, safeDateLabel } from '@/lib/chartSafety'
 
-// ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface SessionSummary {
   total_sessions: string
@@ -97,10 +89,22 @@ export default function SessionsStats() {
     )
   }
 
-  // Safely prepare data with validation
+  // Prepare safe chart data
   const safeDaily = daily.slice(0, 14).reverse().filter(d => d && d.date)
-  // Chart data prep disabled for debugging
-  // const chartData = { ... }
+  const chartLabels = safeDaily.map((d) => safeDateLabel(d.date))
+  const chartValues = safeDaily.map((d) => safeInt(d.sessions))
+  const canRenderChart = chartLabels.length > 0 && chartValues.every(Number.isFinite)
+
+  const chartData = {
+    labels: chartLabels,
+    datasets: [{
+      label: 'Sessions',
+      data: chartValues,
+      backgroundColor: 'rgba(34, 197, 94, 0.5)',
+      borderColor: 'rgba(34, 197, 94, 1)',
+      borderWidth: 1,
+    }],
+  }
 
   return (
     <div className="space-y-6">
@@ -112,13 +116,13 @@ export default function SessionsStats() {
         </div>
         <div className="bg-gray-700 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">
-            {formatDuration(parseInt(summary.avg_duration_seconds || '0'))}
+            {formatDuration(safeInt(summary.avg_duration_seconds))}
           </div>
           <div className="text-sm text-gray-400">Avg Duration</div>
         </div>
         <div className="bg-gray-700 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">
-            {formatDuration(parseInt(summary.total_duration_seconds || '0'))}
+            {formatDuration(safeInt(summary.total_duration_seconds))}
           </div>
           <div className="text-sm text-gray-400">Total Time</div>
         </div>
@@ -136,16 +140,15 @@ export default function SessionsStats() {
         </div>
       </div>
 
-      {/* Daily Chart - TEMPORARILY DISABLED FOR DEBUGGING */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Sessions per Day (Chart disabled for debugging)</h3>
-        <div className="text-gray-400 text-sm">
-          <p>Daily data points: {safeDaily.length}</p>
-          <pre className="mt-2 text-xs overflow-auto max-h-40">
-            {JSON.stringify(safeDaily.slice(0, 5), null, 2)}
-          </pre>
+      {/* Daily Chart */}
+      {canRenderChart && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Sessions per Day</h3>
+          <div className="max-h-[300px]">
+            <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Recent Sessions Table */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">

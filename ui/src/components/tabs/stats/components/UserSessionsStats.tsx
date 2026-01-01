@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Bar } from 'react-chartjs-2'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface SessionSummary {
   total_sessions: string
@@ -71,6 +75,22 @@ export default function UserSessionsStats() {
     return `${minutes}m`
   }
 
+  // Prepare safe chart data
+  const chartLabels = topListeners.slice(0, 10).map((l) => safeString(l.username, l.user_id ? l.user_id.substring(0, 8) : 'Unknown'))
+  const chartValues = topListeners.slice(0, 10).map((l) => safeInt(l.total_duration))
+  const canRenderChart = chartLabels.length > 0 && chartValues.every(Number.isFinite)
+
+  const topListenersData = {
+    labels: chartLabels,
+    datasets: [{
+      label: 'Total Duration (seconds)',
+      data: chartValues,
+      backgroundColor: 'rgba(59, 130, 246, 0.6)',
+      borderColor: 'rgba(59, 130, 246, 1)',
+      borderWidth: 1,
+    }],
+  }
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -85,13 +105,13 @@ export default function UserSessionsStats() {
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">
-            {formatDuration(parseInt(summary.avg_duration_seconds || '0') || 0)}
+            {formatDuration(safeInt(summary.avg_duration_seconds))}
           </div>
           <div className="text-sm text-gray-400">Avg Duration</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-orange-400">
-            {formatDuration(parseInt(summary.total_duration_seconds || '0') || 0)}
+            {formatDuration(safeInt(summary.total_duration_seconds))}
           </div>
           <div className="text-sm text-gray-400">Total Duration</div>
         </div>
@@ -109,6 +129,16 @@ export default function UserSessionsStats() {
           <div className="text-sm text-gray-400">Total Tracks</div>
         </div>
       </div>
+
+      {/* Top Listeners Chart */}
+      {canRenderChart && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Top Listeners (by duration)</h3>
+          <div className="max-h-[400px]">
+            <Bar data={topListenersData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          </div>
+        </div>
+      )}
 
       {/* Top Listeners Table */}
       {topListeners.length > 0 && (

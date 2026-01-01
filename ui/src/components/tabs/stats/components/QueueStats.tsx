@@ -1,7 +1,26 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Bar } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
 import type { QueueOperation } from '@/types'
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+
+// Safe number parser - returns 0 for any invalid value
+function safeInt(val: unknown): number {
+  if (val === null || val === undefined) return 0
+  const num = typeof val === 'number' ? val : parseInt(String(val), 10)
+  if (!Number.isFinite(num)) return 0
+  return num
+}
 
 export default function QueueStats() {
   const { data, isLoading, error } = useQuery({
@@ -35,17 +54,47 @@ export default function QueueStats() {
     )
   }
 
+  // Prepare chart data with strict validation
+  const validOps = operations.slice(0, 20).filter((o: QueueOperation): o is QueueOperation => 
+    o && typeof o.operation_type === 'string' && o.operation_type.length > 0
+  )
+  
+  const labels = validOps.map((o: QueueOperation) => o.operation_type)
+  const dataValues = validOps.map((o: QueueOperation) => safeInt(o.count))
+  
+  // Only render chart if we have valid data
+  const canRenderChart = labels.length > 0 && dataValues.length > 0 && dataValues.every(Number.isFinite)
+
+  const barData = {
+    labels,
+    datasets: [
+      {
+        label: 'Count',
+        data: dataValues,
+        backgroundColor: 'rgba(251, 146, 60, 0.5)',
+        borderColor: 'rgba(251, 146, 60, 1)',
+        borderWidth: 1,
+      },
+    ],
+  }
+
   return (
     <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Queue Operations (Charts disabled for debugging)</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {operations.map((o: QueueOperation, idx: number) => (
-          <div key={idx} className="bg-gray-700 p-4 rounded-lg text-center">
-            <div className="text-2xl font-bold text-orange-400">{parseInt(o.count) || 0}</div>
-            <div className="text-sm text-gray-400">{o.operation_type || 'Unknown'}</div>
-          </div>
-        ))}
-      </div>
+      <h3 className="text-xl text-white mb-4">Queue Operations</h3>
+      {canRenderChart ? (
+        <div className="max-h-[400px]">
+          <Bar data={barData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {operations.map((o: QueueOperation, idx: number) => (
+            <div key={idx} className="bg-gray-700 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-orange-400">{safeInt(o.count)}</div>
+              <div className="text-sm text-gray-400">{o.operation_type || 'Unknown'}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

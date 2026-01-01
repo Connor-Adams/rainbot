@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Doughnut, Bar } from 'react-chartjs-2'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import { EmptyState } from '@/components/common'
+import { safeInt, safeString } from '@/lib/chartSafety'
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface EngagementSummary {
   total_tracks: string
@@ -64,9 +68,38 @@ export default function EngagementStats() {
 
   const other = Math.max(0, totalTracks - completed - skipped)
 
+  // Prepare safe chart data
+  const completionValues = [completed, skipped, other]
+  const canRenderCompletion = completionValues.every(Number.isFinite) && completionValues.some(v => v > 0)
+
+  const completionData = {
+    labels: ['Completed', 'Skipped', 'Other'],
+    datasets: [{
+      data: completionValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(156, 163, 175, 0.5)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const skipLabels = skipReasons.map((r) => safeString(r.skip_reason, 'Unknown'))
+  const skipValues = skipReasons.map((r) => safeInt(r.count))
+  const canRenderSkip = skipLabels.length > 0 && skipValues.every(Number.isFinite)
+
+  const skipReasonsData = {
+    labels: skipLabels,
+    datasets: [{
+      label: 'Skip Count',
+      data: skipValues,
+      backgroundColor: 'rgba(239, 68, 68, 0.6)',
+      borderColor: 'rgba(239, 68, 68, 1)',
+      borderWidth: 1,
+    }],
+  }
+
   return (
     <div className="space-y-6">
-      {/* Summary Cards - Charts disabled for debugging */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">{totalTracks}</div>
@@ -90,20 +123,25 @@ export default function EngagementStats() {
         </div>
       </div>
 
-      {/* Skip Reasons - Charts disabled */}
-      {skipReasons.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {skipReasons.map((r, idx) => (
-              <div key={idx} className="bg-gray-700 p-3 rounded text-center">
-                <div className="text-xl font-bold text-red-400">{parseInt(r.count) || 0}</div>
-                <div className="text-sm text-gray-400">{r.skip_reason || 'Unknown'}</div>
-              </div>
-            ))}
+      {/* Charts */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {canRenderCompletion && (
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            <h3 className="text-xl text-white mb-4">Completion vs Skips</h3>
+            <div className="max-h-[400px]">
+              <Doughnut data={completionData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {canRenderSkip && (
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+            <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
+            <div className="max-h-[400px]">
+              <Bar data={skipReasonsData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Most Skipped Tracks */}
       {mostSkipped.length > 0 && (

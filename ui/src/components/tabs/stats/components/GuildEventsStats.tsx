@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Line, Doughnut } from 'react-chartjs-2'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { EmptyState } from '@/components/common'
+import { safeInt, safeDateLabel, safeString } from '@/lib/chartSafety'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 interface EventSummary {
   event_type: string
@@ -54,45 +58,67 @@ export default function GuildEventsStats() {
     )
   }
 
+  // Prepare safe chart data
+  const summaryLabels = summary.map((s) => safeString(s.event_type, 'Unknown').replace('bot_', ''))
+  const summaryValues = summary.map((s) => safeInt(s.count))
+  const canRenderSummary = summaryLabels.length > 0 && summaryValues.every(Number.isFinite) && summaryValues.some(v => v > 0)
+
+  const summaryData = {
+    labels: summaryLabels,
+    datasets: [{
+      data: summaryValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(59, 130, 246, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(59, 130, 246, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
+  const growthLabels = growth.slice(-30).map((g) => safeDateLabel(g.date))
+  const joinValues = growth.slice(-30).map((g) => safeInt(g.joins))
+  const leaveValues = growth.slice(-30).map((g) => safeInt(g.leaves))
+  const canRenderGrowth = growthLabels.length > 0 && joinValues.every(Number.isFinite) && leaveValues.every(Number.isFinite)
+
+  const growthData = {
+    labels: growthLabels,
+    datasets: [
+      {
+        label: 'Joins',
+        data: joinValues,
+        borderColor: 'rgba(34, 197, 94, 1)',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        fill: true,
+        tension: 0.3,
+      },
+      {
+        label: 'Leaves',
+        data: leaveValues,
+        borderColor: 'rgba(239, 68, 68, 1)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.3,
+      },
+    ],
+  }
+
   return (
     <div className="space-y-6">
-      {/* Event Summary - Charts disabled for debugging */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Guild Events Summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {summary.map((s, idx) => (
-            <div key={idx} className="bg-gray-700 p-3 rounded text-center">
-              <div className={`text-xl font-bold ${s.event_type === 'bot_added' ? 'text-green-400' : 'text-red-400'}`}>
-                {parseInt(s.count) || 0}
-              </div>
-              <div className="text-sm text-gray-400">{(s.event_type || 'Unknown').replace('bot_', '')}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Growth Over Time - Charts disabled */}
-      {growth.length > 0 && (
+      {/* Event Summary */}
+      {canRenderSummary && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Growth Over Time (Charts disabled)</h3>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-gray-400 border-b border-gray-700">
-                <th className="pb-2">Date</th>
-                <th className="pb-2">Joins</th>
-                <th className="pb-2">Leaves</th>
-              </tr>
-            </thead>
-            <tbody>
-              {growth.slice(-10).map((g, idx) => (
-                <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                  <td className="py-1">{g.date ? new Date(g.date).toLocaleDateString() : 'Unknown'}</td>
-                  <td className="py-1 text-green-400">{parseInt(g.joins) || 0}</td>
-                  <td className="py-1 text-red-400">{parseInt(g.leaves) || 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h3 className="text-xl text-white mb-4">Guild Events Summary</h3>
+          <div className="max-h-[400px]">
+            <Doughnut data={summaryData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          </div>
+        </div>
+      )}
+
+      {/* Growth Over Time */}
+      {canRenderGrowth && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
+          <div className="max-h-[400px]">
+            <Line data={growthData} options={{ responsive: true, maintainAspectRatio: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          </div>
         </div>
       )}
 

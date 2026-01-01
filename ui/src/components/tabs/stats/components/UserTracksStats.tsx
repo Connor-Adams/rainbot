@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-// CHARTS DISABLED FOR DEBUGGING
+import { Bar, Doughnut } from 'react-chartjs-2'
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import { safeInt, safeString } from '@/lib/chartSafety'
+
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface TopTrack {
   track_title: string
@@ -55,19 +59,54 @@ export default function UserTracksStats() {
     )
   }
 
+  // Prepare safe chart data
+  const topTracksLabels = topTracks.slice(0, 10).map((t) => safeString(t.track_title, 'Unknown').substring(0, 30))
+  const topTracksValues = topTracks.slice(0, 10).map((t) => safeInt(t.listen_count))
+  const canRenderTopTracks = topTracksLabels.length > 0 && topTracksValues.every(Number.isFinite)
+
+  const topTracksData = {
+    labels: topTracksLabels,
+    datasets: [{
+      label: 'Listen Count',
+      data: topTracksValues,
+      backgroundColor: 'rgba(168, 85, 247, 0.6)',
+      borderColor: 'rgba(168, 85, 247, 1)',
+      borderWidth: 1,
+    }],
+  }
+
+  const sourceLabels = sourceTypes.map((s) => safeString(s.source_type, 'Unknown'))
+  const sourceValues = sourceTypes.map((s) => safeInt(s.count))
+  const canRenderSource = sourceLabels.length > 0 && sourceValues.every(Number.isFinite) && sourceValues.some(v => v > 0)
+
+  const sourceTypesData = {
+    labels: sourceLabels,
+    datasets: [{
+      data: sourceValues,
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(251, 146, 60, 0.7)', 'rgba(168, 85, 247, 0.7)', 'rgba(236, 72, 153, 0.7)'],
+      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(59, 130, 246, 1)', 'rgba(251, 146, 60, 1)', 'rgba(168, 85, 247, 1)', 'rgba(236, 72, 153, 1)'],
+      borderWidth: 1,
+    }],
+  }
+
   return (
     <div className="space-y-6">
-      {/* Source Types Distribution - Charts disabled */}
-      {sourceTypes.length > 0 && (
+      {/* Source Types Distribution */}
+      {canRenderSource && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Track Sources (Charts disabled for debugging)</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {sourceTypes.map((s, idx) => (
-              <div key={idx} className="bg-gray-700 p-3 rounded text-center">
-                <div className="text-xl font-bold text-purple-400">{parseInt(s.count) || 0}</div>
-                <div className="text-sm text-gray-400">{s.source_type || 'Unknown'}</div>
-              </div>
-            ))}
+          <h3 className="text-xl text-white mb-4">Track Sources</h3>
+          <div className="max-h-[400px]">
+            <Doughnut data={sourceTypesData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          </div>
+        </div>
+      )}
+
+      {/* Top Tracks Chart */}
+      {canRenderTopTracks && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Most Listened Tracks</h3>
+          <div className="max-h-[400px]">
+            <Bar data={topTracksData} options={{ responsive: true, maintainAspectRatio: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
           </div>
         </div>
       )}
