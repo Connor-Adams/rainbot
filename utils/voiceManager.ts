@@ -628,7 +628,10 @@ export function stopAutoSave(): void {
 /**
  * Toggle autoplay mode (auto keep playing related tracks when queue is empty)
  */
-export function toggleAutoplay(guildId: string, enabled?: boolean | null): { enabled: boolean } {
+export function toggleAutoplay(
+  guildId: string,
+  enabled?: boolean | null
+): { enabled: boolean } {
   const state = connectionManager.getVoiceState(guildId);
   if (!state) {
     throw new Error('Bot is not connected to a voice channel');
