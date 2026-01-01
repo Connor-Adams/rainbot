@@ -1,18 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { QueueOperation } from '@/types'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 // Safe number parser - returns 0 for any invalid value
 function safeInt(val: unknown): number {
@@ -54,36 +43,34 @@ export default function QueueStats() {
     )
   }
 
-  // Prepare chart data with strict validation
-  const validOps = operations.slice(0, 20).filter((o: QueueOperation): o is QueueOperation => 
-    o && typeof o.operation_type === 'string' && o.operation_type.length > 0
-  )
-  
-  const labels = validOps.map((o: QueueOperation) => o.operation_type)
-  const dataValues = validOps.map((o: QueueOperation) => safeInt(o.count))
+  // Prepare Recharts data
+  const chartData = validOps.map((o: QueueOperation) => ({
+    operation: o.operation_type,
+    count: safeInt(o.count),
+  }))
   
   // Only render chart if we have valid data
-  const canRenderChart = labels.length > 0 && dataValues.length > 0 && dataValues.every(Number.isFinite)
-
-  const barData = {
-    labels,
-    datasets: [
-      {
-        label: 'Count',
-        data: dataValues,
-        backgroundColor: 'rgba(251, 146, 60, 0.5)',
-        borderColor: 'rgba(251, 146, 60, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }
+  const canRenderChart = chartData.length > 0
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <h3 className="text-xl text-text-primary mb-4">Queue Operations</h3>
-      <div className="max-h-[400px]">
-        <Bar data={barData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
-      </div>
+      {canRenderChart ? (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#252530" />
+            <XAxis dataKey="operation" stroke="#a1a1b0" angle={-45} textAnchor="end" height={100} />
+            <YAxis stroke="#a1a1b0" />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#181820', border: '1px solid #252530', borderRadius: '8px' }}
+              labelStyle={{ color: '#ffffff' }}
+            />
+            <Bar dataKey="count" fill="#fb923c" />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-text-secondary">No data to display</p>
+      )}
     </div>
   )
 }

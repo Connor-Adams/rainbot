@@ -1,12 +1,9 @@
-import { Line } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import type { TimeDataPoint } from '@/types'
 import { StatsLoading, StatsError } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
 import { safeInt, safeDateLabel } from '@/lib/chartSafety'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -36,46 +33,37 @@ export default function TimeStats() {
   const soundDates = sounds.filter((s: TimeDataPoint) => s?.date).map((s: TimeDataPoint) => s.date)
   const allDates = [...new Set([...commandDates, ...soundDates])].sort().slice(-30)
 
-  const commandData = allDates.map((date) => {
+  // Prepare Recharts data format
+  const chartData = allDates.map((date) => {
     const cmd = commands.find((c: TimeDataPoint) => c.date === date)
-    return cmd ? safeInt(cmd.command_count) : 0
-  })
-
-  const soundData = allDates.map((date) => {
     const snd = sounds.find((s: TimeDataPoint) => s.date === date)
-    return snd ? safeInt(snd.sound_count) : 0
+    return {
+      date: safeDateLabel(date),
+      Commands: cmd ? safeInt(cmd.command_count) : 0,
+      Sounds: snd ? safeInt(snd.sound_count) : 0,
+    }
   })
 
-  const labels = allDates.map((d) => safeDateLabel(d))
-  const canRender = labels.length > 0 && commandData.every(Number.isFinite) && soundData.every(Number.isFinite)
-
-  const lineData = {
-    labels,
-    datasets: [
-      {
-        label: 'Commands',
-        data: commandData,
-        borderColor: 'rgba(59, 130, 246, 1)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-      },
-      {
-        label: 'Sounds',
-        data: soundData,
-        borderColor: 'rgba(139, 92, 246, 1)',
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-        tension: 0.4,
-      },
-    ],
-  }
+  const canRender = chartData.length > 0
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <h3 className="text-xl text-text-primary mb-4">Usage Over Time</h3>
       {canRender ? (
-        <div className="max-h-[400px]">
-          <Line data={lineData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#252530" />
+            <XAxis dataKey="date" stroke="#a1a1b0" />
+            <YAxis stroke="#a1a1b0" />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#181820', border: '1px solid #252530', borderRadius: '8px' }}
+              labelStyle={{ color: '#ffffff' }}
+            />
+            <Legend wrapperStyle={{ color: '#a1a1b0' }} />
+            <Line type="monotone" dataKey="Commands" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6' }} />
+            <Line type="monotone" dataKey="Sounds" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6' }} />
+          </LineChart>
+        </ResponsiveContainer>
       ) : (
         <p className="text-text-secondary">Not enough data to display chart</p>
       )}
