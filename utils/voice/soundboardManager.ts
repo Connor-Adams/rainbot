@@ -249,7 +249,7 @@ export async function playSoundboardOverlay(
       try {
         existingOverlay.kill('SIGKILL');
       } catch (err) {
-        log.debug(`Error killing old overlay: ${(err as Error).message}`);
+        log.warn(`Failed to kill old overlay process: ${(err as Error).message}`);
       }
     } else {
       log.debug('Starting first overlay');
