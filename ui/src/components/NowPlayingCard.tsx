@@ -2,10 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { playbackApi } from '@/lib/api'
 import type { QueueData } from '@/types'
 import { useState, useEffect } from 'react'
-import NowPlayingArtwork from './player/NowPlayingArtwork'
-import TrackInfo from './player/TrackInfo'
-import ProgressBar from './player/ProgressBar'
-import PlaybackControls from './player/PlaybackControls'
+import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player'
 
 interface NowPlayingCardProps {
   queueData: QueueData

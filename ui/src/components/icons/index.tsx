@@ -216,6 +216,21 @@ export function TrashIcon({ size = 24, className = '', ...props }: IconProps) {
   )
 }
 
+export function MenuIcon({ size = 24, className = '', ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={className}
+      {...props}
+    >
+      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+    </svg>
+  )
+}
+
 export function ChevronRightIcon({ size = 24, className = '', ...props }: IconProps) {
   return (
     <svg

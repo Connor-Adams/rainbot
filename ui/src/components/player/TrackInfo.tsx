@@ -7,8 +7,13 @@ interface TrackInfoProps {
 }
 
 /**
- * Display track title, source, and external link.
- * Shows the currently playing track information with optional link to source.
+ * Display track title, source platform, and external link.
+ * Shows the currently playing track information with optional link to source platform.
+ * Handles overflow gracefully with text ellipsis.
+ * 
+ * @param title - Track title or name
+ * @param source - Source platform name (e.g., "YouTube", "Spotify", "Local Sound")
+ * @param sourceLink - Optional URL to open track in source platform
  */
 export default function TrackInfo({ title, source, sourceLink }: TrackInfoProps) {
   return (

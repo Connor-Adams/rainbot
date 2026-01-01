@@ -11,6 +11,13 @@ interface PlaybackControlsProps {
 /**
  * Playback control buttons (previous, play/pause, next).
  * Displays large, accessible buttons for controlling audio playback.
+ * Primary play/pause button is highlighted, skip buttons are secondary.
+ * 
+ * @param isPaused - Whether playback is currently paused
+ * @param isLoading - Whether an action is in progress (disables buttons)
+ * @param onPlayPause - Handler for play/pause toggle
+ * @param onSkip - Handler for skip to next track
+ * @param onPrevious - Optional handler for previous track (button disabled if not provided)
  */
 export default function PlaybackControls({
   isPaused,

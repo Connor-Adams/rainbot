@@ -1,6 +1,7 @@
 import type { Sound } from '@/types'
 import { escapeHtml, formatSize } from '@/lib/utils'
 import type { SoundCustomization } from '@/hooks/useSoundCustomization'
+import { MenuIcon } from '@/components/icons'
 
 interface SoundCardProps {
   sound: Sound
@@ -60,9 +61,7 @@ export function SoundCard({
         aria-label="Sound options"
         aria-expanded={isMenuOpen}
       >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-        </svg>
+        <MenuIcon size={16} />
       </button>
 
       {/* Emoji Icon */}
