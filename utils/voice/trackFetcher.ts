@@ -175,7 +175,7 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       'www.youtube.com',
       'm.youtube.com',
       'music.youtube.com',
-      'youtu.be'
+      'youtu.be',
     ]);
 
     const isYoutubeHost =
@@ -189,28 +189,28 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
 
     // Use yt-dlp to get related video
     log.info(`Finding related track for: "${lastTrack.title}"`);
-    
+
     try {
       // Get video info which includes related videos
-      const info = await youtubedl(lastTrack.url, {
+      const info = (await youtubedl(lastTrack.url, {
         dumpSingleJson: true,
         noPlaylist: true,
         noWarnings: true,
         quiet: true,
-      }) as { title?: string; duration?: number; webpage_url?: string };
-      
+      })) as { title?: string; duration?: number; webpage_url?: string };
+
       // For now, use YouTube search with the current video title to find similar content
       // This is a simpler approach that works reliably
       const searchQuery = info.title || lastTrack.title;
       log.debug(`Searching for similar tracks: "${searchQuery}"`);
-      
+
       const ytResults = await play.search(searchQuery, { limit: 5 });
-      
+
       if (!ytResults || ytResults.length === 0) {
         log.warn('No search results found for autoplay');
         return null;
       }
-      
+
       // Skip the first result if it's the same as the current video
       for (const result of ytResults) {
         if (result.url !== lastTrack.url) {
@@ -223,7 +223,7 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
           };
         }
       }
-      
+
       log.warn('No different related track found');
       return null;
     } catch (error) {

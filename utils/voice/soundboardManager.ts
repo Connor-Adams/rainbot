@@ -215,7 +215,7 @@ export async function playSoundboardOverlay(
     soundStream.on('error', (err) => {
       log.debug(`Soundboard stream error: ${err.message}`);
     });
-    
+
     // Handle errors on the pipe we're writing to (stdio[3])
     const soundInputPipe = ffmpeg.stdio[3] as NodeJS.WritableStream;
     soundInputPipe.on('error', (err) => {

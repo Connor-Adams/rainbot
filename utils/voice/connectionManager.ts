@@ -87,14 +87,14 @@ export async function joinChannel(
           try {
             const { getRelatedTrack } = await import('./trackFetcher');
             const relatedTrack = await getRelatedTrack(state.lastPlayedTrack);
-            
+
             if (relatedTrack) {
               // Add user info from last track using factory function
               const autoplayTrack = createAutoplayTrack(relatedTrack, state);
-              
+
               state.queue.push(autoplayTrack);
               log.info(`Added autoplay track: "${autoplayTrack.title}"`);
-              
+
               const { playNext } = await import('./playbackManager');
               await playNext(guildId);
             } else {
