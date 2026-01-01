@@ -240,7 +240,8 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
 
       // Fallback: use search with the video title if no related videos found
       log.debug('No related videos in metadata, falling back to search');
-      const searchQuery = lastTrack.title;
+      // Use the title from yt-dlp if available, otherwise use lastTrack.title
+      const searchQuery = info.title || lastTrack.title;
       log.debug(`Searching for similar tracks: "${searchQuery}"`);
 
       const ytResults = await play.search(searchQuery, { limit: 5 });
