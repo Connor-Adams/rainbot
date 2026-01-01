@@ -89,8 +89,8 @@ export default function WebAnalyticsStats() {
   return (
     <div className="space-y-6">
       {/* Event Types Distribution */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Event Types Distribution</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Event Types Distribution</h3>
         <div className="max-h-[400px]">
           <Doughnut
             data={eventTypesData}
@@ -106,8 +106,8 @@ export default function WebAnalyticsStats() {
 
       {/* Top Event Targets */}
       {data.topTargets.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Event Targets (Pages/Buttons)</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Top Event Targets (Pages/Buttons)</h3>
           <div className="max-h-[400px]">
             <Bar
               data={topTargetsData}
@@ -124,12 +124,12 @@ export default function WebAnalyticsStats() {
 
       {/* Active Web Users */}
       {data.activeUsers.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Most Active Web Users</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Most Active Web Users</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">User ID</th>
                   <th className="pb-2 px-4">Events</th>
                   <th className="pb-2 px-4">Event Types</th>
@@ -138,7 +138,7 @@ export default function WebAnalyticsStats() {
               </thead>
               <tbody>
                 {data.activeUsers.slice(0, 10).map((user) => (
-                  <tr key={user.user_id} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={user.user_id} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4 font-mono text-sm">{user.user_id}</td>
                     <td className="py-2 px-4">{user.event_count}</td>
                     <td className="py-2 px-4">{user.unique_event_types}</td>

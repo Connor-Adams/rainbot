@@ -38,7 +38,7 @@ export function EditModal({
       onKeyDown={handleKeyDown}
     >
       <div
-        className="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md shadow-2xl"
+        className="bg-surface rounded-xl border border-border p-6 w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="modal-title"
@@ -51,7 +51,7 @@ export function EditModal({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="emoji-input" className="block text-sm text-gray-400 mb-2">
+              <label htmlFor="emoji-input" className="block text-sm text-text-secondary mb-2">
                 Emoji
               </label>
               <input
@@ -59,7 +59,7 @@ export function EditModal({
                 type="text"
                 value={emoji}
                 onChange={(e) => setEmoji(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-white text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 placeholder="🎵"
                 maxLength={4}
                 autoFocus
@@ -67,7 +67,7 @@ export function EditModal({
             </div>
             
             <div>
-              <label htmlFor="name-input" className="block text-sm text-gray-400 mb-2">
+              <label htmlFor="name-input" className="block text-sm text-text-secondary mb-2">
                 Display Name
               </label>
               <input
@@ -75,12 +75,12 @@ export function EditModal({
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 placeholder={soundName.replace(/\.[^/.]+$/, '')}
               />
             </div>
             
-            <p className="text-xs text-gray-500 flex items-center gap-2">
+            <p className="text-xs text-text-muted flex items-center gap-2">
               <span>📁</span>
               <span className="truncate">{soundName}</span>
             </p>
@@ -89,7 +89,7 @@ export function EditModal({
           <div className="flex gap-3 mt-6">
             <button
               type="button"
-              className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2.5 bg-surface-elevated hover:bg-surface-hover text-white rounded-lg transition-colors font-medium"
               onClick={onCancel}
             >
               Cancel

@@ -44,12 +44,12 @@ export default function RetentionStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading retention statistics...</div>
+    return <div className="stats-loading text-center py-12 text-text-secondary">Loading retention statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="stats-error text-center py-12 text-danger">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -100,61 +100,61 @@ export default function RetentionStats() {
   return (
     <div className="space-y-6">
       {/* Active Users */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Active Users</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Active Users</h3>
         {hasData ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-blue-400">{dau}</div>
-              <div className="text-sm text-gray-400">Daily Active (DAU)</div>
+              <div className="text-sm text-text-secondary">Daily Active (DAU)</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-green-400">{wau}</div>
-              <div className="text-sm text-gray-400">Weekly Active (WAU)</div>
+              <div className="text-sm text-text-secondary">Weekly Active (WAU)</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-purple-400">{mau}</div>
-              <div className="text-sm text-gray-400">Monthly Active (MAU)</div>
+              <div className="text-sm text-text-secondary">Monthly Active (MAU)</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-yellow-400">{dauWauDisplay}%</div>
-              <div className="text-sm text-gray-400">DAU/WAU Ratio</div>
+              <div className="text-sm text-text-secondary">DAU/WAU Ratio</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-surface-elevated rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-orange-400">{dauMauDisplay}%</div>
-              <div className="text-sm text-gray-400">DAU/MAU (Stickiness)</div>
+              <div className="text-sm text-text-secondary">DAU/MAU (Stickiness)</div>
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-text-secondary py-8">
             No active user data yet. User activity tracking will populate over time.
           </div>
         )}
       </div>
 
       {/* New Users */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">New Users</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">New Users</h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="bg-surface-elevated rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-emerald-400">{newUsers.today || 0}</div>
-            <div className="text-sm text-gray-400">Today</div>
+            <div className="text-sm text-text-secondary">Today</div>
           </div>
-          <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="bg-surface-elevated rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-teal-400">{newUsers.this_week || 0}</div>
-            <div className="text-sm text-gray-400">This Week</div>
+            <div className="text-sm text-text-secondary">This Week</div>
           </div>
-          <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="bg-surface-elevated rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-cyan-400">{newUsers.this_month || 0}</div>
-            <div className="text-sm text-gray-400">This Month</div>
+            <div className="text-sm text-text-secondary">This Month</div>
           </div>
         </div>
       </div>
 
       {/* Cohort Analysis Chart */}
       {cohorts.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Cohort Retention Over Time</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Cohort Retention Over Time</h3>
           <div className="max-h-[400px]">
             <Line
               data={cohortChartData}
@@ -195,12 +195,12 @@ export default function RetentionStats() {
 
       {/* Cohort Table */}
       {cohorts.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Monthly Cohort Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Monthly Cohort Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2">Cohort</th>
                   <th className="pb-2">Joined</th>
                   <th className="pb-2">Still Active</th>
@@ -213,7 +213,7 @@ export default function RetentionStats() {
                   const retentionDisplay = isNaN(retention) ? '0.0' : retention.toFixed(1)
                   let retentionColor = 'text-green-400'
                   if (retention < 20) {
-                    retentionColor = 'text-red-400'
+                    retentionColor = 'text-danger'
                   } else if (retention < 40) {
                     retentionColor = 'text-orange-400'
                   } else if (retention < 60) {
@@ -221,7 +221,7 @@ export default function RetentionStats() {
                   }
 
                   return (
-                    <tr key={cohort.cohort_month} className="border-b border-gray-700/50 text-gray-300">
+                    <tr key={cohort.cohort_month} className="border-b border-border/50 text-text-secondary">
                       <td className="py-2">
                         {new Date(cohort.cohort_month).toLocaleDateString('en-US', {
                           month: 'long',
@@ -241,9 +241,9 @@ export default function RetentionStats() {
       )}
 
       {/* Stickiness Explanation */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-        <h4 className="text-sm font-medium text-gray-300 mb-2">Understanding Metrics</h4>
-        <ul className="text-sm text-gray-400 space-y-1">
+      <div className="bg-surface/50 border border-border/50 rounded-xl p-4">
+        <h4 className="text-sm font-medium text-text-secondary mb-2">Understanding Metrics</h4>
+        <ul className="text-sm text-text-secondary space-y-1">
           <li>
             <strong>DAU/WAU Ratio:</strong> Higher is better. 40%+ indicates strong daily engagement.
           </li>

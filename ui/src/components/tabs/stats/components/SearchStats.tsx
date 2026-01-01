@@ -95,7 +95,7 @@ export default function SearchStats() {
       id: 'type',
       header: 'Type',
       render: (query: TopQuery) => (
-        <span className="px-2 py-1 rounded text-xs bg-gray-700">{query.query_type}</span>
+        <span className="px-2 py-1 rounded text-xs bg-surface-elevated">{query.query_type}</span>
       ),
       className: 'px-4 py-2',
     },
@@ -176,7 +176,7 @@ export default function SearchStats() {
 
       {data.zeroResults.length > 0 && (
         <StatsSection title="Queries with No Results">
-          <div className="text-sm text-gray-400 mb-4">
+          <div className="text-sm text-text-secondary mb-4">
             These queries returned zero results - opportunities to improve search or content
           </div>
           <StatsTable

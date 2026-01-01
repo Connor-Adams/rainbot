@@ -24,19 +24,19 @@ export default function UsersStats() {
           : 'Unknown'
         return <span className="font-mono">{escapeHtml(username)}</span>
       },
-      className: 'px-4 py-3 text-sm text-white',
+      className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'user_id',
       header: 'User ID',
       render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.user_id)}</span>,
-      className: 'px-4 py-3 text-sm text-white',
+      className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'guild_id',
       header: 'Guild ID',
       render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.guild_id)}</span>,
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'commands',
@@ -44,7 +44,7 @@ export default function UsersStats() {
       render: (user: UserStat) => (
         <span className="font-mono">{parseInt(user.command_count || '0').toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'sounds',
@@ -52,7 +52,7 @@ export default function UsersStats() {
       render: (user: UserStat) => (
         <span className="font-mono">{parseInt(user.sound_count || '0').toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'total',
@@ -61,14 +61,14 @@ export default function UsersStats() {
         const total = parseInt(user.command_count || '0') + parseInt(user.sound_count || '0')
         return <span className="font-mono">{total.toLocaleString()}</span>
       },
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'last_active',
       header: 'Last Active',
       render: (user: UserStat) =>
         user.last_active ? new Date(user.last_active).toLocaleString() : 'Never',
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ]
 

@@ -120,8 +120,8 @@ export default function InteractionsStats() {
   return (
     <div className="space-y-6">
       {/* Interaction Type Breakdown */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Interaction Types</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Interaction Types</h3>
         <div className="max-h-[400px]">
           <Doughnut
             data={typeBreakdownData}
@@ -136,8 +136,8 @@ export default function InteractionsStats() {
       </div>
 
       {/* Response Time Distribution */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Response Time Distribution</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Response Time Distribution</h3>
         <div className="max-h-[400px]">
           <Doughnut
             data={responseTimeData}
@@ -153,8 +153,8 @@ export default function InteractionsStats() {
 
       {/* Top Actions */}
       {data.topActions.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Interactions</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Top Interactions</h3>
           <div className="max-h-[400px]">
             <Bar
               data={topActionsData}
@@ -171,12 +171,12 @@ export default function InteractionsStats() {
 
       {/* Top Actions Table */}
       {data.topActions.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Interaction Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Interaction Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Action</th>
                   <th className="pb-2 px-4">Type</th>
                   <th className="pb-2 px-4">Count</th>
@@ -191,7 +191,7 @@ export default function InteractionsStats() {
                   const successRate = count > 0 ? (successCount / count) * 100 : 0
                   const successRateDisplay = isNaN(successRate) ? '0.0' : successRate.toFixed(1)
                   return (
-                    <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                    <tr key={idx} className="border-b border-border/50 text-text-secondary">
                       <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
                       <td className="py-2 px-4">{action.interaction_type}</td>
                       <td className="py-2 px-4">{action.count}</td>
@@ -212,12 +212,12 @@ export default function InteractionsStats() {
 
       {/* Errors */}
       {data.errors.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Interaction Errors</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Interaction Errors</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Action</th>
                   <th className="pb-2 px-4">Type</th>
                   <th className="pb-2 px-4">Error</th>
@@ -226,10 +226,10 @@ export default function InteractionsStats() {
               </thead>
               <tbody>
                 {data.errors.slice(0, 10).map((error, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4 font-mono text-sm">{error.custom_id}</td>
                     <td className="py-2 px-4">{error.interaction_type}</td>
-                    <td className="py-2 px-4 text-red-400 text-sm">{error.error_message}</td>
+                    <td className="py-2 px-4 text-danger text-sm">{error.error_message}</td>
                     <td className="py-2 px-4">{error.count}</td>
                   </tr>
                 ))}

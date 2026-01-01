@@ -49,7 +49,7 @@ export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
 
   return (
-    <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
+    <section className="panel stats-panel bg-surface rounded-2xl border border-border p-8">
       <StatsSSE />
       <div className="stats-header mb-6">
         <h2 className="text-2xl font-bold text-white mb-4">Statistics Dashboard</h2>

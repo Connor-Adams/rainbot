@@ -94,36 +94,36 @@ export default function ApiLatencyStats() {
     <div className="space-y-6">
       {/* Overall Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">{data.overall.total_requests}</div>
-          <div className="text-sm text-gray-400">Total Requests</div>
+          <div className="text-sm text-text-secondary">Total Requests</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-green-400">{data.overall.avg_latency_ms}ms</div>
-          <div className="text-sm text-gray-400">Avg Latency</div>
+          <div className="text-sm text-text-secondary">Avg Latency</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">{data.overall.p50_ms}ms</div>
-          <div className="text-sm text-gray-400">P50 (Median)</div>
+          <div className="text-sm text-text-secondary">P50 (Median)</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-yellow-400">{data.overall.p95_ms}ms</div>
-          <div className="text-sm text-gray-400">P95</div>
+          <div className="text-sm text-text-secondary">P95</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-orange-400">{data.overall.p99_ms}ms</div>
-          <div className="text-sm text-gray-400">P99</div>
+          <div className="text-sm text-text-secondary">P99</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{data.overall.max_ms}ms</div>
-          <div className="text-sm text-gray-400">Max</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger">{data.overall.max_ms}ms</div>
+          <div className="text-sm text-text-secondary">Max</div>
         </div>
       </div>
 
       {/* Status Codes */}
       {data.statusCodes.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Status Code Distribution</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Status Code Distribution</h3>
           <div className="max-h-[400px]">
             <Doughnut
               data={statusCodesData}
@@ -140,8 +140,8 @@ export default function ApiLatencyStats() {
 
       {/* Endpoint Latency Chart */}
       {data.byEndpoint.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Slowest Endpoints (P95)</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Slowest Endpoints (P95)</h3>
           <div className="max-h-[400px]">
             <Bar
               data={endpointLatencyData}
@@ -158,12 +158,12 @@ export default function ApiLatencyStats() {
 
       {/* Endpoint Details Table */}
       {data.byEndpoint.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Endpoint Performance Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Endpoint Performance Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Method</th>
                   <th className="pb-2 px-4">Endpoint</th>
                   <th className="pb-2 px-4">Requests</th>
@@ -173,9 +173,9 @@ export default function ApiLatencyStats() {
               </thead>
               <tbody>
                 {data.byEndpoint.map((endpoint, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">
-                      <span className="px-2 py-1 rounded text-xs bg-gray-700 font-mono">
+                      <span className="px-2 py-1 rounded text-xs bg-surface-elevated font-mono">
                         {endpoint.method}
                       </span>
                     </td>
@@ -186,7 +186,7 @@ export default function ApiLatencyStats() {
                       <span
                         className={
                           parseFloat(endpoint.p95_ms) > 1000
-                            ? 'text-red-400'
+                            ? 'text-danger'
                             : parseFloat(endpoint.p95_ms) > 500
                               ? 'text-yellow-400'
                               : 'text-green-400'

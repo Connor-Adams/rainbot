@@ -22,12 +22,12 @@ export default function QueueStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading queue statistics...</div>
+    return <div className="text-center py-12 text-text-secondary">Loading queue statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="text-center py-12 text-danger">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -49,8 +49,8 @@ export default function QueueStats() {
   }
 
   return (
-    <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Queue Operations</h3>
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h3 className="text-xl text-text-primary mb-4">Queue Operations</h3>
       <div className="max-h-[400px]">
         <Bar data={barData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
       </div>

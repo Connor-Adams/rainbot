@@ -31,14 +31,14 @@ export default function PlaybackStatesStats() {
   })
 
   if (isLoading) return <div className="py-12 text-center">Loading…</div>
-  if (error) return <div className="py-12 text-center text-red-400">Error</div>
+  if (error) return <div className="py-12 text-center text-danger">Error</div>
   if (!data) return null
 
   return (
     <div className="space-y-8">
       {/* Playback state counts */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-white text-lg mb-4">Playback State Changes</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-text-primary text-lg mb-4">Playback State Changes</h3>
 
         {data.stateTypes.map((playbackState: PlaybackState) => {
           const playbackStateCount = Number(playbackState.count)
@@ -50,12 +50,12 @@ export default function PlaybackStatesStats() {
 
           return (
             <div key={playbackState.state_type} className="mb-3">
-              <div className="flex justify-between text-sm text-gray-300 mb-1">
+              <div className="flex justify-between text-sm text-text-secondary mb-1">
                 <span className="capitalize">{playbackState.state_type}</span>
                 <span>{playbackStateCount}</span>
               </div>
 
-              <div className="w-full h-3 bg-gray-700 rounded">
+              <div className="w-full h-3 bg-surface-elevated rounded">
                 <div
                   className="h-3 bg-blue-500 rounded"
                   style={{ width: `${playbackStateBarWidth}%` }}
@@ -67,8 +67,8 @@ export default function PlaybackStatesStats() {
       </div>
 
       {/* Volume distribution */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-white text-lg mb-4">Volume Levels</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-text-primary text-lg mb-4">Volume Levels</h3>
 
         {data.volumeDistribution.map((volumeEntry: VolumeDistributionEntry) => {
           const volumeLevelCount = Number(volumeEntry.count)
@@ -82,12 +82,12 @@ export default function PlaybackStatesStats() {
 
           return (
             <div key={volumeEntry.volume_level} className="mb-3">
-              <div className="flex justify-between text-sm text-gray-300 mb-1">
+              <div className="flex justify-between text-sm text-text-secondary mb-1">
                 <span>Volume {volumeEntry.volume_level}</span>
                 <span>{volumeLevelCount}</span>
               </div>
 
-              <div className="w-full h-3 bg-gray-700 rounded">
+              <div className="w-full h-3 bg-surface-elevated rounded">
                 <div
                   className="h-3 bg-emerald-500 rounded"
                   style={{ width: `${volumeLevelBarWidth}%` }}
@@ -99,8 +99,8 @@ export default function PlaybackStatesStats() {
       </div>
 
       {/* Pause / resume by hour */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-white text-lg mb-4">Pauses & Resumes by Hour</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-text-primary text-lg mb-4">Pauses & Resumes by Hour</h3>
 
         {data.pausePatternByHour.map(
           (hourlyPauseResumeStats: PausePatternByHourEntry) => {
@@ -120,14 +120,14 @@ export default function PlaybackStatesStats() {
 
             return (
               <div key={hourlyPauseResumeStats.hour} className="mb-4">
-                <div className="flex justify-between text-sm text-gray-300 mb-1">
+                <div className="flex justify-between text-sm text-text-secondary mb-1">
                   <span>{hourlyPauseResumeStats.hour}:00</span>
                   <span>
                     ⏸ {pauseCount} / ▶ {resumeCount}
                   </span>
                 </div>
 
-                <div className="w-full h-3 bg-gray-700 rounded flex overflow-hidden">
+                <div className="w-full h-3 bg-surface-elevated rounded flex overflow-hidden">
                   <div
                     className="h-3 bg-red-400"
                     style={{ width: `${pauseBarWidth}%` }}
