@@ -23,6 +23,19 @@ const log = createLogger('CONNECTION');
 export const voiceStates = new Map<string, VoiceState>();
 
 /**
+ * Create an autoplay track with proper metadata
+ */
+function createAutoplayTrack(relatedTrack: Track, state: VoiceState): Track {
+  return {
+    ...relatedTrack,
+    userId: state.lastUserId || undefined,
+    username: state.lastUsername || undefined,
+    discriminator: state.lastDiscriminator || undefined,
+    source: 'autoplay',
+  };
+}
+
+/**
  * Join a voice channel
  */
 export async function joinChannel(
@@ -58,8 +71,13 @@ export async function joinChannel(
         // The overlay already played the music through to completion, so just continue with queue
       }
 
-      // End track engagement - track completed naturally
-      stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+      // End track engagement - track completed naturally (unless it was manually skipped)
+      if (!state.wasManuallySkipped) {
+        stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+      } else {
+        // Reset the skip flag
+        state.wasManuallySkipped = false;
+      }
 
       // Check if there's more in queue
       if (state.queue.length > 0) {
@@ -68,13 +86,53 @@ export async function joinChannel(
         const { playNext } = await import('./playbackManager');
         await playNext(guildId);
       } else {
-        // Queue empty - clear now playing
-        log.debug(`Queue empty, clearing now playing state`);
-        state.nowPlaying = null;
-        state.currentTrack = null;
-        state.currentResource = null;
-        state.currentTrackSource = null;
-        state.playbackStartTime = null;
+        // Queue empty - check if autoplay is enabled
+        if (state.autoplay && state.lastPlayedTrack && !state.lastPlayedTrack.isSoundboard) {
+          log.info(`Queue empty, autoplay enabled - finding related track`);
+          try {
+            const { getRelatedTrack } = await import('./trackFetcher');
+            const relatedTrack = await getRelatedTrack(state.lastPlayedTrack);
+
+            if (relatedTrack) {
+              // Add user info from last track using factory function
+              const autoplayTrack = createAutoplayTrack(relatedTrack, state);
+
+              // Mutate the queue under the queue lock to avoid race conditions
+              const { withQueueLock } = await import('./queueManager');
+              await withQueueLock(guildId, () => {
+                state.queue.push(autoplayTrack);
+              });
+              log.info(`Added autoplay track: "${autoplayTrack.title}"`);
+
+              const { playNext } = await import('./playbackManager');
+              await playNext(guildId);
+            } else {
+              log.debug(`No related track found, clearing now playing state`);
+              state.nowPlaying = null;
+              state.currentTrack = null;
+              state.currentResource = null;
+              state.currentTrackSource = null;
+              state.playbackStartTime = null;
+            }
+          } catch (error) {
+            const err = error as Error;
+            log.error(`Autoplay failed: ${err.message}`);
+            // Clear now playing on error
+            state.nowPlaying = null;
+            state.currentTrack = null;
+            state.currentResource = null;
+            state.currentTrackSource = null;
+            state.playbackStartTime = null;
+          }
+        } else {
+          // Autoplay disabled or no suitable last track - clear now playing
+          log.debug(`Queue empty, clearing now playing state`);
+          state.nowPlaying = null;
+          state.currentTrack = null;
+          state.currentResource = null;
+          state.currentTrackSource = null;
+          state.playbackStartTime = null;
+        }
       }
     } catch (error) {
       const err = error as Error;
@@ -132,6 +190,8 @@ export async function joinChannel(
     currentTrackSource: null,
     lastPlayedTrack: null,
     isTransitioningToOverlay: false,
+    autoplay: false,
+    wasManuallySkipped: false,
   };
 
   voiceStates.set(guildId, state);

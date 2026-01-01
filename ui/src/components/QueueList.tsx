@@ -2,8 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { botApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
 import type { Track } from '@/types'
-import { escapeHtml, formatDuration } from '@/lib/utils'
 import { useState } from 'react'
+import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui'
+import EmptyState from '@/components/common/EmptyState'
+import QueueItem from '@/components/queue/QueueItem'
+import { TrashIcon } from '@/components/icons'
 
 export default function QueueList() {
   const { selectedGuildId } = useGuildStore()
@@ -45,93 +48,72 @@ export default function QueueList() {
 
   if (!selectedGuildId) {
     return (
-      <section className="panel queue-panel bg-gray-800 rounded-2xl border border-gray-700 p-6 flex flex-col">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
-          Queue
-        </h2>
-        <p className="queue-empty text-center py-8 text-gray-500">Select a server to view queue</p>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Queue</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmptyState icon="🎵" message="Select a server to view queue" />
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <section className="panel queue-panel bg-gray-800 rounded-2xl border border-gray-700 p-6 flex flex-col">
-      <div className="queue-header flex justify-between items-center mb-4">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-          <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
-          Queue
-        </h2>
-        <div className="flex items-center gap-3">
-          <span className="queue-count text-sm font-semibold text-gray-300">{totalInQueue}</span>
-          {hasQueue && (
-            <button
-              className="btn btn-danger btn-small"
-              onClick={handleClear}
-              disabled={isClearing}
-            >
-              <span className="btn-icon">🗑</span> Clear
-            </button>
-          )}
+    <Card className="flex flex-col min-h-0">
+      <CardHeader className="flex-shrink-0">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <CardTitle>Queue</CardTitle>
+            {queueData?.autoplay && (
+              <span className="text-xs text-primary font-normal" title="Autoplay enabled">
+                🔁
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="default" size="md">
+              {totalInQueue}
+            </Badge>
+            {hasQueue && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleClear}
+                isLoading={isClearing}
+                icon={<TrashIcon size={16} />}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="queue-list flex flex-col gap-2 flex-1 overflow-y-auto pr-2 min-h-0">
+      </CardHeader>
+      <CardContent className="flex-1 overflow-y-auto min-h-0">
         {queue.length === 0 ? (
-          <p className="queue-empty text-center py-8 text-gray-500">
-            <span className="block text-2xl mb-2 opacity-50">🎵</span>
-            Queue is empty
-            <br />
-            <small className="block mt-2 text-sm">Add tracks to start playing</small>
-          </p>
-        ) : (
-          queue.map((track: Track, index: number) => {
-            let sourceIcon, sourceText
-            if (track.isLocal) {
-              sourceIcon = '📁'
-              sourceText = 'Local'
-            } else if (track.spotifyUrl || track.spotifyId) {
-              sourceIcon = '🎵'
-              sourceText = 'Spotify'
-            } else if (track.url?.includes('youtube')) {
-              sourceIcon = '▶️'
-              sourceText = 'YouTube'
-            } else if (track.url?.includes('soundcloud')) {
-              sourceIcon = '🎧'
-              sourceText = 'SoundCloud'
-            } else {
-              sourceIcon = '🎵'
-              sourceText = 'Stream'
+          <EmptyState
+            icon="🎵"
+            message="Queue is empty"
+            submessage={
+              queueData?.autoplay
+                ? 'Add tracks to start playing. 🔁 Autoplay is enabled - similar tracks will play automatically'
+                : 'Add tracks to start playing'
             }
-
-            return (
-              <div key={index} className="queue-item flex items-center gap-3">
-                <div className="queue-position">{index + 1}</div>
-                <div className="queue-item-info">
-                  <div className="queue-item-title" title={escapeHtml(track.title)}>
-                    {escapeHtml(track.title)}
-                  </div>
-                  <div className="queue-item-meta">
-                    <span className="queue-item-source">
-                      {sourceIcon} {sourceText}
-                    </span>
-                    {track.duration && <span>{formatDuration(track.duration)}</span>}
-                  </div>
-                </div>
-                <div className="queue-item-actions">
-                  <button
-                    className="btn btn-danger btn-small remove-queue-item-btn"
-                    onClick={() => removeMutation.mutate(index)}
-                    title="Remove"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            )
-          })
+          />
+        ) : (
+          <div className="flex flex-col gap-2 pr-2">
+            {queue.map((track: Track, index: number) => (
+              <QueueItem
+                key={index}
+                track={track}
+                index={index}
+                onRemove={() => removeMutation.mutate(index)}
+              />
+            ))}
+          </div>
         )}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   )
 }
 

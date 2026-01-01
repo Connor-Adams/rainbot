@@ -21,6 +21,7 @@ import PlaybackStatesStats from './components/PlaybackStatesStats'
 import WebAnalyticsStats from './components/WebAnalyticsStats'
 import GuildEventsStats from './components/GuildEventsStats'
 import ApiLatencyStats from './components/ApiLatencyStats'
+import { StatsErrorBoundary } from '@/components/ErrorBoundary'
 
 type StatsTab =
   | 'summary'
@@ -183,27 +184,29 @@ export default function StatisticsTab() {
         </div>
       </div>
       <div id="stats-content" className="space-y-6">
-        {activeTab === 'summary' && <StatsSummary key="summary" />}
-        {activeTab === 'commands' && <CommandsStats key="commands" />}
-        {activeTab === 'sounds' && <SoundsStats key="sounds" />}
-        {activeTab === 'users' && <UsersStats key="users" />}
-        {activeTab === 'guilds' && <GuildsStats key="guilds" />}
-        {activeTab === 'queue' && <QueueStats key="queue" />}
-        {activeTab === 'time' && <TimeStats key="time" />}
-        {activeTab === 'history' && <HistoryStats key="history" />}
-        {activeTab === 'sessions' && <SessionsStats key="sessions" />}
-        {activeTab === 'performance' && <PerformanceStats key="performance" />}
-        {activeTab === 'errors' && <ErrorsStats key="errors" />}
-        {activeTab === 'retention' && <RetentionStats key="retention" />}
-        {activeTab === 'search' && <SearchStats key="search" />}
-        {activeTab === 'user-sessions' && <UserSessionsStats key="user-sessions" />}
-        {activeTab === 'user-tracks' && <UserTracksStats key="user-tracks" />}
-        {activeTab === 'engagement' && <EngagementStats key="engagement" />}
-        {activeTab === 'interactions' && <InteractionsStats key="interactions" />}
-        {activeTab === 'playback-states' && <PlaybackStatesStats key="playback-states" />}
-        {activeTab === 'web-analytics' && <WebAnalyticsStats key="web-analytics" />}
-        {activeTab === 'guild-events' && <GuildEventsStats key="guild-events" />}
-        {activeTab === 'api-latency' && <ApiLatencyStats key="api-latency" />}
+        <StatsErrorBoundary>
+          {activeTab === 'summary' && <StatsSummary key="summary" />}
+          {activeTab === 'commands' && <CommandsStats key="commands" />}
+          {activeTab === 'sounds' && <SoundsStats key="sounds" />}
+          {activeTab === 'users' && <UsersStats key="users" />}
+          {activeTab === 'guilds' && <GuildsStats key="guilds" />}
+          {activeTab === 'queue' && <QueueStats key="queue" />}
+          {activeTab === 'time' && <TimeStats key="time" />}
+          {activeTab === 'history' && <HistoryStats key="history" />}
+          {activeTab === 'sessions' && <SessionsStats key="sessions" />}
+          {activeTab === 'performance' && <PerformanceStats key="performance" />}
+          {activeTab === 'errors' && <ErrorsStats key="errors" />}
+          {activeTab === 'retention' && <RetentionStats key="retention" />}
+          {activeTab === 'search' && <SearchStats key="search" />}
+          {activeTab === 'user-sessions' && <UserSessionsStats key="user-sessions" />}
+          {activeTab === 'user-tracks' && <UserTracksStats key="user-tracks" />}
+          {activeTab === 'engagement' && <EngagementStats key="engagement" />}
+          {activeTab === 'interactions' && <InteractionsStats key="interactions" />}
+          {activeTab === 'playback-states' && <PlaybackStatesStats key="playback-states" />}
+          {activeTab === 'web-analytics' && <WebAnalyticsStats key="web-analytics" />}
+          {activeTab === 'guild-events' && <GuildEventsStats key="guild-events" />}
+          {activeTab === 'api-latency' && <ApiLatencyStats key="api-latency" />}
+        </StatsErrorBoundary>
       </div>
     </section>
   )

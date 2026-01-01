@@ -196,6 +196,13 @@ export async function playSoundboardOverlay(
       stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     });
 
+    // Handle stdin errors to prevent unhandled error events
+    if (ffmpeg.stdin) {
+      ffmpeg.stdin.on('error', (err) => {
+        log.debug(`FFmpeg stdin error: ${err.message}`);
+      });
+    }
+
     // Handle stdout errors BEFORE creating resource to prevent unhandled error events
     if (ffmpeg.stdout) {
       ffmpeg.stdout.on('error', (err) => {
@@ -208,7 +215,13 @@ export async function playSoundboardOverlay(
     soundStream.on('error', (err) => {
       log.debug(`Soundboard stream error: ${err.message}`);
     });
-    soundStream.pipe(ffmpeg.stdio[3] as NodeJS.WritableStream);
+
+    // Handle errors on the pipe we're writing to (stdio[3])
+    const soundInputPipe = ffmpeg.stdio[3] as NodeJS.WritableStream;
+    soundInputPipe.on('error', (err) => {
+      log.debug(`FFmpeg sound input pipe error: ${err.message}`);
+    });
+    soundStream.pipe(soundInputPipe);
 
     ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString().trim();

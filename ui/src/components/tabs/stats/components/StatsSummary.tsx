@@ -13,6 +13,10 @@ export default function StatsSummary() {
   if (error) return <StatsError error={error} message="Error loading statistics" />
   if (!data) return null
 
+  const successRate = typeof data.successRate === 'number' && !isNaN(data.successRate)
+    ? data.successRate.toFixed(1)
+    : '0.0'
+
   return (
     <div className="stats-summary space-y-6">
       <div className="stats-cards grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6">
@@ -20,7 +24,7 @@ export default function StatsSummary() {
         <StatCard value={data.totalSounds} label="Sounds Played" />
         <StatCard value={data.uniqueUsers} label="Active Users" />
         <StatCard value={data.uniqueGuilds} label="Active Guilds" />
-        <StatCard value={`${data.successRate.toFixed(1)}%`} label="Success Rate" />
+        <StatCard value={`${successRate}%`} label="Success Rate" />
       </div>
     </div>
   )

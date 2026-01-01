@@ -110,6 +110,9 @@ export async function skip(
       throw new Error('Nothing is playing');
     }
 
+    // Set flag to prevent double-tracking in Idle handler
+    state.wasManuallySkipped = true;
+
     // End track engagement - track was skipped
     stats.endTrackEngagement(guildId, true, 'user_skip', skippedBy, null);
 
@@ -153,6 +156,7 @@ export async function clearQueue(
 
     // End track engagement if something is playing - queue was cleared
     if (state.nowPlaying) {
+      state.wasManuallySkipped = true;
       stats.endTrackEngagement(guildId, true, 'queue_clear', clearedBy, null);
     }
 
@@ -209,6 +213,7 @@ export function getQueue(guildId: string): QueueInfo {
       hasOverlay: false,
       isPaused: false,
       channelName: null,
+      autoplay: false,
     };
   }
 
@@ -233,6 +238,7 @@ export function getQueue(guildId: string): QueueInfo {
     hasOverlay: !!state.overlayProcess,
     isPaused: state.player.state.status === AudioPlayerStatus.Paused,
     channelName: state.channelName,
+    autoplay: state.autoplay,
   };
 }
 
