@@ -16,7 +16,7 @@ export function useStatsQuery<T>(options: UseStatsQueryOptions<T>): UseQueryResu
   return useQuery<T>({
     queryKey: options.queryKey,
     queryFn: () => options.queryFn().then((res) => res.data),
-    refetchInterval: options.refetchInterval ?? 30000,
+    refetchInterval: options.refetchInterval ?? 60000, // Increased from 30s to 60s to reduce load
     enabled: options.enabled,
   });
 }
