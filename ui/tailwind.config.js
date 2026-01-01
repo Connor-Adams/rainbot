@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -75,15 +72,15 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(59, 130, 246, 0.4)',
+        glow: '0 0 20px rgba(59, 130, 246, 0.4)',
         'glow-strong': '0 0 30px rgba(59, 130, 246, 0.6)',
         'glow-success': '0 0 20px rgba(16, 185, 129, 0.4)',
         'glow-danger': '0 0 20px rgba(239, 68, 68, 0.4)',
       },
       zIndex: {
-        'header': '50',
-        'modal': '100',
-        'toast': '1000',
+        header: '50',
+        modal: '100',
+        toast: '1000',
       },
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out',
@@ -91,7 +88,7 @@ export default {
         'slide-in-down': 'slideInDown 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         'slide-in-left': 'slideInLeft 0.3s ease-out',
         'pulse-dot': 'pulseDot 2s ease-in-out infinite',
-        'float': 'float 3s ease-in-out infinite',
+        float: 'float 3s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -122,4 +119,4 @@ export default {
     },
   },
   plugins: [],
-}
+};

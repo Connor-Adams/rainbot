@@ -7,12 +7,11 @@ const log = createLogger('AUTOPLAY');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('autoplay')
-    .setDescription('Toggle auto keep playing mode (automatically plays related tracks when queue is empty)')
+    .setDescription(
+      'Toggle auto keep playing mode (automatically plays related tracks when queue is empty)'
+    )
     .addBooleanOption((option) =>
-      option
-        .setName('enabled')
-        .setDescription('Enable or disable autoplay')
-        .setRequired(false)
+      option.setName('enabled').setDescription('Enable or disable autoplay').setRequired(false)
     ),
 
   async execute(interaction) {
@@ -32,12 +31,12 @@ module.exports = {
     try {
       // Toggle or set autoplay
       const result = voiceManager.toggleAutoplay(guildId, enabledOption);
-      
+
       const emoji = result.enabled ? '🔁' : '⏹️';
       const statusText = result.enabled ? 'enabled' : 'disabled';
-      
+
       log.info(`Autoplay ${statusText} by ${user} in ${interaction.guild.name}`);
-      
+
       await interaction.reply({
         content: `${emoji} Autoplay ${statusText}${result.enabled ? '! The bot will automatically play related tracks when the queue is empty.' : '.'}`,
         ephemeral: false,
