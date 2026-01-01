@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -74,6 +75,18 @@ export default function SessionsStats() {
   const summary: SessionSummary = data.summary || {}
   const sessions: Session[] = data.sessions || []
   const daily: DailySession[] = data.daily || []
+
+  // Check if there's any meaningful data
+  const totalSessions = parseInt(summary.total_sessions || '0')
+  if (totalSessions === 0 && sessions.length === 0) {
+    return (
+      <EmptyState
+        icon="🎵"
+        message="No voice session data available"
+        submessage="Session statistics will appear here once the bot joins voice channels"
+      />
+    )
+  }
 
   const chartData = {
     labels: daily.slice(0, 14).reverse().map((d) => new Date(d.date).toLocaleDateString()),

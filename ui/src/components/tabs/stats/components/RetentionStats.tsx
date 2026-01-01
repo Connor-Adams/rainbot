@@ -12,6 +12,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -97,12 +98,22 @@ export default function RetentionStats() {
 
   const hasData = mau > 0 || cohorts.length > 0
 
+  if (!hasData) {
+    return (
+      <EmptyState
+        icon="📊"
+        message="No retention data available"
+        submessage="User retention analytics will appear here as users interact with the bot over time"
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Active Users */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">Active Users</h3>
-        {hasData ? (
+        {hasData && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-gray-700 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-blue-400">{dau}</div>
@@ -124,10 +135,6 @@ export default function RetentionStats() {
               <div className="text-2xl font-bold text-orange-400">{dauMauDisplay}%</div>
               <div className="text-sm text-gray-400">DAU/MAU (Stickiness)</div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center text-gray-400 py-8">
-            No active user data yet. User activity tracking will populate over time.
           </div>
         )}
       </div>

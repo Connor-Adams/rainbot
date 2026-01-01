@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -77,12 +78,22 @@ export default function PerformanceStats() {
 
   const hasData = parseInt(overall.sample_count || '0') > 0
 
+  if (!hasData) {
+    return (
+      <EmptyState
+        icon="⏱️"
+        message="No performance data available"
+        submessage="Command execution time tracking will populate as commands are run"
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Overall Percentiles */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">Command Latency Overview</h3>
-        {hasData ? (
+        {hasData && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="bg-gray-700 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-blue-400">{overall.avg_ms || 0}ms</div>
@@ -108,10 +119,6 @@ export default function PerformanceStats() {
               <div className="text-2xl font-bold text-gray-400">{overall.sample_count || 0}</div>
               <div className="text-sm text-gray-400">Samples</div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center text-gray-400 py-8">
-            No performance data yet. Execution time tracking will populate as commands are run.
           </div>
         )}
       </div>

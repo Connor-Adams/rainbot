@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -50,13 +51,24 @@ export default function EngagementStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading engagement...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>
-  if (!data || !data.summary) return null
+  if (!data) return null
 
-  const completed = parseInt(data.summary.completed || '0')
-  const skipped = parseInt(data.summary.skipped || '0')
-  const totalTracks = parseInt(data.summary.total_tracks || '0')
-  const avgCompletionPercent = parseFloat(data.summary.avg_completion_percent || '0')
+  const summary = data.summary || {}
+  const completed = parseInt(summary.completed || '0')
+  const skipped = parseInt(summary.skipped || '0')
+  const totalTracks = parseInt(summary.total_tracks || '0')
+  const avgCompletionPercent = parseFloat(summary.avg_completion_percent || '0')
   const avgCompletionDisplay = isNaN(avgCompletionPercent) ? '0.0' : avgCompletionPercent.toFixed(1)
+
+  if (totalTracks === 0) {
+    return (
+      <EmptyState
+        icon="📈"
+        message="No track engagement data available"
+        submessage="Engagement statistics will appear here once tracks are played"
+      />
+    )
+  }
 
   const completionData = {
     labels: ['Completed', 'Skipped', 'Other'],

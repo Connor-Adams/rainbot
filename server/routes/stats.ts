@@ -865,7 +865,15 @@ router.get(
       );
 
       res.json({
-        overall: percentilesResult?.rows[0] || {},
+        overall: percentilesResult?.rows[0] || {
+          avg_ms: '0',
+          p50_ms: '0',
+          p95_ms: '0',
+          p99_ms: '0',
+          min_ms: '0',
+          max_ms: '0',
+          total_commands: '0',
+        },
         byCommand: byCommandResult?.rows || [],
       });
     } catch (error) {
@@ -947,7 +955,14 @@ router.get(
       );
 
       res.json({
-        summary: summaryResult?.rows[0] || {},
+        summary: summaryResult?.rows[0] || {
+          total_sessions: '0',
+          avg_duration_seconds: '0',
+          total_duration_seconds: '0',
+          avg_tracks_per_session: '0',
+          total_tracks: '0',
+          avg_peak_users: '0',
+        },
         sessions: sessionsResult?.rows || [],
         daily: dailyResult?.rows || [],
       });
@@ -1020,8 +1035,17 @@ router.get(
 
       res.json({
         cohorts: cohortsResult?.rows || [],
-        activeUsers: activeUsersResult?.rows[0] || {},
-        returning: returningResult?.rows[0] || {},
+        activeUsers: activeUsersResult?.rows[0] || {
+          daily_active: '0',
+          weekly_active: '0',
+          monthly_active: '0',
+          total_users: '0',
+        },
+        returning: returningResult?.rows[0] || {
+          recent_active: '0',
+          previous_active: '0',
+          returning_users: '0',
+        },
       });
     } catch (error) {
       const err = error as Error;
@@ -1187,7 +1211,14 @@ router.get(
       );
 
       res.json({
-        summary: summaryResult?.rows[0] || {},
+        summary: summaryResult?.rows[0] || {
+          total_sessions: '0',
+          unique_users: '0',
+          avg_duration_seconds: '0',
+          total_duration_seconds: '0',
+          avg_tracks_per_session: '0',
+          total_tracks_heard: '0',
+        },
         sessions: sessionsResult?.rows || [],
         topListeners: topListenersResult?.rows || [],
       });
@@ -1440,7 +1471,13 @@ router.get(
       );
 
       res.json({
-        summary: summaryResult?.rows[0] || {},
+        summary: summaryResult?.rows[0] || {
+          total_tracks: '0',
+          completed: '0',
+          skipped: '0',
+          avg_played_seconds: '0',
+          avg_completion_percent: '0',
+        },
         skipReasons: skipReasonsResult?.rows || [],
         mostSkipped: mostSkippedResult?.rows || [],
         mostCompleted: mostCompletedResult?.rows || [],
@@ -1541,7 +1578,12 @@ router.get(
         typeBreakdown: typeBreakdownResult?.rows || [],
         topActions: topActionsResult?.rows || [],
         errors: errorsResult?.rows || [],
-        responseTimeDistribution: responseTimeResult?.rows[0] || {},
+        responseTimeDistribution: responseTimeResult?.rows[0] || {
+          under_100ms: '0',
+          between_100_500ms: '0',
+          between_500_1000ms: '0',
+          over_1000ms: '0',
+        },
       });
     } catch (error) {
       const err = error as Error;
@@ -1860,7 +1902,13 @@ router.get(
       );
 
       res.json({
-        overall: overallResult?.rows[0] || {},
+        overall: overallResult?.rows[0] || {
+          total_requests: '0',
+          avg_latency_ms: '0',
+          p50_ms: '0',
+          p95_ms: '0',
+          p99_ms: '0',
+        },
         byEndpoint: byEndpointResult?.rows || [],
         statusCodes: statusCodesResult?.rows || [],
       });

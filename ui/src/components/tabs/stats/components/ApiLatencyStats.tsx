@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -51,21 +52,36 @@ export default function ApiLatencyStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading API latency...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading API latency</div>
-  if (!data || !data.overall) return null
+  if (!data) return null
+
+  const overall = data.overall || {}
+  const totalRequests = parseInt(overall.total_requests || '0')
+  const statusCodes = data.statusCodes || []
+  const byEndpoint = data.byEndpoint || []
+
+  if (totalRequests === 0 && statusCodes.length === 0) {
+    return (
+      <EmptyState
+        icon="⚡"
+        message="No API latency data available"
+        submessage="API performance metrics will appear here once requests are made"
+      />
+    )
+  }
 
   const statusCodesData = {
-    labels: (data.statusCodes || []).map((s) => `${s.status_code}`),
+    labels: statusCodes.map((s) => `${s.status_code}`),
     datasets: [
       {
-        data: (data.statusCodes || []).map((s) => parseInt(s.count)),
-        backgroundColor: (data.statusCodes || []).map((s) => {
+        data: statusCodes.map((s) => parseInt(s.count)),
+        backgroundColor: statusCodes.map((s) => {
           const code = parseInt(s.status_code)
           if (code >= 200 && code < 300) return 'rgba(34, 197, 94, 0.7)'
           if (code >= 300 && code < 400) return 'rgba(59, 130, 246, 0.7)'
           if (code >= 400 && code < 500) return 'rgba(251, 146, 60, 0.7)'
           return 'rgba(239, 68, 68, 0.7)'
         }),
-        borderColor: (data.statusCodes || []).map((s) => {
+        borderColor: statusCodes.map((s) => {
           const code = parseInt(s.status_code)
           if (code >= 200 && code < 300) return 'rgba(34, 197, 94, 1)'
           if (code >= 300 && code < 400) return 'rgba(59, 130, 246, 1)'
@@ -78,11 +94,11 @@ export default function ApiLatencyStats() {
   }
 
   const endpointLatencyData = {
-    labels: (data.byEndpoint || []).slice(0, 10).map((e) => `${e.method} ${e.endpoint}`.substring(0, 40)),
+    labels: byEndpoint.slice(0, 10).map((e) => `${e.method} ${e.endpoint}`.substring(0, 40)),
     datasets: [
       {
         label: 'P95 Latency (ms)',
-        data: (data.byEndpoint || []).slice(0, 10).map((e) => parseFloat(e.p95_ms)),
+        data: byEndpoint.slice(0, 10).map((e) => parseFloat(e.p95_ms)),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
@@ -95,33 +111,33 @@ export default function ApiLatencyStats() {
       {/* Overall Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{data.overall.total_requests}</div>
+          <div className="text-2xl font-bold text-blue-400">{overall.total_requests || '0'}</div>
           <div className="text-sm text-gray-400">Total Requests</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{data.overall.avg_latency_ms}ms</div>
+          <div className="text-2xl font-bold text-green-400">{overall.avg_latency_ms || '0'}ms</div>
           <div className="text-sm text-gray-400">Avg Latency</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{data.overall.p50_ms}ms</div>
+          <div className="text-2xl font-bold text-purple-400">{overall.p50_ms || '0'}ms</div>
           <div className="text-sm text-gray-400">P50 (Median)</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">{data.overall.p95_ms}ms</div>
+          <div className="text-2xl font-bold text-yellow-400">{overall.p95_ms || '0'}ms</div>
           <div className="text-sm text-gray-400">P95</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{data.overall.p99_ms}ms</div>
+          <div className="text-2xl font-bold text-orange-400">{overall.p99_ms || '0'}ms</div>
           <div className="text-sm text-gray-400">P99</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{data.overall.max_ms}ms</div>
+          <div className="text-2xl font-bold text-red-400">{overall.max_ms || '0'}ms</div>
           <div className="text-sm text-gray-400">Max</div>
         </div>
       </div>
 
       {/* Status Codes */}
-      {(data.statusCodes || []).length > 0 && (
+      {statusCodes.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Status Code Distribution</h3>
           <div className="max-h-[400px]">
@@ -139,7 +155,7 @@ export default function ApiLatencyStats() {
       )}
 
       {/* Endpoint Latency Chart */}
-      {(data.byEndpoint || []).length > 0 && (
+      {byEndpoint.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Slowest Endpoints (P95)</h3>
           <div className="max-h-[400px]">
@@ -157,7 +173,7 @@ export default function ApiLatencyStats() {
       )}
 
       {/* Endpoint Details Table */}
-      {(data.byEndpoint || []).length > 0 && (
+      {byEndpoint.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Endpoint Performance Details</h3>
           <div className="overflow-x-auto">
@@ -172,7 +188,7 @@ export default function ApiLatencyStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.byEndpoint || []).map((endpoint, idx) => (
+                {byEndpoint.map((endpoint, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">
                       <span className="px-2 py-1 rounded text-xs bg-gray-700 font-mono">

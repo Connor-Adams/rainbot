@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -59,7 +60,27 @@ export default function InteractionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading interactions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading interactions</div>
-  if (!data || !data.responseTimeDistribution) return null
+  if (!data) return null
+
+  // Check if there's any meaningful data
+  const hasTypeData = (data.typeBreakdown || []).length > 0
+  const hasActionData = (data.topActions || []).length > 0
+  const rtd = data.responseTimeDistribution || {}
+  const hasResponseTimeData =
+    parseInt(rtd.under_100ms || '0') > 0 ||
+    parseInt(rtd.between_100_500ms || '0') > 0 ||
+    parseInt(rtd.between_500_1000ms || '0') > 0 ||
+    parseInt(rtd.over_1000ms || '0') > 0
+
+  if (!hasTypeData && !hasActionData && !hasResponseTimeData) {
+    return (
+      <EmptyState
+        icon="🔘"
+        message="No interaction data available"
+        submessage="Interaction statistics will appear here once users start using buttons and menus"
+      />
+    )
+  }
 
   const typeBreakdownData = {
     labels: (data.typeBreakdown || []).map((t) => t.interaction_type),
@@ -95,10 +116,10 @@ export default function InteractionsStats() {
     datasets: [
       {
         data: [
-          parseInt(data.responseTimeDistribution.under_100ms || '0'),
-          parseInt(data.responseTimeDistribution.between_100_500ms || '0'),
-          parseInt(data.responseTimeDistribution.between_500_1000ms || '0'),
-          parseInt(data.responseTimeDistribution.over_1000ms || '0'),
+          parseInt(rtd.under_100ms || '0'),
+          parseInt(rtd.between_100_500ms || '0'),
+          parseInt(rtd.between_500_1000ms || '0'),
+          parseInt(rtd.over_1000ms || '0'),
         ],
         backgroundColor: [
           'rgba(34, 197, 94, 0.7)',

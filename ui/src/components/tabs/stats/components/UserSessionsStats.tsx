@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -57,14 +58,29 @@ export default function UserSessionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading user sessions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading user sessions</div>
-  if (!data || !data.summary) return null
+  if (!data) return null
+
+  const summary = data.summary || {}
+  const totalSessions = parseInt(summary.total_sessions || '0')
+  const sessions = data.sessions || []
+  const topListeners = data.topListeners || []
+
+  if (totalSessions === 0 && sessions.length === 0) {
+    return (
+      <EmptyState
+        icon="👤"
+        message="No user session data available"
+        submessage="User listening sessions will appear here once users join voice channels"
+      />
+    )
+  }
 
   const topListenersData = {
-    labels: (data.topListeners || []).slice(0, 10).map((l) => l.username || l.user_id.substring(0, 8)),
+    labels: topListeners.slice(0, 10).map((l) => l.username || l.user_id.substring(0, 8)),
     datasets: [
       {
         label: 'Total Duration (seconds)',
-        data: (data.topListeners || []).slice(0, 10).map((l) => parseInt(l.total_duration || '0')),
+        data: topListeners.slice(0, 10).map((l) => parseInt(l.total_duration || '0')),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
@@ -84,42 +100,42 @@ export default function UserSessionsStats() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{data.summary.total_sessions}</div>
+          <div className="text-2xl font-bold text-blue-400">{summary.total_sessions || '0'}</div>
           <div className="text-sm text-gray-400">Total Sessions</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{data.summary.unique_users}</div>
+          <div className="text-2xl font-bold text-green-400">{summary.unique_users || '0'}</div>
           <div className="text-sm text-gray-400">Unique Users</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">
-            {formatDuration(parseInt(data.summary.avg_duration_seconds || '0'))}
+            {formatDuration(parseInt(summary.avg_duration_seconds || '0'))}
           </div>
           <div className="text-sm text-gray-400">Avg Duration</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-orange-400">
-            {formatDuration(parseInt(data.summary.total_duration_seconds || '0'))}
+            {formatDuration(parseInt(summary.total_duration_seconds || '0'))}
           </div>
           <div className="text-sm text-gray-400">Total Duration</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-yellow-400">
             {(() => {
-              const avg = parseFloat(data.summary.avg_tracks_per_session || '0')
+              const avg = parseFloat(summary.avg_tracks_per_session || '0')
               return isNaN(avg) ? '0.0' : avg.toFixed(1)
             })()}
           </div>
           <div className="text-sm text-gray-400">Avg Tracks/Session</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-pink-400">{data.summary.total_tracks_heard}</div>
+          <div className="text-2xl font-bold text-pink-400">{summary.total_tracks_heard || '0'}</div>
           <div className="text-sm text-gray-400">Total Tracks</div>
         </div>
       </div>
 
       {/* Top Listeners Chart */}
-      {(data.topListeners || []).length > 0 && (
+      {topListeners.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Listeners (by duration)</h3>
           <div className="max-h-[400px]">
@@ -137,7 +153,7 @@ export default function UserSessionsStats() {
       )}
 
       {/* Top Listeners Table */}
-      {(data.topListeners || []).length > 0 && (
+      {topListeners.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Listeners Details</h3>
           <div className="overflow-x-auto">
@@ -151,7 +167,7 @@ export default function UserSessionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.topListeners || []).map((listener, idx) => (
+                {topListeners.map((listener, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{listener.username || listener.user_id}</td>
                     <td className="py-2 px-4">{listener.session_count}</td>
@@ -168,7 +184,7 @@ export default function UserSessionsStats() {
       )}
 
       {/* Recent Sessions */}
-      {(data.sessions || []).length > 0 && (
+      {sessions.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Recent Sessions</h3>
           <div className="overflow-x-auto">
@@ -183,7 +199,7 @@ export default function UserSessionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.sessions || []).slice(0, 15).map((session) => (
+                {sessions.slice(0, 15).map((session) => (
                   <tr key={session.session_id} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{session.username || session.user_id}</td>
                     <td className="py-2 px-4">{session.channel_name}</td>

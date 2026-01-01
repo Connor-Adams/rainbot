@@ -13,6 +13,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
+import { EmptyState } from '@/components/common'
 
 ChartJS.register(
   CategoryScale,
@@ -63,11 +64,25 @@ export default function GuildEventsStats() {
   if (error) return <div className="stats-error text-center py-12">Error loading guild events</div>
   if (!data) return null
 
+  const summary = data.summary || []
+  const recentEvents = data.recentEvents || []
+  const growth = data.growth || []
+
+  if (summary.length === 0 && recentEvents.length === 0) {
+    return (
+      <EmptyState
+        icon="🏠"
+        message="No guild event data available"
+        submessage="Guild join/leave events will appear here as the bot is added to or removed from servers"
+      />
+    )
+  }
+
   const summaryData = {
-    labels: (data.summary || []).map((s) => s.event_type.replace('bot_', '')),
+    labels: summary.map((s) => s.event_type.replace('bot_', '')),
     datasets: [
       {
-        data: (data.summary || []).map((s) => parseInt(s.count)),
+        data: summary.map((s) => parseInt(s.count)),
         backgroundColor: [
           'rgba(34, 197, 94, 0.7)',
           'rgba(239, 68, 68, 0.7)',
@@ -80,11 +95,11 @@ export default function GuildEventsStats() {
   }
 
   const growthData = {
-    labels: (data.growth || []).map((g) => new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+    labels: growth.map((g) => new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
     datasets: [
       {
         label: 'Joins',
-        data: (data.growth || []).map((g) => parseInt(g.joins)),
+        data: growth.map((g) => parseInt(g.joins)),
         borderColor: 'rgba(34, 197, 94, 1)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         fill: true,
@@ -92,7 +107,7 @@ export default function GuildEventsStats() {
       },
       {
         label: 'Leaves',
-        data: (data.growth || []).map((g) => parseInt(g.leaves)),
+        data: growth.map((g) => parseInt(g.leaves)),
         borderColor: 'rgba(239, 68, 68, 1)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         fill: true,
@@ -120,7 +135,7 @@ export default function GuildEventsStats() {
       </div>
 
       {/* Growth Over Time */}
-      {(data.growth || []).length > 0 && (
+      {growth.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
           <div className="max-h-[400px]">
@@ -145,7 +160,7 @@ export default function GuildEventsStats() {
       )}
 
       {/* Recent Events */}
-      {(data.recentEvents || []).length > 0 && (
+      {recentEvents.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Recent Guild Events</h3>
           <div className="overflow-x-auto">
@@ -159,7 +174,7 @@ export default function GuildEventsStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.recentEvents || []).slice(0, 10).map((event, idx) => (
+                {recentEvents.slice(0, 10).map((event, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">
                       <span
