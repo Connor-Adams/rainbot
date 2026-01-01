@@ -1,19 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Doughnut, Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import { EmptyState } from '@/components/common'
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface EngagementSummary {
   total_tracks: string
@@ -51,16 +39,20 @@ export default function EngagementStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading engagement...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>
-  if (!data) return null
-
-  const summary = data.summary || {}
-  const completed = parseInt(summary.completed || '0')
-  const skipped = parseInt(summary.skipped || '0')
-  const totalTracks = parseInt(summary.total_tracks || '0')
+  
+  // Safe data access with defaults
+  const summary: EngagementSummary = data?.summary || { total_tracks: '0', completed: '0', skipped: '0', avg_played_seconds: '0', avg_completion_percent: '0' }
+  const skipReasons = Array.isArray(data?.skipReasons) ? data.skipReasons : []
+  const mostSkipped = Array.isArray(data?.mostSkipped) ? data.mostSkipped : []
+  const mostCompleted = Array.isArray(data?.mostCompleted) ? data.mostCompleted : []
+  
+  const completed = parseInt(summary.completed || '0') || 0
+  const skipped = parseInt(summary.skipped || '0') || 0
+  const totalTracks = parseInt(summary.total_tracks || '0') || 0
   const avgCompletionPercent = parseFloat(summary.avg_completion_percent || '0')
   const avgCompletionDisplay = isNaN(avgCompletionPercent) ? '0.0' : avgCompletionPercent.toFixed(1)
 
-  if (totalTracks === 0) {
+  if (!data || totalTracks === 0) {
     return (
       <EmptyState
         icon="📈"
@@ -70,39 +62,12 @@ export default function EngagementStats() {
     )
   }
 
-  const completionData = {
-    labels: ['Completed', 'Skipped', 'Other'],
-    datasets: [
-      {
-        data: [completed, skipped, Math.max(0, totalTracks - completed - skipped)],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(156, 163, 175, 0.5)',
-        ],
-        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
-        borderWidth: 1,
-      },
-    ],
-  }
-
-  const skipReasonsData = {
-    labels: (data.skipReasons || []).map((r) => r.skip_reason || 'Unknown'),
-    datasets: [
-      {
-        label: 'Skip Count',
-        data: (data.skipReasons || []).map((r) => parseInt(r.count)),
-        backgroundColor: 'rgba(239, 68, 68, 0.6)',
-        borderColor: 'rgba(239, 68, 68, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }
+  const other = Math.max(0, totalTracks - completed - skipped)
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Summary Cards - Charts disabled for debugging */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-400">{totalTracks}</div>
           <div className="text-sm text-gray-400">Total Tracks</div>
@@ -116,46 +81,32 @@ export default function EngagementStats() {
           <div className="text-sm text-gray-400">Skipped</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-gray-400">{other}</div>
+          <div className="text-sm text-gray-400">Other</div>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-purple-400">{avgCompletionDisplay}%</div>
           <div className="text-sm text-gray-400">Avg Completion</div>
         </div>
       </div>
 
-      {/* Completion vs Skips Chart */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Completion vs Skips</h3>
-        <div className="max-h-[400px]">
-          <Doughnut
-            data={completionData}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { labels: { color: '#9ca3af' } },
-              },
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Skip Reasons */}
-      {(data.skipReasons || []).length > 0 && (
+      {/* Skip Reasons - Charts disabled */}
+      {skipReasons.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
-          <div className="max-h-[400px]">
-            <Bar
-              data={skipReasonsData}
-              options={{
-                responsive: true,
-                scales: { y: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {skipReasons.map((r, idx) => (
+              <div key={idx} className="bg-gray-700 p-3 rounded text-center">
+                <div className="text-xl font-bold text-red-400">{parseInt(r.count) || 0}</div>
+                <div className="text-sm text-gray-400">{r.skip_reason || 'Unknown'}</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Most Skipped Tracks */}
-      {(data.mostSkipped || []).length > 0 && (
+      {mostSkipped.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Skipped Tracks</h3>
           <div className="overflow-x-auto">
@@ -168,10 +119,10 @@ export default function EngagementStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.mostSkipped || []).map((track, idx) => (
+                {mostSkipped.map((track, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{track.track_title}</td>
-                    <td className="py-2 px-4">{track.skip_count}</td>
+                    <td className="py-2 px-4">{track.track_title || 'Unknown'}</td>
+                    <td className="py-2 px-4">{track.skip_count || '0'}</td>
                     <td className="py-2 px-4">{track.avg_skip_position ? `${track.avg_skip_position}s` : 'N/A'}</td>
                   </tr>
                 ))}
@@ -182,7 +133,7 @@ export default function EngagementStats() {
       )}
 
       {/* Most Completed Tracks */}
-      {(data.mostCompleted || []).length > 0 && (
+      {mostCompleted.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Completed Tracks</h3>
           <div className="overflow-x-auto">
@@ -194,10 +145,10 @@ export default function EngagementStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.mostCompleted || []).map((track, idx) => (
+                {mostCompleted.map((track, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4">{track.track_title}</td>
-                    <td className="py-2 px-4">{track.completion_count}</td>
+                    <td className="py-2 px-4">{track.track_title || 'Unknown'}</td>
+                    <td className="py-2 px-4">{track.completion_count || '0'}</td>
                   </tr>
                 ))}
               </tbody>

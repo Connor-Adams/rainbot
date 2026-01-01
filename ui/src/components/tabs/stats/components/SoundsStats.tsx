@@ -1,19 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Bar, Pie, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import type { SoundStat, SourceType, SoundboardBreakdown } from '@/types'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
 
 export default function SoundsStats() {
   const { data, isLoading, error } = useQuery({
@@ -34,74 +22,76 @@ export default function SoundsStats() {
     )
   }
 
-  if (!data) return null
-
-  const top10 = (data.sounds || []).slice(0, 10)
-
-  const soundsBarData = {
-    labels: top10.map((s: SoundStat) =>
-      s.sound_name.length > 30 ? s.sound_name.substring(0, 30) + '...' : s.sound_name
-    ),
-    datasets: [
-      {
-        label: 'Play Count',
-        data: top10.map((s: SoundStat) => parseInt(s.count)),
-        backgroundColor: 'rgba(139, 92, 246, 0.5)',
-        borderColor: 'rgba(139, 92, 246, 1)',
-        borderWidth: 1,
-      },
-    ],
+  // Safe data access with defaults
+  const sounds = Array.isArray(data?.sounds) ? data.sounds : []
+  const sourceTypes = Array.isArray(data?.sourceTypes) ? data.sourceTypes : []
+  const soundboardBreakdown = Array.isArray(data?.soundboardBreakdown) ? data.soundboardBreakdown : []
+  
+  if (!data || sounds.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
+        <span className="text-3xl opacity-50">🔊</span>
+        <p className="text-sm text-gray-400">No sound data available yet</p>
+        <small className="text-xs text-gray-500">Sound statistics will appear as users play sounds</small>
+      </div>
+    )
   }
 
-  const sourcePieData = {
-    labels: (data.sourceTypes || []).map((s: SourceType) => s.source_type),
-    datasets: [
-      {
-        data: (data.sourceTypes || []).map((s: SourceType) => parseInt(s.count)),
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.5)',
-          'rgba(239, 68, 68, 0.5)',
-          'rgba(34, 197, 94, 0.5)',
-          'rgba(251, 146, 60, 0.5)',
-          'rgba(168, 85, 247, 0.5)',
-        ],
-      },
-    ],
-  }
-
-  const soundboardDoughnutData = {
-    labels: (data.soundboardBreakdown || []).map((b: SoundboardBreakdown) =>
-      b.is_soundboard ? 'Soundboard' : 'Regular'
-    ),
-    datasets: [
-      {
-        data: (data.soundboardBreakdown || []).map((b: SoundboardBreakdown) => parseInt(b.count)),
-        backgroundColor: ['rgba(139, 92, 246, 0.5)', 'rgba(59, 130, 246, 0.5)'],
-      },
-    ],
-  }
+  const top10 = sounds.slice(0, 10)
 
   return (
-    <>
-      <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
-        <h3 className="text-xl text-white mb-4">Top Sounds</h3>
-        <div className="max-h-[400px]">
-          <Bar data={soundsBarData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
-        </div>
-      </div>
-      <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6 mb-6">
-        <h3 className="text-xl text-white mb-4">Source Type Breakdown</h3>
-        <div className="max-h-[400px]">
-          <Pie data={sourcePieData} options={{ responsive: true }} />
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Top Sounds Table - Charts disabled for debugging */}
       <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Soundboard vs Regular</h3>
-        <div className="max-h-[400px]">
-          <Doughnut data={soundboardDoughnutData} options={{ responsive: true }} />
-        </div>
+        <h3 className="text-xl text-white mb-4">Top Sounds</h3>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="text-gray-400 border-b border-gray-700">
+              <th className="pb-2">Sound</th>
+              <th className="pb-2">Plays</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top10.map((s: SoundStat, idx: number) => (
+              <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                <td className="py-2">{s.sound_name || 'Unknown'}</td>
+                <td className="py-2">{parseInt(s.count) || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </>
+      
+      {/* Source Types - Charts disabled */}
+      {sourceTypes.length > 0 && (
+        <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Source Types</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {sourceTypes.map((s: SourceType, idx: number) => (
+              <div key={idx} className="bg-gray-700 p-2 rounded">
+                <span className="text-gray-300">{s.source_type || 'Unknown'}: </span>
+                <span className="text-white font-bold">{parseInt(s.count) || 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Soundboard Breakdown */}
+      {soundboardBreakdown.length > 0 && (
+        <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl text-white mb-4">Soundboard vs Regular</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {soundboardBreakdown.map((b: SoundboardBreakdown, idx: number) => (
+              <div key={idx} className="bg-gray-700 p-2 rounded">
+                <span className="text-gray-300">{b.is_soundboard ? 'Soundboard' : 'Regular'}: </span>
+                <span className="text-white font-bold">{parseInt(b.count) || 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

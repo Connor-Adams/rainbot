@@ -1,19 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import { EmptyState } from '@/components/common'
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface TypeBreakdown {
   interaction_type: string
@@ -60,19 +48,23 @@ export default function InteractionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading interactions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading interactions</div>
-  if (!data) return null
+  
+  // Safe data access with defaults
+  const typeBreakdown = Array.isArray(data?.typeBreakdown) ? data.typeBreakdown : []
+  const topActions = Array.isArray(data?.topActions) ? data.topActions : []
+  const errors = Array.isArray(data?.errors) ? data.errors : []
+  const rtd: ResponseTimeDist = data?.responseTimeDistribution || { under_100ms: '0', between_100_500ms: '0', between_500_1000ms: '0', over_1000ms: '0' }
 
   // Check if there's any meaningful data
-  const hasTypeData = (data.typeBreakdown || []).length > 0
-  const hasActionData = (data.topActions || []).length > 0
-  const rtd = data.responseTimeDistribution || {}
+  const hasTypeData = typeBreakdown.length > 0
+  const hasActionData = topActions.length > 0
   const hasResponseTimeData =
-    parseInt(rtd.under_100ms || '0') > 0 ||
-    parseInt(rtd.between_100_500ms || '0') > 0 ||
-    parseInt(rtd.between_500_1000ms || '0') > 0 ||
-    parseInt(rtd.over_1000ms || '0') > 0
+    (parseInt(rtd.under_100ms || '0') || 0) > 0 ||
+    (parseInt(rtd.between_100_500ms || '0') || 0) > 0 ||
+    (parseInt(rtd.between_500_1000ms || '0') || 0) > 0 ||
+    (parseInt(rtd.over_1000ms || '0') || 0) > 0
 
-  if (!hasTypeData && !hasActionData && !hasResponseTimeData) {
+  if (!data || (!hasTypeData && !hasActionData && !hasResponseTimeData)) {
     return (
       <EmptyState
         icon="🔘"
@@ -82,116 +74,46 @@ export default function InteractionsStats() {
     )
   }
 
-  const typeBreakdownData = {
-    labels: (data.typeBreakdown || []).map((t) => t.interaction_type),
-    datasets: [
-      {
-        data: (data.typeBreakdown || []).map((t) => parseInt(t.count)),
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(251, 146, 60, 0.7)',
-        ],
-        borderColor: ['rgba(59, 130, 246, 1)', 'rgba(34, 197, 94, 1)', 'rgba(251, 146, 60, 1)'],
-        borderWidth: 1,
-      },
-    ],
-  }
-
-  const topActionsData = {
-    labels: (data.topActions || []).slice(0, 10).map((a) => a.custom_id),
-    datasets: [
-      {
-        label: 'Usage Count',
-        data: (data.topActions || []).slice(0, 10).map((a) => parseInt(a.count)),
-        backgroundColor: 'rgba(168, 85, 247, 0.6)',
-        borderColor: 'rgba(168, 85, 247, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }
-
-  const responseTimeData = {
-    labels: ['< 100ms', '100-500ms', '500-1000ms', '> 1000ms'],
-    datasets: [
-      {
-        data: [
-          parseInt(rtd.under_100ms || '0'),
-          parseInt(rtd.between_100_500ms || '0'),
-          parseInt(rtd.between_500_1000ms || '0'),
-          parseInt(rtd.over_1000ms || '0'),
-        ],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(251, 191, 36, 0.7)',
-          'rgba(251, 146, 60, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-        ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(251, 191, 36, 1)',
-          'rgba(251, 146, 60, 1)',
-          'rgba(239, 68, 68, 1)',
-        ],
-        borderWidth: 1,
-      },
-    ],
-  }
-
   return (
     <div className="space-y-6">
-      {/* Interaction Type Breakdown */}
+      {/* Interaction Type Breakdown - Charts disabled for debugging */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">Interaction Types</h3>
-        <div className="max-h-[400px]">
-          <Doughnut
-            data={typeBreakdownData}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { labels: { color: '#9ca3af' } },
-              },
-            }}
-          />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {typeBreakdown.map((t, idx) => (
+            <div key={idx} className="bg-gray-700 p-3 rounded text-center">
+              <div className="text-xl font-bold text-blue-400">{parseInt(t.count) || 0}</div>
+              <div className="text-sm text-gray-400">{t.interaction_type || 'Unknown'}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Response Time Distribution */}
+      {/* Response Time Distribution - Charts disabled */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">Response Time Distribution</h3>
-        <div className="max-h-[400px]">
-          <Doughnut
-            data={responseTimeData}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { labels: { color: '#9ca3af' } },
-              },
-            }}
-          />
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-gray-700 p-3 rounded text-center">
+            <div className="text-xl font-bold text-green-400">{parseInt(rtd.under_100ms || '0') || 0}</div>
+            <div className="text-sm text-gray-400">&lt; 100ms</div>
+          </div>
+          <div className="bg-gray-700 p-3 rounded text-center">
+            <div className="text-xl font-bold text-yellow-400">{parseInt(rtd.between_100_500ms || '0') || 0}</div>
+            <div className="text-sm text-gray-400">100-500ms</div>
+          </div>
+          <div className="bg-gray-700 p-3 rounded text-center">
+            <div className="text-xl font-bold text-orange-400">{parseInt(rtd.between_500_1000ms || '0') || 0}</div>
+            <div className="text-sm text-gray-400">500-1000ms</div>
+          </div>
+          <div className="bg-gray-700 p-3 rounded text-center">
+            <div className="text-xl font-bold text-red-400">{parseInt(rtd.over_1000ms || '0') || 0}</div>
+            <div className="text-sm text-gray-400">&gt; 1000ms</div>
+          </div>
         </div>
       </div>
 
-      {/* Top Actions */}
-      {(data.topActions || []).length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Interactions</h3>
-          <div className="max-h-[400px]">
-            <Bar
-              data={topActionsData}
-              options={{
-                responsive: true,
-                indexAxis: 'y',
-                scales: { x: { beginAtZero: true } },
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Top Actions Table */}
-      {(data.topActions || []).length > 0 && (
+      {topActions.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Interaction Details</h3>
           <div className="overflow-x-auto">
@@ -206,22 +128,22 @@ export default function InteractionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.topActions || []).slice(0, 10).map((action, idx) => {
-                  const count = parseInt(action.count)
-                  const successCount = parseInt(action.success_count)
+                {topActions.slice(0, 10).map((action, idx) => {
+                  const count = parseInt(action.count) || 0
+                  const successCount = parseInt(action.success_count) || 0
                   const successRate = count > 0 ? (successCount / count) * 100 : 0
                   const successRateDisplay = isNaN(successRate) ? '0.0' : successRate.toFixed(1)
                   return (
                     <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                      <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
-                      <td className="py-2 px-4">{action.interaction_type}</td>
-                      <td className="py-2 px-4">{action.count}</td>
+                      <td className="py-2 px-4 font-mono text-sm">{action.custom_id || 'Unknown'}</td>
+                      <td className="py-2 px-4">{action.interaction_type || 'Unknown'}</td>
+                      <td className="py-2 px-4">{action.count || '0'}</td>
                       <td className="py-2 px-4">
                         <span className={successRate > 95 ? 'text-green-400' : 'text-yellow-400'}>
                           {successRateDisplay}%
                         </span>
                       </td>
-                      <td className="py-2 px-4">{action.avg_response_time_ms}ms</td>
+                      <td className="py-2 px-4">{action.avg_response_time_ms || '0'}ms</td>
                     </tr>
                   )
                 })}
@@ -232,7 +154,7 @@ export default function InteractionsStats() {
       )}
 
       {/* Errors */}
-      {(data.errors || []).length > 0 && (
+      {errors.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Interaction Errors</h3>
           <div className="overflow-x-auto">
@@ -246,12 +168,12 @@ export default function InteractionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {(data.errors || []).slice(0, 10).map((error, idx) => (
+                {errors.slice(0, 10).map((err, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
-                    <td className="py-2 px-4 font-mono text-sm">{error.custom_id}</td>
-                    <td className="py-2 px-4">{error.interaction_type}</td>
-                    <td className="py-2 px-4 text-red-400 text-sm">{error.error_message}</td>
-                    <td className="py-2 px-4">{error.count}</td>
+                    <td className="py-2 px-4 font-mono text-sm">{err.custom_id || 'Unknown'}</td>
+                    <td className="py-2 px-4">{err.interaction_type || 'Unknown'}</td>
+                    <td className="py-2 px-4 text-red-400 text-sm">{err.error_message || 'Unknown error'}</td>
+                    <td className="py-2 px-4">{err.count || '0'}</td>
                   </tr>
                 ))}
               </tbody>

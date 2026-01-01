@@ -1,31 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Line, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import { EmptyState } from '@/components/common'
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-)
 
 interface EventSummary {
   event_type: string
@@ -62,13 +38,13 @@ export default function GuildEventsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading guild events...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading guild events</div>
-  if (!data) return null
 
-  const summary = data.summary || []
-  const recentEvents = data.recentEvents || []
-  const growth = data.growth || []
+  // Safe data access with defaults
+  const summary = Array.isArray(data?.summary) ? data.summary : []
+  const recentEvents = Array.isArray(data?.recentEvents) ? data.recentEvents : []
+  const growth = Array.isArray(data?.growth) ? data.growth : []
 
-  if (summary.length === 0 && recentEvents.length === 0) {
+  if (!data || (summary.length === 0 && recentEvents.length === 0)) {
     return (
       <EmptyState
         icon="🏠"
@@ -78,84 +54,45 @@ export default function GuildEventsStats() {
     )
   }
 
-  const summaryData = {
-    labels: summary.map((s) => s.event_type.replace('bot_', '')),
-    datasets: [
-      {
-        data: summary.map((s) => parseInt(s.count)),
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
-        ],
-        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(59, 130, 246, 1)'],
-        borderWidth: 1,
-      },
-    ],
-  }
-
-  const growthData = {
-    labels: growth.map((g) => new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-    datasets: [
-      {
-        label: 'Joins',
-        data: growth.map((g) => parseInt(g.joins)),
-        borderColor: 'rgba(34, 197, 94, 1)',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        fill: true,
-        tension: 0.3,
-      },
-      {
-        label: 'Leaves',
-        data: growth.map((g) => parseInt(g.leaves)),
-        borderColor: 'rgba(239, 68, 68, 1)',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        fill: true,
-        tension: 0.3,
-      },
-    ],
-  }
-
   return (
     <div className="space-y-6">
-      {/* Event Summary */}
+      {/* Event Summary - Charts disabled for debugging */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
         <h3 className="text-xl text-white mb-4">Guild Events Summary</h3>
-        <div className="max-h-[400px]">
-          <Doughnut
-            data={summaryData}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { labels: { color: '#9ca3af' } },
-              },
-            }}
-          />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {summary.map((s, idx) => (
+            <div key={idx} className="bg-gray-700 p-3 rounded text-center">
+              <div className={`text-xl font-bold ${s.event_type === 'bot_added' ? 'text-green-400' : 'text-red-400'}`}>
+                {parseInt(s.count) || 0}
+              </div>
+              <div className="text-sm text-gray-400">{(s.event_type || 'Unknown').replace('bot_', '')}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Growth Over Time */}
+      {/* Growth Over Time - Charts disabled */}
       {growth.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
-          <div className="max-h-[400px]">
-            <Line
-              data={growthData}
-              options={{
-                responsive: true,
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
-                scales: {
-                  y: { beginAtZero: true },
-                },
-                plugins: {
-                  legend: { labels: { color: '#9ca3af' } },
-                },
-              }}
-            />
-          </div>
+          <h3 className="text-xl text-white mb-4">Guild Growth Over Time (Charts disabled)</h3>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-700">
+                <th className="pb-2">Date</th>
+                <th className="pb-2">Joins</th>
+                <th className="pb-2">Leaves</th>
+              </tr>
+            </thead>
+            <tbody>
+              {growth.slice(-10).map((g, idx) => (
+                <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <td className="py-1">{g.date ? new Date(g.date).toLocaleDateString() : 'Unknown'}</td>
+                  <td className="py-1 text-green-400">{parseInt(g.joins) || 0}</td>
+                  <td className="py-1 text-red-400">{parseInt(g.leaves) || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

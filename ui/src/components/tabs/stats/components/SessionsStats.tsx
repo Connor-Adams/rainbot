@@ -1,18 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// TEMPORARILY DISABLED CHARTS FOR DEBUGGING
+// import { Bar } from 'react-chartjs-2'
+// import {
+//   Chart as ChartJS,
+//   CategoryScale,
+//   LinearScale,
+//   BarElement,
+//   Title,
+//   Tooltip,
+//   Legend,
+// } from 'chart.js'
 import { EmptyState } from '@/components/common'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+// ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface SessionSummary {
   total_sessions: string
@@ -70,14 +71,22 @@ export default function SessionsStats() {
     )
   }
 
-  if (!data) return null
+  if (!data) {
+    return (
+      <EmptyState
+        icon="🎵"
+        message="No session data available"
+        submessage="Session statistics will appear once the bot joins voice channels"
+      />
+    )
+  }
 
   const summary: SessionSummary = data.summary || {}
-  const sessions: Session[] = data.sessions || []
-  const daily: DailySession[] = data.daily || []
+  const sessions: Session[] = Array.isArray(data.sessions) ? data.sessions : []
+  const daily: DailySession[] = Array.isArray(data.daily) ? data.daily : []
 
   // Check if there's any meaningful data
-  const totalSessions = parseInt(summary.total_sessions || '0')
+  const totalSessions = parseInt(summary.total_sessions || '0') || 0
   if (totalSessions === 0 && sessions.length === 0) {
     return (
       <EmptyState
@@ -88,18 +97,10 @@ export default function SessionsStats() {
     )
   }
 
-  const chartData = {
-    labels: daily.slice(0, 14).reverse().map((d) => new Date(d.date).toLocaleDateString()),
-    datasets: [
-      {
-        label: 'Sessions',
-        data: daily.slice(0, 14).reverse().map((d) => parseInt(d.sessions)),
-        backgroundColor: 'rgba(34, 197, 94, 0.5)',
-        borderColor: 'rgba(34, 197, 94, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }
+  // Safely prepare data with validation
+  const safeDaily = daily.slice(0, 14).reverse().filter(d => d && d.date)
+  // Chart data prep disabled for debugging
+  // const chartData = { ... }
 
   return (
     <div className="space-y-6">
@@ -135,11 +136,14 @@ export default function SessionsStats() {
         </div>
       </div>
 
-      {/* Daily Chart */}
+      {/* Daily Chart - TEMPORARILY DISABLED FOR DEBUGGING */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Sessions per Day</h3>
-        <div className="max-h-[300px]">
-          <Bar data={chartData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
+        <h3 className="text-xl text-white mb-4">Sessions per Day (Chart disabled for debugging)</h3>
+        <div className="text-gray-400 text-sm">
+          <p>Daily data points: {safeDaily.length}</p>
+          <pre className="mt-2 text-xs overflow-auto max-h-40">
+            {JSON.stringify(safeDaily.slice(0, 5), null, 2)}
+          </pre>
         </div>
       </div>
 
@@ -158,13 +162,13 @@ export default function SessionsStats() {
               </tr>
             </thead>
             <tbody>
-              {sessions.slice(0, 10).map((session) => (
-                <tr key={session.session_id} className="border-b border-gray-700/50 text-gray-300">
+              {sessions.slice(0, 10).map((session, idx) => (
+                <tr key={session.session_id || idx} className="border-b border-gray-700/50 text-gray-300">
                   <td className="py-2">{session.channel_name || 'Unknown'}</td>
-                  <td className="py-2">{new Date(session.started_at).toLocaleString()}</td>
-                  <td className="py-2">{formatDuration(session.duration_seconds)}</td>
-                  <td className="py-2">{session.tracks_played}</td>
-                  <td className="py-2">{session.user_count_peak}</td>
+                  <td className="py-2">{session.started_at ? new Date(session.started_at).toLocaleString() : 'Unknown'}</td>
+                  <td className="py-2">{formatDuration(session.duration_seconds || 0)}</td>
+                  <td className="py-2">{session.tracks_played ?? 0}</td>
+                  <td className="py-2">{session.user_count_peak ?? 0}</td>
                 </tr>
               ))}
             </tbody>

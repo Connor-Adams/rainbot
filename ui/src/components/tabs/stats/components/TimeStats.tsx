@@ -1,20 +1,8 @@
-import { Line } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import type { TimeDataPoint } from '@/types'
-import { StatsLoading, StatsError, ChartContainer } from '@/components/common'
+import { StatsLoading, StatsError } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -24,49 +12,73 @@ export default function TimeStats() {
 
   if (isLoading) return <StatsLoading message="Loading time trends..." />
   if (error) return <StatsError error={error} />
-  if (!data) return null
-
-  const dates = [
-    ...new Set([
-      ...(data.commands || []).map((c: TimeDataPoint) => c.date),
-      ...(data.sounds || []).map((s: TimeDataPoint) => s.date),
-    ]),
-  ].sort()
-
-  const commandData = dates.map((date) => {
-    const cmd = (data.commands || []).find((c: TimeDataPoint) => c.date === date)
-    return cmd ? parseInt(cmd.command_count || '0') : 0
-  })
-
-  const soundData = dates.map((date) => {
-    const snd = (data.sounds || []).find((s: TimeDataPoint) => s.date === date)
-    return snd ? parseInt(snd.sound_count || '0') : 0
-  })
-
-  const lineData = {
-    labels: dates.map((d) => new Date(d).toLocaleDateString()),
-    datasets: [
-      {
-        label: 'Commands',
-        data: commandData,
-        borderColor: 'rgba(59, 130, 246, 1)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-      },
-      {
-        label: 'Sounds',
-        data: soundData,
-        borderColor: 'rgba(139, 92, 246, 1)',
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-        tension: 0.4,
-      },
-    ],
+  
+  // Safe data access with defaults
+  const commands = Array.isArray(data?.commands) ? data.commands : []
+  const sounds = Array.isArray(data?.sounds) ? data.sounds : []
+  
+  if (!data || (commands.length === 0 && sounds.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
+        <span className="text-3xl opacity-50">📈</span>
+        <p className="text-sm text-gray-400">No time trend data available yet</p>
+        <small className="text-xs text-gray-500">Trend data will appear as users interact with the bot</small>
+      </div>
+    )
   }
 
+  // Get last 14 days for display
+  const recentCommands = commands.slice(-14)
+  const recentSounds = sounds.slice(-14)
+
   return (
-    <ChartContainer title="Usage Over Time">
-      <Line data={lineData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
-    </ChartContainer>
+    <div className="space-y-6">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl text-white mb-4">Usage Over Time (Charts disabled for debugging)</h3>
+        <p className="text-gray-400 text-sm mb-4">Data points: {commands.length} commands, {sounds.length} sounds</p>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h4 className="text-lg text-blue-400 mb-2">Commands by Day</h4>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="pb-2">Date</th>
+                  <th className="pb-2">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentCommands.map((c: TimeDataPoint, idx: number) => (
+                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                    <td className="py-1">{c.date ? new Date(c.date).toLocaleDateString() : 'Unknown'}</td>
+                    <td className="py-1">{parseInt(c.command_count || '0') || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h4 className="text-lg text-purple-400 mb-2">Sounds by Day</h4>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="pb-2">Date</th>
+                  <th className="pb-2">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentSounds.map((s: TimeDataPoint, idx: number) => (
+                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                    <td className="py-1">{s.date ? new Date(s.date).toLocaleDateString() : 'Unknown'}</td>
+                    <td className="py-1">{parseInt(s.sound_count || '0') || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

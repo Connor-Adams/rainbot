@@ -1,21 +1,13 @@
-import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
+// import { Bar, Doughnut } from 'react-chartjs-2'
+// import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } from 'chart.js'
 import type { CommandStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
-import { StatsLoading, StatsError, ChartContainer, StatsSection, StatsTable } from '@/components/common'
+import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
+// ChartJS.register(...)
 
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -25,36 +17,23 @@ export default function CommandsStats() {
 
   if (isLoading) return <StatsLoading message="Loading command statistics..." />
   if (error) return <StatsError error={error} />
-  if (!data) return null
-
-  const top10 = (data.commands || []).slice(0, 10)
-  const successCount = data.total - (data.total - (data.commands || []).reduce((sum: number, c: CommandStat) => sum + parseInt(c.success_count || '0'), 0))
-  const errorCount = data.total - successCount
-
-  const barData = {
-    labels: top10.map((c: CommandStat) => c.command_name),
-    datasets: [
-      {
-        label: 'Usage Count',
-        data: top10.map((c: CommandStat) => parseInt(c.count)),
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        borderColor: 'rgba(59, 130, 246, 1)',
-        borderWidth: 1,
-      },
-    ],
+  
+  // Safe data access with defaults
+  const commands = Array.isArray(data?.commands) ? data.commands : []
+  
+  if (!data || commands.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
+        <span className="text-3xl opacity-50">📊</span>
+        <p className="text-sm text-gray-400">No command data available yet</p>
+        <small className="text-xs text-gray-500">Command statistics will appear as users interact with the bot</small>
+      </div>
+    )
   }
 
-  const doughnutData = {
-    labels: ['Success', 'Errors'],
-    datasets: [
-      {
-        data: [successCount, errorCount],
-        backgroundColor: ['rgba(34, 197, 94, 0.5)', 'rgba(239, 68, 68, 0.5)'],
-        borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)'],
-        borderWidth: 1,
-      },
-    ],
-  }
+  const totalCount = typeof data.total === 'number' ? data.total : parseInt(data.total || '0') || 0
+  const successCount = commands.reduce((sum: number, c: CommandStat) => sum + (parseInt(c.success_count || '0') || 0), 0)
+  const errorCount = Math.max(0, totalCount - successCount)
 
   const columns = [
     {
@@ -67,7 +46,7 @@ export default function CommandsStats() {
       id: 'count',
       header: 'Count',
       render: (cmd: CommandStat) => (
-        <span className="font-mono">{parseInt(cmd.count).toLocaleString()}</span>
+        <span className="font-mono">{(parseInt(cmd.count) || 0).toLocaleString()}</span>
       ),
       className: 'px-4 py-3 text-sm text-gray-400',
     },
@@ -75,7 +54,7 @@ export default function CommandsStats() {
       id: 'success',
       header: 'Success',
       render: (cmd: CommandStat) => (
-        <span className="font-mono">{parseInt(cmd.success_count || '0').toLocaleString()}</span>
+        <span className="font-mono">{(parseInt(cmd.success_count || '0') || 0).toLocaleString()}</span>
       ),
       className: 'px-4 py-3 text-sm text-gray-400',
     },
@@ -83,7 +62,7 @@ export default function CommandsStats() {
       id: 'errors',
       header: 'Errors',
       render: (cmd: CommandStat) => (
-        <span className="font-mono">{parseInt(cmd.error_count || '0').toLocaleString()}</span>
+        <span className="font-mono">{(parseInt(cmd.error_count || '0') || 0).toLocaleString()}</span>
       ),
       className: 'px-4 py-3 text-sm text-gray-400',
     },
@@ -91,33 +70,42 @@ export default function CommandsStats() {
       id: 'success_rate',
       header: 'Success Rate',
       render: (cmd: CommandStat) => {
-        const successCount = parseInt(cmd.success_count || '0')
-        const errorCount = parseInt(cmd.error_count || '0')
-        const total = successCount + errorCount
-        const successRate = total > 0 ? ((successCount / total) * 100).toFixed(1) : '0'
-        return <span className="font-mono">{successRate}%</span>
+        const sc = parseInt(cmd.success_count || '0') || 0
+        const ec = parseInt(cmd.error_count || '0') || 0
+        const total = sc + ec
+        const rate = total > 0 ? ((sc / total) * 100).toFixed(1) : '0'
+        return <span className="font-mono">{rate}%</span>
       },
       className: 'px-4 py-3 text-sm text-gray-400',
     },
   ]
 
   return (
-    <>
-      <ChartContainer title="Top Commands">
-        <Bar data={barData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
-      </ChartContainer>
-      <ChartContainer title="Command Success Rate">
-        <Doughnut data={doughnutData} options={{ responsive: true }} />
-      </ChartContainer>
+    <div className="space-y-6">
+      {/* Summary - Charts disabled for debugging */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-blue-400">{totalCount}</div>
+          <div className="text-sm text-gray-400">Total Commands</div>
+        </div>
+        <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-green-400">{successCount}</div>
+          <div className="text-sm text-gray-400">Successful</div>
+        </div>
+        <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-red-400">{errorCount}</div>
+          <div className="text-sm text-gray-400">Errors</div>
+        </div>
+      </div>
       <StatsSection title="Command Details">
         <StatsTable
           columns={columns}
-          data={data.commands || []}
+          data={commands}
           emptyMessage="No command data available"
           getRowKey={(cmd: CommandStat) => cmd.command_name}
         />
       </StatsSection>
-    </>
+    </div>
   )
 }
 

@@ -1,18 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+// CHARTS DISABLED FOR DEBUGGING
 import type { QueueOperation } from '@/types'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function QueueStats() {
   const { data, isLoading, error } = useQuery({
@@ -33,26 +22,29 @@ export default function QueueStats() {
     )
   }
 
-  if (!data) return null
-
-  const barData = {
-    labels: (data.operations || []).map((o: QueueOperation) => o.operation_type),
-    datasets: [
-      {
-        label: 'Count',
-        data: (data.operations || []).map((o: QueueOperation) => parseInt(o.count)),
-        backgroundColor: 'rgba(251, 146, 60, 0.5)',
-        borderColor: 'rgba(251, 146, 60, 1)',
-        borderWidth: 1,
-      },
-    ],
+  // Safe data access with defaults
+  const operations = Array.isArray(data?.operations) ? data.operations : []
+  
+  if (!data || operations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
+        <span className="text-3xl opacity-50">📋</span>
+        <p className="text-sm text-gray-400">No queue data available yet</p>
+        <small className="text-xs text-gray-500">Queue statistics will appear as users add and manage songs</small>
+      </div>
+    )
   }
 
   return (
     <div className="stats-section bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Queue Operations</h3>
-      <div className="max-h-[400px]">
-        <Bar data={barData} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} />
+      <h3 className="text-xl text-white mb-4">Queue Operations (Charts disabled for debugging)</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {operations.map((o: QueueOperation, idx: number) => (
+          <div key={idx} className="bg-gray-700 p-4 rounded-lg text-center">
+            <div className="text-2xl font-bold text-orange-400">{parseInt(o.count) || 0}</div>
+            <div className="text-sm text-gray-400">{o.operation_type || 'Unknown'}</div>
+          </div>
+        ))}
       </div>
     </div>
   )
