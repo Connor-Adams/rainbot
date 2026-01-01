@@ -63,7 +63,14 @@ export default function QueueList() {
     <Card className="flex flex-col min-h-0">
       <CardHeader className="flex-shrink-0">
         <div className="flex justify-between items-center">
-          <CardTitle>Queue</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Queue</CardTitle>
+            {queueData?.autoplay && (
+              <span className="text-xs text-primary font-normal" title="Autoplay enabled">
+                🔁
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <Badge variant="default" size="md">
               {totalInQueue}
@@ -87,7 +94,11 @@ export default function QueueList() {
           <EmptyState
             icon="🎵"
             message="Queue is empty"
-            submessage="Add tracks to start playing"
+            submessage={
+              queueData?.autoplay
+                ? 'Add tracks to start playing. 🔁 Autoplay is enabled - similar tracks will play automatically'
+                : 'Add tracks to start playing'
+            }
           />
         ) : (
           <div className="flex flex-col gap-2 pr-2">
