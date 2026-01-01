@@ -19,12 +19,15 @@ YouTube now requires authentication for many videos. Without proper cookies, yt-
 You need to export cookies from a browser where you're logged into YouTube. Use a browser extension:
 
 **For Chrome/Chromium:**
+
 - [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
 
 **For Firefox:**
+
 - [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/)
 
 **For Edge:**
+
 - [Get cookies.txt LOCALLY](https://microsoftedge.microsoft.com/addons/detail/get-cookiestxt-locally/cdakjobnimidonjdcpfhpdniacdlkbpd)
 
 ### Step 2: Generate Cookies File
@@ -44,6 +47,7 @@ YTDLP_COOKIES=/path/to/cookies.txt
 ```
 
 **Examples:**
+
 ```bash
 # Absolute path
 YTDLP_COOKIES=/home/bot/rainbot/cookies.txt
@@ -61,6 +65,7 @@ npm run start
 ```
 
 You should see this log message when the bot starts:
+
 ```
 [AUDIO_RESOURCE] Using cookies file: /path/to/cookies.txt
 ```
@@ -68,6 +73,7 @@ You should see this log message when the bot starts:
 ## Verification
 
 Test by playing a YouTube video. The bot should:
+
 1. Successfully fetch the stream URL
 2. Play the track without 403 errors
 3. Log "Successfully recovered from 403" if temporary issues occur
@@ -85,6 +91,7 @@ Test by playing a YouTube video. The bot should:
 ### Still Getting 403 Errors
 
 1. **Update yt-dlp**: Ensure you're using the latest version
+
    ```bash
    pip install -U yt-dlp
    # or
@@ -92,11 +99,13 @@ Test by playing a YouTube video. The bot should:
    ```
 
 2. **Check logs**: Look for cookie-related error messages
+
    ```bash
    grep -i "cookie\|403" logs/
    ```
 
 3. **Test yt-dlp directly**: Verify cookies work with yt-dlp CLI
+
    ```bash
    yt-dlp --cookies /path/to/cookies.txt --get-url "https://www.youtube.com/watch?v=VIDEO_ID"
    ```
@@ -122,6 +131,7 @@ For Railway or other cloud platforms:
 3. Ensure the file persists across deployments
 
 **Railway example:**
+
 ```bash
 # In Railway dashboard, add environment variable:
 YTDLP_COOKIES=/app/cookies.txt
@@ -138,6 +148,7 @@ If you can't use cookies, the bot will automatically fall back to `play-dl` libr
 - No cache optimization
 
 To rely on play-dl fallback, simply don't set `YTDLP_COOKIES`. The bot will try:
+
 1. yt-dlp with fetch (fails if no cookies) → 403
 2. yt-dlp piping (fails if no cookies) → 403
 3. play-dl (may work for some videos)

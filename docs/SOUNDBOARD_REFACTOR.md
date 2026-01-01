@@ -7,10 +7,12 @@ The soundboard UI has been completely refactored from a monolithic 411-line comp
 ## What Changed
 
 ### Architecture
+
 - **Before**: Single file with all logic mixed together
 - **After**: Modular architecture with 6 components + 4 custom hooks
 
 ### New File Structure
+
 ```
 ui/src/
 ├── hooks/
@@ -35,17 +37,20 @@ ui/src/
 ## Key Improvements
 
 ### 1. Code Quality
+
 - **Separation of Concerns**: Each module has a single responsibility
 - **DRY Principle**: No code duplication
 - **Type Safety**: Full TypeScript coverage with proper types
 - **Testability**: Each module can be tested independently
 
 ### 2. Performance
+
 - Memoized callbacks with `useCallback`
 - Proper React Query cache management
 - Efficient re-renders with optimized state
 
 ### 3. User Experience
+
 - ✨ Visual feedback for playing/previewing
 - ⌨️ Keyboard shortcuts (Ctrl+F, Escape)
 - 🎯 Full accessibility support
@@ -53,6 +58,7 @@ ui/src/
 - 🔍 Smart search across all sound properties
 
 ### 4. Developer Experience
+
 - Clear component boundaries
 - Easy to extend with new features
 - Self-documenting code structure
@@ -60,8 +66,10 @@ ui/src/
 
 ## Breaking Changes
 
-### None! 
+### None!
+
 The refactoring maintains 100% backward compatibility:
+
 - Same API surface
 - Same user interface
 - Same data persistence (localStorage)
@@ -70,16 +78,19 @@ The refactoring maintains 100% backward compatibility:
 ## New Features
 
 ### Keyboard Shortcuts
+
 - `Ctrl + F`: Focus search bar
 - `Escape`: Context-aware (closes menu, clears search, or stops preview)
 
 ### Enhanced UI States
+
 - Playing indicator with animation
 - Preview indicator with visual feedback
 - Loading states for all async operations
 - Better empty states
 
 ### Accessibility
+
 - ARIA labels on all interactive elements
 - Keyboard navigation support
 - Screen reader friendly
@@ -91,34 +102,34 @@ The refactoring maintains 100% backward compatibility:
 
 ```tsx
 // Import specific components
-import { SoundCard, SearchBar, EditModal } from '@/components/soundboard'
+import { SoundCard, SearchBar, EditModal } from '@/components/soundboard';
 
 // Import custom hooks
-import { useSoundCustomization, useAudioPreview } from '@/hooks'
+import { useSoundCustomization, useAudioPreview } from '@/hooks';
 ```
 
 ### Testing Individual Modules
 
 ```tsx
 // Test a hook
-import { renderHook, act } from '@testing-library/react-hooks'
-import { useSoundCustomization } from '@/hooks/useSoundCustomization'
+import { renderHook, act } from '@testing-library/react-hooks';
+import { useSoundCustomization } from '@/hooks/useSoundCustomization';
 
 test('should save customization', () => {
-  const { result } = renderHook(() => useSoundCustomization())
-  
+  const { result } = renderHook(() => useSoundCustomization());
+
   act(() => {
-    result.current.updateCustomization('test.mp3', { emoji: '🎵' })
-  })
-  
-  expect(result.current.getCustomization('test.mp3')).toEqual({ emoji: '🎵' })
-})
+    result.current.updateCustomization('test.mp3', { emoji: '🎵' });
+  });
+
+  expect(result.current.getCustomization('test.mp3')).toEqual({ emoji: '🎵' });
+});
 ```
 
 ```tsx
 // Test a component
-import { render, screen } from '@testing-library/react'
-import { SoundCard } from '@/components/soundboard/SoundCard'
+import { render, screen } from '@testing-library/react';
+import { SoundCard } from '@/components/soundboard/SoundCard';
 
 test('renders sound card', () => {
   render(
@@ -131,10 +142,10 @@ test('renders sound card', () => {
       onMenuToggle={jest.fn()}
       isMenuOpen={false}
     />
-  )
-  
-  expect(screen.getByText('test')).toBeInTheDocument()
-})
+  );
+
+  expect(screen.getByText('test')).toBeInTheDocument();
+});
 ```
 
 ## Migration Checklist
