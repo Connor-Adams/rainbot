@@ -105,7 +105,10 @@ export default function UserSessionsStats() {
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
           <div className="text-2xl font-bold text-yellow-400">
-            {parseFloat(data.summary.avg_tracks_per_session || '0').toFixed(1)}
+            {(() => {
+              const avg = parseFloat(data.summary.avg_tracks_per_session || '0')
+              return isNaN(avg) ? '0.0' : avg.toFixed(1)
+            })()}
           </div>
           <div className="text-sm text-gray-400">Avg Tracks/Session</div>
         </div>

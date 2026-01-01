@@ -150,6 +150,7 @@ export default function ErrorsStats() {
               {byType.map((item) => {
                 const count = parseInt(item.count)
                 const percentage = totalErrors > 0 ? (count / totalErrors) * 100 : 0
+                const percentageDisplay = isNaN(percentage) ? '0.0' : percentage.toFixed(1)
                 return (
                   <div key={item.error_type} className="flex items-center gap-3">
                     <div
@@ -158,7 +159,7 @@ export default function ErrorsStats() {
                     />
                     <span className="text-gray-300 flex-1">{errorTypeLabels[item.error_type] || item.error_type}</span>
                     <span className="text-gray-400">{count}</span>
-                    <span className="text-gray-500 text-sm w-16 text-right">{percentage.toFixed(1)}%</span>
+                    <span className="text-gray-500 text-sm w-16 text-right">{percentageDisplay}%</span>
                   </div>
                 )
               })}
@@ -185,6 +186,7 @@ export default function ErrorsStats() {
               <tbody>
                 {byCommand.map((cmd) => {
                   const errorRate = parseFloat(cmd.error_rate || '0')
+                  const errorRateDisplay = isNaN(errorRate) ? '0.00' : errorRate.toFixed(2)
                   let statusColor = 'text-green-400'
                   let statusText = 'Healthy'
                   if (errorRate > 10) {
@@ -202,7 +204,7 @@ export default function ErrorsStats() {
                       <td className="py-2 font-mono">{cmd.command_name}</td>
                       <td className="py-2 text-red-400">{cmd.error_count}</td>
                       <td className="py-2 text-green-400">{cmd.success_count}</td>
-                      <td className="py-2">{errorRate.toFixed(2)}%</td>
+                      <td className="py-2">{errorRateDisplay}%</td>
                       <td className={`py-2 ${statusColor}`}>{statusText}</td>
                     </tr>
                   )

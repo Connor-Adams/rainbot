@@ -189,6 +189,7 @@ export default function InteractionsStats() {
                   const count = parseInt(action.count)
                   const successCount = parseInt(action.success_count)
                   const successRate = count > 0 ? (successCount / count) * 100 : 0
+                  const successRateDisplay = isNaN(successRate) ? '0.0' : successRate.toFixed(1)
                   return (
                     <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                       <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
@@ -196,7 +197,7 @@ export default function InteractionsStats() {
                       <td className="py-2 px-4">{action.count}</td>
                       <td className="py-2 px-4">
                         <span className={successRate > 95 ? 'text-green-400' : 'text-yellow-400'}>
-                          {successRate.toFixed(1)}%
+                          {successRateDisplay}%
                         </span>
                       </td>
                       <td className="py-2 px-4">{action.avg_response_time_ms}ms</td>

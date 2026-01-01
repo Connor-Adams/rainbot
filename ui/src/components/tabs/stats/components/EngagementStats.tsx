@@ -56,6 +56,7 @@ export default function EngagementStats() {
   const skipped = parseInt(data.summary.skipped || '0')
   const totalTracks = parseInt(data.summary.total_tracks || '0')
   const avgCompletionPercent = parseFloat(data.summary.avg_completion_percent || '0')
+  const avgCompletionDisplay = isNaN(avgCompletionPercent) ? '0.0' : avgCompletionPercent.toFixed(1)
 
   const completionData = {
     labels: ['Completed', 'Skipped', 'Other'],
@@ -103,7 +104,7 @@ export default function EngagementStats() {
           <div className="text-sm text-gray-400">Skipped</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{avgCompletionPercent.toFixed(1)}%</div>
+          <div className="text-2xl font-bold text-purple-400">{avgCompletionDisplay}%</div>
           <div className="text-sm text-gray-400">Avg Completion</div>
         </div>
       </div>

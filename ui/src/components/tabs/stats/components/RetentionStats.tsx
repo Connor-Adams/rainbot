@@ -66,6 +66,8 @@ export default function RetentionStats() {
   const mau = parseInt(activeUsers.mau || '0')
   const dauWauRatio = parseFloat(activeUsers.dau_wau_ratio || '0')
   const dauMauRatio = parseFloat(activeUsers.dau_mau_ratio || '0')
+  const dauWauDisplay = isNaN(dauWauRatio) ? '0.0' : (dauWauRatio * 100).toFixed(1)
+  const dauMauDisplay = isNaN(dauMauRatio) ? '0.0' : (dauMauRatio * 100).toFixed(1)
 
   const cohortChartData = {
     labels: cohorts.map((c) => {
@@ -115,11 +117,11 @@ export default function RetentionStats() {
               <div className="text-sm text-gray-400">Monthly Active (MAU)</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-400">{(dauWauRatio * 100).toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-yellow-400">{dauWauDisplay}%</div>
               <div className="text-sm text-gray-400">DAU/WAU Ratio</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-orange-400">{(dauMauRatio * 100).toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-orange-400">{dauMauDisplay}%</div>
               <div className="text-sm text-gray-400">DAU/MAU (Stickiness)</div>
             </div>
           </div>
@@ -208,6 +210,7 @@ export default function RetentionStats() {
               <tbody>
                 {cohorts.map((cohort) => {
                   const retention = parseFloat(cohort.retention_rate || '0')
+                  const retentionDisplay = isNaN(retention) ? '0.0' : retention.toFixed(1)
                   let retentionColor = 'text-green-400'
                   if (retention < 20) {
                     retentionColor = 'text-red-400'
@@ -227,7 +230,7 @@ export default function RetentionStats() {
                       </td>
                       <td className="py-2">{cohort.users_joined}</td>
                       <td className="py-2">{cohort.still_active}</td>
-                      <td className={`py-2 ${retentionColor}`}>{retention.toFixed(1)}%</td>
+                      <td className={`py-2 ${retentionColor}`}>{retentionDisplay}%</td>
                     </tr>
                   )
                 })}
