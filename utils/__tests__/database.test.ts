@@ -1,4 +1,4 @@
-import { Pool, QueryResult } from 'pg';
+import type { QueryResult } from 'pg';
 
 // Mock the logger
 jest.mock('../logger', () => ({
@@ -56,7 +56,7 @@ describe('database', () => {
     it('creates a Pool with correct configuration', () => {
       const { Pool } = require('pg');
       const { initDatabase } = require('../database');
-      const pool = initDatabase();
+      initDatabase();
 
       expect(Pool).toHaveBeenCalledWith(
         expect.objectContaining({

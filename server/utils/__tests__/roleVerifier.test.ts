@@ -139,6 +139,7 @@ describe('roleVerifier', () => {
     it('handles errors gracefully and returns false', async () => {
       mockClient.guilds = {
         cache: {
+          // eslint-disable-next-line require-yield
           [Symbol.iterator]: function* () {
             throw new Error('Unexpected error');
           },
