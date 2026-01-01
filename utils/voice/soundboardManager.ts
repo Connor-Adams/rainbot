@@ -196,10 +196,30 @@ export async function playSoundboardOverlay(
       stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     });
 
-    // Handle stdout errors BEFORE creating resource to prevent unhandled error events
+    // Handle all stdio stream errors to prevent unhandled error events
+    // These errors are expected when FFmpeg closes or connection resets
+    if (ffmpeg.stdin) {
+      ffmpeg.stdin.on('error', (err) => {
+        log.debug(`FFmpeg stdin error: ${err.message}`);
+      });
+    }
+
     if (ffmpeg.stdout) {
       ffmpeg.stdout.on('error', (err) => {
         log.debug(`FFmpeg stdout error: ${err.message}`);
+      });
+    }
+
+    if (ffmpeg.stderr) {
+      ffmpeg.stderr.on('error', (err) => {
+        log.debug(`FFmpeg stderr error: ${err.message}`);
+      });
+    }
+
+    // Handle soundboard input pipe (stdio[3]) errors
+    if (ffmpeg.stdio[3]) {
+      (ffmpeg.stdio[3] as NodeJS.WritableStream).on('error', (err) => {
+        log.debug(`FFmpeg stdio[3] error: ${err.message}`);
       });
     }
 

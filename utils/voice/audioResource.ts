@@ -369,8 +369,33 @@ export async function createResourceWithSeek(
       { stdio: ['pipe', 'pipe', 'pipe'] }
     );
 
-    soundStream.pipe(ffmpeg.stdin as NodeJS.WritableStream);
+    // Handle all stdio stream errors to prevent unhandled error events
+    if (ffmpeg.stdin) {
+      ffmpeg.stdin.on('error', (err) => {
+        log.debug(`FFmpeg stdin error: ${err.message}`);
+      });
+    }
+
+    if (ffmpeg.stdout) {
+      ffmpeg.stdout.on('error', (err) => {
+        log.debug(`FFmpeg stdout error: ${err.message}`);
+      });
+    }
+
+    if (ffmpeg.stderr) {
+      ffmpeg.stderr.on('error', (err) => {
+        log.debug(`FFmpeg stderr error: ${err.message}`);
+      });
+    }
+
     ffmpeg.stderr?.on('data', () => {}); // Suppress stderr
+
+    // Handle soundStream errors
+    soundStream.on('error', (err) => {
+      log.debug(`Sound stream error: ${err.message}`);
+    });
+
+    soundStream.pipe(ffmpeg.stdin as NodeJS.WritableStream);
 
     return {
       resource: createResourceForTrack(ffmpeg.stdout as Readable, track, {
