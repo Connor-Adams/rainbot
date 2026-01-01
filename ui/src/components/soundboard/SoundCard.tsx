@@ -30,13 +30,13 @@ export function SoundCard({
     <div
       onClick={() => !isDisabled && onPlay(sound)}
       className={`
-        relative bg-gray-900 border border-gray-700 rounded-xl p-4 
+        relative bg-surface-elevated border border-border rounded-xl p-4 
         flex flex-col items-center gap-3 cursor-pointer select-none 
         transition-all duration-200
-        hover:border-blue-500 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/20 hover:bg-gray-800
+        hover:border-primary hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/20 hover:bg-surface-hover
         active:scale-95
-        ${isPlaying ? 'border-blue-500 bg-gray-800 animate-pulse' : ''}
-        ${isPreviewing ? 'border-purple-500 bg-purple-950/20' : ''}
+        ${isPlaying ? 'border-primary bg-surface-hover animate-pulse' : ''}
+        ${isPreviewing ? 'border-secondary bg-secondary/10' : ''}
         ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
       `}
       role="button"
@@ -52,7 +52,7 @@ export function SoundCard({
     >
       {/* Menu Button */}
       <button
-        className="absolute top-2 right-2 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-700 transition-colors z-10"
+        className="absolute top-2 right-2 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors z-10"
         onClick={(e) => {
           e.stopPropagation()
           onMenuToggle(sound.name)
@@ -73,20 +73,20 @@ export function SoundCard({
       {/* Sound Info */}
       <div className="text-center w-full">
         <div
-          className="text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis"
+          className="text-sm font-medium text-text-primary whitespace-nowrap overflow-hidden text-ellipsis"
           title={escapeHtml(sound.name)}
         >
           {escapeHtml(displayName)}
         </div>
-        <div className="text-xs text-gray-500 font-mono mt-1">{formatSize(sound.size)}</div>
+        <div className="text-xs text-text-muted font-mono mt-1">{formatSize(sound.size)}</div>
       </div>
 
       {/* Playing indicator */}
       {isPlaying && (
         <div className="absolute bottom-2 right-2">
           <span className="flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-light opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
           </span>
         </div>
       )}
