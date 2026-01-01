@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Bar, Doughnut } from 'react-chartjs-2'
-import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import { safeInt, safeString } from '@/lib/chartSafety'
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface TopTrack {
   track_title: string

@@ -1,19 +1,8 @@
 import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import { StatsLoading, StatsError, ChartContainer, StatsSection, StatsTable } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface TopQuery {
   query: string

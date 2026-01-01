@@ -1,12 +1,10 @@
 import { Line } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import type { TimeDataPoint } from '@/types'
 import { StatsLoading, StatsError } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
 import { safeInt, safeDateLabel } from '@/lib/chartSafety'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({

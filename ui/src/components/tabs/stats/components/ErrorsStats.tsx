@@ -1,9 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Doughnut } from 'react-chartjs-2'
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
-
-ChartJS.register(ArcElement, Tooltip, Legend)
+import '@/lib/chartSetup' // Centralized Chart.js registration
 
 interface ErrorSummary {
   total_errors: string

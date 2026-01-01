@@ -1,11 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Doughnut, Bar } from 'react-chartjs-2'
-import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import { EmptyState } from '@/components/common'
 import { safeInt, safeString } from '@/lib/chartSafety'
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface EngagementSummary {
   total_tracks: string

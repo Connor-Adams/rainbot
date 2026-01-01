@@ -1,11 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 import { Line, Doughnut } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import { EmptyState } from '@/components/common'
 import { safeInt, safeDateLabel, safeString } from '@/lib/chartSafety'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 interface EventSummary {
   event_type: string

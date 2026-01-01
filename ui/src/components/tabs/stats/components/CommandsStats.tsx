@@ -1,13 +1,11 @@
 import { Bar, Doughnut } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } from 'chart.js'
+import '@/lib/chartSetup' // Centralized Chart.js registration
 import type { CommandStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
 import { safeInt, safeString } from '@/lib/chartSafety'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
 
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
