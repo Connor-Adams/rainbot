@@ -1,11 +1,20 @@
-import { Bar, Doughnut } from 'react-chartjs-2'
-import '@/lib/chartSetup' // Centralized Chart.js registration
 import type { CommandStat } from '@/types'
 import { escapeHtml } from '@/lib/utils'
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
 import { useStatsQuery } from '@/hooks/useStatsQuery'
 import { statsApi } from '@/lib/api'
-import { safeInt, safeString } from '@/lib/chartSafety'
+import { safeInt } from '@/lib/chartSafety'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts'
 
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -33,32 +42,15 @@ export default function CommandsStats() {
   const successCount = commands.reduce((sum: number, c: CommandStat) => sum + safeInt(c.success_count), 0)
   const errorCount = Math.max(0, totalCount - successCount)
 
-  // Prepare safe chart data
-  const top10 = commands.slice(0, 10)
-  const barLabels = top10.map((c: CommandStat) => safeString(c.command_name, 'Unknown'))
-  const barValues = top10.map((c: CommandStat) => safeInt(c.count))
-  const canRenderBar = barLabels.length > 0 && barValues.every(Number.isFinite)
+  const barChartData = commands.slice(0, 10).map((c: CommandStat) => ({
+    name: c.command_name || 'Unknown',
+    value: safeInt(c.count),
+  }))
 
-  const barData = {
-    labels: barLabels,
-    datasets: [{
-      label: 'Usage Count',
-      data: barValues,
-      backgroundColor: 'rgba(59, 130, 246, 0.5)',
-      borderColor: 'rgba(59, 130, 246, 1)',
-      borderWidth: 1,
-    }],
-  }
-
-  const doughnutData = {
-    labels: ['Success', 'Errors'],
-    datasets: [{
-      data: [successCount, errorCount],
-      backgroundColor: ['rgba(34, 197, 94, 0.5)', 'rgba(239, 68, 68, 0.5)'],
-      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)'],
-      borderWidth: 1,
-    }],
-  }
+  const doughnutData = [
+    { name: 'Success', value: successCount, color: 'rgb(34, 197, 94)' },
+    { name: 'Errors', value: errorCount, color: 'rgb(239, 68, 68)' },
+  ].filter(d => d.value > 0)
 
   const columns = [
     {
@@ -107,21 +99,47 @@ export default function CommandsStats() {
 
   return (
     <div className="space-y-6">
-      {/* Charts */}
       <div className="grid md:grid-cols-2 gap-6">
-        {canRenderBar && (
+        {barChartData.length > 0 && (
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg text-white mb-4">Top Commands</h3>
-            <div className="max-h-[300px]">
-              <Bar data={barData} options={{ responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }} />
+            <div style={{ width: '100%', height: Math.max(200, barChartData.length * 32) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 80, right: 20 }}>
+                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={75} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                  <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
-        {(successCount > 0 || errorCount > 0) && (
+        {doughnutData.length > 0 && (
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <h3 className="text-lg text-white mb-4">Success Rate</h3>
-            <div className="max-h-[300px]">
-              <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: true }} />
+            <div style={{ width: '100%', height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={doughnutData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    label={({ name, percent }: { name: string; percent: number }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    labelLine={{ stroke: '#6b7280' }}
+                  >
+                    {doughnutData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
@@ -137,4 +155,3 @@ export default function CommandsStats() {
     </div>
   )
 }
-

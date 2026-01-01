@@ -1,9 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
-import { Line, Doughnut } from 'react-chartjs-2'
-import '@/lib/chartSetup' // Centralized Chart.js registration
 import { EmptyState } from '@/components/common'
-import { safeInt, safeDateLabel, safeString } from '@/lib/chartSafety'
+import { safeInt, safeDateLabel } from '@/lib/chartSafety'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 interface EventSummary {
   event_type: string
@@ -16,7 +21,6 @@ interface GuildEvent {
   guild_name: string
   member_count: string
   created_at: string
-  metadata?: Record<string, unknown>
 }
 
 interface GrowthEntry {
@@ -41,86 +45,74 @@ export default function GuildEventsStats() {
   if (isLoading) return <div className="stats-loading text-center py-12">Loading guild events...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading guild events</div>
 
-  // Safe data access with defaults
   const summary = Array.isArray(data?.summary) ? data.summary : []
   const recentEvents = Array.isArray(data?.recentEvents) ? data.recentEvents : []
   const growth = Array.isArray(data?.growth) ? data.growth : []
 
   if (!data || (summary.length === 0 && recentEvents.length === 0)) {
-    return (
-      <EmptyState
-        icon="🏠"
-        message="No guild event data available"
-        submessage="Guild join/leave events will appear here as the bot is added to or removed from servers"
-      />
-    )
+    return <EmptyState icon="🏠" message="No guild event data available" submessage="Guild join/leave events will appear here as the bot is added to or removed from servers" />
   }
 
-  // Prepare safe chart data
-  const summaryLabels = summary.map((s) => safeString(s.event_type, 'Unknown').replace('bot_', ''))
-  const summaryValues = summary.map((s) => safeInt(s.count))
-  const canRenderSummary = summaryLabels.length > 0 && summaryValues.every(Number.isFinite) && summaryValues.some(v => v > 0)
-
-  const summaryData = {
-    labels: summaryLabels,
-    datasets: [{
-      data: summaryValues,
-      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(59, 130, 246, 0.7)'],
-      borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)', 'rgba(59, 130, 246, 1)'],
-      borderWidth: 1,
-    }],
-  }
-
-  const growthLabels = growth.slice(-30).map((g) => safeDateLabel(g.date))
-  const joinValues = growth.slice(-30).map((g) => safeInt(g.joins))
-  const leaveValues = growth.slice(-30).map((g) => safeInt(g.leaves))
-  const canRenderGrowth = growthLabels.length > 0 && joinValues.every(Number.isFinite) && leaveValues.every(Number.isFinite)
-
-  const growthData = {
-    labels: growthLabels,
-    datasets: [
-      {
-        label: 'Joins',
-        data: joinValues,
-        borderColor: 'rgba(34, 197, 94, 1)',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        fill: true,
-        tension: 0.3,
-      },
-      {
-        label: 'Leaves',
-        data: leaveValues,
-        borderColor: 'rgba(239, 68, 68, 1)',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        fill: true,
-        tension: 0.3,
-      },
-    ],
-  }
+  const summaryData = summary.map((s) => ({
+    name: (s.event_type || 'Unknown').replace('bot_', ''),
+    value: safeInt(s.count),
+    color: s.event_type === 'bot_added' ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
+  })).filter(d => d.value > 0)
 
   return (
     <div className="space-y-6">
-      {/* Event Summary */}
-      {canRenderSummary && (
+      {summaryData.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Events Summary</h3>
-          <div className="max-h-[400px]">
-            <Doughnut data={summaryData} options={{ responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          <h3 className="text-lg text-white mb-4">Guild Events Summary</h3>
+          <div style={{ width: '100%', height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={summaryData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={({ name, percent }: { name: string; percent: number }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  labelLine={{ stroke: '#6b7280' }}
+                >
+                  {summaryData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
 
-      {/* Growth Over Time */}
-      {canRenderGrowth && (
+      {growth.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
-          <div className="max-h-[400px]">
-            <Line data={growthData} options={{ responsive: true, maintainAspectRatio: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#9ca3af' } } } }} />
+          <div className="space-y-2">
+            {growth.slice(-14).map((g, idx) => {
+              const joins = safeInt(g.joins)
+              const leaves = safeInt(g.leaves)
+              const net = joins - leaves
+              return (
+                <div key={idx} className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-400 w-24">{safeDateLabel(g.date)}</span>
+                  <span className="text-green-400 w-16">+{joins}</span>
+                  <span className="text-red-400 w-16">-{leaves}</span>
+                  <span className={`w-16 ${net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {net >= 0 ? '+' : ''}{net}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* Recent Events */}
       {recentEvents.length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Recent Guild Events</h3>
@@ -138,21 +130,13 @@ export default function GuildEventsStats() {
                 {recentEvents.slice(0, 10).map((event, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          event.event_type === 'bot_added'
-                            ? 'bg-green-900/30 text-green-400'
-                            : 'bg-red-900/30 text-red-400'
-                        }`}
-                      >
+                      <span className={`px-2 py-1 rounded text-xs ${event.event_type === 'bot_added' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                         {event.event_type.replace('bot_', '')}
                       </span>
                     </td>
                     <td className="py-2 px-4">{event.guild_name || event.guild_id}</td>
                     <td className="py-2 px-4">{event.member_count}</td>
-                    <td className="py-2 px-4 text-sm">
-                      {new Date(event.created_at).toLocaleString()}
-                    </td>
+                    <td className="py-2 px-4 text-sm">{safeDateLabel(event.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
