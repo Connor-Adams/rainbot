@@ -28,7 +28,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
       <div className="logo flex items-center gap-3 flex-shrink-0">
         <span className="logo-icon text-3xl">🌧️</span>
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-          Rainbot
+          Rainbot, It'll make you cum... probably.
         </h1>
       </div>
       <div className="header-nav flex items-center gap-2 flex-1 justify-center" id="nav-tabs">
