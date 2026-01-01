@@ -56,9 +56,9 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         onClick={() => onRemove(index)}
         icon={<XIcon size={16} />}
         className="!min-h-[32px] !w-8 !p-0 flex-shrink-0 hover:bg-danger hover:text-white"
-        aria-label="Remove from queue"
+        aria-label={`Remove ${escapeHtml(track.title)} from queue`}
       >
-        <span className="sr-only">Remove</span>
+        <span className="sr-only">Remove {escapeHtml(track.title)} from queue</span>
       </Button>
     </div>
   )

@@ -33,7 +33,7 @@ export default function SoundboardTab() {
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
   // Close menu when clicking outside
-  useClickOutside(menuRef as React.RefObject<HTMLElement>, () => setOpenMenuId(null))
+  useClickOutside(menuRef, () => setOpenMenuId(null))
 
   // Queries
   const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({

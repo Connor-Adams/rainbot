@@ -27,7 +27,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
   }
 
   return (
-    <header className="flex items-center px-8 py-5 border-b border-border bg-surface/85 glass-effect sticky top-0 z-50 gap-8">
+    <header className="flex items-center px-8 py-5 border-b border-border bg-surface/85 glass-effect sticky top-0 z-header gap-8">
       <Logo />
       <NavTabs activeTab={activeTab} onTabChange={handleTabChange} />
       <div className="flex items-center gap-4 flex-shrink-0">

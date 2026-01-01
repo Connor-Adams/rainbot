@@ -48,21 +48,25 @@ export default {
         success: {
           DEFAULT: '#10b981', // emerald-500
           light: '#34d399',
+          dark: '#059669', // emerald-600
           glow: 'rgba(16, 185, 129, 0.3)',
         },
         danger: {
           DEFAULT: '#ef4444', // red-500
           light: '#f87171',
+          dark: '#dc2626', // red-600
           glow: 'rgba(239, 68, 68, 0.3)',
         },
         warning: {
           DEFAULT: '#f59e0b', // amber-500
           light: '#fbbf24',
+          dark: '#d97706', // amber-600
           glow: 'rgba(245, 158, 11, 0.3)',
         },
         info: {
           DEFAULT: '#06b6d4', // cyan-500
           light: '#22d3ee',
+          dark: '#0891b2', // cyan-600
           glow: 'rgba(6, 182, 212, 0.3)',
         },
       },
@@ -75,6 +79,11 @@ export default {
         'glow-strong': '0 0 30px rgba(59, 130, 246, 0.6)',
         'glow-success': '0 0 20px rgba(16, 185, 129, 0.4)',
         'glow-danger': '0 0 20px rgba(239, 68, 68, 0.4)',
+      },
+      zIndex: {
+        'header': '50',
+        'modal': '100',
+        'toast': '1000',
       },
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out',
