@@ -150,8 +150,9 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
 }
 
 /**
- * Get a related track for autoplay (based on the last played track)
- * Uses YouTube's related videos feature
+ * Get a related track for autoplay (based on the last played track).
+ * Attempts to use YouTube's built-in related videos metadata from yt-dlp,
+ * falling back to search-based approach if related videos are unavailable.
  */
 export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
   try {
@@ -187,20 +188,59 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       return null;
     }
 
-    // Use yt-dlp to get related video
     log.info(`Finding related track for: "${lastTrack.title}"`);
 
     try {
-      // Get video info which includes related videos
+      // Get video info which includes related videos metadata from YouTube
       const info = (await youtubedl(lastTrack.url, {
         dumpSingleJson: true,
         noPlaylist: true,
         noWarnings: true,
         quiet: true,
-      })) as { title?: string; duration?: number; webpage_url?: string };
+      })) as {
+        title?: string;
+        duration?: number;
+        webpage_url?: string;
+        related_videos?: Array<{
+          id?: string;
+          title?: string;
+          url?: string;
+          duration?: number;
+        }>;
+      };
 
-      // For now, use YouTube search with the current video title to find similar content
-      // This is a simpler approach that works reliably
+      // First, try to use YouTube's actual related videos metadata
+      if (info.related_videos && info.related_videos.length > 0) {
+        log.debug(`Found ${info.related_videos.length} related videos from YouTube metadata`);
+
+        for (const relatedVideo of info.related_videos) {
+          // Skip videos without proper data
+          if (!relatedVideo.id && !relatedVideo.url) {
+            continue;
+          }
+
+          // Construct the URL if only ID is provided
+          const videoUrl =
+            relatedVideo.url || `https://www.youtube.com/watch?v=${relatedVideo.id}`;
+
+          // Skip if it's the same video
+          if (videoUrl === lastTrack.url) {
+            continue;
+          }
+
+          log.info(`Found related track from YouTube metadata: "${relatedVideo.title}"`);
+          return {
+            title: relatedVideo.title || 'Unknown Track',
+            url: videoUrl,
+            duration: relatedVideo.duration,
+            isLocal: false,
+          };
+        }
+      }
+
+      // Fallback: use search with the video title if no related videos found
+      log.debug('No related videos in metadata, falling back to search');
+      // Use the title from yt-dlp if available, otherwise use lastTrack.title
       const searchQuery = info.title || lastTrack.title;
       log.debug(`Searching for similar tracks: "${searchQuery}"`);
 
@@ -214,7 +254,7 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       // Skip the first result if it's the same as the current video
       for (const result of ytResults) {
         if (result.url !== lastTrack.url) {
-          log.info(`Found related track: "${result.title}"`);
+          log.info(`Found related track via search: "${result.title}"`);
           return {
             title: result.title || 'Unknown Track',
             url: result.url,

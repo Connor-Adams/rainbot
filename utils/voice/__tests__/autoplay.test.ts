@@ -39,9 +39,8 @@ jest.mock('play-dl', () => ({
 
 // Mock youtube-dl-exec
 jest.mock('youtube-dl-exec', () => ({
-  default: {
-    create: jest.fn(() => jest.fn()),
-  },
+  default: jest.fn(() => jest.fn()),
+  create: jest.fn(() => jest.fn()),
 }));
 
 describe('Autoplay Functionality', () => {

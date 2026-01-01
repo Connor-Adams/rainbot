@@ -92,7 +92,11 @@ export async function joinChannel(
               // Add user info from last track using factory function
               const autoplayTrack = createAutoplayTrack(relatedTrack, state);
 
-              state.queue.push(autoplayTrack);
+              // Mutate the queue under the queue lock to avoid race conditions
+              const { withQueueLock } = await import('./queueManager');
+              await withQueueLock(guildId, () => {
+                state.queue.push(autoplayTrack);
+              });
               log.info(`Added autoplay track: "${autoplayTrack.title}"`);
 
               const { playNext } = await import('./playbackManager');
