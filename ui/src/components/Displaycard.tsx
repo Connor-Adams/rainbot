@@ -1,3 +1,5 @@
+import { ChevronRightIcon } from './icons'
+
 interface DisplayCardProps {
   name: string
 }
@@ -33,12 +35,12 @@ export default function DisplayCard({ name }: DisplayCardProps) {
     'relative',
     'overflow-hidden',
     'rounded-xl',
-    'bg-gradient-to-br from-gray-800 to-gray-900',
-    'border border-gray-700',
+    'bg-gradient-to-br from-surface to-surface-elevated',
+    'border border-border',
     'p-4',
     'transition-all duration-300',
-    'hover:border-gray-600',
-    'hover:shadow-lg hover:shadow-blue-500/20',
+    'hover:border-primary',
+    'hover:shadow-md hover:shadow-primary/20',
     'group',
   ].join(' ')
 
@@ -72,17 +74,17 @@ export default function DisplayCard({ name }: DisplayCardProps) {
 
   // Title text styles
   const titleClasses = [
-    'text-white',
+    'text-text-primary',
     'font-semibold',
     'text-sm',
     'truncate',
-    'group-hover:text-blue-400',
+    'group-hover:text-primary',
     'transition-colors duration-300',
   ].join(' ')
 
   // Subtitle text styles
   const subtitleClasses = [
-    'text-gray-400',
+    'text-text-secondary',
     'text-xs',
     'mt-0.5',
   ].join(' ')
@@ -90,8 +92,8 @@ export default function DisplayCard({ name }: DisplayCardProps) {
   // Arrow icon styles
   const arrowClasses = [
     'w-5 h-5',
-    'text-gray-500',
-    'group-hover:text-blue-400',
+    'text-text-muted',
+    'group-hover:text-primary',
     'transition-all duration-300',
     'group-hover:translate-x-1',
   ].join(' ')
@@ -135,19 +137,7 @@ export default function DisplayCard({ name }: DisplayCardProps) {
         </div>
 
         {/* Arrow indicator icon */}
-        <svg
-          className={arrowClasses}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
+        <ChevronRightIcon className={arrowClasses} size={20} />
       </div>
 
       {/* Shine effect overlay */}
