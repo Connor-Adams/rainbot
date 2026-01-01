@@ -27,7 +27,7 @@ This file gives AI coding agents focused, actionable information to be immediate
   - Backend/bot: `node index.js` after setting `.env` (requires `npm run build:ts` first if TS changed).
   - Frontend only: `npm run dev:ui` (runs dev server on separate port).
 - **Deploy commands**: `node deploy-commands.js` (optional — the bot auto-deploys slash commands on startup).
-- **Quality checks**: 
+- **Quality checks**:
   - `npm run lint` / `npm run lint:fix` — ESLint with Prettier.
   - `npm run format` / `npm run format:check` — Prettier formatting.
   - `npm run type-check` — TypeScript type checking (`tsc --noEmit`).
@@ -37,11 +37,13 @@ This file gives AI coding agents focused, actionable information to be immediate
 ## Project-specific conventions & patterns
 
 ### Module format & compilation
+
 - **Mixed JS/TS**: Bot commands and events are CommonJS JavaScript; server code and utils are TypeScript. Type-checking uses `tsc` (`npm run type-check`).
 - **Imports**: CommonJS uses `require()`, TypeScript uses ES imports. Compiled TS outputs to `dist/` and is imported via `require('./dist/...')` from JS files.
 - **Be conservative** when changing module formats — ensure build & startup paths are updated.
 
 ### Voice concurrency (CRITICAL)
+
 - **Always use `queueManager.withQueueLock(guildId, fn)`** for any code that mutates playback queues. Race conditions are a frequent source of bugs.
 - Example from [utils/voice/queueManager.ts](utils/voice/queueManager.ts):
   ```typescript
@@ -53,15 +55,18 @@ This file gives AI coding agents focused, actionable information to be immediate
 - See [utils/voice/README.md](utils/voice/README.md) for full concurrency patterns and mutex usage.
 
 ### Dependency Injection
+
 - `inversify` is used in some server modules ([utils/di-container.ts](utils/di-container.ts), `server/`).
 - Prefer passing dependencies explicitly rather than importing globals for new services.
 - Custom DI container available for simple singleton management.
 
 ### Audio resources
+
 - Use helper functions in [utils/voice/audioResource.ts](utils/voice/audioResource.ts) for streaming (fast fetch-based with fallbacks).
 - Don't reimplement streaming logic — `createTrackResourceForAny()` handles YouTube, SoundCloud, Spotify, and local files.
 
 ### Command shape (Discord slash commands)
+
 - Export object with `data` (SlashCommandBuilder) and `execute(interaction)` function.
 - Example from [commands/voice/play.js](commands/voice/play.js):
   ```javascript
@@ -75,18 +80,21 @@ This file gives AI coding agents focused, actionable information to be immediate
   ```
 
 ### Logging
+
 - Use `createLogger(moduleName)` from [utils/logger.ts](utils/logger.ts) — Winston-based with levels (error, warn, info, debug).
 - All modules should create their own logger: `const log = createLogger('MYMODULE');`
 
 ## Integration points & external requirements
 
 ### Environment variables
+
 - `.env` for local development (see `.env.example`). Production uses platform env vars (Railway).
 - **Required**: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `SESSION_SECRET`.
 - **Optional**: Database (PostgreSQL), Redis (sessions), S3 (storage), Spotify credentials.
 - See [config.example.json](config.example.json) and [OAUTH_SETUP.md](OAUTH_SETUP.md) for full config.
 
 ### External services
+
 - **PostgreSQL** (`pg`): Statistics tracking, listening history.
 - **Redis** (optional): Session store for dashboard. Falls back to file-based sessions if unavailable.
 - **AWS S3**: Sound file storage (S3 client initialized in [utils/storage.ts](utils/storage.ts)).
@@ -94,13 +102,14 @@ This file gives AI coding agents focused, actionable information to be immediate
 - **Spotify**: Optional `play-dl` integration for Spotify links (requires client ID/secret).
 
 ### Native dependencies
+
 - Audio libs: `@discordjs/opus`, `opusscript`, FFmpeg binary.
 - Ensure FFmpeg is installed on CI/dev machine before running.
 
 ## Tests & verification
 
 - **Unit tests**: `npm run test` — Jest with ts-jest for TypeScript files.
-- **Test organization**: Place tests in `__tests__/` subdirectories (e.g., [utils/voice/__tests__/](utils/voice/__tests__/), [server/routes/__tests__/](server/routes/__tests__/)).
+- **Test organization**: Place tests in `__tests__/` subdirectories (e.g., [utils/voice/**tests**/](utils/voice/__tests__/), [server/routes/**tests**/](server/routes/__tests__/)).
 - **Coverage**: `npm run test:coverage` — generates coverage reports.
 - **Static checks**: `npm run type-check`, `npm run lint`, `npm run format:check`.
 - **Pre-commit hooks**: Husky + lint-staged runs linting and formatting on staged files.
@@ -108,15 +117,15 @@ This file gives AI coding agents focused, actionable information to be immediate
 ## Typical code change checklist (for PRs / agents)
 
 1. **Run static checks**: `npm run type-check` and `npm run lint` locally (or ensure CI passes).
-2. **Voice behavior changes**: 
+2. **Voice behavior changes**:
    - Add unit tests around `utils/voice/*`.
    - Ensure use of `withQueueLock` for queue mutations.
    - Update [utils/voice/README.md](utils/voice/README.md) if design changes.
-3. **Adding commands**: 
+3. **Adding commands**:
    - Place file in `commands/<category>/`.
    - Follow `data` + `execute` shape (see existing commands).
    - Commands auto-deploy on bot startup (or run `node deploy-commands.js` manually).
-4. **Server/API changes**: 
+4. **Server/API changes**:
    - Update Swagger docs in [server/swagger.ts](server/swagger.ts).
    - Add integration tests in `server/routes/__tests__/`.
 5. **Update docs**: README or ARCHITECTURE.md for significant design changes.
@@ -127,7 +136,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 - **Command examples**: [commands/voice/play.js](commands/voice/play.js), [commands/voice/join.js](commands/voice/join.js), [commands/utility/ping.js](commands/utility/ping.js).
 - **Server API**: [server/routes/api.ts](server/routes/api.ts), [server/index.ts](server/index.ts), [server/middleware/auth.ts](server/middleware/auth.ts).
 - **Database queries**: [utils/database.ts](utils/database.ts), [utils/statistics.ts](utils/statistics.ts).
-- **Testing patterns**: [utils/voice/__tests__/](utils/voice/__tests__/), [server/routes/__tests__/](server/routes/__tests__/).
+- **Testing patterns**: [utils/voice/**tests**/](utils/voice/__tests__/), [server/routes/**tests**/](server/routes/__tests__/).
 
 ## When in doubt
 

@@ -214,6 +214,7 @@ rainbot/
 ### YouTube 403 Forbidden errors
 
 If YouTube videos fail with 403 errors:
+
 - See [YouTube 403 Fix Guide](docs/YOUTUBE_403_FIX.md) for detailed instructions
 - Quick fix: Export YouTube cookies and set `YTDLP_COOKIES` environment variable
 - The bot needs authentication cookies to access YouTube properly

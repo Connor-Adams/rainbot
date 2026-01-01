@@ -1,35 +1,40 @@
 # Soundboard UI Improvements
 
 ## Overview
+
 The soundboard UI has been completely refactored with clean, efficient, and polished code following solid design patterns and best practices.
 
 ## Architecture Improvements
 
 ### 1. **Custom Hooks** (Single Responsibility)
-   - **`useSoundCustomization`**: Manages sound customizations (display names, emojis) with localStorage persistence
-   - **`useAudioPreview`**: Handles audio preview playback with proper cleanup
-   - **`useClickOutside`**: Generic hook for detecting clicks outside elements
-   - **`useKeyboardShortcuts`**: Manages keyboard shortcuts with conflict prevention
+
+- **`useSoundCustomization`**: Manages sound customizations (display names, emojis) with localStorage persistence
+- **`useAudioPreview`**: Handles audio preview playback with proper cleanup
+- **`useClickOutside`**: Generic hook for detecting clicks outside elements
+- **`useKeyboardShortcuts`**: Manages keyboard shortcuts with conflict prevention
 
 ### 2. **Component Modularity**
-   - **`SoundCard`**: Individual sound card with play functionality and visual states
-   - **`SoundMenu`**: Context menu with preview, edit, download, delete options
-   - **`EditModal`**: Clean modal for customizing sound display
-   - **`SearchBar`**: Reusable search component with clear functionality
-   - **`EmptyState`**: Contextual empty state messaging
-   - **`UploadButton`**: File upload with loading states
+
+- **`SoundCard`**: Individual sound card with play functionality and visual states
+- **`SoundMenu`**: Context menu with preview, edit, download, delete options
+- **`EditModal`**: Clean modal for customizing sound display
+- **`SearchBar`**: Reusable search component with clear functionality
+- **`EmptyState`**: Contextual empty state messaging
+- **`UploadButton`**: File upload with loading states
 
 ### 3. **State Management**
-   - Consolidated state in main component
-   - Custom hooks handle their own internal state
-   - No prop drilling - clean data flow
-   - Proper React Query cache invalidation
+
+- Consolidated state in main component
+- Custom hooks handle their own internal state
+- No prop drilling - clean data flow
+- Proper React Query cache invalidation
 
 ## Key Features
 
 ### User Experience
+
 - ✨ **Visual Feedback**: Playing/previewing indicators with animations
-- ⌨️ **Keyboard Shortcuts**: 
+- ⌨️ **Keyboard Shortcuts**:
   - `Ctrl+F` - Focus search
   - `Escape` - Close menu/clear search/stop preview
 - 🎯 **Accessibility**: ARIA labels, keyboard navigation, focus management
@@ -38,6 +43,7 @@ The soundboard UI has been completely refactored with clean, efficient, and poli
 - 🎵 **Audio Preview**: In-browser preview without playing to Discord
 
 ### Developer Experience
+
 - 📦 **Modular Components**: Easy to test and maintain
 - 🎨 **Clean Patterns**: Hooks for logic, components for UI
 - 🔒 **Type Safety**: Full TypeScript coverage
@@ -70,12 +76,14 @@ ui/src/
 ## Code Quality
 
 ### Before
+
 - 411 lines in single file
 - Mixed concerns (UI, state, storage, audio)
 - Inline event handlers
 - Difficult to test
 
 ### After
+
 - Main component: ~230 lines (orchestration only)
 - 6 focused components
 - 4 reusable hooks
@@ -92,6 +100,7 @@ ui/src/
 ## Testing Strategy
 
 Each module can now be tested independently:
+
 - Hooks can be tested with `@testing-library/react-hooks`
 - Components can be tested with `@testing-library/react`
 - Integration tests at the tab level
@@ -108,6 +117,7 @@ Each module can now be tested independently:
 ## Future Enhancements
 
 Potential additions now easy to implement:
+
 - Favorites/pinning sounds
 - Categories/folders
 - Bulk operations
