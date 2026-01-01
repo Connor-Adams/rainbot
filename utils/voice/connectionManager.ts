@@ -23,6 +23,19 @@ const log = createLogger('CONNECTION');
 export const voiceStates = new Map<string, VoiceState>();
 
 /**
+ * Create an autoplay track with proper metadata
+ */
+function createAutoplayTrack(relatedTrack: Track, state: VoiceState): Track {
+  return {
+    ...relatedTrack,
+    userId: state.lastUserId || undefined,
+    username: state.lastUsername || undefined,
+    discriminator: state.lastDiscriminator || undefined,
+    source: 'autoplay',
+  };
+}
+
+/**
  * Join a voice channel
  */
 export async function joinChannel(
@@ -76,14 +89,11 @@ export async function joinChannel(
             const relatedTrack = await getRelatedTrack(state.lastPlayedTrack);
             
             if (relatedTrack) {
-              // Add user info from last track
-              relatedTrack.userId = state.lastUserId || undefined;
-              relatedTrack.username = state.lastUsername || undefined;
-              relatedTrack.discriminator = state.lastDiscriminator || undefined;
-              relatedTrack.source = 'autoplay';
+              // Add user info from last track using factory function
+              const autoplayTrack = createAutoplayTrack(relatedTrack, state);
               
-              state.queue.push(relatedTrack);
-              log.info(`Added autoplay track: "${relatedTrack.title}"`);
+              state.queue.push(autoplayTrack);
+              log.info(`Added autoplay track: "${autoplayTrack.title}"`);
               
               const { playNext } = await import('./playbackManager');
               await playNext(guildId);

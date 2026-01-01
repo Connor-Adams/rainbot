@@ -180,6 +180,11 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       
       const ytResults = await play.search(searchQuery, { limit: 5 });
       
+      if (!ytResults || ytResults.length === 0) {
+        log.warn('No search results found for autoplay');
+        return null;
+      }
+      
       // Skip the first result if it's the same as the current video
       for (const result of ytResults) {
         if (result.url !== lastTrack.url) {
@@ -196,7 +201,17 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       log.warn('No different related track found');
       return null;
     } catch (error) {
-      log.error(`Error getting related track: ${(error as Error).message}`);
+      const err = error as Error;
+      // Handle specific error cases
+      if (err.message.includes('403') || err.message.includes('Forbidden')) {
+        log.error('YouTube access forbidden - autoplay may require authentication');
+      } else if (err.message.includes('429') || err.message.includes('rate limit')) {
+        log.error('Rate limited by YouTube - autoplay temporarily unavailable');
+      } else if (err.message.includes('unavailable') || err.message.includes('deleted')) {
+        log.warn('Video unavailable for autoplay source');
+      } else {
+        log.error(`Error getting related track: ${err.message}`);
+      }
       return null;
     }
   } catch (error) {
