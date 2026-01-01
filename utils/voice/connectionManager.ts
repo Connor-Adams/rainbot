@@ -23,6 +23,19 @@ const log = createLogger('CONNECTION');
 export const voiceStates = new Map<string, VoiceState>();
 
 /**
+ * Create an autoplay track with proper metadata
+ */
+function createAutoplayTrack(relatedTrack: Track, state: VoiceState): Track {
+  return {
+    ...relatedTrack,
+    userId: state.lastUserId || undefined,
+    username: state.lastUsername || undefined,
+    discriminator: state.lastDiscriminator || undefined,
+    source: 'autoplay',
+  };
+}
+
+/**
  * Join a voice channel
  */
 export async function joinChannel(
@@ -68,13 +81,49 @@ export async function joinChannel(
         const { playNext } = await import('./playbackManager');
         await playNext(guildId);
       } else {
-        // Queue empty - clear now playing
-        log.debug(`Queue empty, clearing now playing state`);
-        state.nowPlaying = null;
-        state.currentTrack = null;
-        state.currentResource = null;
-        state.currentTrackSource = null;
-        state.playbackStartTime = null;
+        // Queue empty - check if autoplay is enabled
+        if (state.autoplay && state.lastPlayedTrack && !state.lastPlayedTrack.isSoundboard) {
+          log.info(`Queue empty, autoplay enabled - finding related track`);
+          try {
+            const { getRelatedTrack } = await import('./trackFetcher');
+            const relatedTrack = await getRelatedTrack(state.lastPlayedTrack);
+            
+            if (relatedTrack) {
+              // Add user info from last track using factory function
+              const autoplayTrack = createAutoplayTrack(relatedTrack, state);
+              
+              state.queue.push(autoplayTrack);
+              log.info(`Added autoplay track: "${autoplayTrack.title}"`);
+              
+              const { playNext } = await import('./playbackManager');
+              await playNext(guildId);
+            } else {
+              log.debug(`No related track found, clearing now playing state`);
+              state.nowPlaying = null;
+              state.currentTrack = null;
+              state.currentResource = null;
+              state.currentTrackSource = null;
+              state.playbackStartTime = null;
+            }
+          } catch (error) {
+            const err = error as Error;
+            log.error(`Autoplay failed: ${err.message}`);
+            // Clear now playing on error
+            state.nowPlaying = null;
+            state.currentTrack = null;
+            state.currentResource = null;
+            state.currentTrackSource = null;
+            state.playbackStartTime = null;
+          }
+        } else {
+          // Autoplay disabled or no suitable last track - clear now playing
+          log.debug(`Queue empty, clearing now playing state`);
+          state.nowPlaying = null;
+          state.currentTrack = null;
+          state.currentResource = null;
+          state.currentTrackSource = null;
+          state.playbackStartTime = null;
+        }
       }
     } catch (error) {
       const err = error as Error;
@@ -132,6 +181,7 @@ export async function joinChannel(
     currentTrackSource: null,
     lastPlayedTrack: null,
     isTransitioningToOverlay: false,
+    autoplay: false,
   };
 
   voiceStates.set(guildId, state);
