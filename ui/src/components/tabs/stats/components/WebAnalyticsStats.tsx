@@ -50,10 +50,10 @@ export default function WebAnalyticsStats() {
   if (!data) return null
 
   const eventTypesData = {
-    labels: data.eventTypes.map((e) => e.event_type),
+    labels: (data.eventTypes || []).map((e) => e.event_type),
     datasets: [
       {
-        data: data.eventTypes.map((e) => parseInt(e.count)),
+        data: (data.eventTypes || []).map((e) => parseInt(e.count)),
         backgroundColor: [
           'rgba(59, 130, 246, 0.7)',
           'rgba(34, 197, 94, 0.7)',
@@ -74,11 +74,11 @@ export default function WebAnalyticsStats() {
   }
 
   const topTargetsData = {
-    labels: data.topTargets.slice(0, 10).map((t) => `${t.event_type}: ${t.event_target}`.substring(0, 30)),
+    labels: (data.topTargets || []).slice(0, 10).map((t) => `${t.event_type}: ${t.event_target}`.substring(0, 30)),
     datasets: [
       {
         label: 'Events',
-        data: data.topTargets.slice(0, 10).map((t) => parseInt(t.count)),
+        data: (data.topTargets || []).slice(0, 10).map((t) => parseInt(t.count)),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
@@ -105,7 +105,7 @@ export default function WebAnalyticsStats() {
       </div>
 
       {/* Top Event Targets */}
-      {data.topTargets.length > 0 && (
+      {(data.topTargets || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Event Targets (Pages/Buttons)</h3>
           <div className="max-h-[400px]">
@@ -123,7 +123,7 @@ export default function WebAnalyticsStats() {
       )}
 
       {/* Active Web Users */}
-      {data.activeUsers.length > 0 && (
+      {(data.activeUsers || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Active Web Users</h3>
           <div className="overflow-x-auto">
@@ -137,7 +137,7 @@ export default function WebAnalyticsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.activeUsers.slice(0, 10).map((user) => (
+                {(data.activeUsers || []).slice(0, 10).map((user) => (
                   <tr key={user.user_id} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4 font-mono text-sm">{user.user_id}</td>
                     <td className="py-2 px-4">{user.event_count}</td>

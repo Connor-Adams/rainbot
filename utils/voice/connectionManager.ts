@@ -71,8 +71,13 @@ export async function joinChannel(
         // The overlay already played the music through to completion, so just continue with queue
       }
 
-      // End track engagement - track completed naturally
-      stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+      // End track engagement - track completed naturally (unless it was manually skipped)
+      if (!state.wasManuallySkipped) {
+        stats.endTrackEngagement(guildId, false, 'next_track', null, null);
+      } else {
+        // Reset the skip flag
+        state.wasManuallySkipped = false;
+      }
 
       // Check if there's more in queue
       if (state.queue.length > 0) {
@@ -186,6 +191,7 @@ export async function joinChannel(
     lastPlayedTrack: null,
     isTransitioningToOverlay: false,
     autoplay: false,
+    wasManuallySkipped: false,
   };
 
   voiceStates.set(guildId, state);

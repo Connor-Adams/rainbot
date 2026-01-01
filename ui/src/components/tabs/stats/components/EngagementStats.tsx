@@ -50,7 +50,7 @@ export default function EngagementStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading engagement...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>
-  if (!data) return null
+  if (!data || !data.summary) return null
 
   const completed = parseInt(data.summary.completed || '0')
   const skipped = parseInt(data.summary.skipped || '0')
@@ -75,11 +75,11 @@ export default function EngagementStats() {
   }
 
   const skipReasonsData = {
-    labels: data.skipReasons.map((r) => r.skip_reason || 'Unknown'),
+    labels: (data.skipReasons || []).map((r) => r.skip_reason || 'Unknown'),
     datasets: [
       {
         label: 'Skip Count',
-        data: data.skipReasons.map((r) => parseInt(r.count)),
+        data: (data.skipReasons || []).map((r) => parseInt(r.count)),
         backgroundColor: 'rgba(239, 68, 68, 0.6)',
         borderColor: 'rgba(239, 68, 68, 1)',
         borderWidth: 1,
@@ -126,7 +126,7 @@ export default function EngagementStats() {
       </div>
 
       {/* Skip Reasons */}
-      {data.skipReasons.length > 0 && (
+      {(data.skipReasons || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Skip Reasons</h3>
           <div className="max-h-[400px]">
@@ -143,7 +143,7 @@ export default function EngagementStats() {
       )}
 
       {/* Most Skipped Tracks */}
-      {data.mostSkipped.length > 0 && (
+      {(data.mostSkipped || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Skipped Tracks</h3>
           <div className="overflow-x-auto">
@@ -156,7 +156,7 @@ export default function EngagementStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.mostSkipped.map((track, idx) => (
+                {(data.mostSkipped || []).map((track, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{track.track_title}</td>
                     <td className="py-2 px-4">{track.skip_count}</td>
@@ -170,7 +170,7 @@ export default function EngagementStats() {
       )}
 
       {/* Most Completed Tracks */}
-      {data.mostCompleted.length > 0 && (
+      {(data.mostCompleted || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Completed Tracks</h3>
           <div className="overflow-x-auto">
@@ -182,7 +182,7 @@ export default function EngagementStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.mostCompleted.map((track, idx) => (
+                {(data.mostCompleted || []).map((track, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{track.track_title}</td>
                     <td className="py-2 px-4">{track.completion_count}</td>

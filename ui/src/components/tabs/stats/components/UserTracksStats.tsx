@@ -54,11 +54,11 @@ export default function UserTracksStats() {
   if (!data) return null
 
   const topTracksData = {
-    labels: data.topTracks.slice(0, 10).map((t) => t.track_title.substring(0, 30)),
+    labels: (data.topTracks || []).slice(0, 10).map((t) => t.track_title.substring(0, 30)),
     datasets: [
       {
         label: 'Listen Count',
-        data: data.topTracks.slice(0, 10).map((t) => parseInt(t.listen_count)),
+        data: (data.topTracks || []).slice(0, 10).map((t) => parseInt(t.listen_count)),
         backgroundColor: 'rgba(168, 85, 247, 0.6)',
         borderColor: 'rgba(168, 85, 247, 1)',
         borderWidth: 1,
@@ -67,10 +67,10 @@ export default function UserTracksStats() {
   }
 
   const sourceTypesData = {
-    labels: data.sourceTypes.map((s) => s.source_type || 'Unknown'),
+    labels: (data.sourceTypes || []).map((s) => s.source_type || 'Unknown'),
     datasets: [
       {
-        data: data.sourceTypes.map((s) => parseInt(s.count)),
+        data: (data.sourceTypes || []).map((s) => parseInt(s.count)),
         backgroundColor: [
           'rgba(34, 197, 94, 0.7)',
           'rgba(59, 130, 246, 0.7)',
@@ -93,7 +93,7 @@ export default function UserTracksStats() {
   return (
     <div className="space-y-6">
       {/* Source Types Distribution */}
-      {data.sourceTypes.length > 0 && (
+      {(data.sourceTypes || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Track Sources</h3>
           <div className="max-h-[400px]">
@@ -111,7 +111,7 @@ export default function UserTracksStats() {
       )}
 
       {/* Top Tracks Chart */}
-      {data.topTracks.length > 0 && (
+      {(data.topTracks || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Most Listened Tracks</h3>
           <div className="max-h-[400px]">
@@ -129,7 +129,7 @@ export default function UserTracksStats() {
       )}
 
       {/* Top Tracks Table */}
-      {data.topTracks.length > 0 && (
+      {(data.topTracks || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Tracks Details</h3>
           <div className="overflow-x-auto">
@@ -143,7 +143,7 @@ export default function UserTracksStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.topTracks.map((track, idx) => (
+                {(data.topTracks || []).map((track, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">
                       {track.track_url ? (
@@ -175,7 +175,7 @@ export default function UserTracksStats() {
       )}
 
       {/* Recent Listens */}
-      {data.recentListens.length > 0 && (
+      {(data.recentListens || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Recent Listens</h3>
           <div className="overflow-x-auto">
@@ -189,7 +189,7 @@ export default function UserTracksStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.recentListens.slice(0, 15).map((listen, idx) => (
+                {(data.recentListens || []).slice(0, 15).map((listen, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{listen.track_title}</td>
                     <td className="py-2 px-4">

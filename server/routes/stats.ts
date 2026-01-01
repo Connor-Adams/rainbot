@@ -839,7 +839,7 @@ router.get(
       // Overall percentiles
       const percentilesResult = await query(
         `SELECT
-         ROUND(AVG(execution_time_ms), 2) as avg_ms,
+         ROUND(AVG(execution_time_ms)::numeric, 2) as avg_ms,
          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY execution_time_ms)::numeric, 2) as p50_ms,
          ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY execution_time_ms)::numeric, 2) as p95_ms,
          ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY execution_time_ms)::numeric, 2) as p99_ms,
@@ -854,7 +854,7 @@ router.get(
       const byCommandResult = await query(
         `SELECT command_name,
               COUNT(*) as count,
-              ROUND(AVG(execution_time_ms), 2) as avg_ms,
+              ROUND(AVG(execution_time_ms)::numeric, 2) as avg_ms,
               ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY execution_time_ms)::numeric, 2) as p50_ms,
               ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY execution_time_ms)::numeric, 2) as p95_ms
        FROM command_stats ${whereClause}
@@ -914,11 +914,11 @@ router.get(
       const summaryResult = await query(
         `SELECT
          COUNT(*) as total_sessions,
-         ROUND(AVG(duration_seconds), 0) as avg_duration_seconds,
+         ROUND(AVG(duration_seconds)::numeric, 0) as avg_duration_seconds,
          SUM(duration_seconds) as total_duration_seconds,
-         ROUND(AVG(tracks_played), 1) as avg_tracks_per_session,
+         ROUND(AVG(tracks_played)::numeric, 1) as avg_tracks_per_session,
          SUM(tracks_played) as total_tracks,
-         ROUND(AVG(user_count_peak), 1) as avg_peak_users
+         ROUND(AVG(user_count_peak)::numeric, 1) as avg_peak_users
        FROM voice_sessions ${whereClause}`,
         params
       );
@@ -1067,8 +1067,8 @@ router.get(
       // Top queries
       const topQueriesResult = await query(
         `SELECT query, query_type, COUNT(*) as count,
-              ROUND(AVG(results_count), 1) as avg_results,
-              ROUND(AVG(selected_index), 1) as avg_selected_position
+              ROUND(AVG(results_count)::numeric, 1) as avg_results,
+              ROUND(AVG(selected_index)::numeric, 1) as avg_selected_position
        FROM search_stats ${whereClause}
        GROUP BY query, query_type
        ORDER BY count DESC
@@ -1079,7 +1079,7 @@ router.get(
       // Query type breakdown
       const queryTypesResult = await query(
         `SELECT query_type, COUNT(*) as count,
-              ROUND(AVG(results_count), 1) as avg_results,
+              ROUND(AVG(results_count)::numeric, 1) as avg_results,
               COUNT(*) FILTER (WHERE selected_index IS NOT NULL) as selections
        FROM search_stats ${whereClause}
        GROUP BY query_type
@@ -1155,9 +1155,9 @@ router.get(
         `SELECT
          COUNT(*) as total_sessions,
          COUNT(DISTINCT user_id) as unique_users,
-         ROUND(AVG(duration_seconds), 0) as avg_duration_seconds,
+         ROUND(AVG(duration_seconds)::numeric, 0) as avg_duration_seconds,
          SUM(duration_seconds) as total_duration_seconds,
-         ROUND(AVG(tracks_heard), 1) as avg_tracks_per_session,
+         ROUND(AVG(tracks_heard)::numeric, 1) as avg_tracks_per_session,
          SUM(tracks_heard) as total_tracks_heard
        FROM user_voice_sessions ${whereClause}`,
         params
@@ -1308,7 +1308,7 @@ router.get(
         `SELECT
          COUNT(*) as total_sessions,
          SUM(duration_seconds) as total_listening_time,
-         ROUND(AVG(duration_seconds), 0) as avg_session_duration,
+         ROUND(AVG(duration_seconds)::numeric, 0) as avg_session_duration,
          SUM(tracks_heard) as total_tracks_heard,
          MAX(joined_at) as last_session
        FROM user_voice_sessions
@@ -1400,8 +1400,8 @@ router.get(
          COUNT(*) as total_tracks,
          COUNT(*) FILTER (WHERE was_completed = true) as completed,
          COUNT(*) FILTER (WHERE was_skipped = true) as skipped,
-         ROUND(AVG(played_seconds), 0) as avg_played_seconds,
-         ROUND(AVG(CASE WHEN duration_seconds > 0 THEN (played_seconds::float / duration_seconds * 100) ELSE 0 END), 1) as avg_completion_percent
+         ROUND(AVG(played_seconds)::numeric, 0) as avg_played_seconds,
+         ROUND(AVG(CASE WHEN duration_seconds > 0 THEN (played_seconds::float / duration_seconds * 100) ELSE 0 END)::numeric, 1) as avg_completion_percent
        FROM track_engagement ${whereClause}`,
         params
       );
@@ -1419,7 +1419,7 @@ router.get(
       // Most skipped tracks
       const mostSkippedResult = await query(
         `SELECT track_title, COUNT(*) as skip_count,
-              ROUND(AVG(skipped_at_seconds), 0) as avg_skip_position
+              ROUND(AVG(skipped_at_seconds)::numeric, 0) as avg_skip_position
        FROM track_engagement
        ${whereClause ? whereClause + ' AND' : 'WHERE'} was_skipped = true
        GROUP BY track_title
@@ -1496,7 +1496,7 @@ router.get(
       const typeBreakdownResult = await query(
         `SELECT interaction_type, COUNT(*) as count,
               COUNT(*) FILTER (WHERE success = true) as success_count,
-              ROUND(AVG(response_time_ms), 0) as avg_response_time_ms
+              ROUND(AVG(response_time_ms)::numeric, 0) as avg_response_time_ms
        FROM interaction_events ${whereClause}
        GROUP BY interaction_type
        ORDER BY count DESC`,
@@ -1507,7 +1507,7 @@ router.get(
       const topActionsResult = await query(
         `SELECT custom_id, interaction_type, COUNT(*) as count,
               COUNT(*) FILTER (WHERE success = true) as success_count,
-              ROUND(AVG(response_time_ms), 0) as avg_response_time_ms
+              ROUND(AVG(response_time_ms)::numeric, 0) as avg_response_time_ms
        FROM interaction_events ${whereClause}
        GROUP BY custom_id, interaction_type
        ORDER BY count DESC
@@ -1829,7 +1829,7 @@ router.get(
       const overallResult = await query(
         `SELECT
          COUNT(*) as total_requests,
-         ROUND(AVG(response_time_ms), 2) as avg_latency_ms,
+         ROUND(AVG(response_time_ms)::numeric, 2) as avg_latency_ms,
          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p50_ms,
          ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p95_ms,
          ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p99_ms,
@@ -1841,7 +1841,7 @@ router.get(
       // By endpoint
       const byEndpointResult = await query(
         `SELECT endpoint, method, COUNT(*) as requests,
-              ROUND(AVG(response_time_ms), 2) as avg_latency_ms,
+              ROUND(AVG(response_time_ms)::numeric, 2) as avg_latency_ms,
               ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p95_ms
        FROM api_latency ${whereClause}
        GROUP BY endpoint, method

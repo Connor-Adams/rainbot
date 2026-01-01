@@ -57,14 +57,14 @@ export default function UserSessionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading user sessions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading user sessions</div>
-  if (!data) return null
+  if (!data || !data.summary) return null
 
   const topListenersData = {
-    labels: data.topListeners.slice(0, 10).map((l) => l.username || l.user_id.substring(0, 8)),
+    labels: (data.topListeners || []).slice(0, 10).map((l) => l.username || l.user_id.substring(0, 8)),
     datasets: [
       {
         label: 'Total Duration (seconds)',
-        data: data.topListeners.slice(0, 10).map((l) => parseInt(l.total_duration || '0')),
+        data: (data.topListeners || []).slice(0, 10).map((l) => parseInt(l.total_duration || '0')),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1,
@@ -119,7 +119,7 @@ export default function UserSessionsStats() {
       </div>
 
       {/* Top Listeners Chart */}
-      {data.topListeners.length > 0 && (
+      {(data.topListeners || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Listeners (by duration)</h3>
           <div className="max-h-[400px]">
@@ -137,7 +137,7 @@ export default function UserSessionsStats() {
       )}
 
       {/* Top Listeners Table */}
-      {data.topListeners.length > 0 && (
+      {(data.topListeners || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Listeners Details</h3>
           <div className="overflow-x-auto">
@@ -151,7 +151,7 @@ export default function UserSessionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.topListeners.map((listener, idx) => (
+                {(data.topListeners || []).map((listener, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{listener.username || listener.user_id}</td>
                     <td className="py-2 px-4">{listener.session_count}</td>
@@ -168,7 +168,7 @@ export default function UserSessionsStats() {
       )}
 
       {/* Recent Sessions */}
-      {data.sessions.length > 0 && (
+      {(data.sessions || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Recent Sessions</h3>
           <div className="overflow-x-auto">
@@ -183,7 +183,7 @@ export default function UserSessionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.sessions.slice(0, 15).map((session) => (
+                {(data.sessions || []).slice(0, 15).map((session) => (
                   <tr key={session.session_id} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4">{session.username || session.user_id}</td>
                     <td className="py-2 px-4">{session.channel_name}</td>

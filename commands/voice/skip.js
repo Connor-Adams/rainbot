@@ -27,7 +27,7 @@ module.exports = {
     }
 
     try {
-      const skipped = voiceManager.skip(guildId, count);
+      const skipped = await voiceManager.skip(guildId, count);
 
       if (skipped.length === 0) {
         return interaction.reply({

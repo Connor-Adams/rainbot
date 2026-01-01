@@ -59,13 +59,13 @@ export default function InteractionsStats() {
 
   if (isLoading) return <div className="stats-loading text-center py-12">Loading interactions...</div>
   if (error) return <div className="stats-error text-center py-12">Error loading interactions</div>
-  if (!data) return null
+  if (!data || !data.responseTimeDistribution) return null
 
   const typeBreakdownData = {
-    labels: data.typeBreakdown.map((t) => t.interaction_type),
+    labels: (data.typeBreakdown || []).map((t) => t.interaction_type),
     datasets: [
       {
-        data: data.typeBreakdown.map((t) => parseInt(t.count)),
+        data: (data.typeBreakdown || []).map((t) => parseInt(t.count)),
         backgroundColor: [
           'rgba(59, 130, 246, 0.7)',
           'rgba(34, 197, 94, 0.7)',
@@ -78,11 +78,11 @@ export default function InteractionsStats() {
   }
 
   const topActionsData = {
-    labels: data.topActions.slice(0, 10).map((a) => a.custom_id),
+    labels: (data.topActions || []).slice(0, 10).map((a) => a.custom_id),
     datasets: [
       {
         label: 'Usage Count',
-        data: data.topActions.slice(0, 10).map((a) => parseInt(a.count)),
+        data: (data.topActions || []).slice(0, 10).map((a) => parseInt(a.count)),
         backgroundColor: 'rgba(168, 85, 247, 0.6)',
         borderColor: 'rgba(168, 85, 247, 1)',
         borderWidth: 1,
@@ -152,7 +152,7 @@ export default function InteractionsStats() {
       </div>
 
       {/* Top Actions */}
-      {data.topActions.length > 0 && (
+      {(data.topActions || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Top Interactions</h3>
           <div className="max-h-[400px]">
@@ -170,7 +170,7 @@ export default function InteractionsStats() {
       )}
 
       {/* Top Actions Table */}
-      {data.topActions.length > 0 && (
+      {(data.topActions || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Interaction Details</h3>
           <div className="overflow-x-auto">
@@ -185,7 +185,7 @@ export default function InteractionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.topActions.slice(0, 10).map((action, idx) => {
+                {(data.topActions || []).slice(0, 10).map((action, idx) => {
                   const count = parseInt(action.count)
                   const successCount = parseInt(action.success_count)
                   const successRate = count > 0 ? (successCount / count) * 100 : 0
@@ -211,7 +211,7 @@ export default function InteractionsStats() {
       )}
 
       {/* Errors */}
-      {data.errors.length > 0 && (
+      {(data.errors || []).length > 0 && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
           <h3 className="text-xl text-white mb-4">Interaction Errors</h3>
           <div className="overflow-x-auto">
@@ -225,7 +225,7 @@ export default function InteractionsStats() {
                 </tr>
               </thead>
               <tbody>
-                {data.errors.slice(0, 10).map((error, idx) => (
+                {(data.errors || []).slice(0, 10).map((error, idx) => (
                   <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
                     <td className="py-2 px-4 font-mono text-sm">{error.custom_id}</td>
                     <td className="py-2 px-4">{error.interaction_type}</td>
