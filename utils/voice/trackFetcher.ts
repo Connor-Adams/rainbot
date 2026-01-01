@@ -220,8 +220,7 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
           }
 
           // Construct the URL if only ID is provided
-          const videoUrl =
-            relatedVideo.url || `https://www.youtube.com/watch?v=${relatedVideo.id}`;
+          const videoUrl = relatedVideo.url || `https://www.youtube.com/watch?v=${relatedVideo.id}`;
 
           // Skip if it's the same video
           if (videoUrl === lastTrack.url) {

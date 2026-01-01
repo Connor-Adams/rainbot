@@ -213,6 +213,7 @@ export default function SoundboardTab() {
       {/* Edit Modal */}
       {editingSound && (
         <EditModal
+          key={editingSound}
           soundName={editingSound}
           initialDisplayName={getCustomization(editingSound)?.displayName}
           initialEmoji={getCustomization(editingSound)?.emoji}

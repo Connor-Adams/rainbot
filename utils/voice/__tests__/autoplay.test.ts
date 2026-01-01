@@ -39,8 +39,17 @@ jest.mock('play-dl', () => ({
 
 // Mock youtube-dl-exec
 jest.mock('youtube-dl-exec', () => ({
-  default: jest.fn(() => jest.fn()),
-  create: jest.fn(() => jest.fn()),
+  __esModule: true,
+  default: {
+    create: jest.fn(() => {
+      const mockYtDlp = jest.fn().mockResolvedValue({
+        title: 'Test Video',
+        duration: 300,
+        webpage_url: 'https://www.youtube.com/watch?v=test123',
+      });
+      return mockYtDlp;
+    }),
+  },
 }));
 
 describe('Autoplay Functionality', () => {
