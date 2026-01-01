@@ -141,6 +141,10 @@ export async function playSoundboardOverlay(
 
   log.info(`Overlaying soundboard "${soundName}" on music`);
 
+  // Set transition flag EARLY to prevent idle handler interference during resource creation
+  const existingOverlay = state.overlayProcess as ChildProcess | null;
+  state.isTransitioningToOverlay = true;
+
   try {
     // Get the music stream URL (hasMusicSource check above ensures it's not null)
     const musicStreamUrl = await getStreamUrl(state.currentTrackSource!);
@@ -238,29 +242,20 @@ export async function playSoundboardOverlay(
       inputType: StreamType.OggOpus,
     });
 
-    // Clean up any existing overlay process and stop player JUST before playing new overlay
-    // This minimizes the gap between stop and play for seamless transition
-    const existingOverlay = state.overlayProcess as ChildProcess | null;
+    // Kill existing overlay (if any) and immediately play new overlay for seamless transition
+    // The transition flag is already set above, so idle handler won't interfere
     if (existingOverlay) {
-      log.debug('Killing existing overlay process for new soundboard');
+      log.debug('Replacing existing overlay process with new soundboard');
       try {
-        // Set flag to prevent idle handler from calling playNext
-        state.isTransitioningToOverlay = true;
         existingOverlay.kill('SIGKILL');
-        state.overlayProcess = null;
       } catch (err) {
         log.debug(`Error killing old overlay: ${(err as Error).message}`);
-        // Even if killing the old overlay fails, clear the reference here because we are
-        // about to replace it with the new overlay process (see assignment below). Keeping
-        // a stale reference could cause other logic to treat the old process as the active overlay.
-        state.overlayProcess = null;
       }
     } else {
-      // First overlay - set flag to prevent idle handler from advancing queue
       log.debug('Starting first overlay');
-      state.isTransitioningToOverlay = true;
     }
 
+    // Immediately play the new overlay to minimize audio gap
     state.player.play(resource);
     // Don't set currentResource - volume is baked into FFmpeg, changes during overlay not supported
     state.nowPlaying = `${state.nowPlaying} 🔊`;
