@@ -209,6 +209,7 @@ export function getQueue(guildId: string): QueueInfo {
       hasOverlay: false,
       isPaused: false,
       channelName: null,
+      autoplay: false,
     };
   }
 
@@ -233,6 +234,7 @@ export function getQueue(guildId: string): QueueInfo {
     hasOverlay: !!state.overlayProcess,
     isPaused: state.player.state.status === AudioPlayerStatus.Paused,
     channelName: state.channelName,
+    autoplay: state.autoplay,
   };
 }
 

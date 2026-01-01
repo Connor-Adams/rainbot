@@ -3,11 +3,15 @@
  */
 import play from 'play-dl';
 import path from 'path';
+import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
 import type { Track } from '../../types/voice';
 
 const log = createLogger('FETCHER');
+
+// Use system yt-dlp if available
+const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 /**
  * Fetch tracks from a source (URL, search query, or local file)
@@ -143,4 +147,60 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
   }
 
   return tracks;
+}
+
+/**
+ * Get a related track for autoplay (based on the last played track)
+ * Uses YouTube's related videos feature
+ */
+export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
+  try {
+    // Only support YouTube URLs for now
+    if (!lastTrack.url || (!lastTrack.url.includes('youtube.com') && !lastTrack.url.includes('youtu.be'))) {
+      log.debug('Cannot get related track: not a YouTube URL');
+      return null;
+    }
+
+    // Use yt-dlp to get related video
+    log.info(`Finding related track for: "${lastTrack.title}"`);
+    
+    try {
+      // Get video info which includes related videos
+      const info = await youtubedl(lastTrack.url, {
+        dumpSingleJson: true,
+        noPlaylist: true,
+        noWarnings: true,
+        quiet: true,
+      }) as { title?: string; duration?: number; webpage_url?: string };
+      
+      // For now, use YouTube search with the current video title to find similar content
+      // This is a simpler approach that works reliably
+      const searchQuery = info.title || lastTrack.title;
+      log.debug(`Searching for similar tracks: "${searchQuery}"`);
+      
+      const ytResults = await play.search(searchQuery, { limit: 5 });
+      
+      // Skip the first result if it's the same as the current video
+      for (const result of ytResults) {
+        if (result.url !== lastTrack.url) {
+          log.info(`Found related track: "${result.title}"`);
+          return {
+            title: result.title || 'Unknown Track',
+            url: result.url,
+            duration: result.durationInSec || undefined,
+            isLocal: false,
+          };
+        }
+      }
+      
+      log.warn('No different related track found');
+      return null;
+    } catch (error) {
+      log.error(`Error getting related track: ${(error as Error).message}`);
+      return null;
+    }
+  } catch (error) {
+    log.error(`Failed to get related track: ${(error as Error).message}`);
+    return null;
+  }
 }
