@@ -83,6 +83,10 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   },
+  "optionalDependencies": {
+    "@google-cloud/speech": "^6.8.0",
+    "@google-cloud/text-to-speech": "^5.8.0"
+  },
   "lint-staged": {
     "*.{js,ts}": [
       "eslint --fix",
