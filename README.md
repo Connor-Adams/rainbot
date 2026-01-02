@@ -6,6 +6,7 @@ A Discord voice bot with a web dashboard for playing sounds, YouTube/SoundCloud 
 
 - 🎵 **Play audio from multiple sources**: Local sound files, YouTube URLs, SoundCloud URLs, and playlists
 - 🔊 **Voice channel management**: Join, leave, and manage voice connections
+- 🎤 **Voice interaction**: Control music with voice commands (optional, requires API keys)
 - 📋 **Queue system**: Queue multiple tracks and manage playback
 - 🔁 **Auto keep playing mode**: Automatically plays related tracks when the queue is empty
 - 🎛️ **Web Dashboard**: Beautiful web interface for managing sounds and playing URLs
@@ -284,6 +285,14 @@ describe('moduleName', () => {
 - Check that the audio source URL is valid and accessible
 - Review logs in `logs/error.log` for detailed error messages
 
+### Voice interaction not working
+
+See the **[Voice Interaction Guide](VOICE_INTERACTION_GUIDE.md)** for:
+- Setup instructions for speech-to-text and text-to-speech APIs
+- Troubleshooting voice commands
+- Configuration options
+- Privacy and cost considerations
+
 ### YouTube 403 Forbidden errors
 
 If YouTube videos fail with 403 errors:
@@ -297,6 +306,13 @@ If YouTube videos fail with 403 errors:
 - Ensure the bot is running
 - Check that the configured port is available
 - Verify firewall settings allow connections to the dashboard port
+
+## Additional Documentation
+
+- **[Voice Interaction Guide](VOICE_INTERACTION_GUIDE.md)** - Voice command setup and usage
+- **[Architecture Documentation](ARCHITECTURE.md)** - System design and structure
+- **[OAuth Setup Guide](OAUTH_SETUP.md)** - Dashboard authentication setup
+- **[Railway Deployment Guide](RAILWAY_DEPLOY.md)** - Deploy to Railway platform
 
 ## License
 
