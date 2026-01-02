@@ -41,6 +41,15 @@ export interface AppConfig {
   // Spotify configuration
   spotifyClientId: string | undefined;
   spotifyClientSecret: string | undefined;
+
+  // Voice interaction configuration
+  voiceInteractionEnabled: boolean;
+  sttProvider: string;
+  ttsProvider: string;
+  sttApiKey: string | undefined;
+  ttsApiKey: string | undefined;
+  voiceLanguage: string;
+  ttsVoiceName: string | undefined;
 }
 
 /**
@@ -64,6 +73,9 @@ export function loadConfig(): AppConfig {
       key.startsWith('REQUIRED_') ||
       key.startsWith('STORAGE_') ||
       key.startsWith('SPOTIFY_') ||
+      key.startsWith('VOICE_') ||
+      key.startsWith('STT_') ||
+      key.startsWith('TTS_') ||
       key === 'PORT' ||
       key === 'CALLBACK_URL' ||
       key === 'RAILWAY_PUBLIC_DOMAIN' ||
@@ -150,6 +162,15 @@ export function loadConfig(): AppConfig {
     // Spotify configuration (for play-dl)
     spotifyClientId: process.env['SPOTIFY_CLIENT_ID'],
     spotifyClientSecret: process.env['SPOTIFY_CLIENT_SECRET'],
+
+    // Voice interaction configuration
+    voiceInteractionEnabled: process.env['VOICE_INTERACTION_ENABLED'] === 'true',
+    sttProvider: process.env['STT_PROVIDER'] || 'google',
+    ttsProvider: process.env['TTS_PROVIDER'] || 'google',
+    sttApiKey: process.env['STT_API_KEY'],
+    ttsApiKey: process.env['TTS_API_KEY'],
+    voiceLanguage: process.env['VOICE_LANGUAGE'] || 'en-US',
+    ttsVoiceName: process.env['TTS_VOICE_NAME'],
   };
 
   // Log which environment variables are set (for debugging)
