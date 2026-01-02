@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
 const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
@@ -32,7 +32,7 @@ module.exports = {
       if (skipped.length === 0) {
         return interaction.reply({
           content: '❌ Nothing is playing right now.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -53,7 +53,12 @@ module.exports = {
       await interaction.reply(replyText);
     } catch (error) {
       log.error(`Skip error: ${error.message}`);
-      await interaction.reply(createErrorResponse(error));
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(createErrorResponse(error));
+      } else {
+        await interaction.reply(createErrorResponse(error));
+      }
     }
   },
 };

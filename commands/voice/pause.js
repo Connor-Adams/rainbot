@@ -34,13 +34,24 @@ module.exports = {
       }
     } catch (error) {
       log.error(`Pause error: ${error.message}`);
-      await interaction.reply(
-        createErrorResponse(
-          error,
-          '',
-          '💡 **Tip:** Make sure something is playing before trying to pause.'
-        )
-      );
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(
+          createErrorResponse(
+            error,
+            '',
+            '💡 **Tip:** Make sure something is playing before trying to pause.'
+          )
+        );
+      } else {
+        await interaction.reply(
+          createErrorResponse(
+            error,
+            '',
+            '💡 **Tip:** Make sure something is playing before trying to pause.'
+          )
+        );
+      }
     }
   },
 };

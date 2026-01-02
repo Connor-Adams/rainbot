@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
 const { validateVoiceConnection } = require('../utils/commandHelpers');
@@ -20,7 +20,7 @@ module.exports = {
     if (!status.nowPlaying) {
       return interaction.reply({
         content: '❌ Nothing is playing right now. Use `/play` to start playing music.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

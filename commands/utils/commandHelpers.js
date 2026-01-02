@@ -3,6 +3,8 @@
  * Provides reusable helpers to reduce duplication across command files
  */
 
+const { MessageFlags } = require('discord.js');
+
 /**
  * Check if bot is connected to a voice channel in the guild
  * Returns an error response if not connected
@@ -15,7 +17,7 @@ function validateVoiceConnection(interaction, voiceManager) {
       error: {
         content:
           "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       },
     };
   }
@@ -32,7 +34,7 @@ function createErrorResponse(error, context = '', additionalTip = '') {
   const content = `❌ ${contextPrefix}${message}${tipSuffix}`;
   return {
     content,
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   };
 }
 
@@ -76,7 +78,7 @@ function checkVoicePermissions(voiceChannel, botUser) {
       hasPermissions: false,
       error: {
         content: `❌ I need the following permissions in **${voiceChannel.name}**: ${missingPerms.join(', ')}\n\n💡 Ask a server administrator to grant these permissions.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       },
     };
   }

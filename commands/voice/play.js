@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
 const { createLogger } = require('../../dist/utils/logger');
@@ -31,7 +31,7 @@ module.exports = {
       return interaction.reply({
         content:
           "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

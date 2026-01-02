@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
 const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
@@ -29,12 +29,17 @@ module.exports = {
       } else {
         await interaction.reply({
           content: '❌ Nothing is playing. Use `/play` to start playback.',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     } catch (error) {
       log.error(`Stop error: ${error.message}`);
-      await interaction.reply(createErrorResponse(error));
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(createErrorResponse(error));
+      } else {
+        await interaction.reply(createErrorResponse(error));
+      }
     }
   },
 };

@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, MessageFlags } = require('discord.js');
 const voiceManager = require('../dist/utils/voiceManager');
 const { createPlayerMessage } = require('../dist/utils/playerEmbed');
 const { createLogger } = require('../dist/utils/logger');
@@ -33,7 +33,7 @@ module.exports = {
         );
         return interaction.reply({
           content: '❌ This resume prompt is not for you!',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -119,7 +119,7 @@ module.exports = {
         );
         return interaction.reply({
           content: '❌ This prompt is not for you!',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -174,7 +174,7 @@ module.exports = {
       );
       return interaction.reply({
         content: "❌ I'm not in a voice channel!",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -333,7 +333,7 @@ module.exports = {
 
           await interaction.reply({
             embeds: [embed],
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           stats.trackInteraction(
             'button',
@@ -369,7 +369,7 @@ module.exports = {
       await interaction
         .reply({
           content: `❌ ${error.message}`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         })
         .catch(() => {});
     }

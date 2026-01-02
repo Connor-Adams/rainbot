@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 
 module.exports = {
@@ -14,7 +14,7 @@ module.exports = {
       return interaction.reply({
         content:
           "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -23,10 +23,18 @@ module.exports = {
       voiceManager.leaveChannel(guildId);
       await interaction.reply(`👋 Left **${channelName}**! The queue has been cleared.`);
     } catch (error) {
-      await interaction.reply({
-        content: `❌ Failed to leave the voice channel: ${error.message}`,
-        ephemeral: true,
-      });
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } else {
+        await interaction.reply({
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
     }
   },
 };
