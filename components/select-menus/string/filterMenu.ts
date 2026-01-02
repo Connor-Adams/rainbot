@@ -2,7 +2,7 @@
  * Audio filter select menu component
  */
 
-import { ActionRowBuilder } from 'discord.js';
+import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import type { AudioFilter, SelectMenuOption } from '../../../types/select-menus';
 import { createStringSelectMenu, createSelectMenuId } from '../../builders/selectMenuBuilder';
 
@@ -50,7 +50,7 @@ export function getFilterOptions(): SelectMenuOption[] {
 export function createFilterMenu(
   guildId: string,
   currentFilters?: AudioFilter[]
-): ActionRowBuilder<any> {
+): ActionRowBuilder<StringSelectMenuBuilder> {
   const customId = createSelectMenuId('audio_filter', { guildId });
   const options = getFilterOptions();
 
@@ -66,7 +66,7 @@ export function createFilterMenu(
     maxValues: 3, // Allow up to 3 filters at once
   });
 
-  return new ActionRowBuilder().addComponents(selectMenu);
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 }
 
 /**

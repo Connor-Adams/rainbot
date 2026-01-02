@@ -66,8 +66,8 @@ describe('Repeat Mode Menu', () => {
 
       const json = component?.toJSON();
       const options = json?.options || [];
-      const trackOption = options.find((o: any) => o.value === 'track');
-      const offOption = options.find((o: any) => o.value === 'off');
+      const trackOption = options.find((o) => o.value === 'track');
+      const offOption = options.find((o) => o.value === 'off');
 
       expect(trackOption?.default).toBe(true);
       expect(offOption?.default).toBe(false);
@@ -79,7 +79,7 @@ describe('Repeat Mode Menu', () => {
 
       const json = component?.toJSON();
       const options = json?.options || [];
-      const defaultOptions = options.filter((o: any) => o.default);
+      const defaultOptions = options.filter((o) => o.default);
 
       expect(defaultOptions).toHaveLength(0);
     });

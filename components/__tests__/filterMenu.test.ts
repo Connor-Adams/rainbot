@@ -67,9 +67,9 @@ describe('Filter Menu', () => {
 
       const json = component?.toJSON();
       const options = json?.options || [];
-      const bassboostOption = options.find((o: any) => o.value === 'bassboost');
-      const nightcoreOption = options.find((o: any) => o.value === 'nightcore');
-      const noneOption = options.find((o: any) => o.value === 'none');
+      const bassboostOption = options.find((o) => o.value === 'bassboost');
+      const nightcoreOption = options.find((o) => o.value === 'nightcore');
+      const noneOption = options.find((o) => o.value === 'none');
 
       expect(bassboostOption?.default).toBe(true);
       expect(nightcoreOption?.default).toBe(true);

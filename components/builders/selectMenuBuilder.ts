@@ -221,7 +221,8 @@ export function createMentionableSelectMenu(
 /**
  * Create an action row with a select menu
  */
-export function createSelectMenuRow<T>(selectMenu: T): ActionRowBuilder<any> {
+export function createSelectMenuRow<T>(selectMenu: T): ActionRowBuilder {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new ActionRowBuilder().addComponents(selectMenu as any);
 }
 

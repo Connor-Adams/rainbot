@@ -2,7 +2,7 @@
  * Repeat mode select menu component
  */
 
-import { ActionRowBuilder } from 'discord.js';
+import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import type { RepeatMode, SelectMenuOption } from '../../../types/select-menus';
 import { createStringSelectMenu, createSelectMenuId } from '../../builders/selectMenuBuilder';
 
@@ -38,7 +38,7 @@ export function getRepeatModeOptions(): SelectMenuOption[] {
 export function createRepeatModeMenu(
   guildId: string,
   currentMode?: RepeatMode
-): ActionRowBuilder<any> {
+): ActionRowBuilder<StringSelectMenuBuilder> {
   const customId = createSelectMenuId('repeat_mode', { guildId });
   const options = getRepeatModeOptions();
 
@@ -54,7 +54,7 @@ export function createRepeatModeMenu(
     maxValues: 1,
   });
 
-  return new ActionRowBuilder().addComponents(selectMenu);
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 }
 
 /**
