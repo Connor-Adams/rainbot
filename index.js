@@ -84,7 +84,7 @@ client.once(Events.ClientReady, async () => {
       voiceName: config.ttsVoiceName,
     };
 
-    initVoiceInteractionManager(client, voiceInteractionConfig);
+    initVoiceInteractionManager(voiceInteractionConfig);
     log.info('Voice interaction system initialized');
   } catch (error) {
     log.warn(`Voice interaction not available: ${error.message}`);

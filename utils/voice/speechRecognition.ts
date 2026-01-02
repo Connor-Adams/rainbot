@@ -31,9 +31,7 @@ class GoogleSTTProvider implements STTProvider {
     // Lazy load to avoid requiring package if not used
     try {
       const speech = require('@google-cloud/speech');
-      this.client = new speech.SpeechClient(
-        apiKey ? { apiKey } : undefined
-      );
+      this.client = new speech.SpeechClient(apiKey ? { apiKey } : undefined);
       log.info('Google Cloud Speech client initialized');
     } catch (error) {
       log.error(`Failed to initialize Google Speech client: ${(error as Error).message}`);
@@ -122,9 +120,7 @@ class OpenAISTTProvider implements STTProvider {
       log.info('OpenAI Whisper client initialized');
     } catch (error) {
       log.error(`Failed to initialize OpenAI client: ${(error as Error).message}`);
-      throw new Error(
-        'OpenAI package not installed. Run: npm install openai'
-      );
+      throw new Error('OpenAI package not installed. Run: npm install openai');
     }
   }
 
@@ -132,13 +128,13 @@ class OpenAISTTProvider implements STTProvider {
     try {
       // Convert PCM to WAV format for Whisper API
       const wavBuffer = this.pcmToWav(audioBuffer, 48000, 1);
-      
+
       // Create FormData for multipart upload
       // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
-      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-      
+      const blob = new Blob([new Uint8Array(wavBuffer)], { type: 'audio/wav' });
+
       log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
-      
+
       // Extract language code (e.g., 'en' from 'en-US')
       const language = languageCode.split('-')[0];
 
@@ -172,7 +168,7 @@ class OpenAISTTProvider implements STTProvider {
     if (typeof File !== 'undefined') {
       return new File([blob], filename, { type: 'audio/wav' });
     }
-    
+
     // Fallback for older Node.js versions
     const buffer = Buffer.from(await blob.arrayBuffer());
     return {
@@ -204,12 +200,12 @@ class OpenAISTTProvider implements STTProvider {
     const headerSize = 44;
 
     const wavBuffer = Buffer.alloc(headerSize + dataSize);
-    
+
     // RIFF header
     wavBuffer.write('RIFF', 0);
     wavBuffer.writeUInt32LE(36 + dataSize, 4);
     wavBuffer.write('WAVE', 8);
-    
+
     // fmt chunk
     wavBuffer.write('fmt ', 12);
     wavBuffer.writeUInt32LE(16, 16); // fmt chunk size
@@ -219,12 +215,12 @@ class OpenAISTTProvider implements STTProvider {
     wavBuffer.writeUInt32LE(byteRate, 28);
     wavBuffer.writeUInt16LE(blockAlign, 32);
     wavBuffer.writeUInt16LE(16, 34); // bits per sample
-    
+
     // data chunk
     wavBuffer.write('data', 36);
     wavBuffer.writeUInt32LE(dataSize, 40);
     pcmBuffer.copy(wavBuffer, 44);
-    
+
     return wavBuffer;
   }
 }
@@ -315,10 +311,7 @@ export class SpeechRecognitionManager {
 
       log.debug(`Recognizing audio buffer of ${audioBuffer.length} bytes`);
 
-      const result = await this.provider.recognize(
-        audioBuffer,
-        this.config.language
-      );
+      const result = await this.provider.recognize(audioBuffer, this.config.language);
 
       const latency = Date.now() - startTime;
       log.info(
@@ -345,9 +338,7 @@ export class SpeechRecognitionManager {
    * Process audio chunks from Discord voice stream
    * Discord provides Opus-decoded PCM audio at 48kHz, 16-bit, stereo
    */
-  async processDiscordAudio(
-    audioChunks: Buffer[]
-  ): Promise<SpeechRecognitionResult> {
+  async processDiscordAudio(audioChunks: Buffer[]): Promise<SpeechRecognitionResult> {
     if (audioChunks.length === 0) {
       return {
         text: '',
@@ -402,7 +393,9 @@ export class SpeechRecognitionManager {
     const averageEnergy = totalEnergy / samples;
     const hasSpeech = averageEnergy > threshold;
 
-    log.debug(`Audio energy: ${averageEnergy.toFixed(2)} (threshold: ${threshold}) - Speech: ${hasSpeech}`);
+    log.debug(
+      `Audio energy: ${averageEnergy.toFixed(2)} (threshold: ${threshold}) - Speech: ${hasSpeech}`
+    );
 
     return hasSpeech;
   }
@@ -411,8 +404,6 @@ export class SpeechRecognitionManager {
 /**
  * Create a speech recognition manager instance
  */
-export function createSpeechRecognition(
-  config: VoiceInteractionConfig
-): SpeechRecognitionManager {
+export function createSpeechRecognition(config: VoiceInteractionConfig): SpeechRecognitionManager {
   return new SpeechRecognitionManager(config);
 }

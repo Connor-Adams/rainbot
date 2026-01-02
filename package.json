@@ -86,7 +86,7 @@
   "optionalDependencies": {
     "@google-cloud/speech": "^6.8.0",
     "@google-cloud/text-to-speech": "^5.8.0",
-    "openai": "^4.77.0"
+    "openai": "^4.104.0"
   },
   "lint-staged": {
     "*.{js,ts}": [

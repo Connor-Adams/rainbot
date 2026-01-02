@@ -2,7 +2,7 @@
  * Type definitions for voice interaction system
  */
 
-import type { VoiceConnection, AudioPlayer } from '@discordjs/voice';
+import type { VoiceConnection } from '@discordjs/voice';
 
 /**
  * Voice command types that can be recognized
@@ -159,11 +159,7 @@ export interface IVoiceInteractionManager {
   /**
    * Start listening to a user in a voice channel
    */
-  startListening(
-    userId: string,
-    guildId: string,
-    connection: VoiceConnection
-  ): Promise<void>;
+  startListening(userId: string, guildId: string, connection: VoiceConnection): Promise<void>;
 
   /**
    * Stop listening to a user

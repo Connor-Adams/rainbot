@@ -3,12 +3,7 @@
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
  */
 
-import {
-  VoiceConnection,
-  VoiceConnectionStatus,
-  EndBehaviorType,
-} from '@discordjs/voice';
-import type { Client } from 'discord.js';
+import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
 import { createLogger } from '../logger';
 import type {
   VoiceInteractionConfig,
@@ -51,12 +46,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private states: Map<string, VoiceInteractionState>;
   private speechRecognition: SpeechRecognitionManager;
   private textToSpeech: TextToSpeechManager;
-  private client: Client;
   private voiceManager: any; // Lazy loaded to avoid circular dependency
   private commandMutex: Mutex;
 
-  constructor(client: Client, config?: Partial<VoiceInteractionConfig>) {
-    this.client = client;
+  constructor(config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
     this.commandMutex = new Mutex();
@@ -278,7 +271,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       return;
     }
 
-    log.info(`Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(2)}s) from user ${session.userId}`);
+    log.info(
+      `Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(2)}s) from user ${session.userId}`
+    );
 
     try {
       // Convert audio to text
@@ -439,7 +434,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         case 'volume':
           try {
             let volume = command.parameter as number;
-            
+
             // Handle relative volume changes
             if (volume < 0 || volume > 100) {
               // This is a relative change (e.g., "turn it down" = -10)
@@ -448,7 +443,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
               const currentVolume = voiceState?.volume || 50;
               volume = Math.max(0, Math.min(100, currentVolume + volume));
             }
-            
+
             await vm.setVolume(session.guildId, volume);
             success = true;
             responseText = generateResponseText('volume', true, `Volume set to ${volume}`);
@@ -574,8 +569,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
  * Create voice interaction manager instance
  */
 export function createVoiceInteractionManager(
-  client: Client,
   config?: Partial<VoiceInteractionConfig>
 ): VoiceInteractionManager {
-  return new VoiceInteractionManager(client, config);
+  return new VoiceInteractionManager(config);
 }
