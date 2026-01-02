@@ -200,6 +200,77 @@ rainbot/
 - Place audio files in the `sounds/` directory, or
 - Upload files through the web dashboard
 
+## Testing
+
+This project uses Jest with ts-jest for comprehensive test coverage.
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (useful during development)
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run specific test file
+npx jest path/to/test-file.test.ts
+```
+
+### Test Coverage
+
+The project maintains comprehensive test coverage with the following thresholds:
+- **Statements**: 60%
+- **Branches**: 50%
+- **Functions**: 50%
+- **Lines**: 60%
+
+Coverage reports are generated in the `coverage/` directory after running `npm run test:coverage`.
+
+### Writing Tests
+
+Tests are organized in `__tests__` directories next to the source files they test:
+
+```
+utils/
+  config.ts
+  __tests__/
+    config.test.ts
+```
+
+Key testing practices:
+- Use descriptive test names that explain what is being tested
+- Group related tests using `describe` blocks
+- Mock external dependencies (Discord.js, database, S3, etc.)
+- Test both success paths and error handling
+- Include edge cases and boundary conditions
+
+### Test Structure
+
+```typescript
+describe('moduleName', () => {
+  beforeEach(() => {
+    // Setup before each test
+  });
+
+  describe('functionName', () => {
+    it('should handle the expected behavior', () => {
+      // Arrange
+      const input = 'test';
+      
+      // Act
+      const result = functionName(input);
+      
+      // Assert
+      expect(result).toBe('expected');
+    });
+  });
+});
+```
+
 ## Troubleshooting
 
 ### Bot won't join voice channel

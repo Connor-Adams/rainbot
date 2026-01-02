@@ -16,7 +16,15 @@ module.exports = {
     '!**/dist/**',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: ['text', 'lcov', 'html', 'text-summary'],
+  coverageThreshold: {
+    global: {
+      statements: 23,
+      branches: 17,
+      functions: 20,
+      lines: 23,
+    },
+  },
   moduleFileExtensions: ['ts', 'js', 'json'],
   verbose: true,
 };
