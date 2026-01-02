@@ -2,7 +2,11 @@ const { Events, MessageFlags } = require('discord.js');
 const { createLogger } = require('../dist/utils/logger');
 const voiceManager = require('../dist/utils/voiceManager');
 const stats = require('../dist/utils/statistics');
-const { handleSelectMenuInteraction, hasSelectMenuHandler } = require('../dist/handlers/selectMenuHandler');
+const {
+  handleSelectMenuInteraction,
+  hasSelectMenuHandler,
+} = require('../dist/handlers/selectMenuHandler');
+const { parseSelectMenuId } = require('../dist/components/builders/selectMenuBuilder');
 
 const log = createLogger('INTERACTION');
 
@@ -14,7 +18,7 @@ module.exports = {
     // Handle select menu interactions
     if (interaction.isAnySelectMenu()) {
       const { customId } = interaction;
-      const prefix = customId.split('_')[0];
+      const { prefix } = parseSelectMenuId(customId);
 
       // Check if we have a registered handler for this select menu
       if (hasSelectMenuHandler(prefix)) {
