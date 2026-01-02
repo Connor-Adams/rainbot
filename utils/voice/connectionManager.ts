@@ -47,6 +47,8 @@ export async function joinChannel(
     channelId: channel.id,
     guildId: guildId,
     adapterCreator: channel.guild.voiceAdapterCreator,
+    selfDeaf: false, // Important: Allow bot to listen for voice commands
+    selfMute: false,
   });
 
   const player = createAudioPlayer();
