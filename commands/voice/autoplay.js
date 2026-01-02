@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
 
@@ -24,7 +24,7 @@ module.exports = {
       return interaction.reply({
         content:
           "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -39,14 +39,21 @@ module.exports = {
 
       await interaction.reply({
         content: `${emoji} Autoplay ${statusText}${result.enabled ? '! The bot will automatically play related tracks when the queue is empty.' : '.'}`,
-        ephemeral: false,
       });
     } catch (error) {
       log.error(`Failed to toggle autoplay: ${error.message}`);
-      await interaction.reply({
-        content: `❌ Failed to toggle autoplay: ${error.message}`,
-        ephemeral: true,
-      });
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          content: `❌ Failed to toggle autoplay: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } else {
+        await interaction.reply({
+          content: `❌ Failed to toggle autoplay: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
     }
   },
 };

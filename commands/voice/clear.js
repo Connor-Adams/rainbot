@@ -36,7 +36,12 @@ module.exports = {
       }
     } catch (error) {
       log.error(`Clear error: ${error.message}`);
-      await interaction.reply(createErrorResponse(error));
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(createErrorResponse(error));
+      } else {
+        await interaction.reply(createErrorResponse(error));
+      }
     }
   },
 };
