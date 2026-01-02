@@ -61,12 +61,10 @@ export async function cleanupVoiceInteraction(): Promise<void> {
 
   log.info('Cleaning up voice interaction manager...');
 
-  // Cleanup all guilds
-  const states = instance['states']; // Access private field for cleanup
-  if (states) {
-    for (const guildId of states.keys()) {
-      await instance.cleanup(guildId);
-    }
+  // Get all guild IDs and cleanup each
+  const guildIds = instance.getAllGuildIds();
+  for (const guildId of guildIds) {
+    await instance.cleanup(guildId);
   }
 
   instance = null;

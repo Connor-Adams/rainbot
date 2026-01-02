@@ -261,11 +261,12 @@ export function validateVoiceCommand(
             reason: 'Volume must be a number',
           };
         }
-        // Allow relative volume changes (negative values)
-        if (vol < -100 || vol > 100) {
+        // Allow relative volume changes (negative values for 'turn it down')
+        // Absolute values must be 0-100, relative changes can be -100 to 100
+        if (Math.abs(vol) > 100) {
           return {
             valid: false,
-            reason: 'Volume must be between 0 and 100',
+            reason: 'Volume adjustment must be between -100 and 100',
           };
         }
       }

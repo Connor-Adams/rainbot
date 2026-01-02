@@ -73,7 +73,13 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
    */
   private getVoiceManager() {
     if (!this.voiceManager) {
-      this.voiceManager = require('../../dist/utils/voiceManager');
+      // Use relative import to avoid hard-coded dist path
+      try {
+        this.voiceManager = require('../voiceManager');
+      } catch (error) {
+        // Fallback to dist path for compatibility
+        this.voiceManager = require('../../dist/utils/voiceManager');
+      }
     }
     return this.voiceManager;
   }
@@ -432,7 +438,17 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
         case 'volume':
           try {
-            const volume = command.parameter as number;
+            let volume = command.parameter as number;
+            
+            // Handle relative volume changes
+            if (volume < 0 || volume > 100) {
+              // This is a relative change (e.g., "turn it down" = -10)
+              // Get current volume from voice state
+              const voiceState = vm.getVoiceState?.(session.guildId);
+              const currentVolume = voiceState?.volume || 50;
+              volume = Math.max(0, Math.min(100, currentVolume + volume));
+            }
+            
             await vm.setVolume(session.guildId, volume);
             success = true;
             responseText = generateResponseText('volume', true, `Volume set to ${volume}`);
@@ -544,6 +560,13 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   getStatistics(guildId: string) {
     const state = this.states.get(guildId);
     return state?.statistics || null;
+  }
+
+  /**
+   * Get all guild IDs with active voice interaction states
+   */
+  getAllGuildIds(): string[] {
+    return Array.from(this.states.keys());
   }
 }
 
