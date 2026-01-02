@@ -25,6 +25,31 @@ module.exports = {
 
     try {
       await voiceManager.joinChannel(voiceChannel);
+
+      // Start listening to all users already in the channel if voice control is enabled
+      try {
+        const {
+          getVoiceInteractionManager,
+        } = require('../../dist/utils/voice/voiceInteractionInstance');
+        const { getVoiceConnection } = require('@discordjs/voice');
+        const voiceInteractionMgr = getVoiceInteractionManager();
+
+        if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(interaction.guildId)) {
+          const connection = getVoiceConnection(interaction.guildId);
+          if (connection) {
+            // Get all members in the voice channel (excluding bots)
+            const members = voiceChannel.members.filter((m) => !m.user.bot);
+            for (const [userId, member] of members) {
+              await voiceInteractionMgr.startListening(userId, interaction.guildId, connection);
+              console.log(`Started voice listening for existing user: ${member.user.tag}`);
+            }
+          }
+        }
+      } catch (voiceError) {
+        // Don't fail the join if voice interaction setup fails
+        console.log(`Voice interaction setup failed (non-critical): ${voiceError.message}`);
+      }
+
       await interaction.reply(
         `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
       );

@@ -261,6 +261,13 @@ export function getVoiceState(guildId: string): VoiceState | undefined {
   return voiceStates.get(guildId);
 }
 
+/**
+ * Get the voice connection for a guild
+ */
+export function getConnection(guildId: string): VoiceConnection | undefined {
+  return getVoiceConnection(guildId);
+}
+
 export interface ConnectionInfo {
   guildId: string;
   channelId: string;

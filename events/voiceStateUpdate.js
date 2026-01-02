@@ -90,16 +90,26 @@ module.exports = {
       );
 
       // Start voice interaction listening if enabled
-      const voiceManager = getVoiceInteractionManager();
-      if (voiceManager && voiceManager.isEnabledForGuild(guildId)) {
-        try {
-          const connection = vm.getConnection(guildId);
-          if (connection) {
-            await voiceManager.startListening(userId, guildId, connection);
-            log.debug(`Started voice listening for user ${userId}`);
+      const voiceInteractionMgr = getVoiceInteractionManager();
+      log.debug(`Voice interaction manager available: ${!!voiceInteractionMgr}`);
+      if (voiceInteractionMgr) {
+        const isEnabled = voiceInteractionMgr.isEnabledForGuild(guildId);
+        log.debug(`Voice control enabled for guild: ${isEnabled}`);
+        if (isEnabled) {
+          try {
+            // Use @discordjs/voice's getVoiceConnection
+            const { getVoiceConnection } = require('@discordjs/voice');
+            const connection = getVoiceConnection(guildId);
+            log.debug(`Got voice connection: ${!!connection}`);
+            if (connection) {
+              await voiceInteractionMgr.startListening(userId, guildId, connection);
+              log.info(`✅ Started voice listening for user ${user?.tag || userId}`);
+            } else {
+              log.warn(`No voice connection found for guild ${guildId}`);
+            }
+          } catch (error) {
+            log.error(`Failed to start voice listening: ${error.message}`);
           }
-        } catch (error) {
-          log.error(`Failed to start voice listening: ${error.message}`);
         }
       }
     }
