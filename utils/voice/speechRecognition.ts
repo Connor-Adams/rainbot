@@ -133,26 +133,28 @@ class OpenAISTTProvider implements STTProvider {
       // Convert PCM to WAV format for Whisper API
       const wavBuffer = this.pcmToWav(audioBuffer, 48000, 1);
       
-      // Create a File-like object from the buffer
-      const file = new File([wavBuffer], 'audio.wav', { type: 'audio/wav' });
-
+      // Create FormData for multipart upload
+      // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
+      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+      
       log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
       
       // Extract language code (e.g., 'en' from 'en-US')
       const language = languageCode.split('-')[0];
 
       const response = await this.client.audio.transcriptions.create({
-        file: file,
+        file: await this.createFile(blob, 'audio.wav'),
         model: 'whisper-1',
         language: language,
         response_format: 'verbose_json',
       });
 
-      // Whisper doesn't provide confidence scores, so we use a fixed high value
-      // since Whisper is generally very accurate
+      // Whisper doesn't provide confidence scores in the API response
+      // We use 0.85 as a reasonable estimate - high enough to trust but not perfect
+      // Actual accuracy varies with audio quality, accent, background noise
       return {
         text: response.text || '',
-        confidence: 0.9,
+        confidence: 0.85,
         isFinal: true,
         languageCode: languageCode,
       };
@@ -160,6 +162,30 @@ class OpenAISTTProvider implements STTProvider {
       log.error(`OpenAI Whisper error: ${(error as Error).message}`);
       throw error;
     }
+  }
+
+  /**
+   * Create a File-like object compatible with OpenAI SDK
+   */
+  private async createFile(blob: Blob, filename: string): Promise<File> {
+    // In Node.js 20+, File is available globally
+    if (typeof File !== 'undefined') {
+      return new File([blob], filename, { type: 'audio/wav' });
+    }
+    
+    // Fallback for older Node.js versions
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    return {
+      name: filename,
+      type: 'audio/wav',
+      arrayBuffer: async () => buffer.buffer,
+      stream: () => {
+        const { Readable } = require('stream');
+        return Readable.from(buffer);
+      },
+      text: async () => buffer.toString(),
+      slice: () => blob,
+    } as unknown as File;
   }
 
   recognizeStream(_languageCode: string): NodeJS.WritableStream {

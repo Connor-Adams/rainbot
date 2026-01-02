@@ -107,7 +107,16 @@ class OpenAITTSProvider implements TTSProvider {
 
   async synthesize(request: TextToSpeechRequest): Promise<TextToSpeechResult> {
     try {
-      const voice = (request.voiceName || this.defaultVoice) as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+      // Validate voice name
+      const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+      const voiceName = request.voiceName || this.defaultVoice;
+      
+      if (!validVoices.includes(voiceName)) {
+        log.warn(`Invalid voice name "${voiceName}", falling back to "${this.defaultVoice}"`);
+      }
+      
+      const voice = (validVoices.includes(voiceName) ? voiceName : this.defaultVoice) as 
+        'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
       
       log.debug(`Synthesizing speech with OpenAI TTS: "${request.text.substring(0, 50)}..."`);
       
@@ -136,10 +145,12 @@ class OpenAITTSProvider implements TTSProvider {
 
   /**
    * Resample 24kHz PCM to 48kHz PCM (simple 2x upsampling)
+   * Input: 24000 samples/sec, Output: 48000 samples/sec
+   * Each input sample is duplicated to create two output samples
    */
   private resample24to48(pcm24k: Buffer): Buffer {
-    const samples24k = pcm24k.length / 2; // 16-bit samples
-    const pcm48k = Buffer.alloc(samples24k * 4); // Double the samples
+    const samples24k = pcm24k.length / 2; // 16-bit = 2 bytes per sample
+    const pcm48k = Buffer.alloc(samples24k * 4); // 2x samples, 2 bytes each = 4x buffer
 
     for (let i = 0; i < samples24k; i++) {
       const sample = pcm24k.readInt16LE(i * 2);
