@@ -109,6 +109,101 @@ class GoogleSTTProvider implements STTProvider {
 }
 
 /**
+ * OpenAI Whisper STT provider
+ * Requires openai package and API key
+ */
+class OpenAISTTProvider implements STTProvider {
+  private client: any;
+
+  constructor(apiKey: string) {
+    try {
+      const { OpenAI } = require('openai');
+      this.client = new OpenAI({ apiKey });
+      log.info('OpenAI Whisper client initialized');
+    } catch (error) {
+      log.error(`Failed to initialize OpenAI client: ${(error as Error).message}`);
+      throw new Error(
+        'OpenAI package not installed. Run: npm install openai'
+      );
+    }
+  }
+
+  async recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult> {
+    try {
+      // Convert PCM to WAV format for Whisper API
+      const wavBuffer = this.pcmToWav(audioBuffer, 48000, 1);
+      
+      // Create a File-like object from the buffer
+      const file = new File([wavBuffer], 'audio.wav', { type: 'audio/wav' });
+
+      log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
+      
+      // Extract language code (e.g., 'en' from 'en-US')
+      const language = languageCode.split('-')[0];
+
+      const response = await this.client.audio.transcriptions.create({
+        file: file,
+        model: 'whisper-1',
+        language: language,
+        response_format: 'verbose_json',
+      });
+
+      // Whisper doesn't provide confidence scores, so we use a fixed high value
+      // since Whisper is generally very accurate
+      return {
+        text: response.text || '',
+        confidence: 0.9,
+        isFinal: true,
+        languageCode: languageCode,
+      };
+    } catch (error) {
+      log.error(`OpenAI Whisper error: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  recognizeStream(_languageCode: string): NodeJS.WritableStream {
+    // OpenAI Whisper doesn't support streaming, return passthrough
+    log.warn('OpenAI Whisper does not support streaming recognition');
+    return new PassThrough();
+  }
+
+  /**
+   * Convert raw PCM to WAV format
+   */
+  private pcmToWav(pcmBuffer: Buffer, sampleRate: number, channels: number): Buffer {
+    const blockAlign = channels * 2; // 16-bit = 2 bytes per sample
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = pcmBuffer.length;
+    const headerSize = 44;
+
+    const wavBuffer = Buffer.alloc(headerSize + dataSize);
+    
+    // RIFF header
+    wavBuffer.write('RIFF', 0);
+    wavBuffer.writeUInt32LE(36 + dataSize, 4);
+    wavBuffer.write('WAVE', 8);
+    
+    // fmt chunk
+    wavBuffer.write('fmt ', 12);
+    wavBuffer.writeUInt32LE(16, 16); // fmt chunk size
+    wavBuffer.writeUInt16LE(1, 20); // PCM format
+    wavBuffer.writeUInt16LE(channels, 22);
+    wavBuffer.writeUInt32LE(sampleRate, 24);
+    wavBuffer.writeUInt32LE(byteRate, 28);
+    wavBuffer.writeUInt16LE(blockAlign, 32);
+    wavBuffer.writeUInt16LE(16, 34); // bits per sample
+    
+    // data chunk
+    wavBuffer.write('data', 36);
+    wavBuffer.writeUInt32LE(dataSize, 40);
+    pcmBuffer.copy(wavBuffer, 44);
+    
+    return wavBuffer;
+  }
+}
+
+/**
  * Mock STT provider for testing/development
  */
 class MockSTTProvider implements STTProvider {
@@ -146,6 +241,18 @@ export class SpeechRecognitionManager {
           return new GoogleSTTProvider(config.sttApiKey);
         } catch (error) {
           log.error(`Failed to create Google STT provider: ${(error as Error).message}`);
+          log.warn('Falling back to mock STT provider');
+          return new MockSTTProvider();
+        }
+
+      case 'openai':
+        try {
+          if (!config.sttApiKey) {
+            throw new Error('OpenAI API key required');
+          }
+          return new OpenAISTTProvider(config.sttApiKey);
+        } catch (error) {
+          log.error(`Failed to create OpenAI STT provider: ${(error as Error).message}`);
           log.warn('Falling back to mock STT provider');
           return new MockSTTProvider();
         }

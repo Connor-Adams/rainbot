@@ -31,8 +31,8 @@ const log = createLogger('VOICE_INTERACTION');
  */
 const DEFAULT_CONFIG: VoiceInteractionConfig = {
   enabled: false,
-  sttProvider: 'google',
-  ttsProvider: 'google',
+  sttProvider: 'openai',
+  ttsProvider: 'openai',
   language: 'en-US',
   maxAudioDuration: 10, // 10 seconds max
   minAudioDuration: 1, // 1 second min

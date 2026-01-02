@@ -165,8 +165,8 @@ export function loadConfig(): AppConfig {
 
     // Voice interaction configuration
     voiceInteractionEnabled: process.env['VOICE_INTERACTION_ENABLED'] === 'true',
-    sttProvider: process.env['STT_PROVIDER'] || 'google',
-    ttsProvider: process.env['TTS_PROVIDER'] || 'google',
+    sttProvider: process.env['STT_PROVIDER'] || 'openai',
+    ttsProvider: process.env['TTS_PROVIDER'] || 'openai',
     sttApiKey: process.env['STT_API_KEY'],
     ttsApiKey: process.env['TTS_API_KEY'],
     voiceLanguage: process.env['VOICE_LANGUAGE'] || 'en-US',

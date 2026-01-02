@@ -51,15 +51,59 @@ Rainbot now supports voice interaction capabilities that allow users to control 
 
 Currently supported providers:
 
-- **Google Cloud Speech & Text-to-Speech** (Recommended)
-  - High accuracy
+- **OpenAI Whisper & TTS** (Recommended - Easiest Setup)
+  - Single API key for both STT and TTS
+  - High accuracy Whisper model for speech recognition
   - Natural-sounding voices
+  - Simple setup - no complex console navigation
+  - Reasonable pricing (~$0.006/minute for STT, $15/1M characters for TTS)
+  
+- **Google Cloud Speech & Text-to-Speech**
+  - High accuracy
+  - Natural-sounding Neural2 voices
+  - More configuration required
   - Reasonable pricing (~$0.006/15 seconds for STT)
   
 - **Azure, AWS (Coming Soon)**
-- **Local Whisper (Coming Soon)**
 
-### Google Cloud Setup
+### OpenAI Setup (Recommended)
+
+#### 1. Get API Key
+
+1. Go to [OpenAI API Keys](https://platform.openai.com/api-keys)
+2. Sign in or create an account
+3. Click **Create new secret key**
+4. Copy the key (starts with `sk-`)
+5. Add payment method if you haven't already
+
+That's it! Much simpler than Google Cloud Console.
+
+#### 2. Configure Environment Variables
+
+Add to your `.env` file:
+
+```bash
+# Voice Interaction Configuration
+VOICE_INTERACTION_ENABLED=true
+STT_PROVIDER=openai
+TTS_PROVIDER=openai
+STT_API_KEY=sk-your-openai-api-key-here
+TTS_API_KEY=sk-your-openai-api-key-here  # Can be the same key
+
+# Optional: Customize voice settings
+VOICE_LANGUAGE=en-US
+TTS_VOICE_NAME=alloy  # Options: alloy, echo, fable, onyx, nova, shimmer
+```
+
+**Available OpenAI TTS Voices:**
+- `alloy` - Neutral, balanced (default)
+- `echo` - Male, clear
+- `fable` - British accent
+- `onyx` - Deep, authoritative
+- `nova` - Friendly, energetic
+- `shimmer` - Soft, warm
+
+### Google Cloud Setup (Alternative)
 
 #### 1. Enable APIs
 
@@ -89,7 +133,7 @@ Add to your `.env` file:
 
 ```bash
 # Voice Interaction Configuration
-VOICE_INTERACTION_ENABLED=false  # Set to true when ready
+VOICE_INTERACTION_ENABLED=true
 STT_PROVIDER=google
 TTS_PROVIDER=google
 STT_API_KEY=your_google_cloud_api_key_here
@@ -108,9 +152,16 @@ TTS_VOICE_NAME=en-US-Neural2-J
 - See [Google TTS Voices](https://cloud.google.com/text-to-speech/docs/voices) for more
 
 ### Installation
+### Installation
 
 1. Install required packages:
 
+**For OpenAI (Recommended):**
+```bash
+npm install openai
+```
+
+**For Google Cloud:**
 ```bash
 npm install @google-cloud/speech @google-cloud/text-to-speech
 ```
@@ -255,16 +306,21 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 
 ### API costs too high
 
+**Cost estimates (OpenAI - Recommended):**
+- STT (Whisper): ~$0.006 per minute of audio
+- TTS: ~$15 per 1 million characters
+- Example: 100 commands/day ≈ $0.30/month STT + $0.05/month TTS = **$0.35/month**
+
 **Cost estimates (Google Cloud):**
 - STT: ~$0.006 per 15 seconds of audio
 - TTS: ~$4 per 1 million characters
-- Example: 100 commands/day ≈ $0.60/month STT + $0.10/month TTS
+- Example: 100 commands/day ≈ $0.60/month STT + $0.10/month TTS = **$0.70/month**
 
 **To reduce costs:**
 1. Set `VOICE_INTERACTION_ENABLED=false` when not needed
 2. Use `/voice-control disable` for specific servers
 3. Enable only for specific guilds (configure in code)
-4. Consider using local Whisper for STT (coming soon)
+4. Use OpenAI instead of Google (about 50% cheaper)
 
 ## Configuration Options
 
@@ -273,12 +329,12 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `VOICE_INTERACTION_ENABLED` | Enable voice commands globally | `false` | No |
-| `STT_PROVIDER` | Speech-to-text provider | `google` | No |
-| `TTS_PROVIDER` | Text-to-speech provider | `google` | No |
+| `STT_PROVIDER` | Speech-to-text provider | `openai` | No |
+| `TTS_PROVIDER` | Text-to-speech provider | `openai` | No |
 | `STT_API_KEY` | STT API credentials | - | Yes* |
 | `TTS_API_KEY` | TTS API credentials | - | Yes* |
 | `VOICE_LANGUAGE` | Language for STT/TTS | `en-US` | No |
-| `TTS_VOICE_NAME` | TTS voice to use | `en-US-Neural2-J` | No |
+| `TTS_VOICE_NAME` | TTS voice to use | `alloy` (OpenAI)<br>`en-US-Neural2-J` (Google) | No |
 
 *Required if voice interaction is enabled
 

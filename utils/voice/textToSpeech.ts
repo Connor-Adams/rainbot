@@ -84,6 +84,75 @@ class GoogleTTSProvider implements TTSProvider {
 }
 
 /**
+ * OpenAI Text-to-Speech provider
+ * Requires openai package
+ */
+class OpenAITTSProvider implements TTSProvider {
+  private client: any;
+  private defaultVoice: string;
+
+  constructor(apiKey: string, voiceName: string = 'alloy') {
+    try {
+      const { OpenAI } = require('openai');
+      this.client = new OpenAI({ apiKey });
+      this.defaultVoice = voiceName;
+      log.info('OpenAI TTS client initialized');
+    } catch (error) {
+      log.error(`Failed to initialize OpenAI TTS client: ${(error as Error).message}`);
+      throw new Error(
+        'OpenAI package not installed. Run: npm install openai'
+      );
+    }
+  }
+
+  async synthesize(request: TextToSpeechRequest): Promise<TextToSpeechResult> {
+    try {
+      const voice = (request.voiceName || this.defaultVoice) as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+      
+      log.debug(`Synthesizing speech with OpenAI TTS: "${request.text.substring(0, 50)}..."`);
+      
+      const response = await this.client.audio.speech.create({
+        model: 'tts-1',
+        voice: voice,
+        input: request.text,
+        response_format: 'pcm',
+        speed: request.speakingRate || 1.0,
+      });
+
+      // OpenAI returns PCM audio at 24kHz, we need to convert to 48kHz for Discord
+      const pcm24k = Buffer.from(await response.arrayBuffer());
+      const pcm48k = this.resample24to48(pcm24k);
+
+      return {
+        audioBuffer: pcm48k,
+        format: 'pcm',
+        sampleRate: 48000,
+      };
+    } catch (error) {
+      log.error(`OpenAI TTS error: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Resample 24kHz PCM to 48kHz PCM (simple 2x upsampling)
+   */
+  private resample24to48(pcm24k: Buffer): Buffer {
+    const samples24k = pcm24k.length / 2; // 16-bit samples
+    const pcm48k = Buffer.alloc(samples24k * 4); // Double the samples
+
+    for (let i = 0; i < samples24k; i++) {
+      const sample = pcm24k.readInt16LE(i * 2);
+      // Write each sample twice for 2x upsampling
+      pcm48k.writeInt16LE(sample, i * 4);
+      pcm48k.writeInt16LE(sample, i * 4 + 2);
+    }
+
+    return pcm48k;
+  }
+}
+
+/**
  * Mock TTS provider for testing/development
  * Returns silence
  */
@@ -125,6 +194,18 @@ export class TextToSpeechManager {
           return new GoogleTTSProvider(config.ttsApiKey, config.voiceName);
         } catch (error) {
           log.error(`Failed to create Google TTS provider: ${(error as Error).message}`);
+          log.warn('Falling back to mock TTS provider');
+          return new MockTTSProvider();
+        }
+
+      case 'openai':
+        try {
+          if (!config.ttsApiKey) {
+            throw new Error('OpenAI API key required');
+          }
+          return new OpenAITTSProvider(config.ttsApiKey, config.voiceName);
+        } catch (error) {
+          log.error(`Failed to create OpenAI TTS provider: ${(error as Error).message}`);
           log.warn('Falling back to mock TTS provider');
           return new MockTTSProvider();
         }

@@ -49,8 +49,8 @@ export interface VoiceInteractionSession {
  */
 export interface VoiceInteractionConfig {
   enabled: boolean;
-  sttProvider: 'google' | 'azure' | 'aws' | 'whisper';
-  ttsProvider: 'google' | 'azure' | 'aws' | 'polly';
+  sttProvider: 'google' | 'azure' | 'aws' | 'whisper' | 'openai';
+  ttsProvider: 'google' | 'azure' | 'aws' | 'polly' | 'openai';
   sttApiKey?: string;
   ttsApiKey?: string;
   language: string; // e.g., 'en-US'
