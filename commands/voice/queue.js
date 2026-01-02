@@ -9,10 +9,19 @@ const {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('queue')
-    .setDescription("View the current music queue and what's playing now"),
+    .setDescription("View the current music queue and what's playing now")
+    .addIntegerOption((option) =>
+      option
+        .setName('page')
+        .setDescription('Page number to view (default: 1)')
+        .setRequired(false)
+        .setMinValue(1)
+    ),
 
   async execute(interaction) {
     const guildId = interaction.guildId;
+    const requestedPage = interaction.options.getInteger('page') || 1;
+    const pageIndex = requestedPage - 1; // Convert to 0-indexed
 
     const connectionCheck = validateVoiceConnection(interaction, voiceManager);
     if (!connectionCheck.isValid) {
@@ -30,6 +39,14 @@ module.exports = {
       isPaused,
       channelName,
     } = queueInfo;
+
+    // Pagination settings
+    const ITEMS_PER_PAGE = 20;
+    const totalPages = Math.max(1, Math.ceil(totalInQueue / ITEMS_PER_PAGE));
+    const safePage = Math.max(0, Math.min(pageIndex, totalPages - 1));
+    const startIndex = safePage * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalInQueue);
+    const pageQueue = queue.slice(startIndex, endIndex);
 
     // Determine embed color based on state
     let embedColor = 0x6366f1; // Default blue
@@ -73,24 +90,21 @@ module.exports = {
       embed.setDescription('*Nothing playing*');
     }
 
-    // Queue section
+    // Queue section with pagination
     if (queue.length > 0) {
-      const queueList = queue
+      const queueList = pageQueue
         .map((track, i) => {
-          const num = (i + 1).toString().padStart(2, '0');
+          const num = (startIndex + i + 1).toString().padStart(2, '0');
           const duration = track.duration ? ` \`${formatDuration(track.duration)}\`` : '';
           return `\`${num}\` ${track.title}${duration}`;
         })
         .join('\n');
 
-      const moreText =
-        totalInQueue > 20
-          ? `\n\n*...and ${totalInQueue - 20} more track${totalInQueue - 20 === 1 ? '' : 's'}*`
-          : '';
+      const pageInfo = totalPages > 1 ? ` (Page ${safePage + 1}/${totalPages})` : '';
 
       embed.addFields({
-        name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
-        value: queueList + moreText,
+        name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}${pageInfo}`,
+        value: queueList || '*No tracks on this page*',
         inline: false,
       });
     } else {
@@ -114,6 +128,20 @@ module.exports = {
 
     embed.setFooter({ text: footerText });
 
-    await interaction.reply({ embeds: [embed] });
+    // Add pagination buttons if there are multiple pages
+    const components = [];
+    if (totalPages > 1) {
+      try {
+        const {
+          createSimplePaginationRow,
+        } = require('../../dist/components/buttons/pagination/paginationButtons');
+        components.push(createSimplePaginationRow(safePage, totalPages, guildId));
+      } catch (error) {
+        // If pagination buttons aren't available yet, just show the queue without buttons
+        console.warn('Pagination buttons not available:', error.message);
+      }
+    }
+
+    await interaction.reply({ embeds: [embed], components });
   },
 };

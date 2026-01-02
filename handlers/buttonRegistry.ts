@@ -9,6 +9,8 @@ import {
   handleStopButton,
   handleQueueButton,
 } from './musicButtonHandlers';
+import { handleQueuePaginationButton } from './paginationButtonHandlers';
+import { handleConfirmButton, handleCancelButton } from './confirmButtonHandlers';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('BUTTON_REGISTRY');
@@ -25,15 +27,16 @@ export function initializeButtonHandlers(): void {
   registerButtonHandler('player_stop', handleStopButton);
   registerButtonHandler('player_queue', handleQueueButton);
 
-  // TODO: Register pagination handlers
-  // registerButtonHandler('queue_prev', handlePrevPageButton);
-  // registerButtonHandler('queue_next', handleNextPageButton);
-  // registerButtonHandler('queue_first', handleFirstPageButton);
-  // registerButtonHandler('queue_last', handleLastPageButton);
+  // Register pagination handlers
+  registerButtonHandler('queue_prev', handleQueuePaginationButton);
+  registerButtonHandler('queue_next', handleQueuePaginationButton);
+  registerButtonHandler('queue_first', handleQueuePaginationButton);
+  registerButtonHandler('queue_last', handleQueuePaginationButton);
 
-  // TODO: Register confirmation handlers
-  // registerButtonHandler('confirm', handleConfirmButton);
-  // registerButtonHandler('cancel', handleCancelButton);
+  // Register confirmation handlers
+  registerButtonHandler('confirm', handleConfirmButton);
+  registerButtonHandler('confirm_destructive', handleConfirmButton);
+  registerButtonHandler('cancel', handleCancelButton);
 
   log.info('Button handlers registered successfully');
 }
