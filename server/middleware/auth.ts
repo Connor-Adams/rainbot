@@ -35,9 +35,10 @@ export async function requireAuth(
   const config = loadConfig();
   const botClient = getClient();
 
+  // If no required role is configured, skip role verification (open access)
   if (!config.requiredRoleId) {
-    log.error('requiredRoleId not configured. Set REQUIRED_ROLE_ID environment variable.');
-    res.status(500).json({ error: 'Server configuration error' });
+    log.debug('No requiredRoleId configured - allowing all authenticated users');
+    next();
     return;
   }
 
