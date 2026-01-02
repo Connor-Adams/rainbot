@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { ChevronDownIcon } from './icons'
 
 interface CustomDropdownProps<T> {
   items: T[]
@@ -52,22 +53,18 @@ export default function CustomDropdown<T>({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled || items.length === 0}
-        className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+        className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200 hover:border-border-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
       >
         <span>
           {selectedItem ? getItemLabel(selectedItem) : items.length > 0 ? placeholder : emptyMessage}
         </span>
-        <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          viewBox="0 0 12 12"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path fill="#a1a1b0" d="M6 8L1 3h10z" />
-        </svg>
+        <ChevronDownIcon
+          className={`w-4 h-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          size={16}
+        />
       </button>
       {isOpen && items.length > 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-2 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden">
           <div className="max-h-96 overflow-y-auto">
             {items.map((item) => {
               const itemId = getItemId(item)
@@ -76,8 +73,8 @@ export default function CustomDropdown<T>({
                   key={itemId}
                   type="button"
                   onClick={() => handleSelect(itemId)}
-                  className={`w-full text-left p-4 hover:bg-gray-800 transition-colors ${
-                    selectedValue === itemId ? 'bg-gray-800' : ''
+                  className={`w-full text-left p-4 hover:bg-surface-hover transition-colors ${
+                    selectedValue === itemId ? 'bg-surface-hover' : ''
                   }`}
                 >
                   {renderItem(item)}
