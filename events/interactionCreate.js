@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, MessageFlags } = require('discord.js');
 const { createLogger } = require('../dist/utils/logger');
 const voiceManager = require('../dist/utils/voiceManager');
 const stats = require('../dist/utils/statistics');
@@ -172,7 +172,7 @@ module.exports = {
 
       const reply = {
         content: 'There was an error while executing this command!',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       };
 
       if (interaction.replied || interaction.deferred) {

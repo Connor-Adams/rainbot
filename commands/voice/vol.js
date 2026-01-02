@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const voiceManager = require('../../dist/utils/voiceManager');
 const { createLogger } = require('../../dist/utils/logger');
 const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
@@ -27,7 +27,7 @@ module.exports = {
     if (level === null) {
       return interaction.reply({
         content: `🔊 Current volume is **${status.volume}%**`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -40,7 +40,12 @@ module.exports = {
       });
     } catch (error) {
       log.error(`Failed to set volume: ${error.message}`);
-      await interaction.reply(createErrorResponse(error, 'Failed to set volume'));
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(createErrorResponse(error, 'Failed to set volume'));
+      } else {
+        await interaction.reply(createErrorResponse(error, 'Failed to set volume'));
+      }
     }
   },
 };
