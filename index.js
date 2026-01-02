@@ -58,6 +58,10 @@ if (config.spotifyClientId && config.spotifyClientSecret) {
 const { initDatabase } = require('./dist/utils/database');
 initDatabase();
 
+// Initialize button handlers
+const { initializeButtonHandlers } = require('./dist/handlers/buttonRegistry');
+initializeButtonHandlers();
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });

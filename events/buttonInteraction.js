@@ -4,6 +4,7 @@ const { createPlayerMessage } = require('../dist/utils/playerEmbed');
 const { createLogger } = require('../dist/utils/logger');
 const listeningHistory = require('../dist/utils/listeningHistory');
 const stats = require('../dist/utils/statistics');
+const { handleButtonInteraction, hasButtonHandler } = require('../dist/handlers/buttonHandler');
 
 const log = createLogger('BUTTONS');
 
@@ -152,6 +153,39 @@ module.exports = {
       return;
     }
 
+    // Try to use the new handler system for player_ buttons
+    if (interaction.customId.startsWith('player_')) {
+      const prefix = interaction.customId; // Use full customId as prefix for now
+      
+      // Check if we have a registered handler
+      if (hasButtonHandler(prefix)) {
+        try {
+          const result = await handleButtonInteraction(interaction);
+          
+          // Track the interaction
+          stats.trackInteraction(
+            'button',
+            interaction.id,
+            prefix,
+            interaction.user.id,
+            interaction.user.username,
+            interaction.guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            result.success,
+            result.error || null,
+            result.data || null
+          );
+          
+          return;
+        } catch (error) {
+          log.error(`Error in new handler system: ${error.message}`);
+          // Fall through to legacy handling if new system fails
+        }
+      }
+    }
+
+    // Legacy button handling for any buttons not handled by new system
     if (!interaction.customId.startsWith('player_')) return;
 
     const guildId = interaction.guildId;
@@ -178,7 +212,8 @@ module.exports = {
       });
     }
 
-    log.debug(`Button: ${action} by ${interaction.user.tag}`);
+    log.debug(`Button (legacy): ${action} by ${interaction.user.tag}`);
+    log.warn('Using legacy button handler - this should be migrated to new system');
 
     try {
       switch (action) {
