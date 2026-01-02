@@ -51,6 +51,18 @@ export async function joinChannel(
 
   log.debug(`Joined voice channel ${channel.name}`);
 
+  // Undeafen the bot so it can listen for voice commands
+  try {
+    const botMember = await channel.guild.members.fetchMe();
+    if (botMember.voice.serverDeaf) {
+      await botMember.voice.setDeaf(false);
+      log.debug('Bot undeafened for voice command listening');
+    }
+  } catch (error) {
+    log.warn(`Failed to undeafen bot: ${(error as Error).message}`);
+    log.warn('Voice commands may not work - manually undeafen the bot in Discord');
+  }
+
   const player = createAudioPlayer();
   connection.subscribe(player);
 
