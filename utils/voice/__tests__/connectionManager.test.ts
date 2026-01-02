@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Tests for connection manager error handling
  *
@@ -179,7 +180,6 @@ describe('Connection Manager Error Handling', () => {
       // by checking that the player instance has an Idle event listener registered
 
       // Mock the channel object required for joinChannel
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const mockChannel = {
         id: 'test-channel-id',
         name: 'Test Channel',

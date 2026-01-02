@@ -53,7 +53,7 @@ module.exports = {
     } else {
       // Show confirmation dialog for large queues
       try {
-        const { createConfirmationRow, getConfirmationMessage } = require('../../dist/components');
+        const { createConfirmationRow } = require('../../dist/components');
 
         await interaction.reply({
           content:
@@ -63,7 +63,7 @@ module.exports = {
           components: [createConfirmationRow('clear_queue', guildId, interaction.user.id)],
           ephemeral: true,
         });
-      } catch (error) {
+      } catch {
         // Fallback if confirmation buttons aren't available
         log.warn('Confirmation buttons not available, clearing without confirmation');
         try {

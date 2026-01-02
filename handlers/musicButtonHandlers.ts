@@ -5,7 +5,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '../types/buttons';
 import { createLogger } from '../utils/logger';
-import voiceManager from '../utils/voiceManager';
+import * as voiceManager from '../utils/voiceManager';
 import { createPlayerMessage } from '../utils/playerEmbed';
 
 const log = createLogger('MUSIC_BUTTONS');
@@ -210,6 +210,7 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
       return `${minutes}:${secs.toString().padStart(2, '0')}`;
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const embed: any = {
       color: 0x6366f1,
       title: '📋 Queue',
@@ -232,7 +233,8 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
     if (queue.length > 0) {
       const queueList = queue
         .slice(0, 10)
-        .map((t, i) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((t: any, i: number) => {
           const num = (i + 1).toString().padStart(2, '0');
           const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
           return `\`${num}\` ${t.title}${duration}`;
@@ -240,13 +242,13 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
         .join('\n');
 
       const moreText =
-        totalInQueue > 10
-          ? `\n\n*...and ${totalInQueue - 10} more track${totalInQueue - 10 === 1 ? '' : 's'}*`
+        (totalInQueue ?? 0) > 10
+          ? `\n\n*...and ${(totalInQueue ?? 0) - 10} more track${(totalInQueue ?? 0) - 10 === 1 ? '' : 's'}*`
           : '';
 
       embed.fields = [
         {
-          name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
+          name: `📋 Up Next — ${totalInQueue ?? 0} track${(totalInQueue ?? 0) === 1 ? '' : 's'}`,
           value: queueList + moreText,
           inline: false,
         },

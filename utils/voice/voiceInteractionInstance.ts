@@ -3,6 +3,7 @@
  * Provides global access to the voice interaction manager instance
  */
 
+import type { Client } from 'discord.js';
 import { VoiceInteractionManager } from './voiceInteractionManager';
 import type { VoiceInteractionConfig } from '../../types/voice-interaction';
 import { createLogger } from '../logger';
@@ -14,7 +15,10 @@ let instance: VoiceInteractionManager | null = null;
 /**
  * Initialize the voice interaction manager
  */
-export function initVoiceInteractionManager(config?: Partial<VoiceInteractionConfig>): void {
+export function initVoiceInteractionManager(
+  client: Client,
+  config?: Partial<VoiceInteractionConfig>
+): void {
   if (instance) {
     log.warn('Voice interaction manager already initialized');
     return;
@@ -22,7 +26,7 @@ export function initVoiceInteractionManager(config?: Partial<VoiceInteractionCon
 
   try {
     log.info('Initializing voice interaction manager...');
-    instance = new VoiceInteractionManager(config);
+    instance = new VoiceInteractionManager(client, config);
     log.info('Voice interaction manager initialized successfully');
   } catch (error) {
     log.error(`Failed to initialize voice interaction manager: ${(error as Error).message}`);

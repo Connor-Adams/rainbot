@@ -3,10 +3,7 @@
  */
 
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
-import {
-  createSecondaryButton,
-  createButtonId,
-} from '../../builders/buttonBuilder';
+import { createSecondaryButton, createButtonId } from '../../builders/buttonBuilder';
 import type { PaginationState } from '../../../types/buttons';
 
 /**

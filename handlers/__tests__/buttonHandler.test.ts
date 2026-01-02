@@ -14,7 +14,7 @@ import {
 import type { ButtonHandler } from '../../types/buttons';
 
 // Mock handler
-const mockHandler: ButtonHandler = jest.fn(async (interaction, context) => ({
+const mockHandler: ButtonHandler = jest.fn(async (_interaction, _context) => ({
   success: true,
 }));
 

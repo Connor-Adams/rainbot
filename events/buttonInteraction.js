@@ -156,12 +156,12 @@ module.exports = {
     // Try to use the new handler system for player_ buttons
     if (interaction.customId.startsWith('player_')) {
       const prefix = interaction.customId; // Use full customId as prefix for now
-      
+
       // Check if we have a registered handler
       if (hasButtonHandler(prefix)) {
         try {
           const result = await handleButtonInteraction(interaction);
-          
+
           // Track the interaction
           stats.trackInteraction(
             'button',
@@ -176,7 +176,7 @@ module.exports = {
             result.error || null,
             result.data || null
           );
-          
+
           return;
         } catch (error) {
           log.error(`Error in new handler system: ${error.message}`);

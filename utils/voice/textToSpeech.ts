@@ -1,9 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Text-to-Speech Module - Convert text responses to audio
  * Supports multiple TTS providers: Google Cloud TTS, AWS Polly, Azure
- */
-
-import { createLogger } from '../logger';
+ */ import { createLogger } from '../logger';
 import type {
   TextToSpeechRequest,
   TextToSpeechResult,
@@ -33,9 +32,7 @@ class GoogleTTSProvider implements TTSProvider {
   constructor(apiKey?: string, voiceName: string = 'en-US-Neural2-J') {
     try {
       const textToSpeech = require('@google-cloud/text-to-speech');
-      this.client = new textToSpeech.TextToSpeechClient(
-        apiKey ? { apiKey } : undefined
-      );
+      this.client = new textToSpeech.TextToSpeechClient(apiKey ? { apiKey } : undefined);
       this.defaultVoice = voiceName;
       log.info('Google Cloud TTS client initialized');
     } catch (error) {
@@ -99,9 +96,7 @@ class OpenAITTSProvider implements TTSProvider {
       log.info('OpenAI TTS client initialized');
     } catch (error) {
       log.error(`Failed to initialize OpenAI TTS client: ${(error as Error).message}`);
-      throw new Error(
-        'OpenAI package not installed. Run: npm install openai'
-      );
+      throw new Error('OpenAI package not installed. Run: npm install openai');
     }
   }
 
@@ -110,16 +105,21 @@ class OpenAITTSProvider implements TTSProvider {
       // Validate voice name
       const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
       const voiceName = request.voiceName || this.defaultVoice;
-      
+
       if (!validVoices.includes(voiceName)) {
         log.warn(`Invalid voice name "${voiceName}", falling back to "${this.defaultVoice}"`);
       }
-      
-      const voice = (validVoices.includes(voiceName) ? voiceName : this.defaultVoice) as 
-        'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-      
+
+      const voice = (validVoices.includes(voiceName) ? voiceName : this.defaultVoice) as
+        | 'alloy'
+        | 'echo'
+        | 'fable'
+        | 'onyx'
+        | 'nova'
+        | 'shimmer';
+
       log.debug(`Synthesizing speech with OpenAI TTS: "${request.text.substring(0, 50)}..."`);
-      
+
       const response = await this.client.audio.speech.create({
         model: 'tts-1',
         voice: voice,
@@ -237,7 +237,10 @@ export class TextToSpeechManager {
   /**
    * Convert text to speech audio
    */
-  async synthesize(text: string, options?: Partial<TextToSpeechRequest>): Promise<TextToSpeechResult> {
+  async synthesize(
+    text: string,
+    options?: Partial<TextToSpeechRequest>
+  ): Promise<TextToSpeechResult> {
     const startTime = Date.now();
 
     // Generate cache key
@@ -262,7 +265,9 @@ export class TextToSpeechManager {
       const result = await this.provider.synthesize(request);
 
       const latency = Date.now() - startTime;
-      log.info(`TTS completed in ${latency}ms: "${text.substring(0, 50)}..." (${result.audioBuffer.length} bytes)`);
+      log.info(
+        `TTS completed in ${latency}ms: "${text.substring(0, 50)}..." (${result.audioBuffer.length} bytes)`
+      );
 
       // Cache the result
       this.addToCache(cacheKey, result);
@@ -369,9 +374,7 @@ export class TextToSpeechManager {
 /**
  * Create a text-to-speech manager instance
  */
-export function createTextToSpeech(
-  config: VoiceInteractionConfig
-): TextToSpeechManager {
+export function createTextToSpeech(config: VoiceInteractionConfig): TextToSpeechManager {
   return new TextToSpeechManager(config);
 }
 

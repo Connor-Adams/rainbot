@@ -123,6 +123,7 @@ prefix_key1:value1_key2:value2
 Example: `queue_next_page:2_guildId:12345`
 
 This allows:
+
 - Easy parsing of button context
 - Routing to appropriate handlers
 - State management across interactions

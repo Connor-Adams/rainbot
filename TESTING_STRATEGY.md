@@ -3,12 +3,14 @@
 ## Current Status (January 2026)
 
 ### Coverage Summary
+
 - **Statements**: 18.05% (665/3684)
 - **Branches**: 12.31% (214/1738)
 - **Functions**: 12.65% (52/411)
 - **Lines**: 17.79% (639/3590)
 
 ### Test Suite
+
 - **Total Test Suites**: 17
 - **Total Tests**: 212
 - **Pass Rate**: 100%
@@ -16,44 +18,53 @@
 ## Completed Testing
 
 ### Core Utilities (Excellent Coverage)
+
 ✅ **config.ts** - 17 tests
+
 - Environment variable loading
 - Configuration validation
 - Default values
 - Storage configuration priority
 
 ✅ **logger.ts** - 15 tests
+
 - Logger creation
 - Log levels
 - Redis URL sanitization
 - Context handling
 
 ✅ **database.ts** - 24 tests
+
 - Database initialization
 - Schema management
 - Query execution
 - Error handling
 
 ✅ **di-container.ts** - 17 tests
+
 - Service registration
 - Singleton pattern
 - Dependency injection
 - Clear/reset functionality
 
 ### Server Components (Good Coverage)
+
 ✅ **requestLogger middleware** - 12 tests
+
 - Request/response logging
 - Status code handling
 - Duration tracking
 - Header handling
 
 ✅ **roleVerifier utility** - 12 tests
+
 - Role verification across guilds
 - User membership checks
 - Error handling
 - Edge cases
 
 ### Existing Tests (Already Present)
+
 ✅ **sourceType.ts** - 9 tests
 ✅ **listeningHistory.ts** - 17 tests
 ✅ **playerEmbed.ts** - Partial coverage
@@ -67,6 +78,7 @@
 ## Testing Priority Matrix
 
 ### High Priority (Critical Business Logic)
+
 These modules need comprehensive testing to reach 60-80% coverage:
 
 1. **Voice Subsystem** (Currently ~4% coverage)
@@ -86,6 +98,7 @@ These modules need comprehensive testing to reach 60-80% coverage:
    - Upload, download, list, delete operations
 
 ### Medium Priority
+
 4. **Command Deployment**
    - `deployCommands.ts` - Command loading and deployment
 
@@ -96,6 +109,7 @@ These modules need comprehensive testing to reach 60-80% coverage:
    - `trackFetcher.ts` - URL validation and metadata fetching
 
 ### Lower Priority
+
 7. **Server Routes**
    - Additional API endpoint tests
    - Auth flow testing
@@ -107,6 +121,7 @@ These modules need comprehensive testing to reach 60-80% coverage:
 ## Recommended Next Steps
 
 ### Phase 1: Voice Subsystem (Target: +30% coverage)
+
 Focus on voice utilities as they're the most critical:
 
 ```bash
@@ -119,6 +134,7 @@ utils/voice/__tests__/soundboardManager.test.ts
 ```
 
 **Key test scenarios**:
+
 - Play track successfully
 - Handle queue operations
 - Manage voice connections
@@ -126,28 +142,33 @@ utils/voice/__tests__/soundboardManager.test.ts
 - Concurrent access (mutex testing)
 
 ### Phase 2: Statistics Module (Target: +15% coverage)
+
 ```bash
 utils/__tests__/statistics.test.ts
 ```
 
 **Key test scenarios**:
+
 - Event buffering
 - Batch processing
 - Database writes
 - Event emitter notifications
 
 ### Phase 3: Storage Module (Target: +10% coverage)
+
 ```bash
 utils/__tests__/storage.test.ts
 ```
 
 **Key test scenarios**:
+
 - S3 operations (mock AWS SDK)
 - File validation
 - Error handling
 - Stream processing
 
 ### Phase 4: Integration Tests (Target: +5% coverage)
+
 ```bash
 __tests__/integration/
   voice-playback.test.ts
@@ -158,6 +179,7 @@ __tests__/integration/
 ## Testing Best Practices
 
 ### Mock External Dependencies
+
 ```typescript
 jest.mock('@discordjs/voice');
 jest.mock('play-dl');
@@ -166,6 +188,7 @@ jest.mock('pg');
 ```
 
 ### Test Structure Pattern
+
 ```typescript
 describe('Module', () => {
   beforeEach(() => {
@@ -189,6 +212,7 @@ describe('Module', () => {
 ```
 
 ### Voice Module Testing Gotchas
+
 1. **Mutex Testing**: Use `async-mutex` properly for concurrency tests
 2. **Discord.js Mocking**: Create comprehensive mocks for voice connections
 3. **Audio Streaming**: Mock stream creation and resource handling
@@ -197,6 +221,7 @@ describe('Module', () => {
 ## Coverage Goals
 
 ### Short-term (Current PR)
+
 - ✅ Establish testing infrastructure
 - ✅ Add comprehensive tests for core utilities
 - ✅ Document testing practices
@@ -204,12 +229,14 @@ describe('Module', () => {
 - Target: 15-20% coverage with high-quality tests
 
 ### Medium-term (Next 2-3 PRs)
+
 - Voice subsystem comprehensive testing
 - Statistics module testing
 - Storage module testing
 - Target: 40-50% coverage
 
 ### Long-term (Ongoing)
+
 - Integration test suite
 - E2E testing for critical workflows
 - Maintain 60-80% coverage as codebase grows
@@ -218,7 +245,9 @@ describe('Module', () => {
 ## CI Integration
 
 ### Coverage Enforcement
+
 Current thresholds in `jest.config.js`:
+
 ```javascript
 coverageThreshold: {
   global: {
@@ -231,6 +260,7 @@ coverageThreshold: {
 ```
 
 ### Gradual Increase Strategy
+
 1. Start at 15% (current level)
 2. Increase by 5-10% per major testing initiative
 3. Reach 60% within 6-12 months
@@ -259,6 +289,7 @@ npm run validate
 ```
 
 ## Documentation Links
+
 - [Jest Configuration](jest.config.js)
 - [TypeScript Config](tsconfig.json)
 - [Testing in README](README.md#testing)

@@ -15,7 +15,7 @@ describe('config', () => {
   beforeEach(() => {
     // Save original environment
     originalEnv = { ...process.env };
-    
+
     // Clear environment variables
     Object.keys(process.env).forEach((key) => {
       if (
@@ -39,7 +39,7 @@ describe('config', () => {
         delete process.env[key];
       }
     });
-    
+
     // Clear any cached config by requiring a fresh instance
     jest.resetModules();
   });

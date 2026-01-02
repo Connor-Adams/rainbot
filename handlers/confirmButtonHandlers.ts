@@ -5,7 +5,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '../types/buttons';
 import { createLogger } from '../utils/logger';
-import voiceManager from '../utils/voiceManager';
+import * as voiceManager from '../utils/voiceManager';
 
 const log = createLogger('CONFIRM_BUTTONS');
 
@@ -14,7 +14,7 @@ const log = createLogger('CONFIRM_BUTTONS');
  */
 export const handleConfirmButton: ButtonHandler = async (interaction, context) => {
   const { guildId, userId, metadata } = context;
-  const action = metadata.action as string;
+  const action = metadata?.['action'] as string;
 
   // Verify user authorization
   if (userId && userId !== interaction.user.id) {
@@ -45,7 +45,7 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
           return { success: false, error: 'Bot not in voice channel' };
         }
 
-        const cleared = voiceManager.clearQueue(guildId);
+        const cleared = await voiceManager.clearQueue(guildId);
         const { nowPlaying } = voiceManager.getQueue(guildId);
         const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 

@@ -17,12 +17,12 @@ describe('buttonBuilder', () => {
   describe('createButtonId', () => {
     it('creates basic button ID with prefix only', () => {
       const id = createButtonId('test', { action: 'test' });
-      expect(id).toBe('test');
+      expect(id).toBe('test_action:test');
     });
 
     it('creates button ID with metadata', () => {
       const id = createButtonId('music', { action: 'pause', guildId: '12345' });
-      expect(id).toBe('music_guildId:12345');
+      expect(id).toBe('music_action:pause_guildId:12345');
     });
 
     it('creates button ID with multiple metadata fields', () => {
@@ -34,12 +34,13 @@ describe('buttonBuilder', () => {
 
     it('skips undefined values', () => {
       const id = createButtonId('test', { action: 'test', guildId: undefined });
-      expect(id).toBe('test');
+      expect(id).toBe('test_action:test');
     });
 
     it('skips null values', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const id = createButtonId('test', { action: 'test', userId: null as any });
-      expect(id).toBe('test');
+      expect(id).toBe('test_action:test');
     });
   });
 
@@ -53,14 +54,14 @@ describe('buttonBuilder', () => {
     it('parses button ID with metadata', () => {
       const { prefix, metadata } = parseButtonId('music_guildId:12345');
       expect(prefix).toBe('music');
-      expect(metadata.guildId).toBe('12345');
+      expect(metadata.guildId).toBe(12345);
     });
 
     it('parses button ID with numeric metadata', () => {
       const { prefix, metadata } = parseButtonId('queue_page:2_guildId:12345');
       expect(prefix).toBe('queue');
       expect(metadata.page).toBe(2);
-      expect(metadata.guildId).toBe('12345');
+      expect(metadata.guildId).toBe(12345);
     });
 
     it('handles malformed metadata gracefully', () => {

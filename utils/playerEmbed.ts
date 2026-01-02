@@ -148,7 +148,7 @@ export function createPlayerEmbed(
 
 /**
  * Create control buttons row
- * 
+ *
  * Note: This function is maintained for backward compatibility.
  * New code should use the components from ../components/buttons/music/controlButtons
  */

@@ -2,10 +2,7 @@
  * Voice Command Parser - Parse natural language into music commands
  */
 
-import type {
-  ParsedVoiceCommand,
-  VoiceCommandType,
-} from '../../types/voice-interaction';
+import type { ParsedVoiceCommand, VoiceCommandType } from '../../types/voice-interaction';
 import { createLogger } from '../logger';
 
 const log = createLogger('VOICE_PARSER');
@@ -65,9 +62,7 @@ const COMMAND_PATTERNS: Array<{
   },
   {
     type: 'resume',
-    patterns: [
-      /^(?:resume|continue|unpause|keep going|go on|start again)$/i,
-    ],
+    patterns: [/^(?:resume|continue|unpause|keep going|go on|start again)$/i],
     extractor: (_match, fullText) => ({
       type: 'resume',
       confidence: 0.95,
@@ -134,9 +129,7 @@ const COMMAND_PATTERNS: Array<{
   },
   {
     type: 'help',
-    patterns: [
-      /^(?:help|what can you do|commands|how do i use you)$/i,
-    ],
+    patterns: [/^(?:help|what can you do|commands|how do i use you)$/i],
     extractor: (_match, fullText) => ({
       type: 'help',
       confidence: 0.9,

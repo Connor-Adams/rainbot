@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest, DiscordUser } from '../../../types/server';
 

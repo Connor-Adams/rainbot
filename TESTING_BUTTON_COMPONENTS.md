@@ -5,6 +5,7 @@ This guide explains how to test the newly implemented button components.
 ## Prerequisites
 
 1. Bot must be running with compiled TypeScript:
+
    ```bash
    npm run build:ts
    node index.js
@@ -16,16 +17,18 @@ This guide explains how to test the newly implemented button components.
 ## Unit Tests
 
 ### Running All Tests
+
 ```bash
 npm test
 ```
 
 ### Running Specific Test Suites
+
 ```bash
 # Button builder tests
 npm test components/__tests__/buttonBuilder.test.ts
 
-# Music control button tests  
+# Music control button tests
 npm test components/__tests__/controlButtons.test.ts
 
 # Pagination button tests
@@ -36,7 +39,9 @@ npm test handlers/__tests__/buttonHandler.test.ts
 ```
 
 ### Expected Test Results
+
 All tests should pass:
+
 - ✓ Button builder tests (25+ assertions)
 - ✓ Music control tests (15+ assertions)
 - ✓ Pagination tests (20+ assertions)
@@ -47,11 +52,13 @@ All tests should pass:
 ### 1. Test Music Control Buttons
 
 #### Setup
+
 1. Join a voice channel
 2. Use `/join` to bring the bot to your channel
 3. Use `/play <song name>` to start playing music
 
 #### Test Play/Pause Button
+
 ```
 1. Use /np to show now playing card with buttons
 2. Click [⏸️ Pause] button
@@ -66,6 +73,7 @@ All tests should pass:
 ```
 
 #### Test Skip Button
+
 ```
 1. Add multiple songs to queue: /play <song 1>, /play <song 2>
 2. Use /np
@@ -79,6 +87,7 @@ All tests should pass:
 ```
 
 #### Test Stop Button
+
 ```
 1. Play music with queue
 2. Use /np
@@ -90,6 +99,7 @@ All tests should pass:
 ```
 
 #### Test Queue Button
+
 ```
 1. Add songs to queue
 2. Use /np
@@ -102,6 +112,7 @@ All tests should pass:
 ### 2. Test Pagination Buttons
 
 #### Setup Small Queue (No Pagination)
+
 ```
 1. Add 1-20 songs to queue
 2. Use /queue
@@ -110,6 +121,7 @@ All tests should pass:
 ```
 
 #### Setup Large Queue (With Pagination)
+
 ```
 1. Use /play <playlist url> with 40+ songs
 2. Use /queue
@@ -119,6 +131,7 @@ All tests should pass:
 ```
 
 #### Test Next Page Button
+
 ```
 1. Use /queue on large queue
 2. Click [▶️ Next] button
@@ -129,6 +142,7 @@ All tests should pass:
 ```
 
 #### Test Previous Page Button
+
 ```
 1. Navigate to page 2 or later
 2. Click [◀️ Previous] button
@@ -138,6 +152,7 @@ All tests should pass:
 ```
 
 #### Test First Page Button
+
 ```
 1. Navigate to middle page
 2. Click [⏮️ First] button
@@ -147,6 +162,7 @@ All tests should pass:
 ```
 
 #### Test Last Page Button
+
 ```
 1. On first page
 2. Click [⏭️ Last] button
@@ -156,18 +172,20 @@ All tests should pass:
 ```
 
 #### Test Page Boundary Handling
+
 ```
 1. On first page
    Expected: First and Previous buttons are disabled
-   
+
 2. On last page
    Expected: Next and Last buttons are disabled
-   
+
 3. On middle page
    Expected: All buttons are enabled
 ```
 
 #### Test Direct Page Access
+
 ```
 1. Use /queue page:2
    Expected: Opens directly to page 2
@@ -181,6 +199,7 @@ All tests should pass:
 ### 3. Test Confirmation Buttons
 
 #### Test Clear Command with Small Queue
+
 ```
 1. Add 1-3 songs to queue
 2. Use /clear
@@ -189,6 +208,7 @@ All tests should pass:
 ```
 
 #### Test Clear Command with Large Queue
+
 ```
 1. Add 10+ songs to queue
 2. Use /clear
@@ -207,6 +227,7 @@ All tests should pass:
 ```
 
 #### Test Clear with Confirmation Skip
+
 ```
 1. Add many songs to queue
 2. Use /clear confirm:true
@@ -215,6 +236,7 @@ All tests should pass:
 ```
 
 #### Test Unauthorized User Access
+
 ```
 1. User A uses /clear (shows confirmation)
 2. User B tries to click [✅ Confirm]
@@ -226,6 +248,7 @@ All tests should pass:
 ## Error Condition Testing
 
 ### Test Bot Not in Voice Channel
+
 ```
 1. Bot is not in voice channel
 2. Try to use /play, /np, /queue
@@ -234,6 +257,7 @@ All tests should pass:
 ```
 
 ### Test User Not in Voice Channel
+
 ```
 1. Bot is in voice channel
 2. You leave voice channel
@@ -243,6 +267,7 @@ All tests should pass:
 ```
 
 ### Test Queue Changes During Interaction
+
 ```
 1. Open /queue on page 2
 2. Another user clears queue
@@ -252,6 +277,7 @@ All tests should pass:
 ```
 
 ### Test Multiple Rapid Button Clicks
+
 ```
 1. Click pause/resume rapidly several times
    Expected: Bot handles gracefully
@@ -260,6 +286,7 @@ All tests should pass:
 ```
 
 ### Test Concurrent Users
+
 ```
 1. User A clicks pause
 2. User B clicks pause simultaneously
@@ -271,6 +298,7 @@ All tests should pass:
 ## Performance Testing
 
 ### Button Response Time
+
 ```
 Measure time from button click to UI update:
 - Target: < 1 second for music controls
@@ -284,6 +312,7 @@ Test with:
 ```
 
 ### Memory Usage
+
 ```
 Monitor bot memory during:
 1. Creating many button components
@@ -296,6 +325,7 @@ Expected: No memory leaks or unusual growth
 ## Edge Cases
 
 ### Empty Queue
+
 ```
 1. Clear all tracks
 2. Use /np or /queue
@@ -305,6 +335,7 @@ Expected: No memory leaks or unusual growth
 ```
 
 ### Single Track
+
 ```
 1. Play only one track
 2. Check button states
@@ -313,6 +344,7 @@ Expected: No memory leaks or unusual growth
 ```
 
 ### Very Long Queue
+
 ```
 1. Add 200+ tracks
 2. Test pagination
@@ -323,6 +355,7 @@ Expected: No memory leaks or unusual growth
 ```
 
 ### Bot Restart During Interaction
+
 ```
 1. Open message with buttons
 2. Restart bot
@@ -333,6 +366,7 @@ Expected: No memory leaks or unusual growth
 ```
 
 ### Network Latency
+
 ```
 Test with high latency connection:
 1. Click buttons
@@ -344,10 +378,11 @@ Test with high latency connection:
 ## Regression Testing
 
 ### Existing Features Still Work
+
 ```
 Verify these unchanged features work:
 - /join command
-- /leave command  
+- /leave command
 - /play command
 - /np command (with new buttons)
 - /queue command (with new pagination)
@@ -359,6 +394,7 @@ Verify these unchanged features work:
 ```
 
 ### Statistics Tracking
+
 ```
 1. Click various buttons
 2. Check logs for statistics tracking
@@ -370,6 +406,7 @@ Verify these unchanged features work:
 ## Troubleshooting
 
 ### Buttons Not Appearing
+
 ```
 Check:
 - Bot has necessary permissions (Send Messages, Embed Links)
@@ -379,6 +416,7 @@ Check:
 ```
 
 ### Buttons Not Responding
+
 ```
 Check:
 - Button handlers registered (check logs)
@@ -388,6 +426,7 @@ Check:
 ```
 
 ### Pagination Not Working
+
 ```
 Check:
 - Queue has more than 20 tracks
@@ -397,6 +436,7 @@ Check:
 ```
 
 ### Confirmation Not Showing
+
 ```
 Check:
 - Queue has more than 3 tracks (threshold)
@@ -410,6 +450,7 @@ Check:
 Use this checklist for full validation:
 
 ### Music Controls
+
 - [ ] Pause button works and updates state
 - [ ] Resume button works and updates state
 - [ ] Skip button works when queue exists
@@ -420,6 +461,7 @@ Use this checklist for full validation:
 - [ ] Multiple users can interact
 
 ### Pagination
+
 - [ ] Pagination appears for large queues (20+)
 - [ ] Next button works
 - [ ] Previous button works
@@ -431,6 +473,7 @@ Use this checklist for full validation:
 - [ ] No pagination for small queues
 
 ### Confirmation
+
 - [ ] Confirmation shows for large clear (>3)
 - [ ] Confirmation skipped for small clear (≤3)
 - [ ] Confirm button works
@@ -439,6 +482,7 @@ Use this checklist for full validation:
 - [ ] Skip confirmation flag works (confirm:true)
 
 ### Error Handling
+
 - [ ] Bot not in channel handled
 - [ ] User not authorized handled
 - [ ] Empty queue handled
@@ -446,6 +490,7 @@ Use this checklist for full validation:
 - [ ] Concurrent clicks handled
 
 ### Integration
+
 - [ ] Works with existing slash commands
 - [ ] Statistics tracked correctly
 - [ ] Logs show button interactions
@@ -453,6 +498,7 @@ Use this checklist for full validation:
 - [ ] TypeScript compiles without errors
 
 ### Performance
+
 - [ ] Response time < 3 seconds
 - [ ] No memory leaks
 - [ ] Handles large queues efficiently
@@ -461,6 +507,7 @@ Use this checklist for full validation:
 ## Success Criteria
 
 Implementation is successful if:
+
 1. ✅ All unit tests pass
 2. ✅ All integration tests pass
 3. ✅ No errors in bot logs during testing
@@ -473,6 +520,7 @@ Implementation is successful if:
 ## Reporting Issues
 
 If you find issues, report:
+
 1. What you were testing
 2. What you expected
 3. What actually happened
@@ -481,6 +529,7 @@ If you find issues, report:
 6. Steps to reproduce
 
 Example:
+
 ```
 Issue: Skip button doesn't update
 Testing: Clicking skip button on /np

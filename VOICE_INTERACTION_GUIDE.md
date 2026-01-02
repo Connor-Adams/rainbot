@@ -16,27 +16,27 @@ Rainbot now supports voice interaction capabilities that allow users to control 
 
 ### Music Control
 
-| Command | Examples | Description |
-|---------|----------|-------------|
-| **Play** | "play Bohemian Rhapsody"<br>"play some jazz by Miles Davis"<br>"queue Never Gonna Give You Up" | Plays a song or adds it to the queue |
-| **Skip** | "skip"<br>"skip 3"<br>"next song" | Skips the current song or multiple songs |
-| **Pause** | "pause"<br>"stop playing"<br>"hold on" | Pauses playback |
-| **Resume** | "resume"<br>"continue"<br>"unpause"<br>"keep going" | Resumes playback |
-| **Stop** | "stop"<br>"turn off" | Stops playback and clears queue |
-| **Queue** | "queue"<br>"show queue"<br>"what's queued"<br>"what's playing next" | Shows what's in the queue |
-| **Clear** | "clear queue"<br>"clear" | Clears the entire queue |
+| Command    | Examples                                                                                       | Description                              |
+| ---------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Play**   | "play Bohemian Rhapsody"<br>"play some jazz by Miles Davis"<br>"queue Never Gonna Give You Up" | Plays a song or adds it to the queue     |
+| **Skip**   | "skip"<br>"skip 3"<br>"next song"                                                              | Skips the current song or multiple songs |
+| **Pause**  | "pause"<br>"stop playing"<br>"hold on"                                                         | Pauses playback                          |
+| **Resume** | "resume"<br>"continue"<br>"unpause"<br>"keep going"                                            | Resumes playback                         |
+| **Stop**   | "stop"<br>"turn off"                                                                           | Stops playback and clears queue          |
+| **Queue**  | "queue"<br>"show queue"<br>"what's queued"<br>"what's playing next"                            | Shows what's in the queue                |
+| **Clear**  | "clear queue"<br>"clear"                                                                       | Clears the entire queue                  |
 
 ### Volume Control
 
-| Command | Examples | Description |
-|---------|----------|-------------|
-| **Set Volume** | "volume 50"<br>"set volume to 75" | Sets volume to a specific level (0-100) |
-| **Adjust** | "turn it up"<br>"turn it down"<br>"louder"<br>"quieter" | Adjusts volume by 10% |
+| Command        | Examples                                                | Description                             |
+| -------------- | ------------------------------------------------------- | --------------------------------------- |
+| **Set Volume** | "volume 50"<br>"set volume to 75"                       | Sets volume to a specific level (0-100) |
+| **Adjust**     | "turn it up"<br>"turn it down"<br>"louder"<br>"quieter" | Adjusts volume by 10%                   |
 
 ### Help
 
-| Command | Examples | Description |
-|---------|----------|-------------|
+| Command  | Examples                                  | Description                    |
+| -------- | ----------------------------------------- | ------------------------------ |
 | **Help** | "help"<br>"what can you do"<br>"commands" | Shows available voice commands |
 
 ## Setup Instructions
@@ -57,13 +57,11 @@ Currently supported providers:
   - Natural-sounding voices
   - Simple setup - no complex console navigation
   - Reasonable pricing (~$0.006/minute for STT, $15/1M characters for TTS)
-  
 - **Google Cloud Speech & Text-to-Speech**
   - High accuracy
   - Natural-sounding Neural2 voices
   - More configuration required
   - Reasonable pricing (~$0.006/15 seconds for STT)
-  
 - **Azure, AWS (Coming Soon)**
 
 ### OpenAI Setup (Recommended)
@@ -96,6 +94,7 @@ TTS_VOICE_NAME=alloy  # Options: alloy, echo, fable, onyx, nova, shimmer
 ```
 
 **Available OpenAI TTS Voices:**
+
 - `alloy` - Neutral, balanced (default)
 - `echo` - Male, clear
 - `fable` - British accent
@@ -116,12 +115,14 @@ TTS_VOICE_NAME=alloy  # Options: alloy, echo, fable, onyx, nova, shimmer
 #### 2. Create API Credentials
 
 **Option A: API Key (Simplest)**
+
 1. Go to **APIs & Services** → **Credentials**
 2. Click **Create Credentials** → **API Key**
 3. Copy the API key
 4. (Recommended) Restrict the key to only Speech APIs
 
 **Option B: Service Account (More Secure)**
+
 1. Go to **APIs & Services** → **Credentials**
 2. Click **Create Credentials** → **Service Account**
 3. Download the JSON key file
@@ -145,6 +146,7 @@ TTS_VOICE_NAME=en-US-Neural2-J
 ```
 
 **Available TTS Voice Names:**
+
 - `en-US-Neural2-J` - Male, natural (default)
 - `en-US-Neural2-C` - Female, natural
 - `en-US-Neural2-D` - Male, professional
@@ -152,16 +154,19 @@ TTS_VOICE_NAME=en-US-Neural2-J
 - See [Google TTS Voices](https://cloud.google.com/text-to-speech/docs/voices) for more
 
 ### Installation
+
 ### Installation
 
 1. Install required packages:
 
 **For OpenAI (Recommended):**
+
 ```bash
 npm install openai
 ```
 
 **For Google Cloud:**
+
 ```bash
 npm install @google-cloud/speech @google-cloud/text-to-speech
 ```
@@ -196,6 +201,7 @@ Use `/voice-control disable` to turn off voice commands for the server.
 ### Checking Status
 
 Use `/voice-control status` to see:
+
 - Whether voice commands are enabled
 - Usage statistics (total commands, success rate, latency)
 - Active voice sessions
@@ -240,27 +246,32 @@ Execute command → Generate TTS response → Play response via voice
 ### Voice commands not working
 
 **Check 1: Is it enabled?**
+
 ```
 /voice-control status
 ```
 
 **Check 2: Check bot logs**
 Look for:
+
 - `Voice interaction system initialized` on startup
 - `Voice interaction not available` indicates configuration issues
 - `Failed to initialize Google Speech client` indicates missing packages or credentials
 
 **Check 3: API Credentials**
+
 - Verify API keys are correct in `.env`
 - Check Google Cloud Console that APIs are enabled
 - Check API quota hasn't been exceeded
 
 **Check 4: Dependencies**
+
 ```bash
 npm list @google-cloud/speech @google-cloud/text-to-speech
 ```
 
 If missing:
+
 ```bash
 npm install @google-cloud/speech @google-cloud/text-to-speech
 ```
@@ -268,6 +279,7 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 ### Bot doesn't hear me
 
 **Check:**
+
 1. Are you in the same voice channel as the bot?
 2. Is your microphone working in Discord?
 3. Check Discord voice permissions for the bot
@@ -276,6 +288,7 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 ### Bot doesn't respond
 
 **Check:**
+
 1. Did the bot confirm it heard you? (Check logs)
 2. Is the command valid? Try saying "help"
 3. Check STT confidence in logs: `Transcribed: "..." (confidence: X.XX)`
@@ -284,6 +297,7 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 ### Commands are misunderstood
 
 **Tips:**
+
 - Speak clearly and at a normal pace
 - Reduce background noise
 - Include keywords: "play [song]", "skip", "pause"
@@ -293,12 +307,14 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 ### High latency / slow responses
 
 **Typical latency:**
+
 - STT: 500-1500ms
 - Command execution: 100-500ms
 - TTS: 300-800ms
 - **Total: 1-3 seconds**
 
 **If slower:**
+
 - Check internet connection
 - Check Google Cloud API status
 - Check bot server resources
@@ -307,16 +323,19 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 ### API costs too high
 
 **Cost estimates (OpenAI - Recommended):**
+
 - STT (Whisper): ~$0.006 per minute of audio
 - TTS: ~$15 per 1 million characters
 - Example: 100 commands/day ≈ $0.30/month STT + $0.05/month TTS = **$0.35/month**
 
 **Cost estimates (Google Cloud):**
+
 - STT: ~$0.006 per 15 seconds of audio
 - TTS: ~$4 per 1 million characters
 - Example: 100 commands/day ≈ $0.60/month STT + $0.10/month TTS = **$0.70/month**
 
 **To reduce costs:**
+
 1. Set `VOICE_INTERACTION_ENABLED=false` when not needed
 2. Use `/voice-control disable` for specific servers
 3. Enable only for specific guilds (configure in code)
@@ -326,17 +345,17 @@ npm install @google-cloud/speech @google-cloud/text-to-speech
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `VOICE_INTERACTION_ENABLED` | Enable voice commands globally | `false` | No |
-| `STT_PROVIDER` | Speech-to-text provider | `openai` | No |
-| `TTS_PROVIDER` | Text-to-speech provider | `openai` | No |
-| `STT_API_KEY` | STT API credentials | - | Yes* |
-| `TTS_API_KEY` | TTS API credentials | - | Yes* |
-| `VOICE_LANGUAGE` | Language for STT/TTS | `en-US` | No |
-| `TTS_VOICE_NAME` | TTS voice to use | `alloy` (OpenAI)<br>`en-US-Neural2-J` (Google) | No |
+| Variable                    | Description                    | Default                                        | Required |
+| --------------------------- | ------------------------------ | ---------------------------------------------- | -------- |
+| `VOICE_INTERACTION_ENABLED` | Enable voice commands globally | `false`                                        | No       |
+| `STT_PROVIDER`              | Speech-to-text provider        | `openai`                                       | No       |
+| `TTS_PROVIDER`              | Text-to-speech provider        | `openai`                                       | No       |
+| `STT_API_KEY`               | STT API credentials            | -                                              | Yes\*    |
+| `TTS_API_KEY`               | TTS API credentials            | -                                              | Yes\*    |
+| `VOICE_LANGUAGE`            | Language for STT/TTS           | `en-US`                                        | No       |
+| `TTS_VOICE_NAME`            | TTS voice to use               | `alloy` (OpenAI)<br>`en-US-Neural2-J` (Google) | No       |
 
-*Required if voice interaction is enabled
+\*Required if voice interaction is enabled
 
 ### Advanced Configuration
 
@@ -348,9 +367,9 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   sttProvider: 'google',
   ttsProvider: 'google',
   language: 'en-US',
-  maxAudioDuration: 10,        // Max seconds to record
-  minAudioDuration: 1,         // Min seconds before processing
-  confidenceThreshold: 0.6,    // Min STT confidence (0-1)
+  maxAudioDuration: 10, // Max seconds to record
+  minAudioDuration: 1, // Min seconds before processing
+  confidenceThreshold: 0.6, // Min STT confidence (0-1)
   rateLimit: {
     maxCommandsPerMinute: 10,
     maxCommandsPerHour: 60,
@@ -423,6 +442,7 @@ interface TTSProvider {
 ### Testing
 
 Run voice parser tests:
+
 ```bash
 npm test -- voiceCommandParser.test.ts
 ```
@@ -430,6 +450,7 @@ npm test -- voiceCommandParser.test.ts
 ## Support
 
 For issues or questions:
+
 1. Check this documentation
 2. Review bot logs for error messages
 3. Open an issue on GitHub with:

@@ -60,7 +60,7 @@ export function createVolumeDownButton(disabled: boolean = false): ButtonBuilder
  * Create a complete music control row
  */
 export function createMusicControlRow(state: MusicPlayerState): ActionRowBuilder<ButtonBuilder> {
-  const { isPaused, hasQueue, canSkip } = state;
+  const { isPaused, canSkip } = state;
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     createPlayPauseButton(isPaused),

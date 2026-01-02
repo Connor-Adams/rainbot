@@ -2,35 +2,39 @@
 
 ## Quick Comparison
 
-| Feature | OpenAI | Google Cloud |
-|---------|--------|--------------|
-| **Setup Difficulty** | ⭐ Very Easy | ⭐⭐⭐⭐ Complex |
-| **API Key** | Single key from platform.openai.com | Multiple steps in GCP console |
-| **Console Navigation** | Simple, user-friendly | Complex, many menus |
-| **STT Accuracy** | High (Whisper model) | High |
-| **TTS Quality** | Natural voices | Neural2 voices |
-| **Cost (100 cmds/day)** | ~$0.35/month | ~$0.70/month |
-| **Streaming Support** | No (batch only) | Yes |
-| **Languages** | 50+ languages | 100+ languages |
+| Feature                 | OpenAI                              | Google Cloud                  |
+| ----------------------- | ----------------------------------- | ----------------------------- |
+| **Setup Difficulty**    | ⭐ Very Easy                        | ⭐⭐⭐⭐ Complex              |
+| **API Key**             | Single key from platform.openai.com | Multiple steps in GCP console |
+| **Console Navigation**  | Simple, user-friendly               | Complex, many menus           |
+| **STT Accuracy**        | High (Whisper model)                | High                          |
+| **TTS Quality**         | Natural voices                      | Neural2 voices                |
+| **Cost (100 cmds/day)** | ~$0.35/month                        | ~$0.70/month                  |
+| **Streaming Support**   | No (batch only)                     | Yes                           |
+| **Languages**           | 50+ languages                       | 100+ languages                |
 
 ## Why OpenAI is Recommended
 
 ### 1. Simplicity
+
 - Get API key in 2 minutes from https://platform.openai.com/api-keys
 - Single key works for both STT and TTS
 - No complex IAM roles, service accounts, or project setup
 
 ### 2. Cost
+
 - About **50% cheaper** than Google Cloud
 - Simple per-minute billing for Whisper
 - No complex pricing tiers
 
 ### 3. Quality
+
 - **Whisper** is state-of-the-art for speech recognition
 - TTS voices (alloy, echo, fable, onyx, nova, shimmer) are very natural
 - Works well for voice commands
 
 ### 4. Developer Experience
+
 - Simple Node.js package: `npm install openai`
 - Clean API, easy to debug
 - Good documentation
@@ -38,6 +42,7 @@
 ## When to Use Google Cloud
 
 Consider Google Cloud if you need:
+
 - **Streaming STT** - Real-time transcription as user speaks
 - **More languages** - Support for 100+ languages
 - **Existing GCP infrastructure** - Already using Google Cloud
@@ -46,6 +51,7 @@ Consider Google Cloud if you need:
 ## Setup Comparison
 
 ### OpenAI (2 minutes)
+
 ```bash
 # 1. Get API key from platform.openai.com
 # 2. Install package
@@ -61,6 +67,7 @@ echo "TTS_API_KEY=sk-your-key" >> .env
 ```
 
 ### Google Cloud (15-30 minutes)
+
 ```bash
 # 1. Create GCP project
 # 2. Enable Speech-to-Text API
@@ -125,6 +132,7 @@ npm run start
 ## Voice Options
 
 ### OpenAI Voices
+
 - `alloy` - Neutral, balanced (default)
 - `echo` - Male, clear
 - `fable` - British accent
@@ -135,6 +143,7 @@ npm run start
 All voices are high quality and work well for bot responses.
 
 ### Google Neural2 Voices
+
 - `en-US-Neural2-J` - Male, natural (default)
 - `en-US-Neural2-C` - Female, natural
 - `en-US-Neural2-D` - Male, professional
@@ -145,6 +154,7 @@ See [Google TTS Voices](https://cloud.google.com/text-to-speech/docs/voices) for
 ## Conclusion
 
 For most users, **OpenAI is the better choice** due to:
+
 - Much simpler setup (2 minutes vs 15-30 minutes)
 - Lower cost (50% cheaper)
 - Excellent quality (Whisper is industry-leading)

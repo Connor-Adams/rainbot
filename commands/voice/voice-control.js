@@ -8,7 +8,9 @@ let voiceInteractionManager = null;
 function getVoiceInteractionManager() {
   if (!voiceInteractionManager) {
     try {
-      const { getVoiceInteractionManager } = require('../../dist/utils/voice/voiceInteractionInstance');
+      const {
+        getVoiceInteractionManager,
+      } = require('../../dist/utils/voice/voiceInteractionInstance');
       voiceInteractionManager = getVoiceInteractionManager();
     } catch (error) {
       log.error(`Failed to load voice interaction manager: ${error.message}`);
@@ -23,19 +25,13 @@ module.exports = {
     .setName('voice-control')
     .setDescription('Enable or disable voice command control for music')
     .addSubcommand((subcommand) =>
-      subcommand
-        .setName('enable')
-        .setDescription('Enable voice commands in this server')
+      subcommand.setName('enable').setDescription('Enable voice commands in this server')
     )
     .addSubcommand((subcommand) =>
-      subcommand
-        .setName('disable')
-        .setDescription('Disable voice commands in this server')
+      subcommand.setName('disable').setDescription('Disable voice commands in this server')
     )
     .addSubcommand((subcommand) =>
-      subcommand
-        .setName('status')
-        .setDescription('Check voice command status and statistics')
+      subcommand.setName('status').setDescription('Check voice command status and statistics')
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
@@ -59,7 +55,9 @@ module.exports = {
 
           await manager.enableForGuild(guildId);
 
-          log.info(`Voice control enabled for guild ${interaction.guild.name} by ${interaction.user.tag}`);
+          log.info(
+            `Voice control enabled for guild ${interaction.guild.name} by ${interaction.user.tag}`
+          );
 
           await interaction.editReply({
             content: `✅ **Voice commands enabled!**
@@ -85,10 +83,13 @@ Users in voice channels can now control music with voice commands.
 
           await manager.disableForGuild(guildId);
 
-          log.info(`Voice control disabled for guild ${interaction.guild.name} by ${interaction.user.tag}`);
+          log.info(
+            `Voice control disabled for guild ${interaction.guild.name} by ${interaction.user.tag}`
+          );
 
           await interaction.editReply({
-            content: '✅ Voice commands have been disabled. Users can still use slash commands to control music.',
+            content:
+              '✅ Voice commands have been disabled. Users can still use slash commands to control music.',
           });
           break;
         }

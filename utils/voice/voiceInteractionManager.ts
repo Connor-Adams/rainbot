@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Voice Interaction Manager - Orchestrates voice command processing
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
  */
 
 import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
+import type { Client } from 'discord.js';
 import { createLogger } from '../logger';
 import type {
   VoiceInteractionConfig,
@@ -46,10 +48,11 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private states: Map<string, VoiceInteractionState>;
   private speechRecognition: SpeechRecognitionManager;
   private textToSpeech: TextToSpeechManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private voiceManager: any; // Lazy loaded to avoid circular dependency
   private commandMutex: Mutex;
 
-  constructor(config?: Partial<VoiceInteractionConfig>) {
+  constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
     this.commandMutex = new Mutex();
@@ -69,7 +72,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Use relative import to avoid hard-coded dist path
       try {
         this.voiceManager = require('../voiceManager');
-      } catch (error) {
+      } catch (_error) {
         // Fallback to dist path for compatibility
         this.voiceManager = require('../../dist/utils/voiceManager');
       }
@@ -371,7 +374,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             success = true;
             const track = result.tracks[0];
             responseText = generateResponseText('play', true, track?.title);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('play', false);
           }
           break;
@@ -382,7 +385,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.skipTrack(session.guildId, count);
             success = true;
             responseText = generateResponseText('skip', true);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('skip', false);
           }
           break;
@@ -392,7 +395,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.pausePlayback(session.guildId);
             success = true;
             responseText = generateResponseText('pause', true);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('pause', false);
           }
           break;
@@ -402,7 +405,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.resumePlayback(session.guildId);
             success = true;
             responseText = generateResponseText('resume', true);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('resume', false);
           }
           break;
@@ -412,7 +415,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.stopPlayback(session.guildId);
             success = true;
             responseText = generateResponseText('stop', true);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('stop', false);
           }
           break;
@@ -426,7 +429,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
               queueLength > 0
                 ? `There are ${queueLength} tracks in the queue`
                 : 'The queue is empty';
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('queue', false);
           }
           break;
@@ -447,7 +450,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.setVolume(session.guildId, volume);
             success = true;
             responseText = generateResponseText('volume', true, `Volume set to ${volume}`);
-          } catch (error) {
+          } catch (_error) {
             responseText = generateResponseText('volume', false);
           }
           break;
@@ -457,7 +460,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             await vm.clearQueue(session.guildId);
             success = true;
             responseText = generateResponseText('clear', true);
-          } catch (error) {
+          } catch (_error) {
             responseText = 'Nothing to clear';
           }
           break;
@@ -569,7 +572,8 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
  * Create voice interaction manager instance
  */
 export function createVoiceInteractionManager(
+  client: Client,
   config?: Partial<VoiceInteractionConfig>
 ): VoiceInteractionManager {
-  return new VoiceInteractionManager(config);
+  return new VoiceInteractionManager(client, config);
 }

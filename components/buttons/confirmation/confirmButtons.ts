@@ -13,7 +13,12 @@ import {
 /**
  * Confirmation action types
  */
-export type ConfirmAction = 'clear_queue' | 'stop_playback' | 'leave_channel' | 'delete' | 'generic';
+export type ConfirmAction =
+  | 'clear_queue'
+  | 'stop_playback'
+  | 'leave_channel'
+  | 'delete'
+  | 'generic';
 
 /**
  * Create confirm button
@@ -24,10 +29,11 @@ export function createConfirmButton(
   userId?: string
 ): ButtonBuilder {
   const metadata: Record<string, string | number> = { action };
-  if (guildId) metadata.guildId = guildId;
-  if (userId) metadata.userId = userId;
+  if (guildId) metadata['guildId'] = guildId;
+  if (userId) metadata['userId'] = userId;
 
-  const customId = createButtonId('confirm', metadata);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customId = createButtonId('confirm', metadata as any);
   return createSuccessButton(customId, 'Confirm', '✅');
 }
 
@@ -40,10 +46,11 @@ export function createCancelButton(
   userId?: string
 ): ButtonBuilder {
   const metadata: Record<string, string | number> = { action };
-  if (guildId) metadata.guildId = guildId;
-  if (userId) metadata.userId = userId;
+  if (guildId) metadata['guildId'] = guildId;
+  if (userId) metadata['userId'] = userId;
 
-  const customId = createButtonId('cancel', metadata);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customId = createButtonId('cancel', metadata as any);
   return createDangerButton(customId, 'Cancel', '❌');
 }
 
@@ -73,16 +80,18 @@ export function createYesNoRow(
   const noMetadata: Record<string, string | number> = { action, response: 'no' };
 
   if (guildId) {
-    yesMetadata.guildId = guildId;
-    noMetadata.guildId = guildId;
+    yesMetadata['guildId'] = guildId;
+    noMetadata['guildId'] = guildId;
   }
   if (userId) {
-    yesMetadata.userId = userId;
-    noMetadata.userId = userId;
+    yesMetadata['userId'] = userId;
+    noMetadata['userId'] = userId;
   }
 
-  const yesId = createButtonId('yes', yesMetadata);
-  const noId = createButtonId('no', noMetadata);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const yesId = createButtonId('yes', yesMetadata as any);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const noId = createButtonId('no', noMetadata as any);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     createSuccessButton(yesId, 'Yes', '✅'),
@@ -102,16 +111,18 @@ export function createDestructiveConfirmationRow(
   const cancelMetadata: Record<string, string | number> = { action };
 
   if (guildId) {
-    confirmMetadata.guildId = guildId;
-    cancelMetadata.guildId = guildId;
+    confirmMetadata['guildId'] = guildId;
+    cancelMetadata['guildId'] = guildId;
   }
   if (userId) {
-    confirmMetadata.userId = userId;
-    cancelMetadata.userId = userId;
+    confirmMetadata['userId'] = userId;
+    cancelMetadata['userId'] = userId;
   }
 
-  const confirmId = createButtonId('confirm_destructive', confirmMetadata);
-  const cancelId = createButtonId('cancel', cancelMetadata);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const confirmId = createButtonId('confirm_destructive', confirmMetadata as any);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cancelId = createButtonId('cancel', cancelMetadata as any);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     createDangerButton(confirmId, 'Yes, Proceed', '⚠️'),

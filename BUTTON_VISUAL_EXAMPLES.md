@@ -7,6 +7,7 @@ This document shows how the implemented button components appear in Discord.
 ### Now Playing with Controls
 
 **When Playing:**
+
 ```
 🎵 Now Playing
 ━━━━━━━━━━━━━━━━━━
@@ -26,6 +27,7 @@ Song Name - Artist Name
 ```
 
 **When Paused:**
+
 ```
 ⏸️ Paused
 ━━━━━━━━━━━━━━━━━━
@@ -45,6 +47,7 @@ Song Name - Artist Name
 ```
 
 **With Empty Queue:**
+
 ```
 🎵 Now Playing
 ━━━━━━━━━━━━━━━━━━
@@ -66,6 +69,7 @@ Queue is empty
 ### Queue Command with Pagination
 
 **Page 1 of 3:**
+
 ```
 🎵 Music Queue
 ━━━━━━━━━━━━━━━━━━
@@ -87,6 +91,7 @@ Total: 45 tracks in queue • General Voice
 ```
 
 **Page 2 of 3:**
+
 ```
 🎵 Music Queue
 ━━━━━━━━━━━━━━━━━━
@@ -107,6 +112,7 @@ Total: 45 tracks in queue • General Voice
 ```
 
 **Small Queue (No Pagination):**
+
 ```
 🎵 Music Queue
 ━━━━━━━━━━━━━━━━━━
@@ -141,6 +147,7 @@ This action cannot be undone. Are you sure?
 ```
 
 **After Confirming:**
+
 ```
 🗑️ Cleared 25 tracks from the queue.
 
@@ -148,6 +155,7 @@ This action cannot be undone. Are you sure?
 ```
 
 **After Cancelling:**
+
 ```
 ❌ Cancelled.
 ```
@@ -166,17 +174,18 @@ This action cannot be undone. Are you sure?
 
 ### Button Style Guide
 
-| Style | Color | Use Case | Example |
-|-------|-------|----------|---------|
-| **Primary** | Blurple | Main actions | Play (future) |
-| **Secondary** | Gray | Navigation, default actions | Pause, Skip, Previous, Next |
-| **Success** | Green | Positive actions | Resume, Confirm |
-| **Danger** | Red | Destructive actions | Stop, Clear, Delete |
-| **Link** | Blue link | External URLs | (Future use) |
+| Style         | Color     | Use Case                    | Example                     |
+| ------------- | --------- | --------------------------- | --------------------------- |
+| **Primary**   | Blurple   | Main actions                | Play (future)               |
+| **Secondary** | Gray      | Navigation, default actions | Pause, Skip, Previous, Next |
+| **Success**   | Green     | Positive actions            | Resume, Confirm             |
+| **Danger**    | Red       | Destructive actions         | Stop, Clear, Delete         |
+| **Link**      | Blue link | External URLs               | (Future use)                |
 
 ### State Examples
 
 **Enabled Button:**
+
 ```
 [▶️ Resume]
   Success
@@ -184,6 +193,7 @@ This action cannot be undone. Are you sure?
 ```
 
 **Disabled Button:**
+
 ```
 [⏭️ Skip]
   Secondary
@@ -191,6 +201,7 @@ This action cannot be undone. Are you sure?
 ```
 
 **Loading State (Future):**
+
 ```
 [⏳ Loading...]
    Secondary
@@ -200,6 +211,7 @@ This action cannot be undone. Are you sure?
 ## Button Custom IDs
 
 ### Format Structure
+
 ```
 prefix_key1:value1_key2:value2
 ```
@@ -207,16 +219,19 @@ prefix_key1:value1_key2:value2
 ### Real Examples
 
 1. **Simple Action:**
+
    ```
    player_pause
    ```
 
 2. **With Guild Context:**
+
    ```
    queue_next_page:2_guildId:123456789
    ```
 
 3. **With User Authorization:**
+
    ```
    confirm_action:clear_queue_guildId:123456_userId:987654
    ```
@@ -232,16 +247,17 @@ prefix_key1:value1_key2:value2
 ## User Interaction Flow
 
 ### Playing Music
+
 ```
 User: /play never gonna give you up
 
 Bot: 🎵 Now Playing
      Rick Astley - Never Gonna Give You Up
      0:00 / 3:32
-     
+
      📋 Queue
      Queue is empty
-     
+
      [⏸️ Pause] [⏭️ Skip] [⏹️ Stop] [📋 View Queue]
 
 User: *clicks Pause button*
@@ -249,7 +265,7 @@ User: *clicks Pause button*
 Bot: ⏸️ Paused
      Rick Astley - Never Gonna Give You Up
      1:23 / 3:32
-     
+
      [▶️ Resume] [⏭️ Skip] [⏹️ Stop] [📋 View Queue]
 
 User: *clicks Resume button*
@@ -257,20 +273,21 @@ User: *clicks Resume button*
 Bot: 🎵 Now Playing
      Rick Astley - Never Gonna Give You Up
      1:23 / 3:32
-     
+
      [⏸️ Pause] [⏭️ Skip] [⏹️ Stop] [📋 View Queue]
 ```
 
 ### Navigating Queue
+
 ```
 User: /queue
 
 Bot: 🎵 Music Queue
      Current Song
-     
+
      📋 Up Next — 45 tracks (Page 1/3)
      01-20 [tracks listed]
-     
+
      [⏮️ First] [◀️ Previous] [📄 Page 1/3] [▶️ Next] [⏭️ Last]
 
 User: *clicks Next button*
@@ -278,7 +295,7 @@ User: *clicks Next button*
 Bot: [Updates to Page 2]
      📋 Up Next — 45 tracks (Page 2/3)
      21-40 [tracks listed]
-     
+
      [⏮️ First] [◀️ Previous] [📄 Page 2/3] [▶️ Next] [⏭️ Last]
 
 User: *clicks Last button*
@@ -286,32 +303,34 @@ User: *clicks Last button*
 Bot: [Updates to Page 3]
      📋 Up Next — 45 tracks (Page 3/3)
      41-45 [tracks listed]
-     
+
      [⏮️ First] [◀️ Previous] [📄 Page 3/3] [▶️ Next] [⏭️ Last]
 ```
 
 ### Clearing Queue with Confirmation
+
 ```
 User: /clear
 
 Bot: ⚠️ You are about to clear 25 tracks from the queue.
-     
+
      This action cannot be undone. Are you sure?
-     
+
      💡 Tip: Use `/clear confirm:true` to skip this confirmation.
-     
+
      [✅ Confirm] [❌ Cancel]
 
 User: *clicks Confirm button*
 
 Bot: 🗑️ Cleared 25 tracks from the queue.
-     
+
      ▶️ Still playing: Current Song Name
 ```
 
 ## Error Handling Examples
 
 ### Bot Not in Voice Channel
+
 ```
 User: *clicks Pause button*
 
@@ -320,6 +339,7 @@ Bot: ❌ I'm not in a voice channel!
 ```
 
 ### Unauthorized User
+
 ```
 User A: /clear
 Bot: [Shows confirmation with buttons]
@@ -330,6 +350,7 @@ Bot: ❌ This confirmation is not for you!
 ```
 
 ### Outdated Interaction
+
 ```
 [After 15 minutes of inactivity]
 
@@ -342,18 +363,21 @@ Discord: This interaction failed
 ## Button Layout Rules
 
 ### Single Row (Used by Music Controls)
+
 ```
 Maximum 5 buttons per row:
 [Button 1] [Button 2] [Button 3] [Button 4] [Button 5]
 ```
 
 ### Multiple Rows (Possible Future Enhancement)
+
 ```
 Row 1: [⏸️ Pause] [⏭️ Skip] [⏹️ Stop] [📋 Queue]
 Row 2: [🔉 Vol-] [🔊 Volume: 100%] [🔊 Vol+]
 ```
 
 ### Pagination (Full Mode)
+
 ```
 5 buttons when totalPages > 2:
 [⏮️ First] [◀️ Previous] [📄 Page X/Y] [▶️ Next] [⏭️ Last]
@@ -365,23 +389,27 @@ Row 2: [🔉 Vol-] [🔊 Volume: 100%] [🔊 Vol+]
 ## Implementation Notes
 
 ### Button Persistence
+
 - Buttons are attached to messages
 - State updates require message editing
 - Button collectors not used (stateless design)
 - Each click fetches current state fresh
 
 ### Rate Limiting
+
 - Discord enforces interaction rate limits
 - Spamming buttons may trigger cooldowns
 - Bot handles rate limit errors gracefully
 
 ### Mobile Considerations
+
 - Buttons work on mobile Discord
 - Touch-friendly size (automatic)
 - Emoji clearly visible
 - Labels are concise
 
 ### Accessibility
+
 - Emoji + text labels for clarity
 - Color coding follows conventions
 - Disabled state is obvious

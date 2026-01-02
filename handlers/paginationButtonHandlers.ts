@@ -5,7 +5,7 @@
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ButtonHandler } from '../types/buttons';
 import { createLogger } from '../utils/logger';
-import voiceManager from '../utils/voiceManager';
+import * as voiceManager from '../utils/voiceManager';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
 
 const log = createLogger('PAGINATION_BUTTONS');
@@ -58,10 +58,10 @@ function createQueueEmbed(
   } = queueInfo;
 
   // Pagination calculation
-  const totalPages = Math.max(1, Math.ceil(totalInQueue / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil((totalInQueue ?? 0) / itemsPerPage));
   const safePage = Math.max(0, Math.min(page, totalPages - 1));
   const startIndex = safePage * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalInQueue);
+  const endIndex = Math.min(startIndex + itemsPerPage, totalInQueue ?? 0);
   const pageQueue = queue.slice(startIndex, endIndex);
 
   // Determine embed color based on state
@@ -78,7 +78,7 @@ function createQueueEmbed(
   if (nowPlaying && currentTrack) {
     let description = `**${nowPlaying}**`;
 
-    if (currentTrack.duration && playbackPosition > 0) {
+    if (currentTrack.duration && (playbackPosition ?? 0) > 0) {
       const currentTime = formatDuration(playbackPosition);
       const totalTime = formatDuration(currentTrack.duration);
       description += `\n\`${currentTime} / ${totalTime}\``;
@@ -107,7 +107,8 @@ function createQueueEmbed(
   // Queue section
   if (queue.length > 0 && pageQueue.length > 0) {
     const queueList = pageQueue
-      .map((track, i) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((track: any, i: number) => {
         const num = (startIndex + i + 1).toString().padStart(2, '0');
         const duration = track.duration ? ` \`${formatDuration(track.duration)}\`` : '';
         return `\`${num}\` ${track.title}${duration}`;

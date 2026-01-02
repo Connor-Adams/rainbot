@@ -74,9 +74,7 @@ describe('requestLogger middleware', () => {
     const finishListeners = responseListeners['finish'];
     finishListeners?.forEach((listener) => listener());
 
-    expect(mockLogger.http).toHaveBeenCalledWith(
-      expect.stringContaining('GET /api/test 200')
-    );
+    expect(mockLogger.http).toHaveBeenCalledWith(expect.stringContaining('GET /api/test 200'));
   });
 
   it('logs client errors (4xx) as warn level', () => {

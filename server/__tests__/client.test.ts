@@ -1,4 +1,3 @@
-import { setClient, getClient } from '../client';
 import type { Client } from 'discord.js';
 
 describe('client', () => {

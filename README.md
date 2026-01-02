@@ -224,6 +224,7 @@ npx jest path/to/test-file.test.ts
 ### Test Coverage
 
 The project maintains comprehensive test coverage with the following thresholds:
+
 - **Statements**: 60%
 - **Branches**: 50%
 - **Functions**: 50%
@@ -243,6 +244,7 @@ utils/
 ```
 
 Key testing practices:
+
 - Use descriptive test names that explain what is being tested
 - Group related tests using `describe` blocks
 - Mock external dependencies (Discord.js, database, S3, etc.)
@@ -261,10 +263,10 @@ describe('moduleName', () => {
     it('should handle the expected behavior', () => {
       // Arrange
       const input = 'test';
-      
+
       // Act
       const result = functionName(input);
-      
+
       // Assert
       expect(result).toBe('expected');
     });
@@ -288,6 +290,7 @@ describe('moduleName', () => {
 ### Voice interaction not working
 
 See the **[Voice Interaction Guide](VOICE_INTERACTION_GUIDE.md)** for:
+
 - Setup instructions for speech-to-text and text-to-speech APIs
 - Troubleshooting voice commands
 - Configuration options

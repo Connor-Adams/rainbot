@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Speech Recognition Module - Convert audio to text
  * Supports multiple STT providers: Google Cloud Speech, Azure, AWS, local Whisper
@@ -131,7 +132,7 @@ class OpenAISTTProvider implements STTProvider {
 
       // Create FormData for multipart upload
       // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
-      const blob = new Blob([new Uint8Array(wavBuffer)], { type: 'audio/wav' });
+      const blob = new Blob([Uint8Array.from(wavBuffer)], { type: 'audio/wav' });
 
       log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
 
