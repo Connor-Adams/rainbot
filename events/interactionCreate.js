@@ -2,6 +2,7 @@ const { Events, MessageFlags } = require('discord.js');
 const { createLogger } = require('../dist/utils/logger');
 const voiceManager = require('../dist/utils/voiceManager');
 const stats = require('../dist/utils/statistics');
+const { handleSelectMenuInteraction, hasSelectMenuHandler } = require('../dist/handlers/selectMenuHandler');
 
 const log = createLogger('INTERACTION');
 
@@ -9,6 +10,52 @@ module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
     const startTime = Date.now();
+
+    // Handle select menu interactions
+    if (interaction.isAnySelectMenu()) {
+      const { customId } = interaction;
+      const prefix = customId.split('_')[0];
+
+      // Check if we have a registered handler for this select menu
+      if (hasSelectMenuHandler(prefix)) {
+        try {
+          const result = await handleSelectMenuInteraction(interaction);
+
+          // Track the interaction
+          stats.trackInteraction(
+            'select_menu',
+            interaction.id,
+            prefix,
+            interaction.user.id,
+            interaction.user.username,
+            interaction.guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            result.success,
+            result.error || null,
+            result.data || null
+          );
+
+          return;
+        } catch (error) {
+          log.error(`Error in select menu handler system: ${error.message}`);
+          stats.trackInteraction(
+            'select_menu',
+            interaction.id,
+            prefix,
+            interaction.user.id,
+            interaction.user.username,
+            interaction.guildId,
+            interaction.channelId,
+            Date.now() - startTime,
+            false,
+            error.message,
+            null
+          );
+        }
+      }
+      return;
+    }
 
     // Handle autocomplete interactions
     if (interaction.isAutocomplete()) {
