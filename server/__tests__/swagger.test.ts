@@ -35,9 +35,8 @@ describe('swagger', () => {
   });
 
   it('includes localhost development server', () => {
-    const devServer = swaggerSpec.servers.find((s: any) =>
-      s.url.includes('localhost')
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const devServer = swaggerSpec.servers.find((s: any) => s.url.includes('localhost'));
     expect(devServer).toBeDefined();
     expect(devServer.description).toContain('Development');
   });

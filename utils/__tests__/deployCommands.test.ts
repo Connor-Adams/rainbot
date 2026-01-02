@@ -55,11 +55,8 @@ describe('deployCommands', () => {
   it('handles different parameter combinations', async () => {
     // With null guildId
     await expect(deployCommands('token1', 'client1', null)).resolves.toBeUndefined();
-    
+
     // With string guildId
     await expect(deployCommands('token2', 'client2', 'guild-123')).resolves.toBeUndefined();
   });
 });
-
-
-

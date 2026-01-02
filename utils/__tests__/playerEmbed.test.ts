@@ -115,7 +115,7 @@ describe('playerEmbed', () => {
   describe('createPlayerEmbed', () => {
     it('creates embed with nothing playing', () => {
       const embed = createPlayerEmbed(null, [], false, null);
-      
+
       expect(embed).toBeDefined();
       expect(embed.data.color).toBeDefined();
       expect(embed.data.timestamp).toBeDefined();
@@ -128,27 +128,27 @@ describe('playerEmbed', () => {
         isLocal: false,
         duration: 180,
       };
-      
+
       const embed = createPlayerEmbed('Test Song', [], false, currentTrack);
-      
+
       expect(embed).toBeDefined();
     });
 
     it('sets orange color when paused', () => {
       const embed = createPlayerEmbed('Test Song', [], true, null);
-      
+
       expect(embed.data.color).toBe(0xf59e0b); // Orange
     });
 
     it('sets purple color when overlay is active', () => {
       const embed = createPlayerEmbed('Test Song', [], false, null, { hasOverlay: true });
-      
+
       expect(embed.data.color).toBe(0x8b5cf6); // Purple
     });
 
     it('sets blue color by default', () => {
       const embed = createPlayerEmbed('Test Song', [], false, null);
-      
+
       expect(embed.data.color).toBe(0x6366f1); // Blue
     });
 
@@ -157,23 +157,23 @@ describe('playerEmbed', () => {
         { title: 'Track 1', url: 'url1', isLocal: false },
         { title: 'Track 2', url: 'url2', isLocal: false },
       ];
-      
+
       const embed = createPlayerEmbed('Current Track', queue, false, null);
-      
+
       expect(embed).toBeDefined();
     });
 
     it('handles empty queue', () => {
       const embed = createPlayerEmbed('Current Track', [], false, null);
-      
+
       expect(embed).toBeDefined();
     });
 
     it('includes channel name when provided', () => {
-      const embed = createPlayerEmbed('Test Song', [], false, null, { 
-        channelName: 'General Voice' 
+      const embed = createPlayerEmbed('Test Song', [], false, null, {
+        channelName: 'General Voice',
       });
-      
+
       expect(embed).toBeDefined();
     });
   });

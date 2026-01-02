@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createLogger } from '../logger';
 import winston from 'winston';
 
@@ -156,9 +157,7 @@ describe('logger', () => {
       const logger = createLogger('REDIS_TEST');
       const mockWinstonLogger = (winston as any).createLogger();
 
-      logger.info(
-        'Primary: redis://:pass1@host1:6379, Secondary: redis://user:pass2@host2:6379'
-      );
+      logger.info('Primary: redis://:pass1@host1:6379, Secondary: redis://user:pass2@host2:6379');
 
       expect(mockWinstonLogger.info).toHaveBeenCalledWith(
         'Primary: redis://:****@host1:6379, Secondary: redis://user:****@host2:6379',
