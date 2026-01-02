@@ -33,7 +33,8 @@ module.exports = {
       const filterMenu = createFilterMenu(guildId, currentFilters);
 
       await interaction.reply({
-        content: '🎛️ **Audio Filter Selection**\n\nChoose audio filters to enhance your listening experience:\n\n• **Bass Boost** - Deeper, richer bass\n• **Nightcore** - Faster, higher pitch\n• **Vaporwave** - Slower, lower pitch\n• **8D Audio** - Surround sound effect\n\nSelect up to 3 filters or choose "None" to clear all filters.',
+        content:
+          '🎛️ **Audio Filter Selection**\n\nChoose audio filters to enhance your listening experience:\n\n• **Bass Boost** - Deeper, richer bass\n• **Nightcore** - Faster, higher pitch\n• **Vaporwave** - Slower, lower pitch\n• **8D Audio** - Surround sound effect\n\nSelect up to 3 filters or choose "None" to clear all filters.',
         components: [filterMenu],
         flags: MessageFlags.Ephemeral,
       });

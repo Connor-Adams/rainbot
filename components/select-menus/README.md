@@ -38,6 +38,7 @@ await interaction.reply({
 ```
 
 **Available Filters:**
+
 - **None** - Clear all filters
 - **Bass Boost** - Enhanced bass frequencies
 - **Nightcore** - Higher pitch and tempo
@@ -61,6 +62,7 @@ await interaction.reply({
 ```
 
 **Repeat Modes:**
+
 - **Off** - No repeat, play queue once
 - **Track** - Repeat current track
 - **Queue** - Repeat entire queue
@@ -114,10 +116,10 @@ import type { SelectMenuHandler } from '../types/select-menus';
 // Define handler
 const myHandler: SelectMenuHandler = async (interaction, context) => {
   const { guildId, userId, metadata } = context;
-  
+
   // Handle the interaction
   await interaction.reply('Selection received!');
-  
+
   return { success: true };
 };
 
@@ -128,6 +130,7 @@ registerSelectMenuHandler('my_menu', myHandler);
 ### Handler Context
 
 Handlers receive:
+
 - `interaction` - The Discord.js select menu interaction
 - `context` - Parsed context including:
   - `guildId` - Server ID
@@ -138,6 +141,7 @@ Handlers receive:
 ### Handler Result
 
 Handlers return:
+
 ```typescript
 {
   success: boolean;
@@ -151,6 +155,7 @@ Handlers return:
 ### `/filter` Command
 
 Displays audio filter selection menu:
+
 ```
 /filter
 ```
@@ -160,6 +165,7 @@ Users can select up to 3 filters or choose "None" to clear all.
 ### `/settings` Command
 
 Shows server settings with repeat mode selection:
+
 ```
 /settings
 ```
@@ -175,10 +181,12 @@ prefix_key1:value1_key2:value2
 ```
 
 **Examples:**
+
 - `audio_filter_guildId:123456`
 - `repeat_mode_guildId:123_userId:789`
 
 **Parsing:**
+
 ```typescript
 import { parseSelectMenuId } from './components/builders/selectMenuBuilder';
 
@@ -203,6 +211,7 @@ if (result.valid) {
 ```
 
 **Rules:**
+
 - Cannot select "None" with other filters
 - Maximum 3 filters at once
 - Must be valid filter values
@@ -219,6 +228,7 @@ if (result.valid) {
 ```
 
 **Rules:**
+
 - Must be one of: 'off', 'track', 'queue'
 - Single selection only
 
@@ -237,6 +247,7 @@ const result = validateSelectMenuConfig({
 ```
 
 **Discord Limits:**
+
 - Min values: 0-25
 - Max values: 1-25
 - Max options: 25
@@ -257,6 +268,7 @@ npm test -- handlers/__tests__/selectMenuHandler.test.ts
 ```
 
 **Test Coverage:**
+
 - ✅ Builder utilities (19 tests)
 - ✅ Handler registration (15 tests)
 - ✅ Filter menu components (17 tests)
@@ -288,6 +300,7 @@ initializeSelectMenuHandlers();
 ```
 
 Interactions are handled in `events/interactionCreate.js`:
+
 ```javascript
 if (interaction.isAnySelectMenu()) {
   const result = await handleSelectMenuInteraction(interaction);
@@ -309,6 +322,7 @@ if (interaction.isAnySelectMenu()) {
 ## Future Enhancements
 
 Potential additions:
+
 - User select menus (DJ assignment, permissions)
 - Role select menus (DJ roles, allowed roles)
 - Channel select menus (default channels, logging)
@@ -320,6 +334,7 @@ Potential additions:
 ## Examples
 
 See implementation in:
+
 - `commands/voice/filter.js` - Filter command
 - `commands/voice/settings.js` - Settings command
 - `handlers/filterMenuHandler.ts` - Filter handler

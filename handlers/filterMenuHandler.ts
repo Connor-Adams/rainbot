@@ -5,7 +5,10 @@
 import { MessageFlags } from 'discord.js';
 import type { SelectMenuHandler } from '../types/select-menus';
 import { createLogger } from '../utils/logger';
-import { validateFilterSelection, getFilterDescription } from '../components/select-menus/string/filterMenu';
+import {
+  validateFilterSelection,
+  getFilterDescription,
+} from '../components/select-menus/string/filterMenu';
 
 const log = createLogger('FILTER_HANDLER');
 
@@ -55,14 +58,18 @@ export const audioFilterHandler: SelectMenuHandler = async (interaction, context
     }
 
     // Apply filters (this would integrate with the voice system in a real implementation)
-    const filterDescriptions = filters.map((f) => `• **${f}**: ${getFilterDescription(f)}`).join('\n');
+    const filterDescriptions = filters
+      .map((f) => `• **${f}**: ${getFilterDescription(f)}`)
+      .join('\n');
 
     await interaction.reply({
       content: `✅ Audio filters applied:\n\n${filterDescriptions}\n\n*Note: Filters will be applied to the next track.*`,
       flags: MessageFlags.Ephemeral,
     });
 
-    log.info(`Filters applied for guild ${context.guildId}: ${filters.join(', ')} by ${interaction.user.tag}`);
+    log.info(
+      `Filters applied for guild ${context.guildId}: ${filters.join(', ')} by ${interaction.user.tag}`
+    );
 
     return {
       success: true,

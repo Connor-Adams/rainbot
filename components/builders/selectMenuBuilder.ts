@@ -114,9 +114,7 @@ export function createUserSelectMenu(
     disabled?: boolean;
   }
 ): UserSelectMenuBuilder {
-  const selectMenu = new UserSelectMenuBuilder()
-    .setCustomId(customId)
-    .setPlaceholder(placeholder);
+  const selectMenu = new UserSelectMenuBuilder().setCustomId(customId).setPlaceholder(placeholder);
 
   if (config?.minValues !== undefined) {
     selectMenu.setMinValues(config.minValues);
@@ -143,9 +141,7 @@ export function createRoleSelectMenu(
     disabled?: boolean;
   }
 ): RoleSelectMenuBuilder {
-  const selectMenu = new RoleSelectMenuBuilder()
-    .setCustomId(customId)
-    .setPlaceholder(placeholder);
+  const selectMenu = new RoleSelectMenuBuilder().setCustomId(customId).setPlaceholder(placeholder);
 
   if (config?.minValues !== undefined) {
     selectMenu.setMinValues(config.minValues);

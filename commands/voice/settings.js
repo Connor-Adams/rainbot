@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { createRepeatModeMenu } = require('../../dist/components/select-menus/string/repeatModeMenu');
+const {
+  createRepeatModeMenu,
+} = require('../../dist/components/select-menus/string/repeatModeMenu');
 const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('SETTINGS');
