@@ -97,7 +97,11 @@ export async function playSoundboardDirect(
     state.overlayProcess = null;
   }
 
+  log.debug(
+    `playSoundboardDirect: resource readable=${resource.readable}, playStream=${!!resource.playStream}`
+  );
   state.player.play(resource);
+  log.debug(`playSoundboardDirect: player state after play()=${state.player.state.status}`);
   // Don't set currentResource - soundboard plays at full volume and shouldn't be affected by volume changes
   state.nowPlaying = `🔊 ${path.basename(soundName, path.extname(soundName))}`;
   state.currentTrackSource = null;

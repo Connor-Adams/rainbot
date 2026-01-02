@@ -359,13 +359,22 @@ export async function playNext(guildId: string): Promise<Track | null> {
 
     // Soundboard tracks play at full volume without volume control
     if (nextTrack.isSoundboard) {
+      log.debug(
+        `Playing soundboard resource, readable=${resource.readable}, playStream=${!!resource.playStream}`
+      );
       state.player.play(resource);
       // Don't set currentResource - this prevents volume control from affecting soundboard playback
       // (soundboard should always play at 100% volume regardless of user's volume setting)
       state.currentResource = null;
     } else {
+      log.debug(
+        `Playing track resource, readable=${resource.readable}, playStream=${!!resource.playStream}, hasVolume=${!!resource.volume}`
+      );
       playWithVolume(state, resource);
     }
+
+    // Log player state after play() call
+    log.debug(`Player state after play(): ${state.player.state.status}`);
 
     state.nowPlaying = nextTrack.title;
     state.currentTrack = nextTrack;
@@ -662,7 +671,11 @@ export function playSoundImmediate(guildId: string, resource: AudioResource, tit
     state.overlayProcess = null;
   }
 
+  log.debug(
+    `playSoundImmediate: resource readable=${resource.readable}, playStream=${!!resource.playStream}`
+  );
   state.player.play(resource);
+  log.debug(`playSoundImmediate: player state after play()=${state.player.state.status}`);
   state.nowPlaying = title;
   state.currentTrackSource = null;
   log.info(`Playing sound immediately: ${title}`);

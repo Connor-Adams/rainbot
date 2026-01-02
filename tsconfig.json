@@ -54,7 +54,8 @@
       "@types/*": ["types/*"],
       "@server/*": ["server/*"],
       "@handlers/*": ["handlers/*"],
-      "@events/*": ["events/*"]
+      "@events/*": ["events/*"],
+      "@components/*": ["components/*"]
     },
 
     /* Types */
@@ -68,7 +69,8 @@
     "server/**/*.ts",
     "handlers/**/*.ts",
     "events/**/*.ts",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "components/**/*.ts"
   ],
   "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }
