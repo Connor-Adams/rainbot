@@ -1,0 +1,40 @@
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const voiceManager = require('../../dist/utils/voiceManager');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('leave')
+    .setDescription('Leave the current voice channel (playback and queue will stop)'),
+
+  async execute(interaction) {
+    const guildId = interaction.guildId;
+    const status = voiceManager.getStatus(guildId);
+
+    if (!status) {
+      return interaction.reply({
+        content:
+          "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    try {
+      const channelName = status.channelName;
+      voiceManager.leaveChannel(guildId);
+      await interaction.reply(`👋 Left **${channelName}**! The queue has been cleared.`);
+    } catch (error) {
+      // Check if we already replied
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } else {
+        await interaction.reply({
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+  },
+};
