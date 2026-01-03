@@ -8,6 +8,13 @@ import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
 import type { Client } from 'discord.js';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+const execAsync = promisify(exec);
 import type {
   VoiceInteractionConfig,
   VoiceInteractionState,
@@ -284,21 +291,52 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     _guildId: string,
     audioBuffers: Buffer[]
   ): Promise<void> {
+    let tempRawFile: string | null = null;
+    let tempWavFile: string | null = null;
+
     try {
       // Concatenate all audio chunks
       const audioBuffer = Buffer.concat(audioBuffers);
       const timestamp = Date.now();
 
-      // Upload to soundboard storage under records/ folder
-      const filename = await storage.uploadRecording(audioBuffer, userId, timestamp);
+      // Create temporary files for conversion
+      const tempDir = os.tmpdir();
+      tempRawFile = path.join(tempDir, `recording-${userId}-${timestamp}.raw`);
+      tempWavFile = path.join(tempDir, `recording-${userId}-${timestamp}.wav`);
 
-      log.info(
-        `💾 Recording saved to soundboard: records/${filename} (${audioBuffer.length} bytes)`
-      );
-      log.info(`   Access via soundboard as: records/${filename}`);
-      log.info(`   To convert: ffmpeg -f s16le -ar 48000 -ac 2 -i <file> output.wav`);
+      // Write raw PCM to temporary file
+      fs.writeFileSync(tempRawFile, audioBuffer);
+
+      // Convert to WAV using FFmpeg (stereo PCM 16-bit 48kHz -> WAV)
+      const ffmpegCmd = `ffmpeg -f s16le -ar 48000 -ac 2 -i "${tempRawFile}" -y "${tempWavFile}"`;
+      await execAsync(ffmpegCmd);
+
+      // Read the WAV file
+      const wavBuffer = fs.readFileSync(tempWavFile);
+
+      // Upload WAV to soundboard storage using the records subdirectory format
+      const filename = `records/${userId}-${timestamp}.wav`;
+
+      // Create an async iterable from the buffer
+      async function* bufferToAsyncIterable(buf: Buffer): AsyncIterable<Buffer> {
+        yield buf;
+      }
+
+      await storage.uploadSound(bufferToAsyncIterable(wavBuffer), filename);
+
+      log.info(`💾 Recording saved to soundboard: ${filename} (${wavBuffer.length} bytes WAV)`);
+      log.info(`   Original PCM: ${audioBuffer.length} bytes`);
+      log.info(`   Play with: /play ${filename}`);
     } catch (error) {
       log.error(`Failed to save audio recording: ${(error as Error).message}`);
+    } finally {
+      // Clean up temporary files
+      if (tempRawFile && fs.existsSync(tempRawFile)) {
+        fs.unlinkSync(tempRawFile);
+      }
+      if (tempWavFile && fs.existsSync(tempWavFile)) {
+        fs.unlinkSync(tempWavFile);
+      }
     }
   }
 
