@@ -58,6 +58,7 @@ export interface VoiceInteractionConfig {
   maxAudioDuration: number; // Max seconds of audio to process
   minAudioDuration: number; // Min seconds before processing
   confidenceThreshold: number; // Min confidence to act on command (0-1)
+  recordAudio?: boolean; // Save audio to disk for debugging
   enabledGuilds?: string[]; // Whitelist of guild IDs (empty = all)
   rateLimit: {
     maxCommandsPerMinute: number;

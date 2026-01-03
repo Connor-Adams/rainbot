@@ -7,6 +7,7 @@
 import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
 import type { Client } from 'discord.js';
 import { createLogger } from '../logger';
+import * as storage from '../storage';
 import type {
   VoiceInteractionConfig,
   VoiceInteractionState,
@@ -32,8 +33,9 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   ttsProvider: 'openai',
   language: 'en-US',
   maxAudioDuration: 10, // 10 seconds max
-  minAudioDuration: 0.5, // 0.5 second min (Whisper needs at least 0.1s)
+  minAudioDuration: 0.1, // 0.1 second min (Whisper's absolute minimum)
   confidenceThreshold: 0.6,
+  recordAudio: true, // Always record audio to soundboard for debugging
   rateLimit: {
     maxCommandsPerMinute: 10,
     maxCommandsPerHour: 60,
@@ -215,6 +217,12 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
 
       // Log individual chunk sizes for debugging
+      if (chunk.length <= 10) {
+        // Skip very small chunks - these are Discord silence markers
+        log.debug(`⏭️ Skipping silence packet: ${chunk.length} bytes`);
+        return;
+      }
+
       if (chunk.length < 100) {
         log.warn(`⚠️ Very small audio chunk: ${chunk.length} bytes`);
       }
@@ -246,6 +254,32 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     audioStream.on('error', (error) => {
       log.error(`Audio stream error for user ${userId}: ${error.message}`);
     });
+  }
+
+  /**
+   * Save recorded audio to soundboard storage for debugging
+   */
+  private async saveRecordedAudio(
+    userId: string,
+    guildId: string,
+    audioBuffers: Buffer[]
+  ): Promise<void> {
+    try {
+      // Concatenate all audio chunks
+      const audioBuffer = Buffer.concat(audioBuffers);
+      const timestamp = Date.now();
+
+      // Upload to soundboard storage under records/ folder
+      const filename = await storage.uploadRecording(audioBuffer, userId, timestamp);
+
+      log.info(
+        `💾 Recording saved to soundboard: records/${filename} (${audioBuffer.length} bytes)`
+      );
+      log.info(`   Access via soundboard as: records/${filename}`);
+      log.info(`   To convert: ffmpeg -f s16le -ar 48000 -ac 2 -i <file> output.wav`);
+    } catch (error) {
+      log.error(`Failed to save audio recording: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -302,13 +336,20 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)
     if (totalDuration < this.config.minAudioDuration) {
-      log.debug(`Audio too short (${totalDuration.toFixed(3)}s / ${totalBytes} bytes), ignoring`);
+      log.warn(
+        `❌ Audio too short (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) - Discord VAD may not be detecting your voice. Check Discord input sensitivity!`
+      );
       return;
     }
 
     log.info(
       `📊 Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) from user ${session.userId}`
     );
+
+    // Optionally record audio for debugging
+    if (this.config.recordAudio) {
+      this.saveRecordedAudio(session.userId, session.guildId, audioBuffers);
+    }
 
     try {
       // Convert audio to text
