@@ -13,6 +13,7 @@ import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as ttsPlayer from './ttsPlayer';
 
 const execAsync = promisify(exec);
 import type {
@@ -183,6 +184,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     state.sessions.set(userId, session);
 
+    // Store connection reference for TTS playback
+    (session as any).connection = connection;
+
     // Set up voice receiver
     const receiver = connection.receiver;
 
@@ -307,8 +311,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Write raw PCM to temporary file
       fs.writeFileSync(tempRawFile, audioBuffer);
 
-      // Convert to WAV using FFmpeg (stereo PCM 16-bit 48kHz -> WAV)
-      const ffmpegCmd = `ffmpeg -f s16le -ar 48000 -ac 2 -i "${tempRawFile}" -y "${tempWavFile}"`;
+      // Convert to WAV using FFmpeg
+      // Discord audio receiver outputs: s16le (signed 16-bit little-endian), 48kHz, mono
+      const ffmpegCmd = `ffmpeg -f s16le -ar 48000 -ac 1 -i "${tempRawFile}" -y "${tempWavFile}"`;
       await execAsync(ffmpegCmd);
 
       // Read the WAV file
@@ -650,17 +655,30 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       const audioFile = await this.textToSpeech.synthesizeToFile(text);
       log.debug(`✅ TTS file generated: ${audioFile}`);
 
-      // Play via voice manager (as a soundboard overlay)
+      // Get the connection from any active session in this guild
+      const state = this.states.get(guildId);
+      if (!state) {
+        log.warn(`No voice interaction state for guild ${guildId}`);
+        return;
+      }
+
+      // Find a connection from any active session
+      let connection: VoiceConnection | null = null;
+      for (const [, session] of state.sessions) {
+        if ((session as any).connection) {
+          connection = (session as any).connection;
+          break;
+        }
+      }
+
+      if (!connection) {
+        log.warn(`No voice connection found for TTS playback in guild ${guildId}`);
+        return;
+      }
+
+      // Play via dedicated TTS player (doesn't interfere with music/soundboard)
       log.debug(`▶️ Playing TTS audio in voice channel...`);
-      const vm = this.getVoiceManager();
-      await vm.playSoundboardOverlay(
-        guildId,
-        audioFile,
-        'system',
-        'voice-interaction',
-        'System',
-        ''
-      );
+      await ttsPlayer.playTTSAudio(guildId, connection, audioFile);
       log.info(`✅ TTS playback completed`);
 
       // Schedule cleanup
