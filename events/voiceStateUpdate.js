@@ -20,6 +20,23 @@ function getVoiceManager() {
   return voiceManager;
 }
 
+// Lazy load voice interaction manager
+let voiceInteractionManager = null;
+function getVoiceInteractionManager() {
+  if (!voiceInteractionManager) {
+    try {
+      const {
+        getVoiceInteractionManager,
+      } = require('../dist/utils/voice/voiceInteractionInstance');
+      voiceInteractionManager = getVoiceInteractionManager();
+    } catch (error) {
+      log.debug(`Voice interaction manager not available: ${error.message}`);
+      return null;
+    }
+  }
+  return voiceInteractionManager;
+}
+
 module.exports = {
   name: Events.VoiceStateUpdate,
   async execute(oldState, newState) {
@@ -45,6 +62,17 @@ module.exports = {
     if (oldState.channelId === botChannelId && newState.channelId !== botChannelId) {
       log.debug(`User ${user?.tag || userId} left bot's channel`);
       stats.endUserSession(userId, guildId, botChannelId);
+
+      // Stop voice interaction listening
+      const voiceManager = getVoiceInteractionManager();
+      if (voiceManager) {
+        try {
+          await voiceManager.stopListening(userId, guildId);
+          log.debug(`Stopped voice listening for user ${userId}`);
+        } catch (error) {
+          log.debug(`Failed to stop voice listening: ${error.message}`);
+        }
+      }
       return;
     }
 
@@ -60,6 +88,30 @@ module.exports = {
         user?.username || null,
         user?.discriminator || null
       );
+
+      // Start voice interaction listening if enabled
+      const voiceInteractionMgr = getVoiceInteractionManager();
+      log.debug(`Voice interaction manager available: ${!!voiceInteractionMgr}`);
+      if (voiceInteractionMgr) {
+        const isEnabled = voiceInteractionMgr.isEnabledForGuild(guildId);
+        log.debug(`Voice control enabled for guild: ${isEnabled}`);
+        if (isEnabled) {
+          try {
+            // Use @discordjs/voice's getVoiceConnection
+            const { getVoiceConnection } = require('@discordjs/voice');
+            const connection = getVoiceConnection(guildId);
+            log.debug(`Got voice connection: ${!!connection}`);
+            if (connection) {
+              await voiceInteractionMgr.startListening(userId, guildId, connection);
+              log.info(`✅ Started voice listening for user ${user?.tag || userId}`);
+            } else {
+              log.warn(`No voice connection found for guild ${guildId}`);
+            }
+          } catch (error) {
+            log.error(`Failed to start voice listening: ${error.message}`);
+          }
+        }
+      }
     }
 
     // Continue with resume prompt logic only for joins

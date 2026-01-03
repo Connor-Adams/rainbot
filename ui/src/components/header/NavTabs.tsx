@@ -1,12 +1,13 @@
 interface NavTabsProps {
-  activeTab: 'player' | 'soundboard' | 'stats'
-  onTabChange: (tab: 'player' | 'soundboard' | 'stats') => void
+  activeTab: 'player' | 'soundboard' | 'recordings' | 'stats'
+  onTabChange: (tab: 'player' | 'soundboard' | 'recordings' | 'stats') => void
 }
 
 export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
   const tabs = [
     { id: 'player' as const, label: 'Player' },
     { id: 'soundboard' as const, label: 'Soundboard' },
+    { id: 'recordings' as const, label: 'Recordings' },
     { id: 'stats' as const, label: 'Statistics' },
   ]
 

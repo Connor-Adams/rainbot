@@ -99,9 +99,17 @@ passport.use(
         // Verify user has required role
         const currentCfg = getConfig();
 
+        // If no required role is configured, allow all authenticated Discord users
         if (!currentCfg.requiredRoleId) {
-          log.error('REQUIRED_ROLE_ID not configured');
-          return done(new Error('Server configuration error: REQUIRED_ROLE_ID not set'));
+          log.debug('No requiredRoleId configured - allowing all authenticated users');
+          const user: DiscordUser = {
+            id: discordUser.id,
+            username: discordUser.username,
+            discriminator: discordUser.discriminator,
+            avatar: discordUser.avatar,
+          };
+          log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
+          return done(null, user);
         }
 
         log.debug(`Verifying role ${currentCfg.requiredRoleId} for user ${discordUser.id}`);
@@ -329,7 +337,14 @@ router.get('/check', async (req: AuthenticatedRequest, res: Response): Promise<v
   // Verify user still has access (cache expired or not set)
   try {
     log.debug(`Auth check: Verifying role (cache expired or not set)`);
-    const hasRole = await verifyUserRole(user.id, currentCfg.requiredRoleId, botClient);
+
+    // If no required role is configured, grant access to all authenticated users
+    let hasRole = true;
+    if (currentCfg.requiredRoleId) {
+      hasRole = await verifyUserRole(user.id, currentCfg.requiredRoleId, botClient);
+    } else {
+      log.debug(`Auth check: No requiredRoleId configured - allowing all authenticated users`);
+    }
 
     if (!hasRole) {
       log.warn(`Auth check: User ${user.username} no longer has required role`);

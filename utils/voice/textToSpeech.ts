@@ -249,9 +249,13 @@ export class TextToSpeechManager {
     // Check cache
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      log.debug(`TTS cache hit for: "${text.substring(0, 30)}..."`);
+      log.debug(`\ud83d\udccb TTS cache hit for: "${text.substring(0, 30)}..."`);
       return cached;
     }
+
+    log.debug(
+      `\ud83c\udfb5 Generating TTS for: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
+    );
 
     try {
       const request: TextToSpeechRequest = {
@@ -266,7 +270,7 @@ export class TextToSpeechManager {
 
       const latency = Date.now() - startTime;
       log.info(
-        `TTS completed in ${latency}ms: "${text.substring(0, 50)}..." (${result.audioBuffer.length} bytes)`
+        `\u2705 TTS completed in ${latency}ms: "${text.substring(0, 50)}..." (${result.audioBuffer.length} bytes)`
       );
 
       // Cache the result
@@ -284,13 +288,18 @@ export class TextToSpeechManager {
    * Generate a temporary audio file for playback
    */
   async synthesizeToFile(text: string, options?: Partial<TextToSpeechRequest>): Promise<string> {
+    log.debug(
+      `\ud83c\udf99\ufe0f Synthesizing to file: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
+    );
     const result = await this.synthesize(text, options);
 
     // Create temporary file
     const tempFile = join(tmpdir(), `tts-${Date.now()}.pcm`);
     writeFileSync(tempFile, result.audioBuffer);
 
-    log.debug(`Created TTS audio file: ${tempFile}`);
+    log.debug(
+      `\ud83d\udcbe Created TTS audio file: ${tempFile} (${result.audioBuffer.length} bytes)`
+    );
 
     return tempFile;
   }

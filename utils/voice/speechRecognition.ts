@@ -127,14 +127,35 @@ class OpenAISTTProvider implements STTProvider {
 
   async recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult> {
     try {
+      // Calculate actual audio duration from buffer size
+      // Mono PCM: 16-bit (2 bytes) × 48000 Hz = 96000 bytes per second
+      const actualDuration = audioBuffer.length / 96000;
+      const minDuration = 0.1; // Whisper's minimum
+
+      log.debug(`📏 Audio duration: ${actualDuration.toFixed(3)}s (${audioBuffer.length} bytes)`);
+
+      // If audio is too short, pad with silence to meet minimum
+      let processedBuffer = audioBuffer;
+      if (actualDuration < minDuration) {
+        const minBytes = Math.ceil(minDuration * 96000);
+        const paddingBytes = minBytes - audioBuffer.length;
+        log.debug(
+          `➕ Padding audio with ${paddingBytes} bytes of silence to meet ${minDuration}s minimum`
+        );
+        const paddedBuffer = Buffer.alloc(minBytes);
+        audioBuffer.copy(paddedBuffer, 0);
+        // Rest of buffer is already zeros (silence)
+        processedBuffer = paddedBuffer;
+      }
+
       // Convert PCM to WAV format for Whisper API
-      const wavBuffer = this.pcmToWav(audioBuffer, 48000, 1);
+      const wavBuffer = this.pcmToWav(processedBuffer, 48000, 1);
 
       // Create FormData for multipart upload
       // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
       const blob = new Blob([Uint8Array.from(wavBuffer)], { type: 'audio/wav' });
 
-      log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
+      log.debug(`📡 Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
 
       // Extract language code (e.g., 'en' from 'en-US')
       const language = languageCode.split('-')[0];
@@ -146,6 +167,8 @@ class OpenAISTTProvider implements STTProvider {
         response_format: 'verbose_json',
       });
 
+      log.debug(`\u2705 Whisper transcription received: "${response.text}"`);
+
       // Whisper doesn't provide confidence scores in the API response
       // We use 0.85 as a reasonable estimate - high enough to trust but not perfect
       // Actual accuracy varies with audio quality, accent, background noise
@@ -156,7 +179,7 @@ class OpenAISTTProvider implements STTProvider {
         languageCode: languageCode,
       };
     } catch (error) {
-      log.error(`OpenAI Whisper error: ${(error as Error).message}`);
+      log.error(`\u274c OpenAI Whisper error: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -310,13 +333,13 @@ export class SpeechRecognitionManager {
         };
       }
 
-      log.debug(`Recognizing audio buffer of ${audioBuffer.length} bytes`);
+      log.debug(`\ud83d\udd0d Recognizing audio buffer of ${audioBuffer.length} bytes`);
 
       const result = await this.provider.recognize(audioBuffer, this.config.language);
 
       const latency = Date.now() - startTime;
       log.info(
-        `STT completed in ${latency}ms: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`
+        `\u2705 STT completed in ${latency}ms: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`
       );
 
       return result;
@@ -350,11 +373,15 @@ export class SpeechRecognitionManager {
 
     // Concatenate audio chunks
     const audioBuffer = Buffer.concat(audioChunks);
-    log.debug(`Processing ${audioChunks.length} audio chunks (${audioBuffer.length} bytes total)`);
+    log.debug(
+      `\ud83d\udcca Processing ${audioChunks.length} audio chunks (${audioBuffer.length} bytes total)`
+    );
 
     // Convert stereo to mono if needed (take left channel)
     // Discord provides stereo PCM, but most STT expects mono
+    log.debug(`\ud83d\udd04 Converting stereo to mono audio...`);
     const monoBuffer = this.stereoToMono(audioBuffer);
+    log.debug(`\u2705 Mono audio ready: ${monoBuffer.length} bytes`);
 
     return this.recognize(monoBuffer);
   }
@@ -363,12 +390,24 @@ export class SpeechRecognitionManager {
    * Convert stereo PCM to mono by averaging channels
    */
   private stereoToMono(stereoBuffer: Buffer): Buffer {
+    // Ensure buffer length is valid (multiple of 4 bytes for stereo 16-bit)
+    const validLength = Math.floor(stereoBuffer.length / 4) * 4;
+    if (validLength < stereoBuffer.length) {
+      log.debug(`Truncating audio buffer from ${stereoBuffer.length} to ${validLength} bytes`);
+      stereoBuffer = stereoBuffer.subarray(0, validLength);
+    }
+
     const samples = stereoBuffer.length / 4; // 16-bit samples, 2 channels
     const monoBuffer = Buffer.alloc(samples * 2);
 
     for (let i = 0; i < samples; i++) {
-      const leftSample = stereoBuffer.readInt16LE(i * 4);
-      const rightSample = stereoBuffer.readInt16LE(i * 4 + 2);
+      const offset = i * 4;
+      // Bounds check to prevent overflow
+      if (offset + 2 >= stereoBuffer.length) {
+        break;
+      }
+      const leftSample = stereoBuffer.readInt16LE(offset);
+      const rightSample = stereoBuffer.readInt16LE(offset + 2);
       const monoSample = Math.floor((leftSample + rightSample) / 2);
       monoBuffer.writeInt16LE(monoSample, i * 2);
     }

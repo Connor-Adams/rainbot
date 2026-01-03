@@ -113,14 +113,14 @@ describe('auth middleware', () => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('returns 500 when requiredRoleId is not configured', async () => {
+    it('allows access when requiredRoleId is not configured', async () => {
       mockConfig.requiredRoleId = undefined;
 
       await requireAuth(mockReq as AuthenticatedRequest, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Server configuration error' });
-      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockVerifyUserRole).not.toHaveBeenCalled();
     });
 
     it('uses cached verification when valid', async () => {

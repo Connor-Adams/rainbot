@@ -112,7 +112,10 @@ export async function listSounds(): Promise<SoundFile[]> {
 
     if (response.Contents) {
       response.Contents.filter(
-        (obj) => obj.Key && /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key)
+        (obj) =>
+          obj.Key &&
+          /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key) &&
+          !obj.Key.includes('sounds/records/') // Exclude recordings from main list
       ).forEach((obj) => {
         const name = path.basename(obj.Key!);
         sounds.push({
@@ -129,6 +132,47 @@ export async function listSounds(): Promise<SoundFile[]> {
   }
 
   return sounds;
+}
+
+/**
+ * List voice recordings for a specific user
+ */
+export async function listRecordings(userId?: string): Promise<SoundFile[]> {
+  if (!s3Client || !bucketName) {
+    log.warn('Storage not configured - cannot list recordings');
+    return [];
+  }
+
+  const recordings: SoundFile[] = [];
+
+  try {
+    const prefix = userId ? `sounds/records/${userId}-` : 'sounds/records/';
+    const command = new ListObjectsV2Command({
+      Bucket: bucketName,
+      Prefix: prefix,
+    });
+
+    const response = await s3Client.send(command);
+
+    if (response.Contents) {
+      response.Contents.forEach((obj) => {
+        if (obj.Key) {
+          const name = path.basename(obj.Key);
+          recordings.push({
+            name: name,
+            size: obj.Size || 0,
+            createdAt: obj.LastModified || new Date(),
+          });
+        }
+      });
+    }
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Error listing recordings from S3: ${err.message}`);
+    throw error;
+  }
+
+  return recordings;
 }
 
 interface S3ErrorMetadata {
@@ -198,8 +242,8 @@ export async function uploadSound(
     throw new Error('Storage not configured');
   }
 
-  // Sanitize filename
-  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Sanitize filename (preserve forward slashes for subdirectories)
+  const safeName = filename.replace(/[^a-zA-Z0-9._/-]/g, '_');
 
   // Read stream into buffer (required for S3)
   const chunks: Buffer[] = [];
@@ -218,6 +262,39 @@ export async function uploadSound(
   await s3Client.send(command);
   log.info(`Uploaded sound to S3: ${safeName}`);
   return safeName;
+}
+
+/**
+ * Upload a voice recording to S3 under records folder
+ */
+export async function uploadRecording(
+  audioBuffer: Buffer,
+  userId: string,
+  timestamp: number
+): Promise<string> {
+  if (!s3Client || !bucketName) {
+    throw new Error('Storage not configured');
+  }
+
+  // Create filename with user ID
+  const filename = `${userId}-${timestamp}.raw`;
+  const key = `sounds/records/${filename}`;
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    Body: audioBuffer,
+    ContentType: 'audio/pcm',
+    Metadata: {
+      'user-id': userId,
+      'recorded-at': new Date(timestamp).toISOString(),
+      format: 'pcm-s16le-48000-stereo',
+    },
+  });
+
+  await s3Client.send(command);
+  log.info(`Uploaded recording to S3: ${key} (${audioBuffer.length} bytes)`);
+  return filename;
 }
 
 /**

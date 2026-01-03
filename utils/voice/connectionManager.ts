@@ -47,7 +47,18 @@ export async function joinChannel(
     channelId: channel.id,
     guildId: guildId,
     adapterCreator: channel.guild.voiceAdapterCreator,
+    selfDeaf: false, // Required to receive audio for voice commands
+    selfMute: false,
   });
+
+  // Wait for connection to be ready before receiving audio
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+    log.debug('Voice connection ready for receiving audio');
+  } catch (error) {
+    log.warn(`Voice connection not ready: ${(error as Error).message}`);
+    // Continue anyway - connection may still work
+  }
 
   log.debug(`Joined voice channel ${channel.name}`);
 
@@ -271,6 +282,13 @@ export function leaveChannel(guildId: string): boolean {
  */
 export function getVoiceState(guildId: string): VoiceState | undefined {
   return voiceStates.get(guildId);
+}
+
+/**
+ * Get the voice connection for a guild
+ */
+export function getConnection(guildId: string): VoiceConnection | undefined {
+  return getVoiceConnection(guildId);
 }
 
 export interface ConnectionInfo {
