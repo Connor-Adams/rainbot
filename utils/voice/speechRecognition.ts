@@ -134,7 +134,7 @@ class OpenAISTTProvider implements STTProvider {
       // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
       const blob = new Blob([Uint8Array.from(wavBuffer)], { type: 'audio/wav' });
 
-      log.debug(`Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
+      log.debug(`\ud83d\udce1 Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
 
       // Extract language code (e.g., 'en' from 'en-US')
       const language = languageCode.split('-')[0];
@@ -146,6 +146,8 @@ class OpenAISTTProvider implements STTProvider {
         response_format: 'verbose_json',
       });
 
+      log.debug(`\u2705 Whisper transcription received: "${response.text}"`);
+
       // Whisper doesn't provide confidence scores in the API response
       // We use 0.85 as a reasonable estimate - high enough to trust but not perfect
       // Actual accuracy varies with audio quality, accent, background noise
@@ -156,7 +158,7 @@ class OpenAISTTProvider implements STTProvider {
         languageCode: languageCode,
       };
     } catch (error) {
-      log.error(`OpenAI Whisper error: ${(error as Error).message}`);
+      log.error(`\u274c OpenAI Whisper error: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -310,13 +312,13 @@ export class SpeechRecognitionManager {
         };
       }
 
-      log.debug(`Recognizing audio buffer of ${audioBuffer.length} bytes`);
+      log.debug(`\ud83d\udd0d Recognizing audio buffer of ${audioBuffer.length} bytes`);
 
       const result = await this.provider.recognize(audioBuffer, this.config.language);
 
       const latency = Date.now() - startTime;
       log.info(
-        `STT completed in ${latency}ms: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`
+        `\u2705 STT completed in ${latency}ms: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`
       );
 
       return result;
@@ -350,11 +352,15 @@ export class SpeechRecognitionManager {
 
     // Concatenate audio chunks
     const audioBuffer = Buffer.concat(audioChunks);
-    log.debug(`Processing ${audioChunks.length} audio chunks (${audioBuffer.length} bytes total)`);
+    log.debug(
+      `\ud83d\udcca Processing ${audioChunks.length} audio chunks (${audioBuffer.length} bytes total)`
+    );
 
     // Convert stereo to mono if needed (take left channel)
     // Discord provides stereo PCM, but most STT expects mono
+    log.debug(`\ud83d\udd04 Converting stereo to mono audio...`);
     const monoBuffer = this.stereoToMono(audioBuffer);
+    log.debug(`\u2705 Mono audio ready: ${monoBuffer.length} bytes`);
 
     return this.recognize(monoBuffer);
   }

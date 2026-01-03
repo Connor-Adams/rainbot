@@ -32,7 +32,7 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   ttsProvider: 'openai',
   language: 'en-US',
   maxAudioDuration: 10, // 10 seconds max
-  minAudioDuration: 1, // 1 second min
+  minAudioDuration: 0.5, // 0.5 second min (Whisper needs at least 0.1s)
   confidenceThreshold: 0.6,
   rateLimit: {
     maxCommandsPerMinute: 10,
@@ -181,7 +181,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const audioStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 2000, // 2 seconds of silence ends the stream (was 1s - too aggressive)
+        duration: 3000, // 3 seconds of silence ends the stream
       },
     });
 
@@ -189,8 +189,18 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     // Process audio chunks
     let chunkSequence = 0;
+    let lastLogTime = Date.now();
     audioStream.on('data', (chunk: Buffer) => {
       if (!session.isListening) return;
+
+      // Log audio capture every second to avoid spam
+      const now = Date.now();
+      if (now - lastLogTime > 1000) {
+        log.debug(
+          `🎤 Hearing audio from user ${userId} (${session.audioBuffer.length} chunks buffered)`
+        );
+        lastLogTime = now;
+      }
 
       const audioChunk: AudioChunk = {
         userId,
@@ -207,7 +217,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     // Handle stream end (user stopped speaking)
     audioStream.on('end', async () => {
-      log.debug(`Audio stream ended for user ${userId}`);
+      log.info(
+        `🔇 Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
+      );
 
       if (session.audioBuffer.length > 0) {
         await this.processCompleteAudio(session);
@@ -275,21 +287,23 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     }
 
     log.info(
-      `Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(2)}s) from user ${session.userId}`
+      `📊 Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(2)}s) from user ${session.userId}`
     );
 
     try {
       // Convert audio to text
+      log.info(`🔄 Transcribing audio...`);
       const result = await this.speechRecognition.processDiscordAudio(audioBuffers);
 
       if (!result.text || result.text.trim().length === 0) {
-        log.debug('No speech detected in audio');
+        log.warn('❌ No speech detected in audio');
         return;
       }
 
-      log.info(`Transcribed: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`);
+      log.info(`✅ Transcribed: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`);
 
       // Parse command
+      log.debug(`🔍 Parsing voice command: "${result.text}"`);
       const command = parseVoiceCommand(result.text);
 
       // Validate command
@@ -354,7 +368,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     try {
       state.isProcessingCommand = true;
 
-      log.info(`Executing voice command: ${command.type} (query: ${command.query || 'N/A'})`);
+      log.info(`⚡ Executing voice command: ${command.type} (query: ${command.query || 'N/A'})`);
 
       const vm = this.getVoiceManager();
       let success = false;
@@ -489,7 +503,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       state.statistics.averageLatency =
         (currentAvg * (totalCommands - 1) + latency) / totalCommands;
 
-      log.info(`Command ${success ? 'succeeded' : 'failed'} in ${latency}ms`);
+      log.info(`\u2705 Command ${success ? 'succeeded' : 'failed'} in ${latency}ms`);
 
       // Send voice response
       await this.sendVoiceResponse(session.guildId, responseText);
@@ -510,12 +524,15 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
    */
   private async sendVoiceResponse(guildId: string, text: string): Promise<void> {
     try {
-      log.info(`Sending voice response: "${text}"`);
+      log.info(`🔊 Preparing TTS response: "${text}"`);
 
       // Generate TTS audio file
+      log.debug(`🎙️ Synthesizing speech...`);
       const audioFile = await this.textToSpeech.synthesizeToFile(text);
+      log.debug(`✅ TTS file generated: ${audioFile}`);
 
       // Play via voice manager (as a soundboard overlay)
+      log.debug(`▶️ Playing TTS audio in voice channel...`);
       const vm = this.getVoiceManager();
       await vm.playSoundboardOverlay(
         guildId,
@@ -525,6 +542,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         'System',
         ''
       );
+      log.info(`✅ TTS playback completed`);
 
       // Schedule cleanup
       setTimeout(() => {
