@@ -261,7 +261,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
    */
   private async saveRecordedAudio(
     userId: string,
-    guildId: string,
+    _guildId: string,
     audioBuffers: Buffer[]
   ): Promise<void> {
     try {
