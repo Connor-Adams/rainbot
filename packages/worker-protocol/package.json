@@ -1,0 +1,23 @@
+{
+  "name": "@rainbot/worker-protocol",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:ts": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@rainbot/shared": "workspace:*",
+    "axios": "^1.6.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  }
+}

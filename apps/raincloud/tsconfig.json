@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./",
+    "baseUrl": "./",
+    "paths": {
+      "@commands/*": ["commands/*"],
+      "@utils/*": ["utils/*"],
+      "@types/*": ["types/*"],
+      "@server/*": ["server/*"],
+      "@handlers/*": ["handlers/*"],
+      "@events/*": ["events/*"],
+      "@components/*": ["components/*"]
+    }
+  },
+  "include": [
+    "commands/**/*.ts",
+    "utils/**/*.ts",
+    "types/**/*.ts",
+    "types/**/*.d.ts",
+    "server/**/*.ts",
+    "handlers/**/*.ts",
+    "events/**/*.ts",
+    "components/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+}
