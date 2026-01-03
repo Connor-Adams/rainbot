@@ -117,6 +117,18 @@ router.get('/sounds', async (_req, res: Response) => {
   }
 });
 
+// GET /api/recordings - List all voice recordings
+router.get('/recordings', async (req, res: Response) => {
+  try {
+    const userId = req.query['userId'] as string | undefined;
+    const recordings = await storage.listRecordings(userId);
+    res.json(recordings);
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sounds/:name/download - Download a sound file
 router.get('/sounds/:name/download', async (req, res: Response) => {
   try {

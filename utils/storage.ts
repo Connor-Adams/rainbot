@@ -112,7 +112,10 @@ export async function listSounds(): Promise<SoundFile[]> {
 
     if (response.Contents) {
       response.Contents.filter(
-        (obj) => obj.Key && /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key)
+        (obj) =>
+          obj.Key &&
+          /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key) &&
+          !obj.Key.includes('sounds/records/') // Exclude recordings from main list
       ).forEach((obj) => {
         const name = path.basename(obj.Key!);
         sounds.push({
