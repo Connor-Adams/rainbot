@@ -127,14 +127,35 @@ class OpenAISTTProvider implements STTProvider {
 
   async recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult> {
     try {
+      // Calculate actual audio duration from buffer size
+      // Mono PCM: 16-bit (2 bytes) × 48000 Hz = 96000 bytes per second
+      const actualDuration = audioBuffer.length / 96000;
+      const minDuration = 0.1; // Whisper's minimum
+
+      log.debug(`📏 Audio duration: ${actualDuration.toFixed(3)}s (${audioBuffer.length} bytes)`);
+
+      // If audio is too short, pad with silence to meet minimum
+      let processedBuffer = audioBuffer;
+      if (actualDuration < minDuration) {
+        const minBytes = Math.ceil(minDuration * 96000);
+        const paddingBytes = minBytes - audioBuffer.length;
+        log.debug(
+          `➕ Padding audio with ${paddingBytes} bytes of silence to meet ${minDuration}s minimum`
+        );
+        const paddedBuffer = Buffer.alloc(minBytes);
+        audioBuffer.copy(paddedBuffer, 0);
+        // Rest of buffer is already zeros (silence)
+        processedBuffer = paddedBuffer;
+      }
+
       // Convert PCM to WAV format for Whisper API
-      const wavBuffer = this.pcmToWav(audioBuffer, 48000, 1);
+      const wavBuffer = this.pcmToWav(processedBuffer, 48000, 1);
 
       // Create FormData for multipart upload
       // Note: OpenAI SDK handles file uploads internally with Node.js compatibility
       const blob = new Blob([Uint8Array.from(wavBuffer)], { type: 'audio/wav' });
 
-      log.debug(`\ud83d\udce1 Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
+      log.debug(`📡 Sending ${wavBuffer.length} bytes to OpenAI Whisper API`);
 
       // Extract language code (e.g., 'en' from 'en-US')
       const language = languageCode.split('-')[0];

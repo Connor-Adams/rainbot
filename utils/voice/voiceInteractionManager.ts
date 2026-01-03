@@ -187,19 +187,36 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     log.debug(`Subscribed to audio from user ${userId}`);
 
+    // Track when audio actually starts coming in
+    let firstChunkReceived = false;
+
     // Process audio chunks
     let chunkSequence = 0;
     let lastLogTime = Date.now();
+    let totalBytesReceived = 0;
     audioStream.on('data', (chunk: Buffer) => {
       if (!session.isListening) return;
 
-      // Log audio capture every second to avoid spam
+      if (!firstChunkReceived) {
+        log.info(`🎙️ First audio chunk received from user ${userId} (${chunk.length} bytes)`);
+        firstChunkReceived = true;
+      }
+
+      totalBytesReceived += chunk.length;
+
+      // Log audio capture with detailed stats
       const now = Date.now();
-      if (now - lastLogTime > 1000) {
+      if (now - lastLogTime > 500) {
+        const durationSoFar = totalBytesReceived / 192000;
         log.debug(
-          `🎤 Hearing audio from user ${userId} (${session.audioBuffer.length} chunks buffered)`
+          `🎤 Hearing audio from user ${userId} - ${session.audioBuffer.length} chunks, ${totalBytesReceived} bytes, ${durationSoFar.toFixed(2)}s`
         );
         lastLogTime = now;
+      }
+
+      // Log individual chunk sizes for debugging
+      if (chunk.length < 100) {
+        log.warn(`⚠️ Very small audio chunk: ${chunk.length} bytes`);
       }
 
       const audioChunk: AudioChunk = {
@@ -278,16 +295,19 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     if (audioBuffers.length === 0) return;
 
-    const totalDuration = audioBuffers.length * 0.02;
+    // Calculate actual duration from total bytes
+    // Stereo PCM: 16-bit (2 bytes) × 2 channels × 48000 Hz = 192000 bytes per second
+    const totalBytes = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+    const totalDuration = totalBytes / 192000;
 
-    // Check minimum duration
+    // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)
     if (totalDuration < this.config.minAudioDuration) {
-      log.debug(`Audio too short (${totalDuration.toFixed(2)}s), ignoring`);
+      log.debug(`Audio too short (${totalDuration.toFixed(3)}s / ${totalBytes} bytes), ignoring`);
       return;
     }
 
     log.info(
-      `📊 Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(2)}s) from user ${session.userId}`
+      `📊 Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) from user ${session.userId}`
     );
 
     try {
