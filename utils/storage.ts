@@ -242,8 +242,8 @@ export async function uploadSound(
     throw new Error('Storage not configured');
   }
 
-  // Sanitize filename
-  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Sanitize filename (preserve forward slashes for subdirectories)
+  const safeName = filename.replace(/[^a-zA-Z0-9._/-]/g, '_');
 
   // Read stream into buffer (required for S3)
   const chunks: Buffer[] = [];

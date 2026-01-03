@@ -314,7 +314,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Read the WAV file
       const wavBuffer = fs.readFileSync(tempWavFile);
 
-      // Upload WAV to soundboard storage using the records subdirectory format
+      // Upload WAV to soundboard storage under records/ subdirectory
       const filename = `records/${userId}-${timestamp}.wav`;
 
       // Create an async iterable from the buffer
