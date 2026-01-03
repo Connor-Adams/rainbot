@@ -181,7 +181,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const audioStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 1000, // 1 second of silence ends the stream
+        duration: 2000, // 2 seconds of silence ends the stream (was 1s - too aggressive)
       },
     });
 
@@ -517,7 +517,14 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       // Play via voice manager (as a soundboard overlay)
       const vm = this.getVoiceManager();
-      await vm.playSoundboard(guildId, audioFile, 'system', 'voice-interaction', 'System', '');
+      await vm.playSoundboardOverlay(
+        guildId,
+        audioFile,
+        'system',
+        'voice-interaction',
+        'System',
+        ''
+      );
 
       // Schedule cleanup
       setTimeout(() => {
