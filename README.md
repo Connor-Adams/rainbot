@@ -1,25 +1,40 @@
 # Rainbot 🌧️
 
-A Discord voice bot with a web dashboard for playing sounds, YouTube/SoundCloud URLs, and managing playlists in voice channels.
+A Discord voice bot with multi-bot architecture for enhanced audio playback, featuring a web dashboard and comprehensive voice control.
+
+## Architecture
+
+Rainbot uses a **4-bot orchestrated architecture** for optimal voice performance:
+
+- **🎭 Raincloud** - Orchestrator (commands & coordination)
+- **🎵 Rainbot** - Music worker (queue-based playback)
+- **🗣️ Pranjeet** - TTS worker (text-to-speech)
+- **🔊 HungerBot** - Soundboard worker (sound effects)
+
+See [Multi-Bot Architecture Documentation](docs/MULTIBOT_ARCHITECTURE.md) for details.
 
 ## Features
 
-- 🎵 **Play audio from multiple sources**: Local sound files, YouTube URLs, SoundCloud URLs, and playlists
-- 🔊 **Voice channel management**: Join, leave, and manage voice connections
-- 🎤 **Voice interaction**: Control music with voice commands (optional, requires API keys)
-- 📋 **Queue system**: Queue multiple tracks and manage playback
-- 🔁 **Auto keep playing mode**: Automatically plays related tracks when the queue is empty
-- 🎛️ **Web Dashboard**: Beautiful web interface for managing sounds and playing URLs
-- 📤 **Sound upload**: Upload and manage sound files through the web dashboard
-- 🎮 **Slash commands**: Easy-to-use Discord slash commands
-- 📊 **Statistics Dashboard**: Comprehensive statistics tracking with PostgreSQL (command usage, sound playback, user activity, time trends)
+- 🎵 **Multi-source audio playback**: Local files, YouTube, SoundCloud, Spotify
+- 🎭 **Separated audio channels**: Music, TTS, and soundboard on independent bots
+- 🔊 **Smart voice management**: Auto-join with per-user channel fallback
+- 📋 **Queue system**: Advanced queue management with pre-buffering
+- 🎤 **Voice interaction**: Optional voice command control
+- 🎛️ **Web Dashboard**: Beautiful React + Tailwind interface
+- 📤 **Sound upload**: Manage sound files through the dashboard
+- 🎮 **Slash commands**: Easy-to-use Discord commands
+- 📊 **Statistics**: Comprehensive tracking with PostgreSQL
+- 🔄 **Redis state**: Persistent session management
 
-## Prerequisites
+## Quick Start
 
-- Node.js (v16.9.0 or higher)
-- npm or yarn
-- A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
-- FFmpeg (for audio processing)
+### Prerequisites
+
+- Node.js v22.12.0 or higher
+- Redis 7+
+- PostgreSQL 15+
+- FFmpeg
+- 4 Discord bot tokens (Raincloud, Rainbot, Pranjeet, HungerBot)
 
 ## Installation
 

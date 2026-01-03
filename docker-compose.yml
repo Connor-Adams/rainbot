@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  # Redis for state management
+  redis:
+    image: redis:7-alpine
+    container_name: rainbot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL (existing)
+  postgres:
+    image: postgres:15-alpine
+    container_name: rainbot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rainbot}
+      POSTGRES_USER: ${POSTGRES_USER:-rainbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rainbot}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # Raincloud - Orchestrator
+  raincloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rainbot-raincloud
+    environment:
+      - DISCORD_BOT_TOKEN=${RAINCLOUD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rainbot}:${POSTGRES_PASSWORD:-rainbot}@postgres:5432/${POSTGRES_DB:-rainbot}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - PORT=3000
+      - RAINBOT_URL=http://rainbot:3001
+      - PRANJEET_URL=http://pranjeet:3002
+      - HUNGERBOT_URL=http://hungerbot:3003
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      rainbot:
+        condition: service_started
+      pranjeet:
+        condition: service_started
+      hungerbot:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./sounds:/app/sounds
+
+  # Rainbot - Music Worker
+  rainbot:
+    build:
+      context: ./apps/rainbot
+      dockerfile: Dockerfile
+    container_name: rainbot-worker
+    environment:
+      - RAINBOT_TOKEN=${RAINBOT_TOKEN}
+      - RAINBOT_PORT=3001
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  # Pranjeet - TTS Worker
+  pranjeet:
+    build:
+      context: ./apps/pranjeet
+      dockerfile: Dockerfile
+    container_name: pranjeet-worker
+    environment:
+      - PRANJEET_TOKEN=${PRANJEET_TOKEN}
+      - PRANJEET_PORT=3002
+      - TTS_PROVIDER=${TTS_PROVIDER:-openai}
+      - TTS_API_KEY=${TTS_API_KEY}
+      - TTS_VOICE_NAME=${TTS_VOICE_NAME:-alloy}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3002:3002"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  # HungerBot - Soundboard Worker
+  hungerbot:
+    build:
+      context: ./apps/hungerbot
+      dockerfile: Dockerfile
+    container_name: hungerbot-worker
+    environment:
+      - HUNGERBOT_TOKEN=${HUNGERBOT_TOKEN}
+      - HUNGERBOT_PORT=3003
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3003:3003"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./sounds:/app/sounds
+
+  # UI Development Server (optional)
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    container_name: rainbot-ui-dev
+    environment:
+      - VITE_API_URL=http://raincloud:3000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    profiles:
+      - dev
+    depends_on:
+      - raincloud
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  default:
+    name: rainbot-network
