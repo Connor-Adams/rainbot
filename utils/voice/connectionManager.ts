@@ -47,6 +47,8 @@ export async function joinChannel(
     channelId: channel.id,
     guildId: guildId,
     adapterCreator: channel.guild.voiceAdapterCreator,
+    selfDeaf: false, // Required to receive audio for voice commands
+    selfMute: false,
   });
 
   log.debug(`Joined voice channel ${channel.name}`);
