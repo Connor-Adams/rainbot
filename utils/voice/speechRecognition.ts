@@ -363,12 +363,24 @@ export class SpeechRecognitionManager {
    * Convert stereo PCM to mono by averaging channels
    */
   private stereoToMono(stereoBuffer: Buffer): Buffer {
+    // Ensure buffer length is valid (multiple of 4 bytes for stereo 16-bit)
+    const validLength = Math.floor(stereoBuffer.length / 4) * 4;
+    if (validLength < stereoBuffer.length) {
+      log.debug(`Truncating audio buffer from ${stereoBuffer.length} to ${validLength} bytes`);
+      stereoBuffer = stereoBuffer.subarray(0, validLength);
+    }
+
     const samples = stereoBuffer.length / 4; // 16-bit samples, 2 channels
     const monoBuffer = Buffer.alloc(samples * 2);
 
     for (let i = 0; i < samples; i++) {
-      const leftSample = stereoBuffer.readInt16LE(i * 4);
-      const rightSample = stereoBuffer.readInt16LE(i * 4 + 2);
+      const offset = i * 4;
+      // Bounds check to prevent overflow
+      if (offset + 2 >= stereoBuffer.length) {
+        break;
+      }
+      const leftSample = stereoBuffer.readInt16LE(offset);
+      const rightSample = stereoBuffer.readInt16LE(offset + 2);
       const monoSample = Math.floor((leftSample + rightSample) / 2);
       monoBuffer.writeInt16LE(monoSample, i * 2);
     }
