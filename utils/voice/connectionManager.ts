@@ -51,6 +51,15 @@ export async function joinChannel(
     selfMute: false,
   });
 
+  // Wait for connection to be ready before receiving audio
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+    log.debug('Voice connection ready for receiving audio');
+  } catch (error) {
+    log.warn(`Voice connection not ready: ${(error as Error).message}`);
+    // Continue anyway - connection may still work
+  }
+
   log.debug(`Joined voice channel ${channel.name}`);
 
   // Undeafen the bot so it can listen for voice commands

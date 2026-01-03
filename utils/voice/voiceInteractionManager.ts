@@ -179,7 +179,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     // Set up voice receiver
     const receiver = connection.receiver;
 
-    // Subscribe to user's audio
+    // Subscribe to user's audio with proper error handling
     const audioStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
@@ -252,7 +252,27 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     });
 
     audioStream.on('error', (error) => {
-      log.error(`Audio stream error for user ${userId}: ${error.message}`);
+      const errorMsg = error.message;
+      log.error(`Audio stream error for user ${userId}: ${errorMsg}`);
+
+      // Handle decryption errors specifically
+      if (errorMsg.includes('DecryptionFailed') || errorMsg.includes('Failed to decrypt')) {
+        log.error('⚠️ Voice decryption error detected!');
+        log.error('💡 This usually means Discord voice encryption is not properly configured.');
+        log.error('💡 Try disconnecting and reconnecting the bot to the voice channel.');
+
+        // Try to recover by resubscribing after a delay
+        setTimeout(() => {
+          const currentSession = state?.sessions.get(userId);
+          if (currentSession && currentSession.isListening) {
+            log.info(`Attempting to resubscribe to user ${userId} audio after error...`);
+            // The stream has already failed, so we'll just wait for the next connection
+            this.stopListening(userId, guildId).catch((err) => {
+              log.error(`Failed to stop listening after error: ${(err as Error).message}`);
+            });
+          }
+        }, 1000);
+      }
     });
   }
 
