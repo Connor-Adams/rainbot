@@ -66,6 +66,14 @@ const client = new Client({
 require('./handlers/commandHandler')(client);
 require('./handlers/eventHandler')(client);
 
+// Initialize button handlers
+const { initializeButtonHandlers } = require('./dist/handlers/buttonRegistry');
+initializeButtonHandlers();
+
+// Initialize select menu handlers
+const { initializeSelectMenuHandlers } = require('./dist/handlers/selectMenuRegistry');
+initializeSelectMenuHandlers();
+
 // Start Express server once bot is ready
 client.once(Events.ClientReady, async () => {
   const port = config.dashboardPort;
