@@ -42,7 +42,7 @@ services:
       dockerfile: Dockerfile
     container_name: rainbot-raincloud
     environment:
-      - DISCORD_BOT_TOKEN=${RAINCLOUD_TOKEN}
+      - RAINCLOUD_TOKEN=${RAINCLOUD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - REDIS_URL=redis://redis:6379
@@ -74,12 +74,14 @@ services:
   # Rainbot - Music Worker
   rainbot:
     build:
-      context: ./apps/rainbot
+      context: .
       dockerfile: Dockerfile
     container_name: rainbot-worker
+    command: ["node", "apps/rainbot/dist/index.js"]
     environment:
       - RAINBOT_TOKEN=${RAINBOT_TOKEN}
       - RAINBOT_PORT=3001
+      - ORCHESTRATOR_BOT_ID=${ORCHESTRATOR_BOT_ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
       - "3001:3001"
@@ -90,12 +92,14 @@ services:
   # Pranjeet - TTS Worker
   pranjeet:
     build:
-      context: ./apps/pranjeet
+      context: .
       dockerfile: Dockerfile
     container_name: pranjeet-worker
+    command: ["node", "apps/pranjeet/dist/index.js"]
     environment:
       - PRANJEET_TOKEN=${PRANJEET_TOKEN}
       - PRANJEET_PORT=3002
+      - ORCHESTRATOR_BOT_ID=${ORCHESTRATOR_BOT_ID}
       - TTS_PROVIDER=${TTS_PROVIDER:-openai}
       - TTS_API_KEY=${TTS_API_KEY}
       - TTS_VOICE_NAME=${TTS_VOICE_NAME:-alloy}
@@ -109,12 +113,14 @@ services:
   # HungerBot - Soundboard Worker
   hungerbot:
     build:
-      context: ./apps/hungerbot
+      context: .
       dockerfile: Dockerfile
     container_name: hungerbot-worker
+    command: ["node", "apps/hungerbot/dist/index.js"]
     environment:
       - HUNGERBOT_TOKEN=${HUNGERBOT_TOKEN}
       - HUNGERBOT_PORT=3003
+      - ORCHESTRATOR_BOT_ID=${ORCHESTRATOR_BOT_ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
       - "3003:3003"

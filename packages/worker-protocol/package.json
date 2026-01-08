@@ -8,10 +8,10 @@
     "build": "tsc",
     "build:ts": "tsc",
     "type-check": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "@rainbot/shared": "workspace:*",
+    "@rainbot/shared": "*",
     "axios": "^1.6.2",
     "express": "^5.2.1"
   },

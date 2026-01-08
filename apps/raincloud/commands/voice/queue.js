@@ -1,10 +1,27 @@
+/**
+ * Queue command - Multi-bot architecture version
+ */
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const voiceManager = require('../../dist/utils/voiceManager');
 const {
   validateVoiceConnection,
   formatDuration,
   getYouTubeThumbnail,
 } = require('../utils/commandHelpers');
+
+// Try to use multi-bot service, fall back to local voiceManager
+async function getPlaybackService() {
+  try {
+    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    if (MultiBotService.isInitialized()) {
+      return { type: 'multibot', service: MultiBotService.getInstance() };
+    }
+  } catch {
+    // Multi-bot service not available
+  }
+
+  const voiceManager = require('../../dist/utils/voiceManager');
+  return { type: 'local', service: voiceManager };
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,13 +39,43 @@ module.exports = {
     const guildId = interaction.guildId;
     const requestedPage = interaction.options.getInteger('page') || 1;
     const pageIndex = requestedPage - 1; // Convert to 0-indexed
+    const { type, service } = await getPlaybackService();
 
-    const connectionCheck = validateVoiceConnection(interaction, voiceManager);
-    if (!connectionCheck.isValid) {
-      return interaction.reply(connectionCheck.error);
+    let queueInfo;
+
+    if (type === 'multibot') {
+      const status = await service.getStatus(guildId);
+      if (!status || !status.isConnected) {
+        return interaction.reply({
+          content: "❌ I'm not in a voice channel! Use `/join` first.",
+          flags: require('discord.js').MessageFlags.Ephemeral,
+        });
+      }
+
+      // Get queue info from multi-bot service
+      queueInfo = await service.getQueueInfo(guildId);
+      if (!queueInfo.success) {
+        queueInfo = {
+          nowPlaying: null,
+          queue: [],
+          totalInQueue: 0,
+          currentTrack: null,
+          playbackPosition: 0,
+          hasOverlay: false,
+          isPaused: false,
+          channelName: null,
+        };
+      } else {
+        queueInfo = queueInfo.queue || queueInfo;
+      }
+    } else {
+      const voiceManager = service;
+      const connectionCheck = validateVoiceConnection(interaction, voiceManager);
+      if (!connectionCheck.isValid) {
+        return interaction.reply(connectionCheck.error);
+      }
+      queueInfo = voiceManager.getQueue(guildId);
     }
-
-    const queueInfo = voiceManager.getQueue(guildId);
     const {
       nowPlaying,
       queue,

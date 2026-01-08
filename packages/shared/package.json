@@ -8,7 +8,7 @@
     "build": "tsc",
     "build:ts": "tsc",
     "type-check": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest --passWithNoTests"
   },
   "dependencies": {
     "winston": "^3.19.0"

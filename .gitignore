@@ -4,6 +4,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Yarn Berry (v2+)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+
+# Lock files (keep yarn.lock, ignore old pnpm/npm locks)
+pnpm-lock.yaml
+package-lock.json
+
 # Configuration (contains sensitive tokens)
 config.json
 
@@ -49,6 +62,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# Turbo
+.turbo/
+
 # TypeScript compiled output
 
 utils/playerEmbed.js
@@ -59,10 +75,9 @@ ui/node_modules/
 ui/.vite/
 ui/.vite-cache/
 
-# React UI build output (source is tracked, build is not)
-ui/dist/
-ui/node_modules/
-ui/.vite/
+# Monorepo app/package builds
+apps/*/dist/
+packages/*/dist/
 
 # Temporary files
 *.tmp

@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -8,15 +8,59 @@ import {
   entersState,
   VoiceConnection,
   AudioPlayer,
+  StreamType,
 } from '@discordjs/voice';
 import express, { Request, Response } from 'express';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const PORT = parseInt(process.env['HUNGERBOT_PORT'] || '3003', 10);
 const TOKEN = process.env['HUNGERBOT_TOKEN'];
+const SOUNDS_DIR = process.env['SOUNDS_DIR'] || './sounds';
+const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
+
+// S3 Configuration
+const S3_BUCKET =
+  process.env['STORAGE_BUCKET_NAME'] || process.env['AWS_S3_BUCKET_NAME'] || process.env['BUCKET'];
+const S3_ACCESS_KEY =
+  process.env['STORAGE_ACCESS_KEY'] ||
+  process.env['AWS_ACCESS_KEY_ID'] ||
+  process.env['ACCESS_KEY_ID'];
+const S3_SECRET_KEY =
+  process.env['STORAGE_SECRET_KEY'] ||
+  process.env['AWS_SECRET_ACCESS_KEY'] ||
+  process.env['SECRET_ACCESS_KEY'];
+const S3_ENDPOINT =
+  process.env['STORAGE_ENDPOINT'] || process.env['AWS_ENDPOINT_URL'] || process.env['ENDPOINT'];
+const S3_REGION = process.env['STORAGE_REGION'] || process.env['AWS_DEFAULT_REGION'] || 'us-east-1';
 
 if (!TOKEN) {
   console.error('HUNGERBOT_TOKEN environment variable is required');
   process.exit(1);
+}
+
+if (!ORCHESTRATOR_BOT_ID) {
+  console.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
+  process.exit(1);
+}
+
+// Initialize S3 client if configured
+let s3Client: S3Client | null = null;
+if (S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY && S3_ENDPOINT) {
+  s3Client = new S3Client({
+    endpoint: S3_ENDPOINT,
+    region: S3_REGION,
+    credentials: {
+      accessKeyId: S3_ACCESS_KEY,
+      secretAccessKey: S3_SECRET_KEY,
+    },
+    forcePathStyle: false,
+  });
+  console.log(`[HUNGERBOT] S3 storage initialized: bucket "${S3_BUCKET}"`);
+} else {
+  console.log(`[HUNGERBOT] S3 not configured, using local storage: ${SOUNDS_DIR}`);
 }
 
 interface GuildState {
@@ -27,6 +71,50 @@ interface GuildState {
 
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
+
+/**
+ * Get a sound stream from S3 or local filesystem
+ */
+async function getSoundStream(sfxId: string): Promise<Readable> {
+  // Normalize filename (add extension if not present)
+  const filename = sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
+
+  // Try S3 first if configured
+  if (s3Client && S3_BUCKET) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: `sounds/${filename}`,
+      });
+
+      const response = await s3Client.send(command);
+
+      if (response.Body && typeof (response.Body as any).transformToWebStream === 'function') {
+        // Node.js SDK v3 returns a web stream, convert to Node stream
+        const webStream = (response.Body as any).transformToWebStream();
+        return Readable.fromWeb(webStream as any);
+      }
+
+      if (response.Body instanceof Readable) {
+        return response.Body;
+      }
+
+      throw new Error('Invalid response body from S3');
+    } catch (error) {
+      console.error(`[HUNGERBOT] S3 fetch failed for ${filename}:`, error);
+      // Fall through to local storage
+    }
+  }
+
+  // Try local filesystem
+  const localPath = path.join(SOUNDS_DIR, filename);
+  if (fs.existsSync(localPath)) {
+    console.log(`[HUNGERBOT] Loading sound from local: ${localPath}`);
+    return fs.createReadStream(localPath);
+  }
+
+  throw new Error(`Sound file not found: ${filename}`);
+}
 
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
@@ -41,7 +129,7 @@ function getOrCreateGuildState(guildId: string): GuildState {
 
 function getOrCreateUserPlayer(guildId: string, userId: string): AudioPlayer {
   const state = getOrCreateGuildState(guildId);
-  
+
   if (!state.userPlayers.has(userId)) {
     const player = createAudioPlayer();
 
@@ -126,7 +214,7 @@ app.post('/join', async (req: Request, res: Response) => {
           entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
-      } catch (error) {
+      } catch (_error) {
         console.log(`[HUNGERBOT] Connection lost in guild ${guildId}, attempting rejoin...`);
         connection.destroy();
         state.connection = null;
@@ -271,9 +359,12 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     // Get or create player for this user
     const player = getOrCreateUserPlayer(guildId, userId);
 
-    // Create audio resource for the sound effect
-    // In production, load from storage
-    const resource = createAudioResource(sfxId, {
+    // Load sound from S3 or local storage
+    const soundStream = await getSoundStream(sfxId);
+
+    // Create audio resource from stream
+    const resource = createAudioResource(soundStream, {
+      inputType: StreamType.Arbitrary,
       inlineVolume: true,
     });
 
@@ -337,15 +428,87 @@ app.get('/health/ready', (req: Request, res: Response) => {
 
 // Discord client
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+});
+
+/**
+ * Auto-follow: Watch for orchestrator (Raincloud) joining/leaving voice channels
+ * and automatically join/leave the same channel
+ */
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  // Only care about the orchestrator bot
+  if (newState.member?.id !== ORCHESTRATOR_BOT_ID && oldState.member?.id !== ORCHESTRATOR_BOT_ID) {
+    return;
+  }
+
+  const guildId = newState.guild?.id || oldState.guild?.id;
+  if (!guildId) return;
+
+  const orchestratorLeft = oldState.channelId && !newState.channelId;
+  const orchestratorJoined = !oldState.channelId && newState.channelId;
+  const orchestratorMoved =
+    oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
+
+  if (orchestratorLeft) {
+    // Orchestrator left - leave too
+    console.log(`[HUNGERBOT] Orchestrator left voice in guild ${guildId}, following...`);
+    const state = guildStates.get(guildId);
+    if (state?.connection) {
+      state.connection.destroy();
+      state.connection = null;
+      state.userPlayers.clear();
+    }
+  } else if (orchestratorJoined || orchestratorMoved) {
+    // Orchestrator joined/moved - follow
+    const channelId = newState.channelId!;
+    console.log(
+      `[HUNGERBOT] Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
+    );
+
+    const guild = client.guilds.cache.get(guildId);
+    const channel = guild?.channels.cache.get(channelId);
+    if (!channel || !channel.isVoiceBased()) return;
+
+    const state = getOrCreateGuildState(guildId);
+
+    // Disconnect from old channel if moving
+    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      state.connection.destroy();
+    }
+
+    const connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild!.id,
+      adapterCreator: guild!.voiceAdapterCreator as any,
+    });
+
+    state.connection = connection;
+
+    // Subscribe all existing user players
+    state.userPlayers.forEach((player) => {
+      connection.subscribe(player);
+    });
+
+    // Auto-rejoin on disconnect (network issues only)
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch {
+        console.log(`[HUNGERBOT] Connection lost in guild ${guildId}`);
+        connection.destroy();
+        state.connection = null;
+      }
+    });
+  }
 });
 
 client.once('ready', () => {
   console.log(`[HUNGERBOT] Ready as ${client.user?.tag}`);
-  
+  console.log(`[HUNGERBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+
   // Start HTTP server
   app.listen(PORT, () => {
     console.log(`[HUNGERBOT] Worker server listening on port ${PORT}`);

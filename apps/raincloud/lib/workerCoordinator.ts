@@ -46,10 +46,15 @@ export class WorkerCoordinator {
         })
       );
     }
+
+    // Auto-follow is always enabled - workers join automatically when orchestrator joins
+    log.info('Auto-follow enabled - workers will join voice automatically');
   }
 
   /**
-   * Ensure worker is connected to voice channel
+   * Ensure worker is connected to voice channel.
+   * Workers join automatically when orchestrator joins via VoiceStateUpdate,
+   * so this just verifies connection status.
    */
   async ensureWorkerConnected(
     botType: BotType,
@@ -74,7 +79,22 @@ export class WorkerCoordinator {
         return { success: true };
       }
 
-      // Join the channel
+      // Workers should already be connected via auto-follow if orchestrator is
+      // If not connected yet, give them a moment to catch up (async event processing)
+      log.debug(`${botType} not yet connected, waiting for auto-follow...`);
+      // Wait up to 2 seconds for auto-follow to kick in
+      for (let i = 0; i < 4; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const retryStatus = await worker.get(`/status`, { params: { guildId } });
+        if (retryStatus.data.connected && retryStatus.data.channelId === channelId) {
+          log.debug(`${botType} connected via auto-follow`);
+          await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
+          return { success: true };
+        }
+      }
+      log.warn(`${botType} did not auto-follow, falling back to explicit join`);
+
+      // Fallback: Join the channel explicitly
       const joinResponse = await worker.post('/join', {
         requestId,
         guildId,
@@ -302,11 +322,219 @@ export class WorkerCoordinator {
           params: { guildId },
         });
         statuses[botType] = response.data;
-      } catch (error) {
+      } catch (_error) {
         statuses[botType] = { connected: false, error: 'Failed to get status' };
       }
     }
 
     return statuses as Record<BotType, any>;
+  }
+
+  /**
+   * Skip track(s) on Rainbot
+   */
+  async skipTrack(
+    guildId: string,
+    count: number = 1
+  ): Promise<{ success: boolean; skipped?: string[]; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/skip', {
+        requestId,
+        guildId,
+        count,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true, skipped: response.data.skipped };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to skip track: ${error.message}`);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Toggle pause on Rainbot
+   */
+  async togglePause(
+    guildId: string
+  ): Promise<{ success: boolean; paused?: boolean; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/pause', {
+        requestId,
+        guildId,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true, paused: response.data.paused };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to toggle pause: ${error.message}`);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Stop playback on Rainbot
+   */
+  async stopPlayback(guildId: string): Promise<{ success: boolean; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/stop', {
+        requestId,
+        guildId,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to stop playback: ${error.message}`);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Clear queue on Rainbot
+   */
+  async clearQueue(
+    guildId: string
+  ): Promise<{ success: boolean; cleared?: number; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/clear', {
+        requestId,
+        guildId,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true, cleared: response.data.cleared };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to clear queue: ${error.message}`);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Get queue from Rainbot
+   */
+  async getQueue(guildId: string): Promise<{
+    nowPlaying: string | null;
+    queue: Array<{ title: string; url?: string }>;
+    totalInQueue: number;
+    currentTrack: { title: string; url?: string } | null;
+    paused: boolean;
+  }> {
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+    }
+
+    try {
+      const response = await worker.get('/queue', {
+        params: { guildId },
+      });
+
+      return response.data;
+    } catch (error: any) {
+      log.error(`Failed to get queue: ${error.message}`);
+      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+    }
+  }
+
+  /**
+   * Toggle autoplay on Rainbot
+   */
+  async toggleAutoplay(
+    guildId: string,
+    enabled?: boolean | null
+  ): Promise<{ success: boolean; enabled?: boolean; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/autoplay', {
+        requestId,
+        guildId,
+        enabled,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true, enabled: response.data.enabled };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to toggle autoplay: ${error.message}`);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Replay current/previous track on Rainbot
+   */
+  async replay(guildId: string): Promise<{ success: boolean; track?: string; message?: string }> {
+    const requestId = uuidv4();
+    const worker = this.workers.get('rainbot');
+
+    if (!worker) {
+      return { success: false, message: 'Music worker not configured' };
+    }
+
+    try {
+      const response = await worker.post('/replay', {
+        requestId,
+        guildId,
+      });
+
+      if (response.data.status === 'success') {
+        return { success: true, track: response.data.track };
+      }
+
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      log.error(`Failed to replay: ${error.message}`);
+      return { success: false, message: error.message };
+    }
   }
 }

@@ -1,0 +1,51 @@
+# =============================================================================
+# Docker Build Context Ignore
+# =============================================================================
+# Excludes files not needed for Docker builds to speed up context transfer
+
+# Dependencies (will be installed in container)
+node_modules
+**/node_modules
+
+# Build outputs (will be generated in container)
+dist
+**/dist
+.turbo
+**/.turbo
+
+# Development files
+.git
+.github
+.vscode
+.idea
+*.log
+logs
+
+# Environment files (passed at runtime, not build time)
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Test files
+**/__tests__
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+coverage
+.nyc_output
+
+# Editor/IDE
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Misc
+*.tgz
+*.tar.gz

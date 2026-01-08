@@ -20,6 +20,7 @@ module.exports = [
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
       'no-console': 'off',
@@ -46,6 +47,7 @@ module.exports = [
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
       '@typescript-eslint/no-require-imports': 'off', // Allow require() for CommonJS interop
@@ -68,8 +70,11 @@ module.exports = [
   {
     ignores: [
       'node_modules/**',
+      '**/node_modules/**',
       'dist/**',
+      '**/dist/**',
       'build/**',
+      '**/build/**',
       'ui/**',
       'public/**',
       'logs/**',
@@ -78,6 +83,7 @@ module.exports = [
       'eslint.config.js',
       'deploy-commands.js',
       'dev-server.js',
+      '**/*.d.ts',
     ],
   },
 ];

@@ -1,4 +1,4 @@
-import { RedisClient } from '../../../packages/redis-client/src/client';
+import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VOICE-STATE');
@@ -127,7 +127,7 @@ export class VoiceStateManager {
 
     try {
       return JSON.parse(data);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }

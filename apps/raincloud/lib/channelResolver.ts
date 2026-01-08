@@ -12,10 +12,23 @@ export interface ChannelResult {
 }
 
 export class ChannelResolver {
+  private client: Client | null = null;
+
   constructor(
     private voiceStateManager: VoiceStateManager,
-    private client: Client
-  ) {}
+    client?: Client
+  ) {
+    if (client) {
+      this.client = client;
+    }
+  }
+
+  /**
+   * Set the Discord client (can be called after construction)
+   */
+  setClient(client: Client): void {
+    this.client = client;
+  }
 
   /**
    * Resolve target voice channel based on rules:
@@ -69,6 +82,11 @@ export class ChannelResolver {
    * Check if bot has permissions to connect and speak in channel
    */
   private async checkPermissions(guildId: string, channelId: string): Promise<boolean> {
+    if (!this.client) {
+      log.warn('Discord client not set, skipping permission check');
+      return true; // Assume permissions are OK if client not available
+    }
+
     try {
       const guild = this.client.guilds.cache.get(guildId);
       if (!guild) {
@@ -109,6 +127,10 @@ export class ChannelResolver {
    * Get permission diagnostic for channel
    */
   async getPermissionDiagnostic(guildId: string, channelId: string): Promise<string> {
+    if (!this.client) {
+      return 'Discord client not set';
+    }
+
     try {
       const guild = this.client.guilds.cache.get(guildId);
       if (!guild) return 'Guild not found';

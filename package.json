@@ -5,9 +5,11 @@
   "license": "ISC",
   "author": "",
   "private": true,
+  "packageManager": "yarn@4.6.0",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "ui"
   ],
   "engines": {
     "node": ">=22.12.0"
@@ -26,7 +28,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "prepare": "[ -d .git ] && husky || true",
-    "validate": "npm run type-check && npm run lint && npm run format:check && npm run test"
+    "validate": "yarn type-check && yarn lint && yarn format:check && yarn test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -58,8 +60,6 @@
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "@google-cloud/speech": "^6.8.0",
-    "@google-cloud/text-to-speech": "^5.8.0",
     "openai": "^4.104.0"
   },
   "lint-staged": {

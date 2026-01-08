@@ -1,6 +1,28 @@
+/**
+ * Join command - Multi-bot architecture version
+ * Connects all worker bots to the voice channel
+ */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const voiceManager = require('../../dist/utils/voiceManager');
 const { checkVoicePermissions, createErrorResponse } = require('../utils/commandHelpers');
+const { createLogger } = require('../../dist/utils/logger');
+
+const log = createLogger('JOIN');
+
+// Try to use multi-bot service, fall back to local voiceManager
+async function getPlaybackService() {
+  try {
+    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    if (MultiBotService.isInitialized()) {
+      return { type: 'multibot', service: MultiBotService.getInstance() };
+    }
+  } catch {
+    // Multi-bot service not available
+  }
+
+  // Fall back to local voiceManager
+  const voiceManager = require('../../dist/utils/voiceManager');
+  return { type: 'local', service: voiceManager };
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -23,39 +45,59 @@ module.exports = {
       return interaction.reply(permissionCheck.error);
     }
 
+    const { type, service } = await getPlaybackService();
+
     try {
-      await voiceManager.joinChannel(voiceChannel);
+      if (type === 'multibot') {
+        // Multi-bot architecture - connect all workers
+        await interaction.deferReply();
 
-      // Start listening to all users already in the channel if voice control is enabled
-      try {
-        const {
-          getVoiceInteractionManager,
-        } = require('../../dist/utils/voice/voiceInteractionInstance');
-        const { getVoiceConnection } = require('@discordjs/voice');
-        const voiceInteractionMgr = getVoiceInteractionManager();
+        const result = await service.joinChannel(voiceChannel, interaction.user.id);
 
-        if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(interaction.guildId)) {
-          const connection = getVoiceConnection(interaction.guildId);
-          if (connection) {
-            // Get all members in the voice channel (excluding bots)
-            const members = voiceChannel.members.filter((m) => !m.user.bot);
-            for (const [userId, member] of members) {
-              await voiceInteractionMgr.startListening(userId, interaction.guildId, connection);
-              console.log(`Started voice listening for existing user: ${member.user.tag}`);
+        if (!result.success) {
+          return interaction.editReply({
+            content: `❌ ${result.message || 'Failed to join voice channel'}`,
+          });
+        }
+
+        log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name} (multi-bot mode)`);
+        await interaction.editReply(
+          `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
+        );
+      } else {
+        // Local voiceManager fallback
+        const voiceManager = service;
+        await voiceManager.joinChannel(voiceChannel);
+
+        // Start listening to all users already in the channel if voice control is enabled
+        try {
+          const {
+            getVoiceInteractionManager,
+          } = require('../../dist/utils/voice/voiceInteractionInstance');
+          const { getVoiceConnection } = require('@discordjs/voice');
+          const voiceInteractionMgr = getVoiceInteractionManager();
+
+          if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(interaction.guildId)) {
+            const connection = getVoiceConnection(interaction.guildId);
+            if (connection) {
+              const members = voiceChannel.members.filter((m) => !m.user.bot);
+              for (const [userId, memberObj] of members) {
+                await voiceInteractionMgr.startListening(userId, interaction.guildId, connection);
+                log.debug(`Started voice listening for existing user: ${memberObj.user.tag}`);
+              }
             }
           }
+        } catch (voiceError) {
+          log.debug(`Voice interaction setup failed (non-critical): ${voiceError.message}`);
         }
-      } catch (voiceError) {
-        // Don't fail the join if voice interaction setup fails
-        console.log(`Voice interaction setup failed (non-critical): ${voiceError.message}`);
-      }
 
-      await interaction.reply(
-        `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
-      );
+        log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name}`);
+        await interaction.reply(
+          `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
+        );
+      }
     } catch (error) {
-      console.error('Error joining voice channel:', error);
-      // Check if we already replied
+      log.error(`Error joining voice channel: ${error.message}`);
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(
           createErrorResponse(

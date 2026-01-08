@@ -1,0 +1,100 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  ## 🚀 What's Changed
+
+  $CHANGES
+
+  ## 🐳 Docker Images
+
+  Pull the images from GitHub Container Registry:
+
+  ```bash
+  # Raincloud Orchestrator
+  docker pull ghcr.io/$OWNER/rainbot-raincloud:v$RESOLVED_VERSION
+
+  # Worker Bots
+  docker pull ghcr.io/$OWNER/rainbot-rainbot:v$RESOLVED_VERSION
+  docker pull ghcr.io/$OWNER/rainbot-pranjeet:v$RESOLVED_VERSION
+  docker pull ghcr.io/$OWNER/rainbot-hungerbot:v$RESOLVED_VERSION
+  ```
+
+  ## 📦 Railway Deployment
+
+  Update your Railway services to use these image tags:
+  - `ghcr.io/$OWNER/rainbot-raincloud:v$RESOLVED_VERSION`
+  - `ghcr.io/$OWNER/rainbot-rainbot:v$RESOLVED_VERSION`
+  - `ghcr.io/$OWNER/rainbot-pranjeet:v$RESOLVED_VERSION`
+  - `ghcr.io/$OWNER/rainbot-hungerbot:v$RESOLVED_VERSION`
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  - title: '🧰 Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+      - 'dependencies'
+  - title: '📖 Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+  - title: '🔧 Configuration'
+    labels:
+      - 'config'
+      - 'infrastructure'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'patch'
+      - 'fix'
+      - 'bugfix'
+  default: patch
+
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+  - label: 'feature'
+    branch:
+      - '/feature\/.+/'
+  - label: 'fix'
+    branch:
+      - '/fix\/.+/'
+      - '/bugfix\/.+/'
+  - label: 'chore'
+    branch:
+      - '/chore\/.+/'
+      - '/maintenance\/.+/'
+  - label: 'infrastructure'
+    files:
+      - 'Dockerfile*'
+      - '.github/**/*'
+      - 'railway*.json'
+      - 'turbo.json'
+
+exclude-labels:
+  - 'skip-changelog'

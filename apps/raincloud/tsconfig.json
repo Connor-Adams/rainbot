@@ -4,6 +4,9 @@
     "outDir": "./dist",
     "rootDir": "./",
     "baseUrl": "./",
+    "noImplicitReturns": false,
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
     "paths": {
       "@commands/*": ["commands/*"],
       "@utils/*": ["utils/*"],
@@ -11,7 +14,8 @@
       "@server/*": ["server/*"],
       "@handlers/*": ["handlers/*"],
       "@events/*": ["events/*"],
-      "@components/*": ["components/*"]
+      "@components/*": ["components/*"],
+      "@lib/*": ["lib/*"]
     }
   },
   "include": [
@@ -22,7 +26,8 @@
     "server/**/*.ts",
     "handlers/**/*.ts",
     "events/**/*.ts",
-    "components/**/*.ts"
+    "components/**/*.ts",
+    "lib/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

@@ -68,6 +68,7 @@ export function loadConfig(): AppConfig {
   // Also includes Railway's auto-injected bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
   const relevantEnvVars = Object.keys(process.env).filter(
     (key) =>
+      key.startsWith('RAINCLOUD_') ||
       key.startsWith('DISCORD_') ||
       key.startsWith('SESSION_') ||
       key.startsWith('REQUIRED_') ||
@@ -114,7 +115,8 @@ export function loadConfig(): AppConfig {
   // Build config object from environment variables only
   const config: AppConfig = {
     // Bot configuration
-    token: process.env['DISCORD_BOT_TOKEN'],
+    // RAINCLOUD_TOKEN is preferred, DISCORD_BOT_TOKEN is legacy fallback
+    token: process.env['RAINCLOUD_TOKEN'] || process.env['DISCORD_BOT_TOKEN'],
     clientId: process.env['DISCORD_CLIENT_ID'],
     guildId: process.env['DISCORD_GUILD_ID'],
 
