@@ -18,12 +18,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install backend dependencies
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: npm ci
+        run: yarn install --immutable
+
+      - name: Build TypeScript
+        run: yarn build:ts
 
       - name: Install frontend dependencies
         working-directory: ./ui

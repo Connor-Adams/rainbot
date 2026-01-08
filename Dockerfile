@@ -1,63 +1,47 @@
-# Use Railway's Node.js base image (Railpack compatible)
+# =============================================================================
+# Rainbot Unified Image - All 4 bots in one image
+# =============================================================================
+# Deploy this image 4 times with different CMD:
+#   - Raincloud:  node apps/raincloud/index.js
+#   - Rainbot:    node apps/rainbot/dist/index.js
+#   - Pranjeet:   node apps/pranjeet/dist/index.js
+#   - HungerBot:  node apps/hungerbot/dist/index.js
+# =============================================================================
+
 FROM node:22-slim
 
-# Install system dependencies required for native modules and yt-dlp
+# Install ALL dependencies (build tools + runtime)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    ffmpeg \
-    curl \
-    ca-certificates \
-    # Build tools for native Node.js modules (@discordjs/opus)
     build-essential \
     g++ \
     make \
-    libtool \
-    autoconf \
-    automake && \
-    # Install yt-dlp via pip (--break-system-packages needed for Python 3.11+ PEP 668)
+    ffmpeg \
+    curl \
+    ca-certificates && \
     pip3 install --no-cache-dir --break-system-packages yt-dlp && \
-    # Clean up apt cache
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+RUN corepack enable
+
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
-# Install Node.js dependencies (including devDependencies for TypeScript compilation)
-# Skip youtube-dl-exec binary download - we use system yt-dlp
-RUN YOUTUBE_DL_SKIP_DOWNLOAD=true npm ci
-
-# Copy application code
+# Copy everything
 COPY . .
 
-# Compile TypeScript during build
-RUN npm run build:ts
+# Install dependencies (native modules compile here)
+RUN yarn install --immutable
 
-# Deploy Discord commands during build (if env vars are available)
-RUN node utils/deployCommands.js || echo "Command deployment skipped (env vars not available during build)"
+# Build all TypeScript
+RUN yarn build:ts
 
-# Build React UI
-WORKDIR /app/ui
-COPY ui/package*.json ./
-# Install all dependencies (including devDependencies) to build
-RUN npm ci
-COPY ui/ ./
-RUN npm run build
+# Build UI (for Raincloud dashboard)
+RUN yarn workspace @rainbot/ui build
 
-# Return to app root
-WORKDIR /app
+ENV NODE_ENV=production
 
-# Remove devDependencies to reduce image size (optional)
-RUN npm prune --production
-
-# Expose port (Railway sets PORT env var)
-EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
-
+# Default to raincloud, override with CMD in deployment
+CMD ["node", "apps/raincloud/index.js"]
