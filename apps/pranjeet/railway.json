@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "yarn install --immutable && yarn turbo run build:ts --filter=@rainbot/pranjeet-worker",
+    "watchPatterns": ["apps/pranjeet/**", "packages/**", "package.json", "yarn.lock"]
+  },
+  "deploy": {
+    "startCommand": "node apps/pranjeet/dist/index.js",
+    "healthcheckPath": "/health/live",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

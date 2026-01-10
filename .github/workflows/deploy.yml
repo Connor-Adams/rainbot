@@ -14,24 +14,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Run Deno type check
+        run: deno check
+
+      - name: Run Deno lint
+        run: deno lint
+
+      - name: Check formatting
+        run: deno fmt --check
+
+      - name: Setup Node.js for UI build
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
-      - name: Install backend dependencies
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: npm ci
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install frontend dependencies
         working-directory: ./ui
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Build frontend
         working-directory: ./ui
-        run: npm run build
+        run: yarn build
 
       - name: Verify build output
         run: |

@@ -2,7 +2,7 @@
  * Type definitions for button components
  */
 
-import type { ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'npm:discord.js@14.15.3';
 
 /**
  * Button action types

@@ -2,8 +2,8 @@
  * Button builder utilities for creating Discord button components
  */
 
-import { ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { ButtonMetadata } from '../../types/buttons';
+import { ButtonBuilder, ButtonStyle } from 'npm:discord.js@14.15.3';
+import type { ButtonMetadata } from '../../types/buttons.ts';
 
 /**
  * Create a custom ID with embedded metadata
@@ -34,8 +34,13 @@ export function parseButtonId(customId: string): { prefix: string; metadata: But
     if (!part) continue;
     const [key, value] = part.split(':');
     if (key && value) {
-      // Try to parse as number, otherwise keep as string
-      metadata[key] = isNaN(Number(value)) ? value : Number(value);
+      // Parse specific numeric fields, otherwise keep as string
+      if (key === 'page' || key === 'totalPages') {
+        const numValue = Number(value);
+        (metadata as any)[key] = isNaN(numValue) ? value : numValue;
+      } else {
+        (metadata as any)[key] = value;
+      }
     }
   }
 

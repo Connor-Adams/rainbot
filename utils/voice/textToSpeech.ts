@@ -66,7 +66,7 @@ class GoogleTTSProvider implements TTSProvider {
         throw new Error('No audio content in TTS response');
       }
 
-      const audioBuffer = Buffer.from(response.audioContent);
+      const audioBuffer = Uint8Array.from(atob(response.audioContent), (c) => c.charCodeAt(0));
 
       return {
         audioBuffer,
@@ -129,7 +129,7 @@ class OpenAITTSProvider implements TTSProvider {
       });
 
       // OpenAI returns PCM audio at 24kHz, we need to convert to 48kHz for Discord
-      const pcm24k = Buffer.from(await response.arrayBuffer());
+      const pcm24k = new Uint8Array(await response.arrayBuffer());
       const pcm48k = this.resample24to48(pcm24k);
 
       return {
@@ -148,15 +148,17 @@ class OpenAITTSProvider implements TTSProvider {
    * Input: 24000 samples/sec, Output: 48000 samples/sec
    * Each input sample is duplicated to create two output samples
    */
-  private resample24to48(pcm24k: Buffer): Buffer {
+  private resample24to48(pcm24k: Uint8Array): Uint8Array {
     const samples24k = pcm24k.length / 2; // 16-bit = 2 bytes per sample
-    const pcm48k = Buffer.alloc(samples24k * 4); // 2x samples, 2 bytes each = 4x buffer
+    const pcm48k = new Uint8Array(samples24k * 4); // 2x samples, 2 bytes each = 4x buffer
+    const view24k = new DataView(pcm24k.buffer);
+    const view48k = new DataView(pcm48k.buffer);
 
     for (let i = 0; i < samples24k; i++) {
-      const sample = pcm24k.readInt16LE(i * 2);
+      const sample = view24k.getInt16(i * 2, true);
       // Write each sample twice for 2x upsampling
-      pcm48k.writeInt16LE(sample, i * 4);
-      pcm48k.writeInt16LE(sample, i * 4 + 2);
+      view48k.setInt16(i * 4, sample, true);
+      view48k.setInt16(i * 4 + 2, sample, true);
     }
 
     return pcm48k;
@@ -172,7 +174,7 @@ class MockTTSProvider implements TTSProvider {
     log.warn(`Mock TTS: "${request.text}"`);
 
     // Generate 1 second of silence (48000 Hz, 16-bit PCM)
-    const silenceBuffer = Buffer.alloc(48000 * 2);
+    const silenceBuffer = new Uint8Array(48000 * 2);
 
     return {
       audioBuffer: silenceBuffer,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Voice Interaction Manager - Orchestrates voice command processing
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
@@ -207,7 +206,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     let chunkSequence = 0;
     let lastLogTime = Date.now();
     let totalBytesReceived = 0;
-    audioStream.on('data', (chunk: Buffer) => {
+    audioStream.on('data', (chunk: Uint8Array) => {
       if (!session.isListening) return;
 
       if (!firstChunkReceived) {
@@ -293,14 +292,20 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private async saveRecordedAudio(
     userId: string,
     _guildId: string,
-    audioBuffers: Buffer[]
+    audioBuffers: Uint8Array[]
   ): Promise<void> {
     let tempRawFile: string | null = null;
     let tempWavFile: string | null = null;
 
     try {
       // Concatenate all audio chunks
-      const audioBuffer = Buffer.concat(audioBuffers);
+      const totalLength = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+      const audioBuffer = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of audioBuffers) {
+        audioBuffer.set(chunk, offset);
+        offset += chunk.length;
+      }
       const timestamp = Date.now();
 
       // Create temporary files for conversion
@@ -323,7 +328,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       const filename = `records/${userId}-${timestamp}.wav`;
 
       // Create an async iterable from the buffer
-      async function* bufferToAsyncIterable(buf: Buffer): AsyncIterable<Buffer> {
+      async function* bufferToAsyncIterable(buf: Uint8Array): AsyncIterable<Uint8Array> {
         yield buf;
       }
 

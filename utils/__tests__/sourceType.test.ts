@@ -1,76 +1,74 @@
 import { detectSourceType, type TrackForSourceDetection } from '../sourceType';
+import { assertEquals, assert, assertThrows, assertRejects } from '@std/assert';
 
-describe('sourceType', () => {
-  describe('detectSourceType', () => {
-    it('detects local files', () => {
-      const track: TrackForSourceDetection = {
-        isLocal: true,
-        url: '/path/to/local/file.mp3',
-      };
-      expect(detectSourceType(track)).toBe('local');
-    });
+// sourceType tests
+Deno.test('detectSourceType - detects local files', () => {
+  const track: TrackForSourceDetection = {
+    isLocal: true,
+    url: '/path/to/local/file.mp3',
+  };
+  assertEquals(detectSourceType(track), 'local');
+});
 
-    it('detects YouTube URLs with youtube.com domain', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      };
-      expect(detectSourceType(track)).toBe('youtube');
-    });
+Deno.test('detectSourceType - detects YouTube URLs with youtube.com domain', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  };
+  assertEquals(detectSourceType(track), 'youtube');
+});
 
-    it('detects YouTube URLs with youtu.be domain', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://youtu.be/dQw4w9WgXcQ',
-      };
-      expect(detectSourceType(track)).toBe('youtube');
-    });
+Deno.test('detectSourceType - detects YouTube URLs with youtu.be domain', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://youtu.be/dQw4w9WgXcQ',
+  };
+  assertEquals(detectSourceType(track), 'youtube');
+});
 
-    it('detects YouTube URLs case-insensitively', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ',
-      };
-      expect(detectSourceType(track)).toBe('youtube');
-    });
+Deno.test('detectSourceType - detects YouTube URLs case-insensitively', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ',
+  };
+  assertEquals(detectSourceType(track), 'youtube');
+});
 
-    it('detects Spotify URLs', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp',
-      };
-      expect(detectSourceType(track)).toBe('spotify');
-    });
+Deno.test('detectSourceType - detects Spotify URLs', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp',
+  };
+  assertEquals(detectSourceType(track), 'spotify');
+});
 
-    it('detects Spotify tracks by spotifyId', () => {
-      const track: TrackForSourceDetection = {
-        spotifyId: '3n3Ppam7vgaVa1iaRUc9Lp',
-        url: 'https://example.com',
-      };
-      expect(detectSourceType(track)).toBe('spotify');
-    });
+Deno.test('detectSourceType - detects Spotify tracks by spotifyId', () => {
+  const track: TrackForSourceDetection = {
+    spotifyId: '3n3Ppam7vgaVa1iaRUc9Lp',
+    url: 'https://example.com',
+  };
+  assertEquals(detectSourceType(track), 'spotify');
+});
 
-    it('detects SoundCloud URLs', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://soundcloud.com/artist/track',
-      };
-      expect(detectSourceType(track)).toBe('soundcloud');
-    });
+Deno.test('detectSourceType - detects SoundCloud URLs', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://soundcloud.com/artist/track',
+  };
+  assertEquals(detectSourceType(track), 'soundcloud');
+});
 
-    it('returns "other" for unknown URLs', () => {
-      const track: TrackForSourceDetection = {
-        url: 'https://example.com/audio.mp3',
-      };
-      expect(detectSourceType(track)).toBe('other');
-    });
+Deno.test('detectSourceType - returns "other" for unknown URLs', () => {
+  const track: TrackForSourceDetection = {
+    url: 'https://example.com/audio.mp3',
+  };
+  assertEquals(detectSourceType(track), 'other');
+});
 
-    it('returns "other" when url is missing', () => {
-      const track: TrackForSourceDetection = {};
-      expect(detectSourceType(track)).toBe('other');
-    });
+Deno.test('detectSourceType - returns "other" when url is missing', () => {
+  const track: TrackForSourceDetection = {};
+  assertEquals(detectSourceType(track), 'other');
+});
 
-    it('prioritizes isLocal over URL content', () => {
-      const track: TrackForSourceDetection = {
-        isLocal: true,
-        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      };
-      expect(detectSourceType(track)).toBe('local');
-    });
-  });
+Deno.test('detectSourceType - prioritizes isLocal over URL content', () => {
+  const track: TrackForSourceDetection = {
+    isLocal: true,
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  };
+  assertEquals(detectSourceType(track), 'local');
 });

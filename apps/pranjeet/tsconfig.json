@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": {
+      "@utils/*": ["../../utils/*"],
+      "@types/*": ["../../types/*"],
+      "@server/*": ["../../server/*"],
+      "@handlers/*": ["../../handlers/*"],
+      "@events/*": ["../../events/*"],
+      "@components/*": ["../../components/*"],
+      "@commands/*": ["../../commands/*"]
+    },
+    "noImplicitReturns": false,
+    "noUnusedParameters": false,
+    "noUnusedLocals": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

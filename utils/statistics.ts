@@ -1,7 +1,7 @@
-import { query } from './database';
-import { createLogger } from './logger';
+import { query } from './database.ts';
+import { createLogger } from './logger.ts';
 import { EventEmitter } from 'events';
-import type { SourceType } from './sourceType';
+import type { SourceType } from './sourceType.ts';
 
 const log = createLogger('STATS');
 
@@ -313,7 +313,7 @@ const bufferMap: Record<BufferType, unknown[]> = {
 // Active voice sessions for tracking duration
 const activeSessions = new Map<string, VoiceSessionEvent>();
 
-let batchTimer: NodeJS.Timeout | null = null;
+let batchTimer: number | null = null;
 
 /**
  * Start batch processing timer

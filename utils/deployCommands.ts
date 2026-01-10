@@ -1,7 +1,7 @@
 import { REST, Routes, RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
-import { createLogger } from './logger';
+import { createLogger } from './logger.ts';
 
 const log = createLogger('DEPLOY');
 

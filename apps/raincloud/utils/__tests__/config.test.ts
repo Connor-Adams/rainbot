@@ -1,0 +1,271 @@
+// Mock the logger to prevent console output during tests
+jest.mock('../logger', () => ({
+  createLogger: () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    http: jest.fn(),
+  }),
+}));
+
+// config tests
+let originalEnv: NodeJS.ProcessEnv;
+
+beforeEach(() => {
+  // Save original environment
+  originalEnv = { ...process.env };
+
+  // Clear environment variables
+  Object.keys(process.env).forEach((key) => {
+    if (
+      key.startsWith('DISCORD_') ||
+      key.startsWith('SESSION_') ||
+      key.startsWith('REQUIRED_') ||
+      key.startsWith('STORAGE_') ||
+      key.startsWith('SPOTIFY_') ||
+      key.startsWith('AWS_') ||
+      key === 'PORT' ||
+      key === 'CALLBACK_URL' ||
+      key === 'RAILWAY_PUBLIC_DOMAIN' ||
+      key === 'DISABLE_AUTO_DEPLOY' ||
+      key === 'DATABASE_URL' ||
+      key === 'BUCKET' ||
+      key === 'ACCESS_KEY_ID' ||
+      key === 'SECRET_ACCESS_KEY' ||
+      key === 'ENDPOINT' ||
+      key === 'REGION'
+    ) {
+      delete process.env[key];
+    }
+    // Clear any cached config by requiring a fresh instance
+    jest.resetModules();
+  });
+});
+
+afterEach(() => {
+  // Restore original environment
+  process.env = originalEnv;
+  jest.resetModules();
+});
+// loadConfig tests
+Deno.test('loads all required configuration from environment variables', () => {
+  process.env['DISCORD_BOT_TOKEN'] = 'test-token';
+  process.env['DISCORD_CLIENT_ID'] = 'test-client-id';
+  process.env['DISCORD_CLIENT_SECRET'] = 'test-client-secret';
+  process.env['SESSION_SECRET'] = 'test-session-secret';
+  process.env['REQUIRED_ROLE_ID'] = 'test-role-id';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.token, 'test-token');
+  assertEquals(config.clientId, 'test-client-id');
+  assertEquals(config.discordClientSecret, 'test-client-secret');
+  assertEquals(config.sessionSecret, 'test-session-secret');
+  assertEquals(config.requiredRoleId, 'test-role-id');
+});
+Deno.test('loads optional configuration from environment variables', () => {
+  process.env['DISCORD_GUILD_ID'] = 'test-guild-id';
+  process.env['CALLBACK_URL'] = 'https://example.com/callback';
+  process.env['PORT'] = '8080';
+  process.env['SESSION_STORE_PATH'] = './custom-sessions';
+  process.env['REDIS_URL'] = 'redis://localhost:6379';
+  process.env['RAILWAY_PUBLIC_DOMAIN'] = 'example.railway.app';
+  process.env['DATABASE_URL'] = 'postgresql://localhost/testdb';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.guildId, 'test-guild-id');
+  assertEquals(config.callbackURL, 'https://example.com/callback');
+  assertEquals(config.dashboardPort, '8080');
+  assertEquals(config.sessionStorePath, './custom-sessions');
+  assertEquals(config.redisUrl, 'redis://localhost:6379');
+  assertEquals(config.railwayPublicDomain, 'example.railway.app');
+  assertEquals(config.databaseUrl, 'postgresql://localhost/testdb');
+});
+Deno.test('loads storage configuration with AWS prefix', () => {
+  process.env['AWS_S3_BUCKET_NAME'] = 'test-bucket';
+  process.env['AWS_ACCESS_KEY_ID'] = 'test-access-key';
+  process.env['AWS_SECRET_ACCESS_KEY'] = 'test-secret-key';
+  process.env['AWS_ENDPOINT_URL'] = 'https://s3.example.com';
+  process.env['AWS_DEFAULT_REGION'] = 'us-west-2';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.storageBucketName, 'test-bucket');
+  assertEquals(config.storageAccessKey, 'test-access-key');
+  assertEquals(config.storageSecretKey, 'test-secret-key');
+  assertEquals(config.storageEndpoint, 'https://s3.example.com');
+  assertEquals(config.storageRegion, 'us-west-2');
+});
+Deno.test('loads storage configuration with legacy Railway variables', () => {
+  process.env['BUCKET'] = 'legacy-bucket';
+  process.env['ACCESS_KEY_ID'] = 'legacy-access-key';
+  process.env['SECRET_ACCESS_KEY'] = 'legacy-secret-key';
+  process.env['ENDPOINT'] = 'https://legacy.s3.example.com';
+  process.env['REGION'] = 'eu-west-1';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.storageBucketName, 'legacy-bucket');
+  assertEquals(config.storageAccessKey, 'legacy-access-key');
+  assertEquals(config.storageSecretKey, 'legacy-secret-key');
+  assertEquals(config.storageEndpoint, 'https://legacy.s3.example.com');
+  assertEquals(config.storageRegion, 'eu-west-1');
+});
+Deno.test('loads storage configuration with STORAGE_ prefix', () => {
+  process.env['STORAGE_BUCKET_NAME'] = 'storage-bucket';
+  process.env['STORAGE_ACCESS_KEY'] = 'storage-access-key';
+  process.env['STORAGE_SECRET_KEY'] = 'storage-secret-key';
+  process.env['STORAGE_ENDPOINT'] = 'https://storage.example.com';
+  process.env['STORAGE_REGION'] = 'ap-southeast-1';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.storageBucketName, 'storage-bucket');
+  assertEquals(config.storageAccessKey, 'storage-access-key');
+  assertEquals(config.storageSecretKey, 'storage-secret-key');
+  assertEquals(config.storageEndpoint, 'https://storage.example.com');
+  assertEquals(config.storageRegion, 'ap-southeast-1');
+});
+Deno.test('prioritizes AWS_ prefix over legacy variables for storage', () => {
+  process.env['AWS_S3_BUCKET_NAME'] = 'aws-bucket';
+  process.env['BUCKET'] = 'legacy-bucket';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.storageBucketName, 'aws-bucket');
+});
+Deno.test('loads Spotify configuration', () => {
+  process.env['SPOTIFY_CLIENT_ID'] = 'spotify-client-id';
+  process.env['SPOTIFY_CLIENT_SECRET'] = 'spotify-client-secret';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.spotifyClientId, 'spotify-client-id');
+  assertEquals(config.spotifyClientSecret, 'spotify-client-secret');
+});
+Deno.test('uses default port when PORT is not set', () => {
+  delete process.env['PORT'];
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.dashboardPort, 3000);
+});
+Deno.test('uses default session store path when not set', () => {
+  delete process.env['SESSION_STORE_PATH'];
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.sessionStorePath, './sessions');
+});
+Deno.test('uses default storage region when not set', () => {
+  delete process.env['AWS_DEFAULT_REGION'];
+  delete process.env['REGION'];
+  delete process.env['STORAGE_REGION'];
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.storageRegion, 'us-east-1');
+});
+
+Deno.test('sets disableAutoDeploy to true when DISABLE_AUTO_DEPLOY is "true"', () => {
+  process.env['DISABLE_AUTO_DEPLOY'] = 'true';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.disableAutoDeploy, true);
+});
+
+Deno.test('sets disableAutoDeploy to false when DISABLE_AUTO_DEPLOY is not set', () => {
+  delete process.env['DISABLE_AUTO_DEPLOY'];
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  assertEquals(config.disableAutoDeploy, false);
+});
+
+Deno.test('loads config with only required environment variables', () => {
+  // Only set required config to avoid warnings
+  process.env['DISCORD_BOT_TOKEN'] = 'test-token';
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  expect(config.guildId).toBeUndefined();
+  expect(config.callbackURL).toBeUndefined();
+  expect(config.redisUrl).toBeUndefined();
+  expect(config.railwayPublicDomain).toBeUndefined();
+  expect(config.databaseUrl).toBeUndefined();
+  expect(config.storageBucketName).toBeUndefined();
+  expect(config.spotifyClientId).toBeUndefined();
+});
+Deno.test('returns the same cached config on subsequent calls', () => {
+  process.env['DISCORD_BOT_TOKEN'] = 'test-token';
+  process.env['DISCORD_CLIENT_ID'] = 'test-client-id';
+
+  const { loadConfig } = require('../config');
+  const config1 = loadConfig();
+  const config2 = loadConfig();
+
+  assertEquals(config1, config2); // Same reference
+});
+Deno.test('handles missing required configuration gracefully', () => {
+  // Clear all environment variables
+  delete process.env['DISCORD_BOT_TOKEN'];
+  delete process.env['DISCORD_CLIENT_ID'];
+  delete process.env['DISCORD_CLIENT_SECRET'];
+  delete process.env['SESSION_SECRET'];
+  delete process.env['REQUIRED_ROLE_ID'];
+
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  expect(config.token).toBeUndefined();
+  expect(config.clientId).toBeUndefined();
+  expect(config.discordClientSecret).toBeUndefined();
+  expect(config.sessionSecret).toBeUndefined();
+  expect(config.requiredRoleId).toBeUndefined();
+  // Should still return a valid config object with defaults
+  assertEquals(config.dashboardPort, 3000);
+  assertEquals(config.sessionStorePath, './sessions');
+  assertEquals(config.storageRegion, 'us-east-1');
+  assertEquals(config.disableAutoDeploy, false);
+});
+Deno.test('returns a config object with the correct type signature', () => {
+  const { loadConfig } = require('../config');
+  const config = loadConfig();
+
+  expect(config).toHaveProperty('token');
+  expect(config).toHaveProperty('clientId');
+  expect(config).toHaveProperty('guildId');
+  expect(config).toHaveProperty('discordClientSecret');
+  expect(config).toHaveProperty('callbackURL');
+  expect(config).toHaveProperty('requiredRoleId');
+  expect(config).toHaveProperty('dashboardPort');
+  expect(config).toHaveProperty('sessionSecret');
+  expect(config).toHaveProperty('sessionStorePath');
+  expect(config).toHaveProperty('redisUrl');
+  expect(config).toHaveProperty('railwayPublicDomain');
+  expect(config).toHaveProperty('storageBucketName');
+  expect(config).toHaveProperty('storageAccessKey');
+  expect(config).toHaveProperty('storageSecretKey');
+  expect(config).toHaveProperty('storageEndpoint');
+  expect(config).toHaveProperty('storageRegion');
+  expect(config).toHaveProperty('disableAutoDeploy');
+  expect(config).toHaveProperty('databaseUrl');
+  expect(config).toHaveProperty('spotifyClientId');
+  expect(config).toHaveProperty('spotifyClientSecret');
+});

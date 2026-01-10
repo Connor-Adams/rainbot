@@ -1,25 +1,78 @@
 # Rainbot 🌧️
 
-A Discord voice bot with a web dashboard for playing sounds, YouTube/SoundCloud URLs, and managing playlists in voice channels.
+A Discord voice bot with multi-bot architecture for enhanced audio playback, featuring a web dashboard and comprehensive voice control.
+
+## Architecture
+
+Rainbot uses a **Yarn workspaces monorepo** with a **4-bot orchestrated architecture**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Railway Project                          │
+│                                                                 │
+│  ┌─────────────┐                                                │
+│  │     UI      │◄──── Public URL (only public-facing service)   │
+│  │  (React)    │                                                │
+│  └──────┬──────┘                                                │
+│         │ Proxy /api, /auth (internal network)                  │
+│         ▼                                                       │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐       │
+│  │  Raincloud  │────►│   Rainbot   │     │  Pranjeet   │       │
+│  │(Orchestrator)│    │   (Music)   │     │   (TTS)     │       │
+│  └──────┬──────┘     └─────────────┘     └─────────────┘       │
+│         │                                                       │
+│         └───────────►┌─────────────┐                           │
+│                      │  HungerBot  │                           │
+│                      │ (Soundboard)│                           │
+│                      └─────────────┘                           │
+│                                                                 │
+│  All backend services use Railway internal networking          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Workspace Structure
+
+```
+rainbot/
+├── apps/
+│   ├── raincloud/     # Orchestrator - commands, API, coordination
+│   ├── rainbot/       # Music worker - queue-based playback
+│   ├── pranjeet/      # TTS worker - text-to-speech
+│   └── hungerbot/     # Soundboard worker - sound effects
+├── packages/
+│   ├── shared/        # Shared utilities and types
+│   ├── redis-client/  # Redis client wrapper
+│   └── worker-protocol/ # Worker communication protocol
+├── ui/                # React + Tailwind dashboard
+└── package.json       # Root workspace config
+```
+
+See [Multi-Bot Architecture Documentation](docs/MULTIBOT_ARCHITECTURE.md) for details.
 
 ## Features
 
-- 🎵 **Play audio from multiple sources**: Local sound files, YouTube URLs, SoundCloud URLs, and playlists
-- 🔊 **Voice channel management**: Join, leave, and manage voice connections
-- 🎤 **Voice interaction**: Control music with voice commands (optional, requires API keys)
-- 📋 **Queue system**: Queue multiple tracks and manage playback
-- 🔁 **Auto keep playing mode**: Automatically plays related tracks when the queue is empty
-- 🎛️ **Web Dashboard**: Beautiful web interface for managing sounds and playing URLs
-- 📤 **Sound upload**: Upload and manage sound files through the web dashboard
-- 🎮 **Slash commands**: Easy-to-use Discord slash commands
-- 📊 **Statistics Dashboard**: Comprehensive statistics tracking with PostgreSQL (command usage, sound playback, user activity, time trends)
+- 🎵 **Multi-source audio playback**: Local files, YouTube, SoundCloud, Spotify
+- 🎭 **Separated audio channels**: Music, TTS, and soundboard on independent bots
+- 🔊 **Smart voice management**: Auto-join with per-user channel fallback
+- 📋 **Queue system**: Advanced queue management with pre-buffering
+- 🎤 **Voice interaction**: Optional voice command control
+- 🎛️ **Web Dashboard**: Beautiful React + Tailwind interface
+- 📤 **Sound upload**: Manage sound files through the dashboard
+- 🎮 **Slash commands**: Easy-to-use Discord commands
+- 📊 **Statistics**: Comprehensive tracking with PostgreSQL
+- 🔄 **Redis state**: Persistent session management
 
-## Prerequisites
+## Quick Start
 
-- Node.js (v16.9.0 or higher)
-- npm or yarn
-- A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
-- FFmpeg (for audio processing)
+### Prerequisites
+
+- Node.js v22.12.0 or higher
+- Yarn 4+ (Corepack enabled)
+- Redis 7+
+- PostgreSQL 15+
+- FFmpeg
+- yt-dlp
+- 4 Discord bot tokens (Raincloud, Rainbot, Pranjeet, HungerBot)
 
 ## Installation
 
@@ -30,16 +83,22 @@ git clone <repository-url>
 cd rainbot
 ```
 
-2. Install dependencies:
+2. Enable Corepack and install dependencies:
 
 ```bash
-npm install
+corepack enable
+yarn install
 ```
 
-3. Install FFmpeg:
+3. Install system dependencies:
+
+   **FFmpeg:**
    - **macOS**: `brew install ffmpeg`
-   - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-   - **Linux**: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or `sudo yum install ffmpeg` (CentOS/RHEL)
+   - **Linux**: `sudo apt-get install ffmpeg`
+
+   **yt-dlp:**
+   - **macOS**: `brew install yt-dlp`
+   - **Linux**: `pip install yt-dlp`
 
 4. Configure the bot:
 
@@ -49,65 +108,76 @@ npm install
    cp .env.example .env
    ```
 
-   - Edit `.env` and fill in your bot credentials
+   Edit `.env` and fill in your bot credentials.
 
-   **Note**: For production (Railway), set environment variables in the platform dashboard instead of using `.env`.
+   **Note**: For production (Railway), set environment variables in the platform dashboard.
 
-5. Start the bot:
+5. Build TypeScript:
 
 ```bash
-node index.js
+yarn build:ts
 ```
 
-**Note**: Discord commands are automatically deployed when the bot starts! You don't need to run `deploy-commands.js` manually unless you want to deploy commands without starting the bot.
-
-To manually deploy commands (optional):
+6. Start local infrastructure (Redis + PostgreSQL):
 
 ```bash
-node deploy-commands.js
+docker-compose up -d
+```
+
+7. Start the services:
+
+```bash
+# In separate terminals:
+node apps/raincloud/index.js
+node apps/rainbot/dist/index.js
+node apps/pranjeet/dist/index.js
+node apps/hungerbot/dist/index.js
+
+# For UI development:
+yarn workspace @rainbot/ui dev
 ```
 
 ## Configuration
 
+### Environment Variables
+
+Each service needs specific environment variables. Create a `.env` file based on `.env.example`:
+
+**Required for all bots:**
+
+- `DISCORD_CLIENT_ID` - Discord application client ID
+- `RAINCLOUD_TOKEN` - Raincloud bot token (orchestrator)
+- `RAINBOT_TOKEN` - Rainbot worker token
+- `PRANJEET_TOKEN` - Pranjeet worker token
+- `HUNGERBOT_TOKEN` - HungerBot worker token
+
+**For Web Dashboard (OAuth):**
+
+- `DISCORD_CLIENT_SECRET` - OAuth client secret
+- `SESSION_SECRET` - Session encryption key
+- `REQUIRED_ROLE_ID` - Discord role ID for dashboard access
+
+**Infrastructure:**
+
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+
+**Optional:**
+
+- `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` - For Spotify URL support
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `S3_BUCKET` - For S3 storage
+
+See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth configuration.
+
 ### Bot Permissions
 
-Make sure your bot has the following permissions in your Discord server:
+Each bot needs these Discord permissions:
 
 - Connect to voice channels
 - Speak in voice channels
 - Use slash commands
-- Read message history (optional, for better UX)
-- **View Channels** - Required for OAuth role verification
-- **Manage Roles** - Required to check if users have required role
-- **Read Member List** - Required to verify user membership
-
-### Environment Setup
-
-**Basic Bot Configuration:**
-
-1. **Discord Bot Token**: Get your bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
-2. **Client ID**: Found in your Discord application's General Information
-3. **Guild ID**: Right-click your Discord server → Copy Server ID (enable Developer Mode in Discord settings)
-4. **Dashboard Port**: Port for the web dashboard (default: 3000)
-
-**OAuth Configuration (for Web Dashboard):**
-See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions.
-
-**Quick OAuth Setup:**
-
-1. Get **Client Secret** from Discord Developer Portal → OAuth2
-2. Create a **role** in your Discord server for dashboard access
-3. Get the **role ID** (right-click role → Copy ID)
-4. Add **redirect URL** in Discord OAuth2 settings: `https://your-domain.com/auth/discord/callback`
-5. Set environment variables: `DISCORD_CLIENT_SECRET`, `REQUIRED_ROLE_ID`, `SESSION_SECRET`
-
-**Spotify Configuration (Optional, for Spotify URL support):**
-
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Create a new app or select an existing one
-3. Copy the **Client ID** and **Client Secret**
-4. Set environment variables: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`
-5. **Note**: Without Spotify credentials, Spotify links will not work. The bot will show a warning in logs but continue to function for other sources (YouTube, SoundCloud, etc.)
+- View Channels
+- Read Message History (optional)
 
 ## Commands
 
@@ -121,7 +191,7 @@ See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions
 - `/pause` - Pause playback
 - `/stop` - Stop playback
 - `/clear` - Clear the queue
-- `/autoplay [enabled]` - Toggle auto keep playing mode (automatically plays related tracks when queue is empty)
+- `/autoplay [enabled]` - Toggle autoplay mode
 
 ### Utility Commands
 
@@ -129,72 +199,58 @@ See **[OAUTH_SETUP.md](./OAUTH_SETUP.md)** for detailed OAuth setup instructions
 
 ## Web Dashboard
 
-The bot includes a web dashboard accessible at `http://localhost:3000` (or your configured port).
+The dashboard is served separately and proxies API requests to Raincloud over Railway's internal network.
 
 ### Dashboard Features
 
 - **Voice Connections**: View active voice channel connections
-- **Server List**: Browse all servers the bot is in
+- **Server List**: Browse all servers the bots are in
 - **URL Player**: Play YouTube, SoundCloud, or direct audio URLs
 - **Sound Library**: Browse and play uploaded sound files
-- **Sound Upload**: Upload new sound files (.mp3, .wav, .ogg, .m4a, .webm, .flac)
-- **Statistics Dashboard**: View comprehensive statistics including:
-  - Command usage statistics (top commands, success rates)
-  - Sound playback statistics (top sounds, source types, soundboard vs regular)
-  - User activity statistics (top users, activity counts)
-  - Guild activity statistics (top guilds, usage counts)
-  - Queue operation statistics (skip, pause, clear operations)
-  - Time-based trends (daily/weekly usage charts)
+- **Statistics Dashboard**: Command usage, playback stats, user activity
 
-### Using the Dashboard
+### Local Development
 
-1. Start the bot (the dashboard starts automatically)
-2. Navigate to `http://localhost:3000` in your browser
-3. Select a server from the dropdown
-4. Use the URL player or browse the sound library to play audio
+```bash
+# Start Raincloud (API server)
+node apps/raincloud/index.js
 
-## Project Structure
-
+# Start UI dev server (in another terminal)
+yarn workspace @rainbot/ui dev
 ```
-rainbot/
-├── commands/           # Discord slash commands
-│   ├── utility/       # Utility commands (ping, etc.)
-│   └── voice/         # Voice-related commands
-├── events/            # Discord event handlers
-├── handlers/          # Command and event handlers
-├── public/            # Web dashboard frontend
-│   ├── index.html    # Dashboard HTML
-│   ├── app.js        # Dashboard JavaScript
-│   └── style.css     # Dashboard styles
-├── server/            # Express server
-│   ├── routes/       # API routes
-│   └── middleware/   # Express middleware
-├── sounds/            # Local sound files
-├── utils/             # Utility modules
-│   ├── logger.js     # Winston logger
-│   └── voiceManager.js # Voice connection manager
-├── deploy-commands.js # Command deployment script
-└── index.js          # Main entry point
-```
-
-## Technologies Used
-
-- **discord.js** (v14) - Discord API wrapper
-- **@discordjs/voice** - Voice connection handling
-- **play-dl** - YouTube/SoundCloud audio streaming
-- **express** (v5) - Web server framework
-- **winston** - Logging
-- **multer** - File upload handling
-- **pg** - PostgreSQL client for statistics
-- **Chart.js** - Statistics visualization
 
 ## Development
+
+### Build Commands
+
+```bash
+# Install all dependencies
+yarn install
+
+# Build TypeScript
+yarn build:ts
+
+# Build UI for production
+yarn workspace @rainbot/ui build
+
+# Type check
+yarn type-check
+
+# Lint
+yarn lint
+
+# Format
+yarn format
+
+# Run all validations
+yarn validate
+```
 
 ### Adding New Commands
 
 1. Create a new file in `commands/[category]/[command-name].js`
 2. Export a command object with `data` (SlashCommandBuilder) and `execute` function
-3. Run `node deploy-commands.js` to deploy the new command
+3. Commands auto-deploy when bots start
 
 ### Adding Sound Files
 
@@ -203,76 +259,73 @@ rainbot/
 
 ## Testing
 
-This project uses Jest with ts-jest for comprehensive test coverage.
-
-### Running Tests
+This project uses Jest with ts-jest for test coverage.
 
 ```bash
 # Run all tests
-npm test
+yarn test
 
-# Run tests in watch mode (useful during development)
-npm run test:watch
+# Run tests in watch mode
+yarn test:watch
 
-# Run tests with coverage report
-npm run test:coverage
-
-# Run specific test file
-npx jest path/to/test-file.test.ts
+# Run tests with coverage
+yarn test:coverage
 ```
 
-### Test Coverage
+Tests are organized in `__tests__` directories next to source files.
 
-The project maintains comprehensive test coverage with the following thresholds:
+## Railway Deployment
 
-- **Statements**: 60%
-- **Branches**: 50%
-- **Functions**: 50%
-- **Lines**: 60%
+The project deploys to Railway as 5 separate services using Nixpacks:
 
-Coverage reports are generated in the `coverage/` directory after running `npm run test:coverage`.
+| Service   | Package              | Public                    |
+| --------- | -------------------- | ------------------------- |
+| Raincloud | `@rainbot/raincloud` | No (internal API)         |
+| Rainbot   | `@rainbot/rainbot`   | No                        |
+| Pranjeet  | `@rainbot/pranjeet`  | No                        |
+| HungerBot | `@rainbot/hungerbot` | No                        |
+| UI        | `@rainbot/ui`        | Yes (only public service) |
 
-### Writing Tests
+### Service Configuration
 
-Tests are organized in `__tests__` directories next to the source files they test:
+Each service has its own `railway.json` with Turborepo-scoped builds:
+
+```json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "yarn install --immutable && yarn turbo run build:ts --filter=@rainbot/raincloud"
+  }
+}
+```
+
+### Internal Networking
+
+The UI proxies to Raincloud using Railway's internal network:
 
 ```
-utils/
-  config.ts
-  __tests__/
-    config.test.ts
+UI Service → http://raincloud.railway.internal:3001 → Raincloud API
 ```
 
-Key testing practices:
+Set `RAINCLOUD_URL` in the UI service to use internal networking.
 
-- Use descriptive test names that explain what is being tested
-- Group related tests using `describe` blocks
-- Mock external dependencies (Discord.js, database, S3, etc.)
-- Test both success paths and error handling
-- Include edge cases and boundary conditions
+### Environment Variables per Service
 
-### Test Structure
+**Raincloud:**
 
-```typescript
-describe('moduleName', () => {
-  beforeEach(() => {
-    // Setup before each test
-  });
+- `RAINCLOUD_TOKEN` - Bot token
+- `DATABASE_URL`, `REDIS_URL` - Infrastructure
+- `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` - OAuth
 
-  describe('functionName', () => {
-    it('should handle the expected behavior', () => {
-      // Arrange
-      const input = 'test';
+**Workers (Rainbot, Pranjeet, HungerBot):**
 
-      // Act
-      const result = functionName(input);
+- `RAINBOT_TOKEN` / `PRANJEET_TOKEN` / `HUNGERBOT_TOKEN`
+- `REDIS_URL`
 
-      // Assert
-      expect(result).toBe('expected');
-    });
-  });
-});
-```
+**UI:**
+
+- `RAINCLOUD_URL` - Internal URL to Raincloud (e.g., `http://raincloud.railway.internal:3001`)
 
 ## Troubleshooting
 
@@ -283,44 +336,30 @@ describe('moduleName', () => {
 
 ### Audio playback issues
 
-- Verify FFmpeg is installed and in your system PATH
-- Check that the audio source URL is valid and accessible
-- Review logs in `logs/error.log` for detailed error messages
-
-### Voice interaction not working
-
-See the **[Voice Interaction Guide](VOICE_INTERACTION_GUIDE.md)** for:
-
-- Setup instructions for speech-to-text and text-to-speech APIs
-- Troubleshooting voice commands
-- Configuration options
-- Privacy and cost considerations
+- Verify FFmpeg is installed: `ffmpeg -version`
+- Verify yt-dlp is installed: `yt-dlp --version`
+- Check logs in `logs/error.log`
 
 ### YouTube 403 Forbidden errors
 
-If YouTube videos fail with 403 errors:
+See [YouTube 403 Fix Guide](docs/YOUTUBE_403_FIX.md):
 
-- See [YouTube 403 Fix Guide](docs/YOUTUBE_403_FIX.md) for detailed instructions
-- Quick fix: Export YouTube cookies and set `YTDLP_COOKIES` environment variable
-- The bot needs authentication cookies to access YouTube properly
+- Export YouTube cookies and set `YTDLP_COOKIES` environment variable
 
 ### Dashboard not loading
 
-- Ensure the bot is running
-- Check that the configured port is available
-- Verify firewall settings allow connections to the dashboard port
+- Ensure Raincloud is running (API server)
+- Check `RAINCLOUD_URL` is set correctly in UI service
+- Verify Railway internal networking for production
 
-## Additional Documentation
+## Documentation
 
-- **[Voice Interaction Guide](VOICE_INTERACTION_GUIDE.md)** - Voice command setup and usage
-- **[Architecture Documentation](ARCHITECTURE.md)** - System design and structure
-- **[OAuth Setup Guide](OAUTH_SETUP.md)** - Dashboard authentication setup
-- **[Railway Deployment Guide](RAILWAY_DEPLOY.md)** - Deploy to Railway platform
+- **[Architecture](ARCHITECTURE.md)** - System design and multi-bot architecture
+- **[Voice Module](utils/voice/README.md)** - Voice subsystem design and concurrency
+- **[OAuth Setup](OAUTH_SETUP.md)** - Dashboard authentication
+- **[Railway Deploy](RAILWAY_DEPLOY.md)** - Railway deployment guide
+- **[Voice Interaction](VOICE_INTERACTION_GUIDE.md)** - Voice command setup
 
 ## License
 
 ISC
-
-## Author
-
-Created for Discord voice channel audio playback and management.

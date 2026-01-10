@@ -1,0 +1,28 @@
+{
+  "name": "@rainbot/hungerbot-worker",
+  "version": "1.0.0",
+  "description": "HungerBot soundboard worker bot",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "deno run --allow-all --env src/index.ts",
+    "start": "deno run --allow-all --env src/index.ts",
+    "type-check": "tsc --noEmit",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.0",
+    "@rainbot/shared": "workspace:*",
+    "@rainbot/worker-protocol": "workspace:*",
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "opusscript": "^0.1.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  }
+}

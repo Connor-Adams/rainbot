@@ -2,8 +2,8 @@
 // Note: Commands are automatically deployed on bot startup, but you can use this script
 // to deploy commands without starting the bot
 
-const { deployCommands } = require('./utils/deployCommands');
-const { loadConfig } = require('./utils/config');
+const { deployCommands } = require('./dist/utils/deployCommands');
+const { loadConfig } = require('./dist/utils/config');
 
 const config = loadConfig();
 

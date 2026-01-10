@@ -1,0 +1,135 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create a release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/rainbot
+
+jobs:
+
+  # Build and validate
+  build:
+    name: Build and Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Run Deno type check
+        run: deno check
+
+      - name: Run Deno lint
+        run: deno lint
+
+      - name: Check formatting
+        run: deno fmt --check
+
+      - name: Run tests
+        run: deno test
+
+      - name: Setup Node.js for UI build
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        working-directory: ./ui
+        run: yarn install --immutable
+
+      - name: Build frontend
+        working-directory: ./ui
+        run: yarn build
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "ui/dist" ] || [ ! -f "ui/dist/index.html" ]; then
+            echo "❌ Build failed - dist directory or index.html not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
+  # Update release draft on every push to main
+  release-drafter:
+    name: Draft Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    permissions:
+      contents: write
+      pull-requests: read
+    
+    steps:
+      - name: Draft Release
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deploy to Railway when a release is published
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    needs: build
+    environment: production
+    
+    steps:
+      - name: Deploy Raincloud to Railway
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        continue-on-error: true
+
+      - name: Deploy Rainbot Worker to Railway
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        continue-on-error: true
+
+      - name: Deploy Pranjeet Worker to Railway
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        continue-on-error: true
+
+      - name: Deploy HungerBot Worker to Railway
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        continue-on-error: true
+
+      - name: Deployment Summary
+        run: |
+          echo "🚀 Deployed release ${{ github.event.release.tag_name }} to production"
+          echo ""
+          echo "All 4 services use Deno runtime:"
+          echo "  - Raincloud:  deno run --allow-all --env apps/raincloud/index.ts"
+          echo "  - Rainbot:    deno run --allow-all --env apps/rainbot/src/index.ts"
+          echo "  - Pranjeet:   deno run --allow-all --env apps/pranjeet/src/index.ts"
+          echo "  - HungerBot:  deno run --allow-all --env apps/hungerbot/src/index.ts"

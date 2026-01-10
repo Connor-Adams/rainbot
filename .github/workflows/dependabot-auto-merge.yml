@@ -21,18 +21,18 @@ jobs:
           cache: 'npm'
 
       - name: Install backend dependencies
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Install frontend dependencies
         working-directory: ./ui
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Run backend lint
-        run: npm run lint || echo "No lint script"
+        run: yarn lint || echo "No lint script"
 
       - name: Run frontend lint
         working-directory: ./ui
-        run: npm run lint
+        run: yarn lint
 
       - name: Type check frontend
         working-directory: ./ui
@@ -40,7 +40,7 @@ jobs:
 
       - name: Build frontend
         working-directory: ./ui
-        run: npm run build
+        run: yarn build
 
       - name: Auto-merge PR
         if: success()

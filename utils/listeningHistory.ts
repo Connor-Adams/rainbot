@@ -1,4 +1,4 @@
-import { createLogger } from './logger';
+import { createLogger } from './logger.ts';
 import { query } from './database';
 import { detectSourceType, SourceType } from './sourceType';
 

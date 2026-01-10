@@ -1,8 +1,8 @@
 import type { Response, NextFunction } from 'express';
-import { createLogger } from '../../utils/logger';
-import { verifyUserRole } from '../utils/roleVerifier';
-import { getClient } from '../client';
-import type { AuthenticatedRequest, DiscordUser } from '../../types/server';
+import { createLogger } from '../../utils/logger.ts';
+import { verifyUserRole } from '../utils/roleVerifier.ts';
+import { getClient } from '../client.ts';
+import type { AuthenticatedRequest, DiscordUser } from '../../types/server.ts';
 
 const log = createLogger('AUTH');
 

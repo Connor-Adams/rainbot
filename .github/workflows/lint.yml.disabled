@@ -25,10 +25,10 @@ jobs:
       - name: Install dependencies
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Run ESLint
-        run: npm run lint
+        run: yarn lint
         continue-on-error: false
 
       - name: Check for syntax errors
@@ -54,11 +54,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./ui
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Run ESLint
         working-directory: ./ui
-        run: npm run lint
+        run: yarn lint
 
       - name: Type check
         working-directory: ./ui

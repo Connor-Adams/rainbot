@@ -9,7 +9,7 @@ import {
 } from '@discordjs/voice';
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 import { createLogger } from '../logger';
 import { getVoiceState } from './connectionManager';
 import * as stats from '../statistics';

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "yarn install --immutable && yarn turbo run build:ts --filter=@rainbot/hungerbot-worker",
+    "watchPatterns": ["apps/hungerbot/**", "packages/**", "package.json", "yarn.lock"]
+  },
+  "deploy": {
+    "startCommand": "node apps/hungerbot/dist/index.js",
+    "healthcheckPath": "/health/live",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

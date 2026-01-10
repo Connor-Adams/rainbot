@@ -1,6 +1,6 @@
-import winston from 'winston';
-import path from 'path';
-import fs from 'fs';
+import winston from 'npm:winston@3.13.0';
+import { join } from '@std/path';
+import { existsSync, mkdirSync } from 'fs';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -61,39 +61,39 @@ function sanitizeLogMessage(message: string): string {
 // Create the logger
 const logger = winston.createLogger({
   levels,
-  level: process.env['LOG_LEVEL'] || 'debug',
+  level: Deno.env.get('LOG_LEVEL') || 'debug',
   format: combine(errors({ stack: true }), timestamp({ format: 'HH:mm:ss' })),
   transports: [
     // Console transport with colors
     new winston.transports.Console({
       format: combine(colorize({ all: true }), consoleFormat),
     }),
-    // File transport for errors only
-    new winston.transports.File({
-      filename: path.join(__dirname, '..', '..', 'logs', 'error.log'),
-      level: 'error',
-      format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        printf((info) => {
-          const {
-            level,
-            message,
-            timestamp: ts,
-            context,
-            stack,
-          } = info as {
-            level: string;
-            message: string;
-            timestamp?: string;
-            context?: string;
-            stack?: string;
-          };
-          const ctx = context ? ` [${context}]` : '';
-          const msg = stack || message;
-          return `${ts} ${level.toUpperCase()}${ctx} ${msg}`;
-        })
-      ),
-    }),
+    // File transport for errors only - disabled for Deno
+    // new winston.transports.File({
+    //   filename: join(Deno.cwd(), 'logs', 'error.log'),
+    //   level: 'error',
+    //   format: combine(
+    //     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    //     printf((info) => {
+    //       const {
+    //         level,
+    //         message,
+    //         timestamp: ts,
+    //         context,
+    //         stack,
+    //       } = info as {
+    //         level: string;
+    //         message: string;
+    //         timestamp?: string;
+    //         context?: string;
+    //         stack?: string;
+    //       };
+    //       const ctx = context ? ` [${context}]` : '';
+    //       const msg = stack || message;
+    //       return `${ts} ${level.toUpperCase()}${ctx} ${msg}`;
+    //     })
+    //   ),
+    // }),
   ],
 });
 
@@ -121,10 +121,12 @@ export function createLogger(context: string): Logger {
   };
 }
 
-// Ensure logs directory exists (go up 2 levels from dist/utils/ to project root)
-const logsDir = path.join(__dirname, '..', '..', 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+// Ensure logs directory exists (go up 2 levels from utils/ to project root)
+const logsDir = join(new URL('.', import.meta.url).pathname, '..', '..', 'logs');
+try {
+  await Deno.mkdir(logsDir, { recursive: true });
+} catch {
+  // Directory exists or error
 }
 
 export { logger };

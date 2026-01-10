@@ -9,7 +9,7 @@ import type {
   SpeechRecognitionResult,
   VoiceInteractionConfig,
 } from '../../types/voice-interaction';
-import { PassThrough } from 'stream';
+import { PassThrough } from 'node:stream';
 
 const log = createLogger('SPEECH_RECOGNITION');
 
@@ -17,7 +17,7 @@ const log = createLogger('SPEECH_RECOGNITION');
  * Abstract interface for STT providers
  */
 interface STTProvider {
-  recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult>;
+  recognize(audioBuffer: Uint8Array, languageCode: string): Promise<SpeechRecognitionResult>;
   recognizeStream(languageCode: string): NodeJS.WritableStream;
 }
 
@@ -42,10 +42,10 @@ class GoogleSTTProvider implements STTProvider {
     }
   }
 
-  async recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult> {
+  async recognize(audioBuffer: Uint8Array, languageCode: string): Promise<SpeechRecognitionResult> {
     try {
       const audio = {
-        content: audioBuffer.toString('base64'),
+        content: btoa(String.fromCharCode(...audioBuffer)),
       };
 
       const config = {
@@ -125,7 +125,7 @@ class OpenAISTTProvider implements STTProvider {
     }
   }
 
-  async recognize(audioBuffer: Buffer, languageCode: string): Promise<SpeechRecognitionResult> {
+  async recognize(audioBuffer: Uint8Array, languageCode: string): Promise<SpeechRecognitionResult> {
     try {
       // Calculate actual audio duration from buffer size
       // Mono PCM: 16-bit (2 bytes) × 48000 Hz = 96000 bytes per second
@@ -142,8 +142,8 @@ class OpenAISTTProvider implements STTProvider {
         log.debug(
           `➕ Padding audio with ${paddingBytes} bytes of silence to meet ${minDuration}s minimum`
         );
-        const paddedBuffer = Buffer.alloc(minBytes);
-        audioBuffer.copy(paddedBuffer, 0);
+        const paddedBuffer = new Uint8Array(minBytes);
+        paddedBuffer.set(audioBuffer, 0);
         // Rest of buffer is already zeros (silence)
         processedBuffer = paddedBuffer;
       }
@@ -194,7 +194,7 @@ class OpenAISTTProvider implements STTProvider {
     }
 
     // Fallback for older Node.js versions
-    const buffer = Buffer.from(await blob.arrayBuffer());
+    const buffer = new Uint8Array(await blob.arrayBuffer());
     return {
       name: filename,
       type: 'audio/wav',
@@ -217,33 +217,34 @@ class OpenAISTTProvider implements STTProvider {
   /**
    * Convert raw PCM to WAV format
    */
-  private pcmToWav(pcmBuffer: Buffer, sampleRate: number, channels: number): Buffer {
+  private pcmToWav(pcmBuffer: Uint8Array, sampleRate: number, channels: number): Uint8Array {
     const blockAlign = channels * 2; // 16-bit = 2 bytes per sample
     const byteRate = sampleRate * blockAlign;
     const dataSize = pcmBuffer.length;
     const headerSize = 44;
 
-    const wavBuffer = Buffer.alloc(headerSize + dataSize);
+    const wavBuffer = new Uint8Array(headerSize + dataSize);
+    const view = new DataView(wavBuffer.buffer);
 
     // RIFF header
-    wavBuffer.write('RIFF', 0);
-    wavBuffer.writeUInt32LE(36 + dataSize, 4);
-    wavBuffer.write('WAVE', 8);
+    wavBuffer.set(new TextEncoder().encode('RIFF'), 0);
+    view.setUint32(4, 36 + dataSize, true);
+    wavBuffer.set(new TextEncoder().encode('WAVE'), 8);
 
     // fmt chunk
-    wavBuffer.write('fmt ', 12);
-    wavBuffer.writeUInt32LE(16, 16); // fmt chunk size
-    wavBuffer.writeUInt16LE(1, 20); // PCM format
-    wavBuffer.writeUInt16LE(channels, 22);
-    wavBuffer.writeUInt32LE(sampleRate, 24);
-    wavBuffer.writeUInt32LE(byteRate, 28);
-    wavBuffer.writeUInt16LE(blockAlign, 32);
-    wavBuffer.writeUInt16LE(16, 34); // bits per sample
+    wavBuffer.set(new TextEncoder().encode('fmt '), 12);
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // bits per sample
 
     // data chunk
-    wavBuffer.write('data', 36);
-    wavBuffer.writeUInt32LE(dataSize, 40);
-    pcmBuffer.copy(wavBuffer, 44);
+    wavBuffer.set(new TextEncoder().encode('data'), 36);
+    view.setUint32(40, dataSize, true);
+    wavBuffer.set(pcmBuffer, 44);
 
     return wavBuffer;
   }
@@ -253,7 +254,10 @@ class OpenAISTTProvider implements STTProvider {
  * Mock STT provider for testing/development
  */
 class MockSTTProvider implements STTProvider {
-  async recognize(_audioBuffer: Buffer, _languageCode: string): Promise<SpeechRecognitionResult> {
+  async recognize(
+    _audioBuffer: Uint8Array,
+    _languageCode: string
+  ): Promise<SpeechRecognitionResult> {
     log.warn('Using mock STT provider - returning empty result');
     return {
       text: '',
@@ -319,7 +323,7 @@ export class SpeechRecognitionManager {
   /**
    * Convert audio buffer to text
    */
-  async recognize(audioBuffer: Buffer): Promise<SpeechRecognitionResult> {
+  async recognize(audioBuffer: Uint8Array): Promise<SpeechRecognitionResult> {
     const startTime = Date.now();
 
     try {
@@ -362,7 +366,7 @@ export class SpeechRecognitionManager {
    * Process audio chunks from Discord voice stream
    * Discord provides Opus-decoded PCM audio at 48kHz, 16-bit, stereo
    */
-  async processDiscordAudio(audioChunks: Buffer[]): Promise<SpeechRecognitionResult> {
+  async processDiscordAudio(audioChunks: Uint8Array[]): Promise<SpeechRecognitionResult> {
     if (audioChunks.length === 0) {
       return {
         text: '',
@@ -372,7 +376,13 @@ export class SpeechRecognitionManager {
     }
 
     // Concatenate audio chunks
-    const audioBuffer = Buffer.concat(audioChunks);
+    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const audioBuffer = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of audioChunks) {
+      audioBuffer.set(chunk, offset);
+      offset += chunk.length;
+    }
     log.debug(
       `\ud83d\udcca Processing ${audioChunks.length} audio chunks (${audioBuffer.length} bytes total)`
     );
@@ -389,7 +399,7 @@ export class SpeechRecognitionManager {
   /**
    * Convert stereo PCM to mono by averaging channels
    */
-  private stereoToMono(stereoBuffer: Buffer): Buffer {
+  private stereoToMono(stereoBuffer: Uint8Array): Uint8Array {
     // Ensure buffer length is valid (multiple of 4 bytes for stereo 16-bit)
     const validLength = Math.floor(stereoBuffer.length / 4) * 4;
     if (validLength < stereoBuffer.length) {
@@ -398,7 +408,7 @@ export class SpeechRecognitionManager {
     }
 
     const samples = stereoBuffer.length / 4; // 16-bit samples, 2 channels
-    const monoBuffer = Buffer.alloc(samples * 2);
+    const monoBuffer = new Uint8Array(samples * 2);
 
     for (let i = 0; i < samples; i++) {
       const offset = i * 4;
@@ -419,7 +429,7 @@ export class SpeechRecognitionManager {
    * Detect if audio contains speech (voice activity detection)
    * Simple energy-based detection
    */
-  detectSpeech(audioBuffer: Buffer, threshold: number = 500): boolean {
+  detectSpeech(audioBuffer: Uint8Array, threshold: number = 500): boolean {
     if (audioBuffer.length < 2) return false;
 
     let totalEnergy = 0;

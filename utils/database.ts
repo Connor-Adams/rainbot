@@ -1,6 +1,6 @@
 import { Pool, PoolConfig, QueryResult } from 'pg';
-import { createLogger } from './logger';
-import { loadConfig } from './config';
+import { createLogger } from './logger.ts';
+import { loadConfig } from './config.ts';
 
 const log = createLogger('DATABASE');
 

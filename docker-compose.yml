@@ -1,0 +1,53 @@
+version: '3.8'
+
+# Local development infrastructure only
+# Start infrastructure: docker-compose up -d
+# Run bots locally with node after building:
+#   yarn build:ts
+#   node apps/raincloud/index.js
+#   node apps/rainbot/dist/index.js
+#   node apps/pranjeet/dist/index.js
+#   node apps/hungerbot/dist/index.js
+
+services:
+  # Redis for state management
+  redis:
+    image: redis:7-alpine
+    container_name: rainbot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL for statistics
+  postgres:
+    image: postgres:15-alpine
+    container_name: rainbot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rainbot}
+      POSTGRES_USER: ${POSTGRES_USER:-rainbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rainbot}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  default:
+    name: rainbot-network

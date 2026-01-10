@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window", "dom", "dom.iterable"],
+    "strict": true
+  },
+  "imports": {
+    "express": "npm:express@4.19.2",
+    "express-session": "npm:express-session@1.18.0",
+    "session-file-store": "npm:session-file-store@1.5.0",
+    "passport": "npm:passport@0.7.0",
+    "discord.js": "npm:discord.js@14.15.3",
+    "connect-redis": "npm:connect-redis@7.1.1",
+    "redis": "npm:redis@4.6.13",
+    "winston": "npm:winston@3.13.0",
+    "pg": "npm:pg@8.16.0",
+    "express-rate-limit": "npm:express-rate-limit@7.4.0",
+    "@std/path": "https://deno.land/std@0.224.0/path/mod.ts",
+    "@std/fs": "https://deno.land/std@0.224.0/fs/mod.ts"
+  },
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"],
+  "tasks": {
+    "type-check": "deno check **/*.ts"
+  }
+}

@@ -1,5 +1,5 @@
 import path from 'path';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -8,8 +8,8 @@ import {
   DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { createLogger } from './logger';
-import { loadConfig } from './config';
+import { createLogger } from './logger.ts';
+import { loadConfig } from './config.ts';
 
 const log = createLogger('STORAGE');
 
@@ -214,8 +214,8 @@ export async function getSoundStream(filename: string): Promise<Readable> {
       return Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0]);
     } else if (response.Body) {
       // Fallback: convert to buffer then stream
-      const chunks: Buffer[] = [];
-      for await (const chunk of response.Body as AsyncIterable<Buffer>) {
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
         chunks.push(chunk);
       }
       return Readable.from(Buffer.concat(chunks));
@@ -235,7 +235,7 @@ export async function getSoundStream(filename: string): Promise<Readable> {
  * Upload a sound file to S3
  */
 export async function uploadSound(
-  fileStream: AsyncIterable<Buffer>,
+  fileStream: AsyncIterable<Uint8Array>,
   filename: string
 ): Promise<string> {
   if (!s3Client || !bucketName) {
@@ -246,11 +246,16 @@ export async function uploadSound(
   const safeName = filename.replace(/[^a-zA-Z0-9._/-]/g, '_');
 
   // Read stream into buffer (required for S3)
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   for await (const chunk of fileStream) {
     chunks.push(chunk);
   }
-  const buffer = Buffer.concat(chunks);
+  const buffer = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
 
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -268,7 +273,7 @@ export async function uploadSound(
  * Upload a voice recording to S3 under records folder
  */
 export async function uploadRecording(
-  audioBuffer: Buffer,
+  audioBuffer: Uint8Array,
   userId: string,
   timestamp: number
 ): Promise<string> {

@@ -227,8 +227,8 @@ export async function playSoundboardOverlay(
     });
     soundStream.pipe(soundInputPipe);
 
-    ffmpeg.stderr?.on('data', (data: Buffer) => {
-      const msg = data.toString().trim();
+    ffmpeg.stderr?.on('data', (data: Uint8Array) => {
+      const msg = new TextDecoder().decode(data).trim();
       if (msg && !msg.includes('frame=') && !msg.includes('size=')) {
         log.debug(`FFmpeg overlay: ${msg}`);
       }

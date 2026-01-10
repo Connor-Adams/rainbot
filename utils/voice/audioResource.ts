@@ -2,8 +2,8 @@ import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { spawn, ChildProcess } from 'child_process';
-import { Readable } from 'stream';
-import { createLogger } from '../logger';
+import { Readable } from 'node:stream';
+import { createLogger } from '../logger.ts';
 import type { Track } from '../../types/voice';
 
 const log = createLogger('AUDIO_RESOURCE');
@@ -234,8 +234,8 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
     log.debug(`yt-dlp subprocess error (expected on cleanup): ${err.message}`)
   );
 
-  subprocess.stderr?.on('data', (data: Buffer) => {
-    const msg = data.toString().trim();
+  subprocess.stderr?.on('data', (data: Uint8Array) => {
+    const msg = new TextDecoder().decode(data).trim();
     if (!msg.includes('Broken pipe')) {
       log.debug(`yt-dlp: ${msg}`);
     }
