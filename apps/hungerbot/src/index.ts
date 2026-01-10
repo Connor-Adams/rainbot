@@ -1,5 +1,6 @@
 import { createDiscordWorker } from '@utils/discordWorker.ts';
 import { loadConfig } from '@utils/config.ts';
+import { createLogger } from '@utils/logger.ts';
 import {
   joinVoiceChannel,
   entersState,
@@ -7,8 +8,10 @@ import {
   AudioPlayer,
 } from 'npm:@discordjs/voice@0.17.0';
 import { createWorkerServer } from '@utils/workerServer.ts';
-import { Client, GatewayIntentBits, Events } from 'npm:discord.js@14.15.3';
+import { Client, GatewayIntentBits, Events } from 'npm:discord.js@14.14.1';
 import { join } from '@std/path';
+
+const log = createLogger('HUNGERBOT');
 
 // Load environment variables from root .env
 // Deno automatically loads .env files, but for explicit loading:
@@ -39,12 +42,10 @@ type GuildState = {
 const guildStates: Map<string, GuildState> = new Map();
 let discordReady = false;
 
-console.log(`[HUNGERBOT] Loaded token: ${token ? 'present' : 'missing'}`);
+log.info(`Token ${token ? 'present' : 'missing'}`);
 
 if (!token || token.startsWith('test_')) {
-  console.warn(
-    '[HUNGERBOT] No valid token provided - running in worker-only mode (no Discord client)'
-  );
+  log.warn('No valid token provided - running in worker-only mode (no Discord client)');
 } else {
   createDiscordWorker({
     token: token,
@@ -52,11 +53,19 @@ if (!token || token.startsWith('test_')) {
     autoFollowOrchestrator: true,
     onReady: (client: any) => {
       discordReady = true;
-      console.log(`[HUNGERBOT] Ready as ${client.user?.tag}`);
-      console.log(`[HUNGERBOT] Auto-follow enabled for orchestrator: ${orchestratorBotId}`);
+      log.info(`Ready as ${client.user?.tag}`, {
+        username: client.user?.tag,
+        userId: client.user?.id,
+      });
+      log.info(`Auto-follow enabled for orchestrator: ${orchestratorBotId}`, {
+        orchestratorBotId,
+      });
     },
     onError: (err: any) => {
-      console.error('[HUNGERBOT] Discord client error:', err);
+      log.error('Discord client error', {
+        error: err.message,
+        stack: err.stack,
+      });
     },
     getGuildState: getOrCreateGuildState,
     joinVoiceChannel: (guildId: string, channelId: string) => {
@@ -127,12 +136,20 @@ const client = new Client({
 
 client.once('ready', () => {
   discordReady = true;
-  console.log(`[HUNGERBOT] Ready as ${client.user?.tag}`);
-  console.log(`[HUNGERBOT] Auto-follow enabled for orchestrator: ${orchestratorBotId}`);
+  log.info(`Ready as ${client.user?.tag}`, {
+    username: client.user?.tag,
+    userId: client.user?.id,
+  });
+  log.info(`Auto-follow enabled for orchestrator: ${orchestratorBotId}`, {
+    orchestratorBotId,
+  });
 });
 
 client.on('error', (err) => {
-  console.error('[HUNGERBOT] Discord client error:', err);
+  log.error('Discord client error', {
+    error: err.message,
+    stack: err.stack,
+  });
 });
 
 /* =========================
@@ -207,5 +224,5 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 if (token && !token.startsWith('test_')) {
   client.login(token);
 } else {
-  console.warn('[HUNGERBOT] Discord login skipped (no valid token)');
+  log.warn('Discord login skipped (no valid token)');
 }

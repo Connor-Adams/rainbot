@@ -2,7 +2,7 @@
  * Button builder utilities for creating Discord button components
  */
 
-import { ButtonBuilder, ButtonStyle } from 'npm:discord.js@14.15.3';
+import { ButtonBuilder, ButtonStyle } from 'discord.js';
 import type { ButtonMetadata } from '../../types/buttons.ts';
 
 /**
@@ -53,7 +53,7 @@ export function parseButtonId(customId: string): { prefix: string; metadata: But
 export function createButton(
   customId: string,
   label: string,
-  style: ButtonStyle = ButtonStyle.Secondary,
+  style: ButtonStyle = 2, // Secondary
   emoji?: string,
   disabled: boolean = false
 ): ButtonBuilder {

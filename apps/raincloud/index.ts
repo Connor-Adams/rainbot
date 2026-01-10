@@ -9,7 +9,8 @@ try {
       Deno.env.set(key.trim(), value.trim());
     }
   }
-  console.log(`[MAIN] Loaded environment variables from .env file`);
+  const log = createLogger('MAIN');
+  log.info('Loaded environment variables from .env file');
 } catch (_error) {
   // .env file doesn't exist - that's fine, we'll use system env vars
 }
@@ -40,6 +41,39 @@ async function main() {
   }
 
   const config = loadConfig();
+
+  // Comprehensive environment validation for local development
+  const criticalMissing: string[] = [];
+  const optionalMissing: string[] = [];
+
+  if (!config.token) criticalMissing.push('RAINCLOUD_TOKEN (or DISCORD_BOT_TOKEN)');
+  if (!config.clientId) criticalMissing.push('DISCORD_CLIENT_ID');
+  if (!config.discordClientSecret)
+    optionalMissing.push('DISCORD_CLIENT_SECRET (for OAuth dashboard)');
+  if (!config.sessionSecret) optionalMissing.push('SESSION_SECRET (for dashboard sessions)');
+  if (!config.requiredRoleId) optionalMissing.push('REQUIRED_ROLE_ID (for dashboard access)');
+  if (!config.databaseUrl) optionalMissing.push('DATABASE_URL (for statistics/history)');
+  if (!config.redisUrl) optionalMissing.push('REDIS_URL (for session storage)');
+
+  if (criticalMissing.length > 0) {
+    log.error('🚨 CRITICAL ENVIRONMENT VARIABLES MISSING:');
+    criticalMissing.forEach((missing) => log.error(`   ❌ ${missing}`));
+    log.error('');
+  }
+
+  if (optionalMissing.length > 0) {
+    log.warn('⚠️  OPTIONAL ENVIRONMENT VARIABLES MISSING:');
+    optionalMissing.forEach((missing) => log.warn(`   • ${missing}`));
+    log.warn('');
+  }
+
+  if (criticalMissing.length === 0) {
+    log.info('✅ All critical environment variables found!');
+  } else {
+    log.warn(
+      '🔧 For local development, you can still test the web interface, but bot functionality will be limited.'
+    );
+  }
 
   // Initialize play-dl with Spotify credentials (if provided)
   if (config.spotifyClientId && config.spotifyClientSecret) {
@@ -97,13 +131,22 @@ async function main() {
 
   // Validate bot token
   if (!config.token) {
-    log.warn(
-      'Discord bot token not found. Starting web server only. Set DISCORD_BOT_TOKEN environment variable to enable Discord bot functionality'
-    );
+    log.error('❌ CRITICAL: Discord bot token not found!');
+    log.error('   Required: RAINCLOUD_TOKEN or DISCORD_BOT_TOKEN environment variable');
+    log.error('   The bot cannot start without a valid Discord token.');
+    log.error('');
+    log.error('📝 To fix this:');
+    log.error('   1. Copy .env.example to .env');
+    log.error('   2. Add your Discord bot token to .env');
+    log.error('   3. Restart the application');
+    log.error('');
+    log.error('🚀 Starting web server only (limited functionality)...');
+
     // Start server without bot
     const port = config.dashboardPort;
     await server.start(null as any, port);
-    log.info(`Web server started on port ${port} (bot not connected)`);
+    log.info(`🌐 Web server started on port ${port} (bot not connected)`);
+    log.warn('⚠️  Bot functionality is DISABLED due to missing token');
     return;
   }
 

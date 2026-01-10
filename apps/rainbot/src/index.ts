@@ -1,7 +1,7 @@
 import { createDiscordWorker } from '@utils/discordWorker.ts';
 import { loadConfig } from '@utils/config.ts';
 import { createWorkerServer } from '@utils/workerServer.ts';
-import { Client, GatewayIntentBits } from 'npm:discord.js@14.15.3';
+import { Client, GatewayIntentBits } from 'npm:discord.js@14.14.1';
 import {
   joinVoiceChannel,
   createAudioPlayer,

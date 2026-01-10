@@ -1,10 +1,14 @@
 import { createDiscordWorker } from '@utils/discordWorker.ts';
 import { loadConfig } from '@utils/config.ts';
+import { createLogger } from '@utils/logger.ts';
 import { createWorkerServer } from '@utils/workerServer.ts';
-import { Client, GatewayIntentBits, Events } from 'npm:discord.js@14.15.3';
+import { Client, GatewayIntentBits, Events } from 'npm:discord.js@14.14.1';
 import { joinVoiceChannel, entersState, VoiceConnectionStatus } from 'npm:@discordjs/voice@0.17.0';
 import OpenAI from 'npm:openai@4.104.0';
 import { join } from '@std/path';
+import { Buffer } from 'node:buffer';
+
+const log = createLogger('PRANJEET');
 
 // Load environment variables from root .env
 // Deno automatically loads .env files, but for explicit loading:
@@ -18,7 +22,7 @@ try {
     }
   }
 } catch (error) {
-  console.warn('[PRANJEET] Failed to load .env file:', error);
+  log.warn('Failed to load .env file', { error: error.message });
 }
 
 const {
@@ -55,7 +59,7 @@ let ttsClient: any = null;
 if (TTS_API_KEY && !TTS_API_KEY.startsWith('test_')) {
   ttsClient = new OpenAI({ apiKey: TTS_API_KEY });
 } else if (TTS_API_KEY?.startsWith('test_')) {
-  console.warn('[PRANJEET] Test API key provided - TTS functionality disabled');
+  log.warn('Test API key provided - TTS functionality disabled');
 }
 
 /* =========================
@@ -66,17 +70,22 @@ async function initTTS(): Promise<void> {
   if (TTS_PROVIDER === 'openai' && TTS_API_KEY) {
     const { OpenAI } = await import('openai');
     ttsClient = new OpenAI({ apiKey: TTS_API_KEY });
-    console.log('[PRANJEET] OpenAI TTS initialized');
+    log.info('OpenAI TTS initialized');
   } else {
-    console.warn('[PRANJEET] No valid TTS provider configured');
+    log.warn('No valid TTS provider configured');
   }
 }
 
 async function generateTTS(text: string, voice?: string): Promise<Buffer> {
-  if (!ttsClient) throw new Error('TTS not initialized');
+  if (!ttsClient) {
+    throw new Error('TTS not initialized');
+  }
 
   try {
-    console.log(`[PRANJEET] Generating TTS for text: "${text.substring(0, 50)}..."`);
+    log.debug(`Generating TTS for text: "${text.substring(0, 50)}..."`, {
+      textLength: text.length,
+      provider: TTS_PROVIDER,
+    });
     const response = await ttsClient.audio.speech.create({
       model: 'tts-1',
       voice: (voice || TTS_VOICE) as any,
@@ -86,10 +95,16 @@ async function generateTTS(text: string, voice?: string): Promise<Buffer> {
 
     const pcm24k = Buffer.from(await response.arrayBuffer());
     const resampled = resample24to48(pcm24k);
-    console.log(`[PRANJEET] TTS generated successfully, length: ${resampled.length} bytes`);
+    log.info(`TTS generated successfully, length: ${resampled.length} bytes`, {
+      bytes: resampled.length,
+      voice: voice || TTS_VOICE,
+    });
     return resampled;
   } catch (error) {
-    console.error('[PRANJEET] TTS generation failed:', error);
+    log.error('TTS generation failed', {
+      error: error instanceof Error ? error.message : String(error),
+      textLength: text.length,
+    });
     throw error;
   }
 }
@@ -124,13 +139,21 @@ const client = new Client({
 
 client.once('ready', async () => {
   discordReady = true;
-  console.log(`[PRANJEET] Ready as ${client.user?.tag}`);
-  console.log(`[PRANJEET] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+  log.info(`Ready as ${client.user?.tag}`, {
+    username: client.user?.tag,
+    userId: client.user?.id,
+  });
+  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`, {
+    orchestratorBotId: ORCHESTRATOR_BOT_ID,
+  });
   await initTTS();
 });
 
 client.on('error', (err) => {
-  console.error('[PRANJEET] Client error:', err);
+  log.error('Client error', {
+    error: err.message,
+    stack: err.stack,
+  });
 });
 
 /* =========================
@@ -194,8 +217,10 @@ if (token && !token.startsWith('test_')) {
   try {
     client.login(token);
   } catch (error) {
-    console.error('[PRANJEET] Failed to login:', error instanceof Error ? error.message : error);
+    log.error('Failed to login', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 } else {
-  console.warn('[PRANJEET] Discord login skipped (no valid token)');
+  log.warn('Discord login skipped (no valid token)');
 }

@@ -1,7 +1,13 @@
 {
   "$schema": "https://schema.railpack.com",
-  "buildAptPackages": ["ffmpeg", "yt-dlp"],
+  "build": {
+    "aptPackages": ["ffmpeg", "yt-dlp"],
+    "beforeInstall": "npm install -g yarn",
+    "installCommand": "yarn install --immutable",
+    "buildCommand": "yarn workspace @rainbot/ui build"
+  },
   "deploy": {
-    "aptPackages": ["ffmpeg", "yt-dlp"]
+    "aptPackages": ["ffmpeg", "yt-dlp"],
+    "startCommand": "deno run --allow-all --env apps/raincloud/index.ts"
   }
 }

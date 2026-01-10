@@ -1,4 +1,7 @@
-import express, { Request, Response, Express } from 'npm:express@4.19.2';
+import express, { type Request, type Response, type Express } from 'express';
+import { createLogger } from './logger.ts';
+
+const log = createLogger('WorkerServer');
 
 export interface WorkerServerOptions {
   healthReady?: () => boolean | Promise<boolean>;
@@ -13,11 +16,11 @@ export interface WorkerServerOptions {
  */
 export function createWorkerServer({ healthReady, readyInfo, port, onStart }: WorkerServerOptions) {
   const app = express();
-  app.use(express.json());
+  app.use(express.json() as any);
 
   // /health/live endpoint (plain text OK)
   app.get('/health/live', (_req: Request, res: Response) => {
-    res.status(200).type('text/plain').send('OK');
+    (res as any).status(200).type('text/plain').send('OK');
   });
 
   // /health/ready endpoint (JSON, 200 if ready, 503 if not)
@@ -30,9 +33,9 @@ export function createWorkerServer({ healthReady, readyInfo, port, onStart }: Wo
         ready = false;
       }
     }
-    res.status(ready ? 200 : 503).json({
+    (res as any).status(ready ? 200 : 503).json({
       status: ready ? 'ok' : 'starting',
-      uptime: Deno.uptime(),
+      uptime: performance.now(),
       ...((readyInfo && readyInfo()) || {}),
       timestamp: Date.now(),
     });
@@ -40,7 +43,7 @@ export function createWorkerServer({ healthReady, readyInfo, port, onStart }: Wo
 
   // Start server
   app.listen(port, () => {
-    console.log(`[WorkerServer] Listening on port ${port}`);
+    log.info(`Listening on port ${port}`, { port });
     if (onStart) onStart(app);
   });
 

@@ -32,7 +32,11 @@
     "test:watch": "deno test --watch",
     "test:coverage": "deno test --coverage",
     "prepare": "[ -d .git ] && husky || true",
-    "validate": "find . -name '*.ts' -not -path './ui/*' -not -path './apps/raincloud/*' -not -path './node_modules/*' | xargs deno check && deno lint --ignore=ui/,apps/raincloud/ && deno fmt --check --ignore=ui/,apps/raincloud/ && deno test --ignore=ui/,apps/raincloud/"
+    "validate": "find . -name '*.ts' -not -path './ui/*' -not -path './apps/raincloud/*' -not -path './node_modules/*' | xargs deno check && deno lint --ignore=ui/,apps/raincloud/ && deno fmt --check --ignore=ui/,apps/raincloud/ && deno test --ignore=ui/,apps/raincloud/",
+    "dev:minimal": "deno run --allow-all --env apps/raincloud/index.ts",
+    "dev:check": "echo '🔍 Checking environment setup...' && deno run --allow-all --env -e \"import { loadConfig } from './apps/raincloud/utils/config.ts'; loadConfig();\" 2>/dev/null || echo '❌ Config check failed - run with proper env vars'",
+    "dev:status": "echo '📊 Rainbot Development Status' && echo '================================' && echo '🔧 Critical Variables:' && (test -f .env && echo '   ✅ .env file exists' || echo '   ❌ .env file missing (run: npm run dev:setup)') && echo '🌐 Services:' && (docker-compose ps | grep -q 'Up' && echo '   ✅ Docker services running' || echo '   ❌ Docker services not running (run: docker-compose up -d)') && echo '🚀 Ready to start with: npm run dev:minimal'",
+    "start:all": "concurrently \"npm run start:raincloud\" \"npm run start:rainbot\" \"npm run start:pranjeet\" \"npm run start:hungerbot\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",
@@ -57,6 +61,7 @@
     "@types/swagger-ui-express": "^4.1.6",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
     "@typescript-eslint/parser": "^8.19.1",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.1",

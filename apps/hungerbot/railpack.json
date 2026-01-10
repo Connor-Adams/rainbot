@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "build": {
+    "aptPackages": ["ffmpeg", "yt-dlp"],
+    "beforeInstall": "npm install -g yarn",
+    "installCommand": "deno install --node-modules-dir=auto"
+  },
+  "deploy": {
+    "aptPackages": ["ffmpeg", "yt-dlp"],
+    "startCommand": "deno run --allow-all --env src/index.ts",
+    "healthcheckPath": "/health/live",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

@@ -2,11 +2,11 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "yarn install --immutable && yarn turbo run build:ts --filter=@rainbot/raincloud",
-    "watchPatterns": ["apps/raincloud/**", "packages/**", "package.json", "yarn.lock"]
+    "buildCommand": "deno install --allow-all && deno check apps/raincloud/index.ts",
+    "watchPatterns": ["apps/raincloud/**", "packages/**", "deno.json", "deno.lock"]
   },
   "deploy": {
-    "startCommand": "node apps/raincloud/index.js",
+    "startCommand": "deno run --node-modules-dir=auto --allow-all --env apps/raincloud/index.ts",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

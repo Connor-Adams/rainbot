@@ -1,4 +1,7 @@
-import { Client, GatewayIntentBits, Events, ClientOptions } from 'npm:discord.js@14.15.3';
+import { Client, GatewayIntentBits, Events, ClientOptions } from 'discord.js';
+import { createLogger } from './logger.ts';
+
+const log = createLogger('DiscordWorker');
 
 export interface DiscordWorkerOptions {
   token: string;
@@ -65,7 +68,7 @@ export function createDiscordWorker({
   if (token) {
     client.login(token);
   } else {
-    console.warn('[DiscordWorker] Discord login skipped (no token)');
+    log.warn('Discord login skipped (no token)');
   }
 
   return client;

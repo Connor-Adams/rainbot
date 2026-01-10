@@ -1,6 +1,6 @@
-import winston from 'npm:winston@3.13.0';
+import winston from 'winston';
 import { join } from '@std/path';
-import { existsSync, mkdirSync } from 'fs';
+// import { existsSync, mkdirSync } from 'fs';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 

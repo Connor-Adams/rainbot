@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assert, assertThrows, assertRejects } from '@std/assert';
-import { ButtonStyle } from 'npm:discord.js@14.15.3';
+import { ButtonStyle } from 'discord.js';
 import {
   createButtonId,
   parseButtonId,
@@ -79,14 +79,14 @@ Deno.test('buttonBuilder - createButton - creates button with custom ID and labe
 });
 
 Deno.test('buttonBuilder - createButton - creates button with emoji', () => {
-  const button = createButton('test_id', 'Test', ButtonStyle.Secondary, '🎵');
+  const button = createButton('test_id', 'Test', 2, '🎵'); // 2 = Secondary
   const data = button.toJSON() as any;
   assert(data.emoji);
   assertEquals(data.emoji.name, '🎵');
 });
 
 Deno.test('buttonBuilder - createButton - creates disabled button', () => {
-  const button = createButton('test_id', 'Test', ButtonStyle.Secondary, undefined, true);
+  const button = createButton('test_id', 'Test', 2, undefined, true); // 2 = Secondary
   const data = button.toJSON();
   assertEquals(data.disabled, true);
 });

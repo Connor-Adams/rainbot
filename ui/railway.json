@@ -2,11 +2,10 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "yarn install --immutable && yarn workspace @rainbot/ui build",
-    "watchPatterns": ["ui/**", "package.json", "yarn.lock"]
+    "buildCommand": "cd ui && deno run --allow-read --allow-run --allow-net npm:vite build"
   },
   "deploy": {
-    "startCommand": "node ui/server.js",
+    "startCommand": "deno run --node-modules-dir=auto --allow-all --env ./ui/server.ts",
     "healthcheckPath": "/",
     "healthcheckTimeout": 10,
     "restartPolicyType": "ON_FAILURE",

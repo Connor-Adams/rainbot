@@ -1,9 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "curl -fsSL https://deno.land/install.sh | sh && export PATH=\"$HOME/.deno/bin:$PATH\" && deno --version",
-    "watchPatterns": ["apps/raincloud/**", "packages/**", "deno.json", "deno.lock"]
+    "builder": "RAILPACK"
   },
   "deploy": {
     "startCommand": "deno run --allow-all --env apps/raincloud/index.ts",

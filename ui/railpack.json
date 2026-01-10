@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "build": {
+    "beforeInstall": "npm install -g yarn",
+    "installCommand": "yarn install --immutable",
+    "buildCommand": "yarn build"
+  },
+  "deploy": {
+    "startCommand": "node server.js",
+    "healthcheckPath": "/health/live",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
