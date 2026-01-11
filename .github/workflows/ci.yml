@@ -33,7 +33,7 @@ jobs:
       - name: Check formatting
         run: deno fmt --check
 
-  # Type check with Deno
+  # Type check with TypeScript
   type-check:
     name: Type Check
     runs-on: ubuntu-latest
@@ -42,19 +42,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache Deno dependencies
-        uses: actions/cache@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          path: ~/.cache/deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('**/deno.json') }}
+          node-version: '22'
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v2.x
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Run Deno type check
-        run: deno check --node-modules-dir=auto
+      - name: Run TypeScript type check
+        run: npm run type-check
 
   # Test with Deno
   test:

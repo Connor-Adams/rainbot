@@ -908,27 +908,27 @@ function showAccessDenied() {
 
 // Login button handlers
 loginBtn.addEventListener('click', () => {
-  window.location.href = '/auth/discord';
+  globalThis.location.href = '/auth/discord';
 });
 
 loginBtnCentered.addEventListener('click', () => {
-  window.location.href = '/auth/discord';
+  globalThis.location.href = '/auth/discord';
 });
 
 // Logout button handler
 logoutBtn.addEventListener('click', async () => {
   try {
     await fetch('/auth/logout');
-    window.location.href = '/auth/discord';
+    globalThis.location.href = '/auth/discord';
   } catch (error) {
     console.error('Logout failed:', error);
-    window.location.href = '/auth/discord';
+    globalThis.location.href = '/auth/discord';
   }
 });
 
 // Check if we just came back from OAuth (check URL params)
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.has('code') || window.location.pathname === '/') {
+const urlParams = new URLSearchParams(globalThis.location.search);
+if (urlParams.has('code') || globalThis.location.pathname === '/') {
   // Just redirected from OAuth or on home page - check auth status
   console.log('Checking auth status after redirect...');
 }
@@ -954,7 +954,7 @@ function initServerSelector() {
 
 // Update server selector visibility based on active tab (global function)
 // Since server selector is now in sidebar, always show it
-window.updateServerSelectorVisibility = function () {
+globalThis.updateServerSelectorVisibility = function () {
   if (!serverSelector) return;
   // Always show server selector when it's in the sidebar
   serverSelector.show();

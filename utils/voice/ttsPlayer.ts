@@ -156,12 +156,12 @@ export async function playTTSAudio(
       };
 
       const cleanup = () => {
-        player.off(AudioPlayerStatus.Idle, onIdle);
-        player.off('error', onError);
+        (player as any).off(AudioPlayerStatus.Idle, onIdle);
+        (player as any).off('error', onError);
       };
 
-      player.once(AudioPlayerStatus.Idle, onIdle);
-      player.once('error', onError);
+      (player as any).once(AudioPlayerStatus.Idle, onIdle);
+      (player as any).once('error', onError);
 
       setTimeout(() => {
         cleanup();

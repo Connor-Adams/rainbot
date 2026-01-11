@@ -23,7 +23,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
 
   const handleTabChange = (tab: 'player' | 'soundboard' | 'recordings' | 'stats') => {
     setActiveTab(tab)
-    window.dispatchEvent(new CustomEvent('tab-change', { detail: tab }))
+    globalThis.dispatchEvent(new CustomEvent('tab-change', { detail: tab }))
   }
 
   return (

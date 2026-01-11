@@ -12,9 +12,9 @@ export default function DashboardPage() {
       setActiveTab(e.detail)
     }
 
-    window.addEventListener('tab-change', handleTabChange as EventListener)
+    globalThis.addEventListener('tab-change', handleTabChange as EventListener)
     return () => {
-      window.removeEventListener('tab-change', handleTabChange as EventListener)
+      globalThis.removeEventListener('tab-change', handleTabChange as EventListener)
     }
   }, [])
 

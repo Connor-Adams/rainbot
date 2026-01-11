@@ -2,6 +2,7 @@
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
+import process from 'node:process';
 const dotenvResult = require('dotenv').config();
 if (dotenvResult.error) {
   // .env file doesn't exist - that's fine, we'll use system env vars

@@ -36,7 +36,7 @@ export default function QueueList() {
   })
 
   const handleClear = () => {
-    if (window.confirm('Clear the entire queue?')) {
+    if (globalThis.confirm('Clear the entire queue?')) {
       setIsClearing(true)
       clearMutation.mutate()
     }

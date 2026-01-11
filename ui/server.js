@@ -1,4 +1,5 @@
 // Healthcheck endpoint for platform
+import process from 'node:process';
 app.get('/', (req, res) => {
   res.status(200).type('text/plain').send('OK');
 });

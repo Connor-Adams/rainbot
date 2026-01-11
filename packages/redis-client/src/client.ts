@@ -1,5 +1,6 @@
 import { createClient, RedisClientType } from 'redis';
 import { createLogger } from '@rainbot/shared';
+import process from 'node:process';
 
 const log = createLogger('REDIS');
 

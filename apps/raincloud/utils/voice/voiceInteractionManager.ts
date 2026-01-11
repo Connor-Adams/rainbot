@@ -28,6 +28,7 @@ import { SpeechRecognitionManager } from './speechRecognition.ts';
 import { TextToSpeechManager, generateResponseText } from './textToSpeech.ts';
 import { parseVoiceCommand, validateVoiceCommand } from './voiceCommandParser.ts';
 import { Mutex } from 'async-mutex';
+import { Buffer } from 'node:buffer';
 
 const log = createLogger('VOICE_INTERACTION');
 

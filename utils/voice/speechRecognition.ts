@@ -10,6 +10,7 @@ import type {
   VoiceInteractionConfig,
 } from '../../types/voice-interaction';
 import { PassThrough } from 'node:stream';
+import { Buffer } from 'node:buffer';
 
 const log = createLogger('SPEECH_RECOGNITION');
 
@@ -211,7 +212,7 @@ class OpenAISTTProvider implements STTProvider {
   recognizeStream(_languageCode: string): NodeJS.WritableStream {
     // OpenAI Whisper doesn't support streaming, return passthrough
     log.warn('OpenAI Whisper does not support streaming recognition');
-    return new PassThrough();
+    return new PassThrough() as any as NodeJS.WritableStream;
   }
 
   /**
@@ -268,7 +269,7 @@ class MockSTTProvider implements STTProvider {
 
   recognizeStream(_languageCode: string): NodeJS.WritableStream {
     log.warn('Using mock STT provider stream');
-    return new PassThrough();
+    return new PassThrough() as any as NodeJS.WritableStream;
   }
 }
 
@@ -408,7 +409,7 @@ export class SpeechRecognitionManager {
     }
 
     const samples = stereoBuffer.length / 4; // 16-bit samples, 2 channels
-    const monoBuffer = new Uint8Array(samples * 2);
+    const monoBuffer = Buffer.alloc(samples * 2);
 
     for (let i = 0; i < samples; i++) {
       const offset = i * 4;
@@ -416,8 +417,8 @@ export class SpeechRecognitionManager {
       if (offset + 2 >= stereoBuffer.length) {
         break;
       }
-      const leftSample = stereoBuffer.readInt16LE(offset);
-      const rightSample = stereoBuffer.readInt16LE(offset + 2);
+      const leftSample = Buffer.from(stereoBuffer).readInt16LE(offset);
+      const rightSample = Buffer.from(stereoBuffer).readInt16LE(offset + 2);
       const monoSample = Math.floor((leftSample + rightSample) / 2);
       monoBuffer.writeInt16LE(monoSample, i * 2);
     }
@@ -436,7 +437,7 @@ export class SpeechRecognitionManager {
     const samples = audioBuffer.length / 2; // 16-bit samples
 
     for (let i = 0; i < samples; i++) {
-      const sample = audioBuffer.readInt16LE(i * 2);
+      const sample = Buffer.from(audioBuffer).readInt16LE(i * 2);
       totalEnergy += Math.abs(sample);
     }
 

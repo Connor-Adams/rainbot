@@ -1,4 +1,5 @@
-'use strict';
+import process from 'node:process';
+('use strict');
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.loadConfig = loadConfig;
 const logger_1 = require('./logger');

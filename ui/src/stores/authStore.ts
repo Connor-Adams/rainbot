@@ -90,7 +90,7 @@ export const useAuthStore = create<AuthState>()(
           console.error('Logout error:', error);
         } finally {
           set({ user: null, isAuthenticated: false });
-          window.location.href = '/auth/discord';
+          globalThis.location.href = '/auth/discord';
         }
       },
     }),

@@ -3,7 +3,7 @@ import { DiscordIcon } from '@/components/icons'
 
 export default function LoginPage() {
   const handleLogin = () => {
-    window.location.href = '/auth/discord'
+    globalThis.location.href = '/auth/discord'
   }
 
   return (

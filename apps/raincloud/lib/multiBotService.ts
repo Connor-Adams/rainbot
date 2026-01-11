@@ -13,6 +13,7 @@ import { ChannelResolver } from './channelResolver.ts';
 import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '../utils/logger.ts';
 import type { Client, VoiceBasedChannel } from 'discord.js';
+import process from 'node:process';
 
 const log = createLogger('MULTIBOT-SERVICE');
 

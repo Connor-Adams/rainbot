@@ -28,6 +28,38 @@ module.exports = [
     },
   },
   {
+    files: [
+      'index.js',
+      'deploy-commands.js',
+      'dev-server.js',
+      'utils/config.js',
+      'utils/logger.js',
+      'utils/workerServer.js',
+      'scripts/setup-database.js',
+      'packages/redis-client/src/client.js',
+      'apps/raincloud/deploy-commands.js',
+    ],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'off',
+      'no-undef': 'error',
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
@@ -81,8 +113,6 @@ module.exports = [
       'sessions/**',
       'sounds/**',
       'eslint.config.js',
-      'deploy-commands.js',
-      'dev-server.js',
       '**/*.d.ts',
     ],
   },

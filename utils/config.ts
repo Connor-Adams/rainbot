@@ -1,4 +1,8 @@
 import { createLogger } from './logger.ts';
+import process from 'node:process';
+
+// @ts-expect-error Deno is not available in Node.js environment
+declare const Deno: any;
 
 const log = createLogger('CONFIG');
 
@@ -66,7 +70,11 @@ export function loadConfig(): AppConfig {
 
   // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_ or STORAGE_
   // Also includes Railway's auto-injected bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
-  const relevantEnvVars = Object.keys(Deno.env.toObject()).filter(
+  const env =
+    typeof Deno !== 'undefined'
+      ? Deno.env
+      : { toObject: () => process.env, get: (key: string) => process.env[key] };
+  const relevantEnvVars = Object.keys(env.toObject()).filter(
     (key) =>
       key.startsWith('DISCORD_') ||
       key.startsWith('SESSION_') ||
@@ -97,7 +105,7 @@ export function loadConfig(): AppConfig {
     );
     // Log values (masked for security)
     relevantEnvVars.forEach((key) => {
-      const value = Deno.env.get(key);
+      const value = env.get(key);
       if (value) {
         const shouldMask =
           key.includes('SECRET') || key.includes('TOKEN') || key === 'ACCESS_KEY_ID';
@@ -115,18 +123,18 @@ export function loadConfig(): AppConfig {
   const config: AppConfig = {
     // Bot configuration - use bot-specific tokens if available
     token:
-      Deno.env.get('RAINBOT_TOKEN') ||
-      Deno.env.get('PRANJEET_TOKEN') ||
-      Deno.env.get('HUNGERBOT_TOKEN') ||
-      Deno.env.get('RAINCLOUD_TOKEN') ||
-      Deno.env.get('DISCORD_BOT_TOKEN'),
-    clientId: Deno.env.get('DISCORD_CLIENT_ID'),
-    guildId: Deno.env.get('DISCORD_GUILD_ID'),
+      env.get('RAINBOT_TOKEN') ||
+      env.get('PRANJEET_TOKEN') ||
+      env.get('HUNGERBOT_TOKEN') ||
+      env.get('RAINCLOUD_TOKEN') ||
+      env.get('DISCORD_BOT_TOKEN'),
+    clientId: env.get('DISCORD_CLIENT_ID'),
+    guildId: env.get('DISCORD_GUILD_ID'),
 
     // OAuth configuration
-    discordClientSecret: Deno.env.get('DISCORD_CLIENT_SECRET'),
-    callbackURL: Deno.env.get('CALLBACK_URL'),
-    requiredRoleId: Deno.env.get('REQUIRED_ROLE_ID'),
+    discordClientSecret: env.get('DISCORD_CLIENT_SECRET'),
+    callbackURL: env.get('CALLBACK_URL'),
+    requiredRoleId: env.get('REQUIRED_ROLE_ID'),
 
     // Server configuration
     dashboardPort: process.env['PORT'] || 3000,

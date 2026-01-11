@@ -4,6 +4,7 @@ import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'node:stream';
 import { createLogger } from '../logger.ts';
 import type { Track } from '../../types/voice.ts';
+import process from 'node:process';
 
 const log = createLogger('AUDIO_RESOURCE');
 

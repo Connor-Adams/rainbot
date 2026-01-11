@@ -93,7 +93,7 @@ export default function SoundboardTab() {
   const handleDelete = useCallback(
     (name: string) => {
       setOpenMenuId(null)
-      if (window.confirm(`Delete "${name}"?`)) {
+      if (globalThis.confirm(`Delete "${name}"?`)) {
         deleteMutation.mutate(name)
       }
     },

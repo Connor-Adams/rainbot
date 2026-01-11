@@ -7,6 +7,7 @@ import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger.ts';
 import * as storage from '../storage.ts';
 import type { Track } from '../../types/voice.ts';
+import process from 'node:process';
 
 const log = createLogger('FETCHER');
 

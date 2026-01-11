@@ -11,6 +11,7 @@ import type {
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Buffer } from 'node:buffer';
 
 const log = createLogger('TEXT_TO_SPEECH');
 

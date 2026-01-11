@@ -1,3 +1,4 @@
+import process from 'node:process';
 const { loadConfig } = require('../utils/config');
 const { createLogger } = require('../utils/logger');
 const { initDatabase, initializeSchema, close } = require('../utils/database');

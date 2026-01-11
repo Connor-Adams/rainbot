@@ -2,6 +2,7 @@ import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger.ts';
 import type { VoiceState } from '../../types/voice-modules.ts';
+import process from 'node:process';
 
 const log = createLogger('TRACK_METADATA');
 

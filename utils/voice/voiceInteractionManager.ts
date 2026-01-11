@@ -399,7 +399,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     // Calculate actual duration from total bytes
     // Stereo PCM: 16-bit (2 bytes) × 2 channels × 48000 Hz = 192000 bytes per second
-    const totalBytes = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+    const totalBytes = audioBuffers.reduce((sum: number, buf: Uint8Array) => sum + buf.length, 0);
     const totalDuration = totalBytes / 192000;
 
     // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)

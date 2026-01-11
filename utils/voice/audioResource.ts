@@ -5,6 +5,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'node:stream';
 import { createLogger } from '../logger.ts';
 import type { Track } from '../../types/voice';
+import process from 'node:process';
 
 const log = createLogger('AUDIO_RESOURCE');
 

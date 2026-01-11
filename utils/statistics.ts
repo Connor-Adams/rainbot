@@ -313,7 +313,7 @@ const bufferMap: Record<BufferType, unknown[]> = {
 // Active voice sessions for tracking duration
 const activeSessions = new Map<string, VoiceSessionEvent>();
 
-let batchTimer: number | null = null;
+let batchTimer: NodeJS.Timeout | null = null;
 
 /**
  * Start batch processing timer

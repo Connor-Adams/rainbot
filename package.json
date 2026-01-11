@@ -27,7 +27,7 @@
     "lint:fix": "deno lint --fix",
     "format": "deno fmt",
     "format:check": "deno fmt --check",
-    "type-check": "deno check",
+    "type-check": "tsc --noEmit",
     "test": "deno test",
     "test:watch": "deno test --watch",
     "test:coverage": "deno test --coverage",

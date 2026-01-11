@@ -19,7 +19,7 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   // Check if user is authenticated
-  if (!req.isAuthenticated || !req.isAuthenticated()) {
+  if (!(req as any).isAuthenticated || !(req as any).isAuthenticated()) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }

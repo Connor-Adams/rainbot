@@ -10,6 +10,7 @@ import type {
   VoiceInteractionConfig,
 } from '../../types/voice-interaction.ts';
 import { PassThrough } from 'node:stream';
+import { Buffer } from 'node:buffer';
 
 const log = createLogger('SPEECH_RECOGNITION');
 

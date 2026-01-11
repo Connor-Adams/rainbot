@@ -10,6 +10,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { createLogger } from './logger.ts';
 import { loadConfig } from './config.ts';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
 
 const log = createLogger('STORAGE');
 

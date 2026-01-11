@@ -1,4 +1,5 @@
 import { createLogger } from './logger.ts';
+import process from 'node:process';
 
 const log = createLogger('CONFIG');
 

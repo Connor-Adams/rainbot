@@ -19,6 +19,7 @@ import { getClient } from '../../server/client';
 import type { Track } from '../../types/voice';
 import type { VoiceState } from '../../types/voice-modules';
 import type { TextChannel, VoiceChannel } from 'discord.js';
+import process from 'node:process';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');

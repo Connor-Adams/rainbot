@@ -4,6 +4,7 @@ import { createLogger } from '../utils/logger.ts';
 import { VoiceStateManager } from './voiceStateManager.ts';
 import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import process from 'node:process';
 
 const log = createLogger('WORKER-COORDINATOR');
 

@@ -25,6 +25,7 @@ export async function startService(client: Client, port = 3000): Promise<void> {
   // Railway and other platforms use 0.0.0.0 instead of localhost
   const host = process.env['HOST'] || '0.0.0.0';
   await server.start(port);
+  const config = (server as any).config;
   const url = config.railwayPublicDomain
     ? `https://${config.railwayPublicDomain}`
     : `http://${host}:${port}`;

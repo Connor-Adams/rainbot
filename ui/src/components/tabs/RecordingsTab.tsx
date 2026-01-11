@@ -50,7 +50,7 @@ export default function RecordingsTab() {
   }
 
   const downloadRecording = (name: string) => {
-    window.open(`/api/sounds/records%2F${encodeURIComponent(name)}/download`, '_blank')
+    globalThis.open(`/api/sounds/records%2F${encodeURIComponent(name)}/download`, '_blank')
   }
 
   const deleteRecording = async (name: string) => {

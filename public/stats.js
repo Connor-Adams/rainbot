@@ -45,8 +45,8 @@ function setupTabNavigation() {
       }
 
       // Update server selector visibility (if function exists)
-      if (typeof window.updateServerSelectorVisibility === 'function') {
-        setTimeout(window.updateServerSelectorVisibility, 100);
+      if (typeof globalThis.updateServerSelectorVisibility === 'function') {
+        setTimeout(globalThis.updateServerSelectorVisibility, 100);
       }
     });
   });

@@ -114,7 +114,7 @@ export default function SoundboardTab() {
 
   const handleDelete = (name: string) => {
     setOpenMenuId(null)
-    if (window.confirm(`Delete "${name}"?`)) {
+    if (globalThis.confirm(`Delete "${name}"?`)) {
       deleteMutation.mutate(name)
     }
   }

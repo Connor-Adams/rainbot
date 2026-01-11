@@ -2,6 +2,7 @@
 // Note: Commands are automatically deployed on bot startup, but you can use this script
 // to deploy commands without starting the bot
 
+import process from 'node:process';
 const { deployCommands } = require('./utils/deployCommands');
 const { loadConfig } = require('./utils/config');
 
