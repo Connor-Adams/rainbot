@@ -77,7 +77,7 @@
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "openai": "^4.104.0"
+    "openai": "^6.16.0"
   },
   "lint-staged": {
     "*.{js,ts}": [
