@@ -21,7 +21,7 @@
     "opusscript": "^0.1.1"
   },
   "optionalDependencies": {
-    "@google-cloud/text-to-speech": "^5.8.0",
+    "@google-cloud/text-to-speech": "^6.4.0",
     "openai": "^4.104.0"
   },
   "devDependencies": {
