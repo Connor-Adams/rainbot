@@ -22,7 +22,7 @@
   },
   "optionalDependencies": {
     "@google-cloud/text-to-speech": "^5.8.0",
-    "openai": "^4.104.0"
+    "openai": "^6.16.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
