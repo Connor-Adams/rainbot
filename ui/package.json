@@ -13,7 +13,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.15",
     "axios": "^1.13.2",
-    "express": "^4.21.0",
+    "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
