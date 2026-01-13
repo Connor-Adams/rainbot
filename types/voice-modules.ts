@@ -7,27 +7,46 @@ import type { Track } from './voice';
 export interface VoiceState {
   connection: VoiceConnection;
   player: AudioPlayer;
+
+  /** Playback state */
   nowPlaying: string | null;
   currentTrack: Track | null;
   currentResource: AudioResource | null;
+
+  /** Queue */
   queue: Track[];
+
+  /** Channel */
   channelId: string;
   channelName: string;
+
+  /** Attribution */
   lastUserId: string | null;
   lastUsername: string | null;
   lastDiscriminator: string | null;
-  pausedMusic: unknown | null;
+
+  /** Timing */
   playbackStartTime: number | null;
   pauseStartTime: number | null;
   totalPausedTime: number;
-  overlayProcess: unknown | null;
+
+  /** Volume (music only) */
   volume: number;
-  preBuffered: unknown | null;
+
+  /** Process / overlay (soundboard only) */
+  overlayProcess: unknown | null;
+
+  /** Replay support */
+  lastPlayedTrack: Track | null;
+
+  /** Guards */
+  isTransitioningToOverlay: boolean;
+  autoplay: boolean;
+  wasManuallySkipped: boolean;
+
+  /** Internal bookkeeping */
   currentTrackSource: string | null;
-  lastPlayedTrack: Track | null; // For replay functionality (not soundboard)
-  isTransitioningToOverlay: boolean; // Flag to prevent idle handler from playing next during overlay transition
-  autoplay: boolean; // Auto keep playing mode - automatically adds related tracks when queue is empty
-  wasManuallySkipped: boolean; // Flag to prevent double-tracking stats when skip is called
+  preBuffered: unknown | null;
 }
 
 export interface StreamUrlCache {
