@@ -1,129 +1,194 @@
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from 'discord.js';
 import type { Track, QueueInfo } from '../types/voice';
+
+/* ============================================================================
+ * FORMATTERS
+ * ============================================================================
+ */
 
 /**
  * Format duration in seconds to MM:SS or HH:MM:SS
  */
-export function formatDuration(seconds: number | null | undefined): string | null {
-  if (!seconds || isNaN(seconds)) return null;
+export function formatDuration(
+  seconds: number | null | undefined
+): string | null {
+  if (!seconds || seconds <= 0 || Number.isNaN(seconds)) return null;
+
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
 
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}`;
   }
+
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 /**
- * Extract YouTube video ID from URL
+ * Extract YouTube thumbnail from URL
  */
-export function getYouTubeThumbnail(url: string | null | undefined): string | null {
+export function getYouTubeThumbnail(
+  url: string | null | undefined
+): string | null {
   if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (match) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
-  }
-  return null;
+
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+
+  return match
+    ? `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`
+    : null;
+}
+
+/* ============================================================================
+ * PLAYER STATE DERIVATION
+ * ============================================================================
+ */
+
+interface DerivedPlayerState {
+  title: string;
+  description: string;
+  color: number;
+  footer: string;
+  thumbnail?: string;
 }
 
 /**
- * Create a now playing embed with control buttons
+ * Build all visual state in one place.
+ * This keeps rendering logic dumb and maintainable.
  */
-export function createPlayerEmbed(
+function derivePlayerState(
   nowPlaying: string | null,
   queue: Track[],
-  isPaused: boolean = false,
-  currentTrack: Track | null = null,
-  queueInfo: Partial<QueueInfo> = {}
-): EmbedBuilder {
-  const {
-    playbackPosition = 0,
-    hasOverlay = false,
-    totalInQueue = queue.length,
-    channelName = null,
-  } = queueInfo;
+  isPaused: boolean,
+  currentTrack: Track | null,
+  queueInfo: Partial<QueueInfo>
+): DerivedPlayerState {
+  const playbackPosition = queueInfo.playbackPosition ?? 0;
+  const hasOverlay = queueInfo.hasOverlay ?? false;
+  const channelName = queueInfo.channelName ?? null;
 
-  // Determine embed color based on state
-  let embedColor = 0x6366f1; // Default blue
-  if (hasOverlay) {
-    embedColor = 0x8b5cf6; // Purple when overlay active
-  } else if (isPaused) {
-    embedColor = 0xf59e0b; // Orange when paused
-  }
+  const track = currentTrack ?? null;
+  const titleText = track?.title ?? nowPlaying ?? 'Nothing playing';
+  const isSoundboard = Boolean(track?.isSoundboard || track?.isLocal);
 
-  const embed = new EmbedBuilder().setColor(embedColor).setTimestamp();
+  /* ---------- COLOR ---------- */
+  let color = 0x6366f1; // Blue
+  if (hasOverlay) color = 0x8b5cf6; // Purple
+  else if (isPaused) color = 0xf59e0b; // Orange
 
-  // Get current track info if available
-  let trackTitle = nowPlaying || 'Nothing playing';
-  let trackDuration: number | null = null;
-  let trackUrl: string | null = null;
-  let isSoundboard = false;
-
-  if (currentTrack) {
-    trackTitle = currentTrack.title || trackTitle;
-    trackDuration = currentTrack.duration ?? null;
-    trackUrl = currentTrack.url ?? null;
-    isSoundboard = currentTrack.isSoundboard || trackTitle.startsWith('🔊');
-  } else if (queue.length > 0 && queue[0]) {
-    // Try to get info from first queue item if it matches
-    trackUrl = queue[0].url ?? null;
-  }
-
-  // Set title based on state
+  /* ---------- TITLE ---------- */
   let title = '🎵 Now Playing';
-  if (hasOverlay) {
-    title = '🔊 Soundboard Overlay Active';
-  } else if (isPaused) {
-    title = '⏸️ Paused';
-  } else if (isSoundboard) {
-    title = '🔊 Soundboard';
-  }
-  embed.setTitle(title);
+  if (hasOverlay) title = '🔊 Soundboard Overlay Active';
+  else if (isPaused) title = '⏸️ Paused';
+  else if (isSoundboard) title = '🔊 Soundboard';
 
-  // Set thumbnail if YouTube URL
-  const thumbnail = getYouTubeThumbnail(trackUrl);
-  if (thumbnail && !isSoundboard) {
-    embed.setThumbnail(thumbnail);
-  }
+  /* ---------- DESCRIPTION ---------- */
+  let description = `**${titleText}**`;
 
-  // Build description with position and duration
-  let description = `**${trackTitle}**`;
-
-  if (trackDuration && playbackPosition > 0) {
-    // Show progress: current / total
-    const currentTime = formatDuration(playbackPosition);
-    const totalTime = formatDuration(trackDuration);
-    description += `\n\`${currentTime} / ${totalTime}\``;
-  } else if (trackDuration) {
-    description += ` • \`${formatDuration(trackDuration)}\``;
+  const duration = track?.duration ?? null;
+  if (duration) {
+    const total = formatDuration(duration);
+    const current = formatDuration(playbackPosition);
+    description += current
+      ? `\n\`${current} / ${total}\``
+      : ` • \`${total}\``;
   }
 
-  // Add overlay indicator
   if (hasOverlay) {
     description += '\n\n🔊 *Soundboard overlay active*';
   }
 
-  embed.setDescription(description);
+  /* ---------- FOOTER ---------- */
+  const statusEmoji = hasOverlay ? '🔊' : isPaused ? '⏸️' : '▶️';
+  let footer = `${statusEmoji} ${
+    hasOverlay ? 'Overlay Active' : isPaused ? 'Paused' : 'Playing'
+  }`;
 
-  // Add queue preview
+  if (channelName) footer += ` • ${channelName}`;
+  footer += ' • Use /play to add tracks';
+
+  /* ---------- THUMBNAIL ---------- */
+  const thumbnail =
+    !isSoundboard && track?.url
+      ? getYouTubeThumbnail(track.url)
+      : undefined;
+
+  return {
+    title,
+    description,
+    color,
+    footer,
+    thumbnail,
+  };
+}
+
+/* ============================================================================
+ * EMBEDS
+ * ============================================================================
+ */
+
+export function createPlayerEmbed(
+  nowPlaying: string | null,
+  queue: Track[],
+  isPaused = false,
+  currentTrack: Track | null = null,
+  queueInfo: Partial<QueueInfo> = {}
+): EmbedBuilder {
+  const totalInQueue = queueInfo.totalInQueue ?? queue.length;
+
+  const derived = derivePlayerState(
+    nowPlaying,
+    queue,
+    isPaused,
+    currentTrack,
+    queueInfo
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(derived.color)
+    .setTitle(derived.title)
+    .setDescription(derived.description)
+    .setTimestamp()
+    .setFooter({ text: derived.footer });
+
+  if (derived.thumbnail) {
+    embed.setThumbnail(derived.thumbnail);
+  }
+
+  /* ---------- QUEUE PREVIEW ---------- */
   if (queue.length > 0) {
-    const upNext = queue
+    const preview = queue
       .slice(0, 5)
-      .map((t, i) => {
-        const num = (i + 1).toString().padStart(2, '0');
-        const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
-        const source = t.isLocal ? '🔊' : '';
-        return `\`${num}\` ${source}${t.title}${duration}`;
+      .map((track, index) => {
+        const number = (index + 1).toString().padStart(2, '0');
+        const duration = track.duration
+          ? ` \`${formatDuration(track.duration)}\``
+          : '';
+        const icon = track.isLocal ? '🔊 ' : '';
+        return `\`${number}\` ${icon}${track.title}${duration}`;
       })
       .join('\n');
 
-    const moreText = totalInQueue > 5 ? `\n*...and ${totalInQueue - 5} more*` : '';
+    const overflow =
+      totalInQueue > 5
+        ? `\n*...and ${totalInQueue - 5} more*`
+        : '';
 
     embed.addFields({
-      name: `📋 Queue — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}`,
-      value: upNext + moreText,
+      name: `📋 Queue — ${totalInQueue} track${
+        totalInQueue === 1 ? '' : 's'
+      }`,
+      value: preview + overflow,
       inline: false,
     });
   } else {
@@ -134,68 +199,75 @@ export function createPlayerEmbed(
     });
   }
 
-  // Add footer with status and channel info
-  const statusEmoji = hasOverlay ? '🔊' : isPaused ? '⏸️' : '▶️';
-  let footerText = `${statusEmoji} ${hasOverlay ? 'Overlay Active' : isPaused ? 'Paused' : 'Playing'}`;
-  if (channelName) {
-    footerText += ` • ${channelName}`;
-  }
-  footerText += ' • Use /play to add tracks';
-  embed.setFooter({ text: footerText });
-
   return embed;
 }
 
-/**
- * Create control buttons row
- *
- * Note: This function is maintained for backward compatibility.
- * New code should use the components from ../components/buttons/music/controlButtons
+/* ============================================================================
+ * COMPONENTS
+ * ============================================================================
  */
+
 export function createControlButtons(
-  isPaused: boolean = false,
-  hasQueue: boolean = false
+  isPaused = false,
+  hasQueue = false
 ): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('player_pause')
       .setLabel(isPaused ? 'Resume' : 'Pause')
       .setEmoji(isPaused ? '▶️' : '⏸️')
       .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
+
     new ButtonBuilder()
       .setCustomId('player_skip')
       .setLabel('Skip')
       .setEmoji('⏭️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(!hasQueue),
+
     new ButtonBuilder()
       .setCustomId('player_stop')
       .setLabel('Stop')
       .setEmoji('⏹️')
       .setStyle(ButtonStyle.Danger),
+
     new ButtonBuilder()
       .setCustomId('player_queue')
       .setLabel('View Queue')
       .setEmoji('📋')
       .setStyle(ButtonStyle.Secondary)
   );
-
-  return row;
 }
 
-/**
- * Create full player message components
+/* ============================================================================
+ * PUBLIC MESSAGE FACTORY
+ * ============================================================================
  */
+
 export function createPlayerMessage(
   nowPlaying: string | null,
   queue: Track[],
-  isPaused: boolean = false,
+  isPaused = false,
   currentTrack: Track | null = null,
   queueInfo: Partial<QueueInfo> = {}
-): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[]; content?: string } {
-  const hasQueue = (queueInfo.totalInQueue ?? queue.length) > 0;
+): {
+  embeds: EmbedBuilder[];
+  components: ActionRowBuilder<ButtonBuilder>[];
+} {
+  const totalInQueue = queueInfo.totalInQueue ?? queue.length;
+
   return {
-    embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack, queueInfo)],
-    components: [createControlButtons(isPaused, hasQueue)],
+    embeds: [
+      createPlayerEmbed(
+        nowPlaying,
+        queue,
+        isPaused,
+        currentTrack,
+        queueInfo
+      ),
+    ],
+    components: [
+      createControlButtons(isPaused, totalInQueue > 0),
+    ],
   };
 }
