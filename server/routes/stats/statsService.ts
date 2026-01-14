@@ -1,19 +1,44 @@
 import { query } from '../utils/database';
 import { QueryBuilder, WhereFilters } from '../utils/queryBuilder';
 
+function getSharedFilters(filters: WhereFilters): WhereFilters {
+  return {
+    guildId: filters.guildId,
+    userId: filters.userId,
+    source: filters.source,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  };
+}
+
+function getSoundFilters(filters: WhereFilters): WhereFilters {
+  return {
+    guildId: filters.guildId,
+    userId: filters.userId,
+    source: filters.source,
+    sourceType: filters.sourceType,
+    isSoundboard: filters.isSoundboard,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  };
+}
+
 export class StatsService {
   async getSummary(filters: WhereFilters) {
+    const sharedFilters = getSharedFilters(filters);
     const commandBuilder = new QueryBuilder();
-    const { whereClause: commandWhere, params: commandParams } = commandBuilder
-      .addFilters(filters, 'executed_at')
+    const { whereClause: commandWhere, params: sharedParams } = commandBuilder
+      .addFilters(sharedFilters, 'executed_at')
       .build();
-
-    const soundWhere = commandWhere.replace(/executed_at/g, 'played_at');
+    const soundBuilder = new QueryBuilder();
+    const { whereClause: soundWhere } = soundBuilder
+      .addFilters(sharedFilters, 'played_at')
+      .build();
 
     const [commandsResult, soundsResult, usersResult, guildsResult, successResult] =
       await Promise.all([
-        query(`SELECT COUNT(*) as count FROM command_stats ${commandWhere}`, commandParams),
-        query(`SELECT COUNT(*) as count FROM sound_stats ${soundWhere}`, commandParams),
+        query(`SELECT COUNT(*) as count FROM command_stats ${commandWhere}`, sharedParams),
+        query(`SELECT COUNT(*) as count FROM sound_stats ${soundWhere}`, sharedParams),
         query(
           `SELECT COUNT(DISTINCT user_id) as count 
            FROM (
@@ -21,7 +46,7 @@ export class StatsService {
              UNION
              SELECT user_id FROM sound_stats ${soundWhere}
            ) combined`,
-          commandParams
+          sharedParams
         ),
         query(
           `SELECT COUNT(DISTINCT guild_id) as count 
@@ -30,13 +55,13 @@ export class StatsService {
              UNION
              SELECT guild_id FROM sound_stats ${soundWhere}
            ) combined`,
-          commandParams
+          sharedParams
         ),
         query(
           `SELECT COUNT(*) FILTER (WHERE success = true) as success, 
                   COUNT(*) as total 
            FROM command_stats ${commandWhere}`,
-          commandParams
+          sharedParams
         ),
       ]);
 
@@ -105,7 +130,7 @@ export class StatsService {
 
   async getSoundStats(filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
-    const { whereClause, params } = builder.addFilters(filters, 'played_at').build();
+    const { whereClause, params } = builder.addFilters(getSoundFilters(filters), 'played_at').build();
 
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
@@ -143,17 +168,22 @@ export class StatsService {
   }
 
   async getUserStats(filters: WhereFilters, limit: number) {
-    const builder = new QueryBuilder();
     const commandFilters: WhereFilters = {
       guildId: filters.guildId,
       startDate: filters.startDate,
       endDate: filters.endDate,
     };
 
-    const { whereClause, params } = builder.addFilters(commandFilters, 'executed_at').build();
-    const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
+    const commandBuilder = new QueryBuilder();
+    const { whereClause: commandWhere, params } = commandBuilder
+      .addFilters(commandFilters, 'executed_at')
+      .build();
+    const soundBuilder = new QueryBuilder();
+    const { whereClause: soundWhereClause } = soundBuilder
+      .addFilters(commandFilters, 'played_at')
+      .build();
 
-    const nextIndex = builder.getNextParamIndex();
+    const nextIndex = commandBuilder.getNextParamIndex();
     params.push(limit as any);
 
     const usersQuery = `
@@ -167,7 +197,7 @@ export class StatsService {
         GREATEST(MAX(c.executed_at), MAX(s.played_at)) AS last_active
       FROM (
         SELECT user_id, guild_id, id, executed_at, username, discriminator
-        FROM command_stats ${whereClause}
+        FROM command_stats ${commandWhere}
       ) c
       FULL OUTER JOIN (
         SELECT user_id, guild_id, id, played_at, username, discriminator
@@ -212,13 +242,15 @@ export class StatsService {
   }
 
   async getGuildStats(filters: WhereFilters, limit: number) {
-    const builder = new QueryBuilder();
-    const { whereClause, params } = builder
+    const commandBuilder = new QueryBuilder();
+    const { whereClause: commandWhere, params } = commandBuilder
       .addDateRange('executed_at', filters.startDate, filters.endDate)
       .build();
-
-    const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
-    const nextIndex = builder.getNextParamIndex();
+    const soundBuilder = new QueryBuilder();
+    const { whereClause: soundWhereClause } = soundBuilder
+      .addDateRange('played_at', filters.startDate, filters.endDate)
+      .build();
+    const nextIndex = commandBuilder.getNextParamIndex();
     params.push(limit as any);
 
     const guildsQuery = `
@@ -230,7 +262,7 @@ export class StatsService {
         GREATEST(MAX(c.executed_at), MAX(s.played_at)) AS last_active
       FROM (
         SELECT guild_id, id, user_id, executed_at 
-        FROM command_stats ${whereClause}
+        FROM command_stats ${commandWhere}
       ) c
       FULL OUTER JOIN (
         SELECT guild_id, id, user_id, played_at 
@@ -261,16 +293,19 @@ export class StatsService {
         dateTrunc = "DATE_TRUNC('day', executed_at)";
     }
 
-    const builder = new QueryBuilder();
-    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
-    builder.addDateRange('executed_at', filters.startDate, filters.endDate);
+    const commandBuilder = new QueryBuilder();
+    if (filters.guildId) commandBuilder.addCondition('guild_id', filters.guildId);
+    commandBuilder.addDateRange('executed_at', filters.startDate, filters.endDate);
+    const { whereClause: commandWhere, params } = commandBuilder.build();
 
-    const { whereClause, params } = builder.build();
-    const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
+    const soundBuilder = new QueryBuilder();
+    if (filters.guildId) soundBuilder.addCondition('guild_id', filters.guildId);
+    soundBuilder.addDateRange('played_at', filters.startDate, filters.endDate);
+    const { whereClause: soundWhereClause } = soundBuilder.build();
 
     const commandsQuery = `
       SELECT ${dateTrunc} as date, COUNT(*) as command_count
-      FROM command_stats ${whereClause}
+      FROM command_stats ${commandWhere}
       GROUP BY ${dateTrunc}
       ORDER BY date ASC
     `;
@@ -314,30 +349,33 @@ export class StatsService {
   }
 
   async getErrorStats(filters: WhereFilters) {
-    const builder = new QueryBuilder();
-    builder.addCondition('success', 'false' as any);
+    const baseBuilder = new QueryBuilder();
+    if (filters.guildId) baseBuilder.addCondition('guild_id', filters.guildId);
+    baseBuilder.addDateRange('executed_at', filters.startDate, filters.endDate);
+    const { whereClause: baseWhere, params: baseParams } = baseBuilder.build();
 
-    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
-    builder.addDateRange('executed_at', filters.startDate, filters.endDate);
-
-    const { whereClause, params } = builder.build();
+    const errorBuilder = new QueryBuilder();
+    errorBuilder.addCondition('success', 'false' as any);
+    if (filters.guildId) errorBuilder.addCondition('guild_id', filters.guildId);
+    errorBuilder.addDateRange('executed_at', filters.startDate, filters.endDate);
+    const { whereClause: errorWhere, params: errorParams } = errorBuilder.build();
 
     const [errorsByType, errorsByCommand, errorTrend] = await Promise.all([
       query(
         `SELECT error_type, COUNT(*) as count
-         FROM command_stats ${whereClause}
+         FROM command_stats ${errorWhere}
          GROUP BY error_type
          ORDER BY count DESC`,
-        params
+        errorParams
       ),
       query(
         `SELECT command_name, error_type, COUNT(*) as count,
                 array_agg(DISTINCT error_message) FILTER (WHERE error_message IS NOT NULL) as sample_errors
-         FROM command_stats ${whereClause}
+         FROM command_stats ${errorWhere}
          GROUP BY command_name, error_type
          ORDER BY count DESC
          LIMIT 50`,
-        params
+        errorParams
       ),
       query(
         `SELECT DATE(executed_at) as date,
@@ -345,11 +383,11 @@ export class StatsService {
                 COUNT(*) as total,
                 ROUND(COUNT(*) FILTER (WHERE success = false)::numeric / NULLIF(COUNT(*), 0) * 100, 2) as error_rate
          FROM command_stats
-         ${whereClause.replace('success = false AND ', '').replace('success = false', '1=1')}
+         ${baseWhere}
          GROUP BY DATE(executed_at)
          ORDER BY date DESC
          LIMIT 30`,
-        params.filter((_, i) => i > 0)
+        baseParams
       ),
     ]);
 

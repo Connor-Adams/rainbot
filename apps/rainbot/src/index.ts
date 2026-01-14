@@ -16,14 +16,15 @@ const PORT = parseInt(process.env['RAINBOT_PORT'] || '3001', 10);
 const TOKEN = process.env['RAINBOT_TOKEN'];
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
 
-if (!TOKEN) {
+const hasToken = !!TOKEN;
+const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
+
+if (!hasToken) {
   console.error('RAINBOT_TOKEN environment variable is required');
-  process.exit(1);
 }
 
-if (!ORCHESTRATOR_BOT_ID) {
+if (!hasOrchestrator) {
   console.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
-  process.exit(1);
 }
 
 interface GuildState {
@@ -43,6 +44,23 @@ interface Track {
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
 const mutex = new Mutex();
+let serverStarted = false;
+
+function startServer(): void {
+  if (serverStarted) return;
+  serverStarted = true;
+  app.listen(PORT, () => {
+    console.log(`[RAINBOT] Worker server listening on port ${PORT}`);
+  });
+}
+
+function ensureClientReady(res: Response): boolean {
+  if (!client.isReady()) {
+    res.status(503).json({ status: 'error', message: 'Bot not ready' });
+    return false;
+  }
+  return true;
+}
 
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
@@ -105,6 +123,7 @@ app.use(express.json());
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {
+  if (!ensureClientReady(res)) return;
   const { requestId, guildId, channelId } = req.body;
 
   if (!requestId || !guildId || !channelId) {
@@ -604,13 +623,16 @@ client.once('ready', () => {
   console.log(`[RAINBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 
   // Start HTTP server
-  app.listen(PORT, () => {
-    console.log(`[RAINBOT] Worker server listening on port ${PORT}`);
-  });
+  startServer();
 });
 
 client.on('error', (error) => {
   console.error('[RAINBOT] Client error:', error);
 });
 
-client.login(TOKEN);
+if (hasToken) {
+  client.login(TOKEN);
+} else {
+  console.warn('[RAINBOT] Bot token missing; running in degraded mode (HTTP only)');
+  startServer();
+}
