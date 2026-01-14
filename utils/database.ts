@@ -221,36 +221,6 @@ export async function initializeSchema(): Promise<boolean> {
             )
         `);
 
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS listening_history (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(20) NOT NULL,
-                guild_id VARCHAR(20) NOT NULL,
-                track_title VARCHAR(500) NOT NULL,
-                track_url TEXT,
-                source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('local', 'youtube', 'spotify', 'soundcloud', 'other')),
-                is_soundboard BOOLEAN NOT NULL DEFAULT FALSE,
-                duration INTEGER,
-                played_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api')),
-                queued_by VARCHAR(20),
-                metadata JSONB
-            )
-        `);
-
-    // Add queued_by column if it doesn't exist (migration for existing databases)
-    await pool.query(`
-            DO $$ 
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
-                    WHERE table_name = 'listening_history' AND column_name = 'queued_by'
-                ) THEN
-                    ALTER TABLE listening_history ADD COLUMN queued_by VARCHAR(20);
-                END IF;
-            END $$;
-        `);
-
     // Add username/discriminator columns if they don't exist (migration)
     await pool.query(`
             DO $$
@@ -626,22 +596,6 @@ export async function initializeSchema(): Promise<boolean> {
       `CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)`
     );
 
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)`
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_user_guild ON listening_history(user_id, guild_id)`
-    );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_queued_by ON listening_history(queued_by)`
-    );
-
     // New composite indexes for better query performance
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_command_stats_guild_date ON command_stats(guild_id, executed_at)`
@@ -655,10 +609,6 @@ export async function initializeSchema(): Promise<boolean> {
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_sound_stats_user_guild_date ON sound_stats(user_id, guild_id, played_at)`
     );
-    await pool.query(
-      `CREATE INDEX IF NOT EXISTS idx_listening_history_guild_date ON listening_history(guild_id, played_at DESC)`
-    );
-
     // Indexes for new tables
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_voice_sessions_guild_id ON voice_sessions(guild_id)`
