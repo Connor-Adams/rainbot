@@ -3,6 +3,13 @@
  * Track Fetcher - Handles track metadata fetching and URL validation
  */
 import play from 'play-dl';
+import type {
+  SoundCloudPlaylist,
+  SoundCloudTrack,
+  SpotifyAlbum,
+  SpotifyPlaylist,
+  SpotifyTrack,
+} from 'play-dl';
 import path from 'path';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
@@ -123,7 +130,7 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         const spotifyInfo = await play.spotify(source);
 
         if (spotifyInfo.type === 'track') {
-          const track = spotifyInfo;
+          const track = spotifyInfo as SpotifyTrack;
           tracks.push({
             title: buildSpotifyTitle(track.name, track.artists),
             url: track.url,
@@ -134,12 +141,13 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
             spotifyUrl: track.url,
           });
         } else {
-          const pageOne = spotifyInfo.page(1) ?? [];
+          const spotifyCollection = spotifyInfo as SpotifyPlaylist | SpotifyAlbum;
+          const pageOne = spotifyCollection.page(1) ?? [];
           const spotifyTracks = pageOne.length
             ? pageOne
-            : await spotifyInfo.all_tracks();
+            : await spotifyCollection.all_tracks();
 
-          spotifyTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track) => {
+          spotifyTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track: SpotifyTrack) => {
             tracks.push({
               title: buildSpotifyTitle(track.name, track.artists),
               url: track.url,
@@ -162,7 +170,7 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         const soundcloudInfo = await play.soundcloud(source);
 
         if (soundcloudInfo.type === 'track') {
-          const track = soundcloudInfo;
+          const track = soundcloudInfo as SoundCloudTrack;
           tracks.push({
             title: track.name || 'Unknown Track',
             url: track.permalink || track.url,
@@ -171,8 +179,8 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
             sourceType: 'soundcloud',
           });
         } else {
-          const playlistTracks = await soundcloudInfo.all_tracks();
-          playlistTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track) => {
+          const playlistTracks = await (soundcloudInfo as SoundCloudPlaylist).all_tracks();
+          playlistTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track: SoundCloudTrack) => {
             tracks.push({
               title: track.name || 'Unknown Track',
               url: track.permalink || track.url,
