@@ -1,6 +1,6 @@
 const { Events } = require('discord.js');
-const { createLogger } = require('../dist/utils/logger');
-const stats = require('../dist/utils/statistics');
+const { createLogger } = require('../../dist/utils/logger');
+const stats = require('../../dist/utils/statistics');
 
 const log = createLogger('GUILD');
 

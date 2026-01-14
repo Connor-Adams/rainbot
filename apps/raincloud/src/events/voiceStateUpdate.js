@@ -5,9 +5,9 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const { createLogger } = require('../dist/utils/logger');
-const listeningHistory = require('../dist/utils/listeningHistory');
-const stats = require('../dist/utils/statistics');
+const { createLogger } = require('../../dist/utils/logger');
+const listeningHistory = require('../../dist/utils/listeningHistory');
+const stats = require('../../dist/utils/statistics');
 
 const log = createLogger('VOICE_STATE');
 
@@ -15,7 +15,7 @@ const log = createLogger('VOICE_STATE');
 let voiceManager = null;
 function getVoiceManager() {
   if (!voiceManager) {
-    voiceManager = require('../dist/utils/voiceManager');
+    voiceManager = require('../../dist/utils/voiceManager');
   }
   return voiceManager;
 }
@@ -27,7 +27,7 @@ function getVoiceInteractionManager() {
     try {
       const {
         getVoiceInteractionManager,
-      } = require('../dist/utils/voice/voiceInteractionInstance');
+      } = require('../../dist/utils/voice/voiceInteractionInstance');
       voiceInteractionManager = getVoiceInteractionManager();
     } catch (error) {
       log.debug(`Voice interaction manager not available: ${error.message}`);

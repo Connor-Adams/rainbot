@@ -1,8 +1,9 @@
 import express, { Request, Response } from 'express';
 import * as voiceManager from '../../../utils/voiceManager';
 import { requireAuth } from '../../middleware/auth';
+import { asyncHandler, HttpError } from '../../middleware/errorHandler';
 import * as stats from '../../../utils/statistics';
-import { getAuthUser, requireGuildMember } from './shared';
+import { getAuthUser, requireGuildMember, toHttpError } from './shared';
 
 const router = express.Router();
 
@@ -11,12 +12,11 @@ router.post(
   '/play',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId, source } = req.body;
 
     if (!guildId || !source) {
-      res.status(400).json({ error: 'guildId and source are required' });
-      return;
+      throw new HttpError(400, 'guildId and source are required');
     }
 
     try {
@@ -75,9 +75,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // POST /api/soundboard - Play a soundboard sound with overlay (ducks music)
@@ -85,12 +85,11 @@ router.post(
   '/soundboard',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId, sound } = req.body;
 
     if (!guildId || !sound) {
-      res.status(400).json({ error: 'guildId and sound are required' });
-      return;
+      throw new HttpError(400, 'guildId and sound are required');
     }
 
     try {
@@ -120,7 +119,6 @@ router.post(
 
       res.json(result);
     } catch (error) {
-      const err = error as Error;
       const { id: userId, username, discriminator } = getAuthUser(req);
       if (userId) {
         stats.trackCommand(
@@ -129,14 +127,14 @@ router.post(
           guildId,
           'api',
           false,
-          err.message,
+          error instanceof Error ? error.message : 'Unknown error',
           username,
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // POST /api/stop - Stop playback
@@ -144,12 +142,11 @@ router.post(
   '/stop',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId } = req.body;
 
     if (!guildId) {
-      res.status(400).json({ error: 'guildId is required' });
-      return;
+      throw new HttpError(400, 'guildId is required');
     }
 
     const { id: userId, username, discriminator } = getAuthUser(req);
@@ -174,9 +171,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: 'Not playing anything' });
+      throw new HttpError(400, 'Not playing anything');
     }
-  }
+  })
 );
 
 // POST /api/skip - Skip to next track
@@ -184,12 +181,11 @@ router.post(
   '/skip',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId } = req.body;
 
     if (!guildId) {
-      res.status(400).json({ error: 'guildId is required' });
-      return;
+      throw new HttpError(400, 'guildId is required');
     }
 
     try {
@@ -214,7 +210,7 @@ router.post(
             discriminator
           );
         }
-        res.status(400).json({ error: 'No track to skip' });
+        throw new HttpError(400, 'No track to skip');
       }
     } catch (error) {
       const err = error as Error;
@@ -231,9 +227,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // POST /api/replay - Replay the last played track
@@ -241,12 +237,11 @@ router.post(
   '/replay',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId } = req.body;
 
     if (!guildId) {
-      res.status(400).json({ error: 'guildId is required' });
-      return;
+      throw new HttpError(400, 'guildId is required');
     }
 
     try {
@@ -258,7 +253,7 @@ router.post(
         }
         res.json({ message: `Replaying: ${result.title}`, track: result.title });
       } else {
-        res.status(400).json({ error: 'No track to replay' });
+        throw new HttpError(400, 'No track to replay');
       }
     } catch (error) {
       const err = error as Error;
@@ -275,9 +270,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // POST /api/pause - Toggle pause/resume
@@ -285,12 +280,11 @@ router.post(
   '/pause',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId } = req.body;
 
     if (!guildId) {
-      res.status(400).json({ error: 'guildId is required' });
-      return;
+      throw new HttpError(400, 'guildId is required');
     }
 
     try {
@@ -318,9 +312,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // POST /api/volume - Set volume
@@ -328,17 +322,15 @@ router.post(
   '/volume',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { guildId, level } = req.body;
 
     if (!guildId) {
-      res.status(400).json({ error: 'guildId is required' });
-      return;
+      throw new HttpError(400, 'guildId is required');
     }
 
     if (level === undefined || level === null) {
-      res.status(400).json({ error: 'level is required (1-100)' });
-      return;
+      throw new HttpError(400, 'level is required (1-100)');
     }
 
     try {
@@ -365,9 +357,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 export default router;

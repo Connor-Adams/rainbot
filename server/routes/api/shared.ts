@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { GuildMember } from 'discord.js';
 import { getClient } from '../../client';
+import { HttpError } from '../../middleware/errorHandler';
 
 interface AuthUser {
   id: string | null;
@@ -64,4 +65,14 @@ export function getAuthUser(req: Request): AuthUser {
     username: user.username || null,
     discriminator: user.discriminator || null,
   };
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unknown error';
+}
+
+export function toHttpError(error: unknown, status = 400): HttpError {
+  return new HttpError(status, getErrorMessage(error));
 }

@@ -2,6 +2,7 @@ import type { Response, NextFunction } from 'express';
 import { createLogger } from '../../utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
+import { getServerConfig } from '../config';
 import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
 
 const log = createLogger('AUTH');
@@ -31,8 +32,7 @@ export async function requireAuth(
   }
 
   // Get config and bot client
-  const { loadConfig } = require('../../utils/config');
-  const config = loadConfig();
+  const config = getServerConfig();
   const botClient = getClient();
 
   // If no required role is configured, skip role verification (open access)

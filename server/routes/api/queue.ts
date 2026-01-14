@@ -1,8 +1,9 @@
 import express, { Request, Response } from 'express';
 import * as voiceManager from '../../../utils/voiceManager';
 import { requireAuth } from '../../middleware/auth';
+import { asyncHandler, HttpError } from '../../middleware/errorHandler';
 import * as stats from '../../../utils/statistics';
-import { getAuthUser, requireGuildMember } from './shared';
+import { getAuthUser, requireGuildMember, toHttpError } from './shared';
 
 const router = express.Router();
 
@@ -11,17 +12,12 @@ router.get(
   '/queue/:guildId',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const guildId = req.params['guildId']!;
 
-    try {
-      const queue = voiceManager.getQueue(guildId);
-      res.json(queue);
-    } catch (error) {
-      const err = error as Error;
-      res.status(400).json({ error: err.message });
-    }
-  }
+    const queue = voiceManager.getQueue(guildId);
+    res.json(queue);
+  })
 );
 
 // POST /api/queue/:guildId/clear - Clear the queue
@@ -29,7 +25,7 @@ router.post(
   '/queue/:guildId/clear',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const guildId = req.params['guildId']!;
 
     try {
@@ -57,9 +53,9 @@ router.post(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 // DELETE /api/queue/:guildId/:index - Remove a track from queue by index
@@ -67,14 +63,13 @@ router.delete(
   '/queue/:guildId/:index',
   requireAuth,
   requireGuildMember,
-  async (req: Request, res: Response): Promise<void> => {
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const guildId = req.params['guildId']!;
     const index = req.params['index']!;
     const trackIndex = parseInt(index);
 
     if (isNaN(trackIndex) || trackIndex < 0) {
-      res.status(400).json({ error: 'Invalid index' });
-      return;
+      throw new HttpError(400, 'Invalid index');
     }
 
     try {
@@ -102,9 +97,9 @@ router.delete(
           discriminator
         );
       }
-      res.status(400).json({ error: err.message });
+      throw toHttpError(error, 400);
     }
-  }
+  })
 );
 
 export default router;

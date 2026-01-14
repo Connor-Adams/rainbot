@@ -4,12 +4,11 @@ import { Strategy as OAuth2Strategy } from 'passport-oauth2';
 import { createLogger } from '../../utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
+import { getServerConfig } from '../config';
 import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
-
-const { loadConfig } = require('../../utils/config');
 
 interface OAuthConfig {
   clientId: string;
@@ -19,7 +18,7 @@ interface OAuthConfig {
 }
 
 const getConfig = (): OAuthConfig => {
-  const config: AppConfig = loadConfig();
+  const config: AppConfig = getServerConfig();
 
   // Determine callback URL - prioritize Railway, then CALLBACK_URL, then default
   let callbackURL = config.callbackURL;
@@ -168,7 +167,7 @@ passport.deserializeUser((user: Express.User, done) => {
 
 // Helper to get base URL from request
 function getBaseUrl(req: Request): string {
-  const config: AppConfig = loadConfig();
+  const config: AppConfig = getServerConfig();
 
   // Railway provides public domain
   if (config.railwayPublicDomain) {

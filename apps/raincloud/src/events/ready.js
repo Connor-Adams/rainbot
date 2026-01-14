@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
-const { createLogger } = require('../dist/utils/logger');
-const { deployCommands } = require('../dist/utils/deployCommands');
-const { loadConfig } = require('../dist/utils/config');
+const { createLogger } = require('../../dist/utils/logger');
+const { deployCommands } = require('../../dist/utils/deployCommands');
+const { loadConfig } = require('../../dist/utils/config');
 
 const log = createLogger('BOT');
 
@@ -13,8 +13,8 @@ module.exports = {
 
     // Restore saved queue snapshots from previous session (crash recovery)
     try {
-      const { restoreAllQueueSnapshots, startAutoSave } = require('../dist/utils/voiceManager');
-      const { waitForSchema, getPool } = require('../dist/utils/database');
+      const { restoreAllQueueSnapshots, startAutoSave } = require('../../dist/utils/voiceManager');
+      const { waitForSchema, getPool } = require('../../dist/utils/database');
 
       // Wait for database schema to be ready before restoring snapshots
       const pool = getPool();

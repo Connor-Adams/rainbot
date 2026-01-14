@@ -7,7 +7,9 @@ import passport from 'passport';
 import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
 import requestLogger from './middleware/requestLogger';
+import { apiErrorHandler } from './middleware/errorHandler';
 import { setClient, getClient } from './client';
+import { getServerConfig, initServerConfig } from './config';
 import type { AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('SERVER');
@@ -27,8 +29,7 @@ try {
 
 export async function createServer(): Promise<Application> {
   const app = express();
-  const { loadConfig } = require('../utils/config');
-  const config: AppConfig = loadConfig();
+  const config: AppConfig = initServerConfig();
 
   // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
   // This enables correct handling of X-Forwarded-* headers
@@ -226,6 +227,9 @@ export async function createServer(): Promise<Application> {
   const statsRoutes = require('./routes/stats').default;
   app.use('/api/stats', statsRoutes);
 
+  // Centralized API error handling
+  app.use(apiErrorHandler);
+
   // Serve React build from ui/dist (production)
   // After TS compilation, __dirname is dist/server/, so go up 2 levels to reach project root
   const reactBuildPath = path.join(__dirname, '..', '..', 'ui', 'dist');
@@ -270,8 +274,7 @@ export async function createServer(): Promise<Application> {
 export async function start(client: Client, port = 3000): Promise<Application> {
   setClient(client);
   const app = await createServer();
-  const { loadConfig } = require('../utils/config');
-  const config: AppConfig = loadConfig();
+  const config: AppConfig = getServerConfig();
 
   // Railway and other platforms use 0.0.0.0 instead of localhost
   const host = process.env['HOST'] || '0.0.0.0';

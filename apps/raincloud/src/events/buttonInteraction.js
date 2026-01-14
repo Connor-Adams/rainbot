@@ -1,10 +1,10 @@
 const { Events, MessageFlags } = require('discord.js');
-const voiceManager = require('../dist/utils/voiceManager');
-const { createPlayerMessage } = require('../dist/utils/playerEmbed');
-const { createLogger } = require('../dist/utils/logger');
-const listeningHistory = require('../dist/utils/listeningHistory');
-const stats = require('../dist/utils/statistics');
-const { handleButtonInteraction, hasButtonHandler } = require('../dist/handlers/buttonHandler');
+const voiceManager = require('../../dist/utils/voiceManager');
+const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
+const { createLogger } = require('../../dist/utils/logger');
+const listeningHistory = require('../../dist/utils/listeningHistory');
+const stats = require('../../dist/utils/statistics');
+const { handleButtonInteraction, hasButtonHandler } = require('../../dist/handlers/buttonHandler');
 
 const log = createLogger('BUTTONS');
 
