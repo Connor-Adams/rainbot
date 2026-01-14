@@ -10,7 +10,7 @@ import {
   createSimplePaginationRow,
   calculatePaginationState,
 } from '../buttons/pagination/paginationButtons';
-import type { PaginationState } from '../../types/buttons';
+import type { PaginationState } from '@rainbot/protocol';
 
 describe('Pagination Buttons', () => {
   describe('createPrevPageButton', () => {

@@ -11,7 +11,7 @@ import {
   getRegisteredPrefixes,
   getHandlerCount,
 } from '../buttonHandler';
-import type { ButtonHandler } from '../../types/buttons';
+import type { ButtonHandler } from '@rainbot/protocol';
 
 // Mock handler
 const mockHandler: ButtonHandler = jest.fn(async (_interaction, _context) => ({

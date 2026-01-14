@@ -141,7 +141,7 @@ Updated `tsconfig.json` with:
 
 ### Files Created
 
-- `utils/di-container.ts` - Container configuration
+- `apps/raincloud/src/di/di-container.ts` - Container configuration
 - `types/di.symbols.ts` - Service identifiers
 - `types/services.ts` - Service interfaces
 
@@ -149,7 +149,7 @@ Updated `tsconfig.json` with:
 
 ```typescript
 import { injectable, inject } from 'inversify';
-import { TYPES } from '../types/di.symbols';
+import { TYPES } from '@rainbot/protocol';
 
 @injectable()
 class MusicService {

@@ -1,5 +1,5 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { Track, QueueInfo } from '../types/voice';
+import type { Track, QueueInfo } from '@rainbot/protocol';
 
 /**
  * Format duration in seconds to MM:SS or HH:MM:SS

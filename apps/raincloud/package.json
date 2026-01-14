@@ -13,7 +13,7 @@
     "dev": "npm run build:ts && node index.js",
     "start": "npm run build:ts && node index.js",
     "lint": "eslint . --ext .js,.ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "jest --passWithNoTests"
   },
   "dependencies": {

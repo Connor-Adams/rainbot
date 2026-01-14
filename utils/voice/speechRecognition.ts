@@ -1,3 +1,4 @@
+// util-category: audio
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Speech Recognition Module - Convert audio to text
@@ -8,7 +9,7 @@ import { createLogger } from '../logger';
 import type {
   SpeechRecognitionResult,
   VoiceInteractionConfig,
-} from '../../types/voice-interaction';
+} from '@rainbot/protocol';
 import { PassThrough } from 'stream';
 
 const log = createLogger('SPEECH_RECOGNITION');

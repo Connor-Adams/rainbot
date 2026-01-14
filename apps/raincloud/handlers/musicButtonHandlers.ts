@@ -3,7 +3,7 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import type { ButtonHandler } from '../types/buttons';
+import type { ButtonHandler } from '@rainbot/protocol';
 import { createLogger } from '../utils/logger';
 import * as voiceManager from '../utils/voiceManager';
 import { createPlayerMessage } from '../utils/playerEmbed';

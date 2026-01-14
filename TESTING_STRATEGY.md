@@ -40,7 +40,7 @@
 - Query execution
 - Error handling
 
-✅ **di-container.ts** - 17 tests
+✅ **apps/raincloud/src/di/di-container.ts** - 17 tests
 
 - Service registration
 - Singleton pattern

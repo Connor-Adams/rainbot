@@ -1,3 +1,4 @@
+// util-category: db
 import { Pool, PoolConfig, QueryResult } from 'pg';
 import { createLogger } from './logger';
 import { loadConfig } from './config';

@@ -7,7 +7,7 @@ import type {
   TextToSpeechRequest,
   TextToSpeechResult,
   VoiceInteractionConfig,
-} from '../../types/voice-interaction';
+} from '@rainbot/protocol';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

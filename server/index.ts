@@ -8,7 +8,7 @@ import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
 import requestLogger from './middleware/requestLogger';
 import { setClient, getClient } from './client';
-import type { AppConfig } from '../types/server';
+import type { AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('SERVER');
 const FileStore = FileStoreFactory(session);

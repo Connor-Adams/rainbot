@@ -1,10 +1,11 @@
+// util-category: audio
 import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'stream';
 import { createLogger } from '../logger';
-import type { Track } from '../../types/voice';
+import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('AUDIO_RESOURCE');
 
