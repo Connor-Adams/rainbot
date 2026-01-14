@@ -4,7 +4,7 @@ import { Strategy as OAuth2Strategy } from 'passport-oauth2';
 import { createLogger } from '../../utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
-import type { DiscordUser, AuthenticatedRequest, AppConfig } from '../../types/server';
+import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();

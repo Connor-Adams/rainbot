@@ -1,7 +1,8 @@
+// util-category: audio
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { createLogger } from '../logger';
-import type { QueueInfo, Track } from '../../types/voice';
+import type { QueueInfo, Track } from '@rainbot/protocol';
 
 const log = createLogger('VOICE_EVENTS');
 

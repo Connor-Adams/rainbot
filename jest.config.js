@@ -10,7 +10,6 @@ module.exports = {
     'commands/**/*.ts',
     'utils/**/*.ts',
     'server/**/*.ts',
-    'handlers/**/*.ts',
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/dist/**',

@@ -1,3 +1,4 @@
+// util-category: audio
 import { AudioPlayerStatus, AudioResource } from '@discordjs/voice';
 import { Readable } from 'stream';
 
@@ -20,8 +21,8 @@ import { getPlaybackPosition } from './PlaybackTiming';
 
 import { prebufferNext, clearPrebuffer } from './playback/PrebufferManager';
 
-import { Track, TrackKind } from '../../types/voice';
-import type { VoiceState } from '../../types/voice-modules';
+import { Track, TrackKind } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 
 const log = createLogger('PLAYBACK');
 

@@ -1,3 +1,5 @@
+// util-category: storage
+// TODO: confirm if this should live under storage or db once ownership is decided.
 import { createLogger } from './logger';
 import { query } from './database';
 import { detectSourceType, SourceType } from './sourceType';

@@ -1,4 +1,5 @@
-import type { VoiceState } from '../../types/voice';
+// util-category: audio
+import type { VoiceState } from '@rainbot/protocol';
 import * as connectionManager from './connectionManager';
 
 /**

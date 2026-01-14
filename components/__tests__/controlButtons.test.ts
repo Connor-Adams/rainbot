@@ -11,7 +11,7 @@ import {
   createMusicControlRow,
   createBasicControlButtons,
 } from '../buttons/music/controlButtons';
-import type { MusicPlayerState } from '../../types/buttons';
+import type { MusicPlayerState } from '@rainbot/protocol';
 
 describe('Music Control Buttons', () => {
   describe('createPlayPauseButton', () => {

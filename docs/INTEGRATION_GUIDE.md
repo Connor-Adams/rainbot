@@ -13,7 +13,7 @@ import { VoiceStateManager } from './lib/voiceStateManager';
 import { ChannelResolver } from './lib/channelResolver';
 import { WorkerCoordinator } from './lib/workerCoordinator';
 import { createLogger } from './utils/logger';
-import voiceStateUpdateHandler from './events/voiceStateUpdateMultibot';
+import voiceStateUpdateHandler from './src/events/voiceStateUpdateMultibot';
 
 const log = createLogger('MAIN');
 

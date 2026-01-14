@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response, NextFunction } from 'express';
-import type { AuthenticatedRequest, DiscordUser } from '../../../types/server';
+import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
 
 // Mock logger
 jest.mock('../../../utils/logger', () => ({

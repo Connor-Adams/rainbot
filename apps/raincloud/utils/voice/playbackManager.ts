@@ -16,8 +16,8 @@ import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { detectSourceType } from '../sourceType';
 import { getClient } from '../../server/client';
-import type { Track } from '../../types/voice';
-import type { VoiceState } from '../../types/voice-modules';
+import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 import type { TextChannel, VoiceChannel } from 'discord.js';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled

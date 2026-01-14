@@ -1,8 +1,9 @@
+// util-category: audio
 import { createLogger } from '../logger';
 import { resolveStream } from './StreamResolver';
 import { createMusicResource } from './ResourceFactory';
-import type { Track } from '../../types/voice';
-import type { VoiceState } from '../../types/voice-modules';
+import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 import type { AudioResource } from '@discordjs/voice';
 import { Readable } from 'stream';
 

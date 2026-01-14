@@ -1,3 +1,4 @@
+// TODO: Intended DB-owned utility. Leave here until a db package exists.
 import { createLogger } from './logger';
 import { query } from './database';
 import { detectSourceType, SourceType } from './sourceType';

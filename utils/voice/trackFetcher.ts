@@ -1,3 +1,4 @@
+// util-category: audio
 /**
  * Track Fetcher - Handles track metadata fetching and URL validation
  */
@@ -6,7 +7,7 @@ import path from 'path';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
-import type { Track } from '../../types/voice';
+import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('FETCHER');
 

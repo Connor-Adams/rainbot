@@ -94,7 +94,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Session TTL refresh on activity
 - Request idempotency via UUID
 
-✅ **Voice State Event** - `apps/raincloud/events/voiceStateUpdateMultibot.ts`
+✅ **Voice State Event** - `apps/raincloud/src/events/voiceStateUpdateMultibot.ts`
 - Tracks user voice movements
 - Updates current/last channel in Redis
 - Ignores bot movements

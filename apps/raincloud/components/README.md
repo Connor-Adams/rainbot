@@ -86,7 +86,7 @@ The centralized button handler system manages all button interactions:
 
 ```typescript
 import { registerButtonHandler } from '../handlers/buttonHandler';
-import type { ButtonHandler } from '../types/buttons';
+import type { ButtonHandler } from '@rainbot/protocol';
 
 // Define a handler
 const myHandler: ButtonHandler = async (interaction, context) => {
@@ -146,7 +146,7 @@ const { initializeButtonHandlers } = require('./dist/handlers/buttonRegistry');
 initializeButtonHandlers();
 ```
 
-Button interactions are handled in `events/buttonInteraction.js`.
+Button interactions are handled in `src/events/buttonInteraction.js`.
 
 ## Best Practices
 

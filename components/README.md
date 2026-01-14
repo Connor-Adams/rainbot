@@ -85,8 +85,8 @@ const button = createDangerButton('delete_item', 'Delete', '🗑️');
 The centralized button handler system manages all button interactions:
 
 ```typescript
-import { registerButtonHandler } from '../handlers/buttonHandler';
-import type { ButtonHandler } from '../types/buttons';
+import { registerButtonHandler } from '../apps/raincloud/handlers/buttonHandler';
+import type { ButtonHandler } from '@rainbot/protocol';
 
 // Define a handler
 const myHandler: ButtonHandler = async (interaction, context) => {

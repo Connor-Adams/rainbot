@@ -6,7 +6,7 @@ import { getStreamUrl } from './audioResource';
 import * as storage from '../storage';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
-import type { VoiceState } from '../../types/voice-modules';
+import type { VoiceState } from '@rainbot/protocol';
 
 const log = createLogger('SOUNDBOARD');
 
