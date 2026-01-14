@@ -21,4 +21,9 @@ export const {
   clearListeningHistory,
 } = listeningHistoryRepo;
 
-export type { HistoryEntry, ListeningHistoryRow, Track, SourceType } from '@rainbot/db/listeningHistory';
+export type {
+  HistoryEntry,
+  ListeningHistoryRow,
+  Track,
+  SourceType,
+} from '@rainbot/db/listeningHistory';

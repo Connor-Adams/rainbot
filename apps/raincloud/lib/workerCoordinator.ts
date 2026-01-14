@@ -6,10 +6,46 @@ import { v4 as uuidv4 } from 'uuid';
 const log = createLogger('WORKER-COORDINATOR');
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+interface WorkerStatusResponse {
+  connected: boolean;
+  channelId?: string;
+  playing?: boolean;
+  nowPlaying?: string;
+  volume?: number;
+  queueLength?: number;
+  activePlayers?: number;
+  error?: string;
+}
 
 interface WorkerConfig {
   baseUrl: string;
   timeout: number;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unknown error';
+}
+
+function normalizeWorkerStatus(data: unknown): WorkerStatusResponse {
+  if (!data || typeof data !== 'object') {
+    return { connected: false, error: 'Invalid status response' };
+  }
+  const record = data as Record<string, unknown>;
+  const connected = typeof record['connected'] === 'boolean' ? record['connected'] : false;
+  const channelId = typeof record['channelId'] === 'string' ? record['channelId'] : undefined;
+  return {
+    connected,
+    channelId,
+    playing: typeof record['playing'] === 'boolean' ? record['playing'] : undefined,
+    nowPlaying: typeof record['nowPlaying'] === 'string' ? record['nowPlaying'] : undefined,
+    volume: typeof record['volume'] === 'number' ? record['volume'] : undefined,
+    queueLength: typeof record['queueLength'] === 'number' ? record['queueLength'] : undefined,
+    activePlayers:
+      typeof record['activePlayers'] === 'number' ? record['activePlayers'] : undefined,
+    error: typeof record['error'] === 'string' ? record['error'] : undefined,
+  };
 }
 
 export class WorkerCoordinator {
@@ -112,9 +148,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, error: joinResponse.data.message };
-    } catch (error: any) {
-      log.error(`Failed to connect ${botType} to voice: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to connect ${botType} to voice: ${message}`);
+      return { success: false, error: message };
     }
   }
 
@@ -137,8 +174,8 @@ export class WorkerCoordinator {
       });
       await this.voiceStateManager.setWorkerStatus(botType, guildId, '', false);
       log.info(`${botType} left voice in guild ${guildId}`);
-    } catch (error: any) {
-      log.error(`Failed to disconnect ${botType}: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`Failed to disconnect ${botType}: ${getErrorMessage(error)}`);
     }
   }
 
@@ -192,9 +229,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to enqueue track: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to enqueue track: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -231,9 +269,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to speak TTS: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to speak TTS: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -270,9 +309,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to play sound: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to play sound: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -304,30 +344,31 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to set volume for ${botType}: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to set volume for ${botType}: ${message}`);
+      return { success: false, message };
     }
   }
 
   /**
    * Get status for all workers in guild
    */
-  async getWorkersStatus(guildId: string): Promise<Record<BotType, any>> {
-    const statuses: Partial<Record<BotType, any>> = {};
+  async getWorkersStatus(guildId: string): Promise<Record<BotType, WorkerStatusResponse>> {
+    const statuses: Partial<Record<BotType, WorkerStatusResponse>> = {};
 
     for (const [botType, worker] of this.workers.entries()) {
       try {
         const response = await worker.get('/status', {
           params: { guildId },
         });
-        statuses[botType] = response.data;
+        statuses[botType] = normalizeWorkerStatus(response.data);
       } catch (_error) {
         statuses[botType] = { connected: false, error: 'Failed to get status' };
       }
     }
 
-    return statuses as Record<BotType, any>;
+    return statuses as Record<BotType, WorkerStatusResponse>;
   }
 
   /**
@@ -356,9 +397,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to skip track: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to skip track: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -386,9 +428,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to toggle pause: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to toggle pause: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -414,9 +457,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to stop playback: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to stop playback: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -444,9 +488,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to clear queue: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to clear queue: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -472,8 +517,8 @@ export class WorkerCoordinator {
       });
 
       return response.data;
-    } catch (error: any) {
-      log.error(`Failed to get queue: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`Failed to get queue: ${getErrorMessage(error)}`);
       return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
     }
   }
@@ -504,9 +549,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to toggle autoplay: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to toggle autoplay: ${message}`);
+      return { success: false, message };
     }
   }
 
@@ -532,9 +578,10 @@ export class WorkerCoordinator {
       }
 
       return { success: false, message: response.data.message };
-    } catch (error: any) {
-      log.error(`Failed to replay: ${error.message}`);
-      return { success: false, message: error.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to replay: ${message}`);
+      return { success: false, message };
     }
   }
 }

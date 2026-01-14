@@ -6,8 +6,7 @@ export function getPlaybackPosition(state: VoiceState): number {
 
   const elapsed = Date.now() - state.playbackStartTime;
   const paused = state.totalPausedTime || 0;
-  const currentPause =
-    state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+  const currentPause = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
 
   return Math.max(0, Math.floor((elapsed - paused - currentPause) / 1000));
 }

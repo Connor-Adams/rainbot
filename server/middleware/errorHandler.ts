@@ -1,4 +1,3 @@
-
 import { Request, Response, NextFunction } from 'express';
 
 export function asyncHandler(
@@ -9,7 +8,12 @@ export function asyncHandler(
   };
 }
 
-export function statsErrorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
+export function statsErrorHandler(
+  err: Error,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+): void {
   if (err.name === 'ValidationError') {
     res.status(400).json({ error: err.message });
     return;

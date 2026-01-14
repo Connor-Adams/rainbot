@@ -25,8 +25,7 @@ interface CacheEntry {
 
 const urlCache = new Map<string, CacheEntry>();
 
-const YOUTUBE_REGEX =
-  /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+const YOUTUBE_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
@@ -98,9 +97,7 @@ async function fetchStream(url: string): Promise<Readable> {
       throw new Error(`Stream fetch failed: ${response.status}`);
     }
 
-    const nodeStream = Readable.fromWeb(
-      response.body as Parameters<typeof Readable.fromWeb>[0]
-    );
+    const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
     nodeStream.on('error', (err) => {
       log.debug(`Readable stream error: ${err.message}`);
@@ -116,10 +113,7 @@ async function fetchStream(url: string): Promise<Readable> {
  * Resolve a Track into a readable audio stream.
  * This function NEVER creates AudioResources.
  */
-export async function resolveStream(
-  track: Track,
-  seekSeconds = 0
-): Promise<Readable> {
+export async function resolveStream(track: Track, seekSeconds = 0): Promise<Readable> {
   if (!track.url) {
     throw new Error('Track has no URL');
   }

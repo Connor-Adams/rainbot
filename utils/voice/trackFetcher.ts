@@ -24,7 +24,10 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 const MAX_PLAYLIST_TRACKS = 100;
 
 function buildSpotifyTitle(name: string, artists?: { name: string }[]): string {
-  const artistNames = artists?.map((artist) => artist.name).filter(Boolean).join(', ');
+  const artistNames = artists
+    ?.map((artist) => artist.name)
+    .filter(Boolean)
+    .join(', ');
   return artistNames ? `${name} — ${artistNames}` : name;
 }
 
@@ -143,9 +146,7 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         } else {
           const spotifyCollection = spotifyInfo as SpotifyPlaylist | SpotifyAlbum;
           const pageOne = spotifyCollection.page(1) ?? [];
-          const spotifyTracks = pageOne.length
-            ? pageOne
-            : await spotifyCollection.all_tracks();
+          const spotifyTracks = pageOne.length ? pageOne : await spotifyCollection.all_tracks();
 
           spotifyTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track: SpotifyTrack) => {
             tracks.push({
@@ -194,8 +195,7 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         log.error(`Failed to load SoundCloud data: ${(error as Error).message}`);
         throw new Error('Unable to fetch SoundCloud track metadata');
       }
-    }
-    else {
+    } else {
       log.warn(`URL type ${urlType} not fully implemented yet`);
 
       // Try to get video info for YouTube-like URLs

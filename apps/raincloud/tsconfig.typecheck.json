@@ -1,4 +1,18 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {}
+  "compilerOptions": {
+    "rootDir": "../../",
+    "paths": {
+      "@rainbot/protocol": ["../../packages/protocol/src/index.ts"],
+      "@rainbot/protocol/*": ["../../packages/protocol/src/*"],
+      "@commands/*": ["commands/*"],
+      "@utils/*": ["utils/*"],
+      "@types/*": ["types/*"],
+      "@server/*": ["server/*"],
+      "@handlers/*": ["handlers/*"],
+      "@events/*": ["src/events/*"],
+      "@components/*": ["components/*"],
+      "@lib/*": ["lib/*"]
+    }
+  }
 }

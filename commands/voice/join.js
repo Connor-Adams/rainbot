@@ -28,7 +28,9 @@ module.exports = {
 
     try {
       await ensureSession({ guildId: interaction.guildId, voiceChannel });
-      await interaction.reply(`🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`);
+      await interaction.reply(
+        `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
+      );
       log.info(`Joined VC: ${voiceChannel.name} in guild ${interaction.guild.name}`);
     } catch (error) {
       log.error(`Failed to join VC: ${error.message}`);

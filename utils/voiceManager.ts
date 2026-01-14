@@ -33,10 +33,7 @@ interface VoiceActionContext {
   source: string;
 }
 
-function resolveContext(
-  guildId: string,
-  partial: Partial<VoiceActionContext>
-): VoiceActionContext {
+function resolveContext(guildId: string, partial: Partial<VoiceActionContext>): VoiceActionContext {
   const state = connectionManager.getVoiceState(guildId);
 
   return {
@@ -53,21 +50,15 @@ function resolveContext(
  * ============================================================================
  */
 
-type SoundboardPlaybackDecision =
-  | { type: 'overlay' }
-  | { type: 'immediate' };
+type SoundboardPlaybackDecision = { type: 'overlay' } | { type: 'immediate' };
 
-function decideSoundboardPlayback(state: NonNullable<ReturnType<typeof getVoiceState>>): SoundboardPlaybackDecision {
-  return state.currentTrackSource
-    ? { type: 'overlay' }
-    : { type: 'immediate' };
+function decideSoundboardPlayback(
+  state: NonNullable<ReturnType<typeof getVoiceState>>
+): SoundboardPlaybackDecision {
+  return state.currentTrackSource ? { type: 'overlay' } : { type: 'immediate' };
 }
 
-async function handleSoundboardTrack(
-  guildId: string,
-  track: Track,
-  ctx: VoiceActionContext
-) {
+async function handleSoundboardTrack(guildId: string, track: Track, ctx: VoiceActionContext) {
   const state = connectionManager.getVoiceState(guildId);
   if (!state) throw new Error('Bot is not connected to a voice channel');
 
@@ -233,7 +224,11 @@ export async function skip(guildId: string, count = 1, skippedBy: string | null 
   return result;
 }
 
-export function togglePause(guildId: string, userId: string | null = null, username: string | null = null) {
+export function togglePause(
+  guildId: string,
+  userId: string | null = null,
+  username: string | null = null
+) {
   const ctx = resolveContext(guildId, {
     userId: userId ?? undefined,
     username: username ?? undefined,
@@ -253,7 +248,12 @@ export async function clearQueue(guildId: string, userId: string | null = null) 
   return cleared;
 }
 
-export function setVolume(guildId: string, level: number, userId: string | null = null, username: string | null = null) {
+export function setVolume(
+  guildId: string,
+  level: number,
+  userId: string | null = null,
+  username: string | null = null
+) {
   const ctx = resolveContext(guildId, {
     userId: userId ?? undefined,
     username: username ?? undefined,

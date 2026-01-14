@@ -22,7 +22,7 @@ export async function prebufferNext(state: VoiceState): Promise<void> {
   clearPrebuffer(state);
 
   // Only prebuffer the next non-soundboard track
-  const nextTrack = state.queue.find(track => !track.isSoundboard);
+  const nextTrack = state.queue.find((track) => !track.isSoundboard);
   if (!nextTrack) return;
 
   try {

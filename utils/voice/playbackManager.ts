@@ -6,17 +6,10 @@ import { createLogger } from '../logger';
 import { getVoiceState } from './connectionManager';
 
 import { resolveStream } from './StreamResolver';
-import {
-  createMusicResource,
-  createSoundboardResource,
-} from './ResourceFactory';
+import { createMusicResource, createSoundboardResource } from './ResourceFactory';
 
 import { PlaybackController } from './PlaybackController';
-import {
-  sendNowPlaying,
-  trackTrackStart,
-  trackPlaybackStateChange,
-} from './PlaybackSideEffects';
+import { sendNowPlaying, trackTrackStart, trackPlaybackStateChange } from './PlaybackSideEffects';
 import { getPlaybackPosition } from './PlaybackTiming';
 
 import { prebufferNext, clearPrebuffer } from './playback/PrebufferManager';
@@ -124,30 +117,14 @@ export function togglePause(
   if (state.player.state.status === AudioPlayerStatus.Paused) {
     PlaybackController.resume(state);
 
-    trackPlaybackStateChange(
-      guildId,
-      state,
-      'resume',
-      'paused',
-      'playing',
-      userId,
-      username
-    );
+    trackPlaybackStateChange(guildId, state, 'resume', 'paused', 'playing', userId, username);
 
     return { paused: false };
   }
 
   PlaybackController.pause(state);
 
-  trackPlaybackStateChange(
-    guildId,
-    state,
-    'pause',
-    'playing',
-    'paused',
-    userId,
-    username
-  );
+  trackPlaybackStateChange(guildId, state, 'pause', 'playing', 'paused', userId, username);
 
   return { paused: true };
 }

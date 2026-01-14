@@ -120,13 +120,28 @@ export class VoiceStateManager {
   /**
    * Get worker status
    */
-  async getWorkerStatus(botType: string, guildId: string): Promise<any> {
+  async getWorkerStatus(
+    botType: string,
+    guildId: string
+  ): Promise<{ channelId: string; connected: boolean; lastHeartbeat: number } | null> {
     const key = `worker:${botType}:${guildId}`;
     const data = await this.redis.get(key);
     if (!data) return null;
 
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data) as {
+        channelId?: unknown;
+        connected?: unknown;
+        lastHeartbeat?: unknown;
+      };
+      if (typeof parsed.channelId !== 'string' || typeof parsed.connected !== 'boolean') {
+        return null;
+      }
+      return {
+        channelId: parsed.channelId,
+        connected: parsed.connected,
+        lastHeartbeat: typeof parsed.lastHeartbeat === 'number' ? parsed.lastHeartbeat : 0,
+      };
     } catch (_error) {
       return null;
     }

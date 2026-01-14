@@ -1,3 +1,5 @@
+import type { WhereFilters } from './queryBuilder';
+
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -14,12 +16,19 @@ export function parseValidDate(dateStr: string | undefined): Date | null {
   return date;
 }
 
-export function parseLimit(limitStr: string | undefined, defaultLimit = 25, maxLimit = 100): number {
+export function parseLimit(
+  limitStr: string | undefined,
+  defaultLimit = 25,
+  maxLimit = 100
+): number {
   const limit = parseInt(limitStr || String(defaultLimit));
   return Math.min(Math.max(1, limit), maxLimit);
 }
 
-export function parseDateRange(query: Record<string, any>): { startDate: Date | null; endDate: Date | null } {
+export function parseDateRange(query: Record<string, any>): {
+  startDate: Date | null;
+  endDate: Date | null;
+} {
   return {
     startDate: parseValidDate(query.startDate as string),
     endDate: parseValidDate(query.endDate as string),
@@ -41,20 +50,4 @@ export function parseFilters(query: Record<string, any>): WhereFilters {
     endpoint: query.endpoint as string | undefined,
     ...parseDateRange(query),
   };
-}
-
-interface WhereFilters {
-  guildId?: string;
-  userId?: string;
-  source?: string;
-  sourceType?: string;
-  isSoundboard?: boolean;
-  operationType?: string;
-  startDate?: Date | null;
-  endDate?: Date | null;
-  commandName?: string;
-  interactionType?: string;
-  stateType?: string;
-  eventType?: string;
-  endpoint?: string;
 }

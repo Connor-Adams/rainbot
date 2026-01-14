@@ -9,28 +9,28 @@ export class RedisClient {
 
   async connect(url?: string): Promise<void> {
     const redisUrl = url || process.env['REDIS_URL'] || 'redis://localhost:6379';
-    
+
     try {
       this.client = createClient({ url: redisUrl });
-      
+
       this.client.on('error', (err) => {
         log.error(`Redis error: ${err.message}`);
       });
-      
+
       this.client.on('connect', () => {
         log.info('Redis client connecting...');
       });
-      
+
       this.client.on('ready', () => {
         this.connected = true;
         log.info('Redis client ready');
       });
-      
+
       this.client.on('end', () => {
         this.connected = false;
         log.warn('Redis connection closed');
       });
-      
+
       await this.client.connect();
       log.info(`Redis connected to ${redisUrl}`);
     } catch (error) {

@@ -51,10 +51,7 @@ export class WorkerClient {
   /**
    * Retry logic with exponential backoff
    */
-  private async retryRequest<T>(
-    fn: () => Promise<T>,
-    retries = this.maxRetries
-  ): Promise<T> {
+  private async retryRequest<T>(fn: () => Promise<T>, retries = this.maxRetries): Promise<T> {
     try {
       return await fn();
     } catch (error) {
@@ -76,7 +73,7 @@ export class WorkerClient {
       const axiosError = error as AxiosError;
       // Retry on network errors or 5xx status codes
       return (
-        !axiosError.response || 
+        !axiosError.response ||
         (axiosError.response.status >= 500 && axiosError.response.status < 600)
       );
     }

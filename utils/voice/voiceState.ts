@@ -13,10 +13,7 @@ function getState(guildId: string): VoiceState | null {
  * SINGLE mutation entrypoint.
  * This is the ONLY place where VoiceState may be mutated.
  */
-function apply(
-  guildId: string,
-  mutator: (state: VoiceState) => void
-): void {
+function apply(guildId: string, mutator: (state: VoiceState) => void): void {
   const state = getState(guildId);
   if (!state) return;
 

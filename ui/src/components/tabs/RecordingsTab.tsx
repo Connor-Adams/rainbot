@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../hooks/useToast'
 
 interface Recording {
@@ -13,11 +13,7 @@ export default function RecordingsTab() {
   const [playing, setPlaying] = useState<string | null>(null)
   const { showToast } = useToast()
 
-  useEffect(() => {
-    loadRecordings()
-  }, [])
-
-  const loadRecordings = async () => {
+  const loadRecordings = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/recordings')
@@ -29,7 +25,11 @@ export default function RecordingsTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [showToast])
+
+  useEffect(() => {
+    loadRecordings()
+  }, [loadRecordings])
 
   const playRecording = async (name: string) => {
     try {

@@ -206,7 +206,7 @@ router.get(
       req.session.lastVerified = Date.now();
 
       // Ensure user is serialized in session
-      req.login(req.user, (loginErr) => {
+      req.login(req.user, (loginErr: Error | null) => {
         if (loginErr) {
           log.error(`Error during req.login: ${loginErr.message}`);
           return res.redirect('/auth/error');
@@ -217,7 +217,7 @@ router.get(
         req.session.lastVerified = Date.now();
 
         // Save session before redirect
-        req.session.save((err) => {
+        req.session.save((err: Error | null) => {
           if (err) {
             log.error(`Error saving session: ${err.message}`);
             return res.redirect('/auth/error');
@@ -249,13 +249,13 @@ router.get(
 router.get('/logout', (req: AuthenticatedRequest, res: Response): void => {
   const user = req.user as DiscordUser | undefined;
   const username = user?.username || 'Unknown';
-  req.logout((err) => {
+  req.logout((err: Error | null) => {
     if (err) {
       log.error(`Error during logout: ${err.message}`);
       res.status(500).json({ error: 'Logout failed' });
       return;
     }
-    req.session.destroy((destroyErr) => {
+    req.session.destroy((destroyErr: Error | null) => {
       if (destroyErr) {
         log.error(`Error destroying session: ${destroyErr.message}`);
       }

@@ -61,12 +61,10 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
     .setDescription('Play music')
-    .addStringOption(option =>
-      option.setName('url')
-        .setDescription('YouTube URL or search query')
-        .setRequired(true)
+    .addStringOption((option) =>
+      option.setName('url').setDescription('YouTube URL or search query').setRequired(true)
     ),
-  
+
   async execute(interaction) {
     const url = interaction.options.getString('url');
     const userId = interaction.user.id;
@@ -133,12 +131,10 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('tts')
     .setDescription('Speak text-to-speech')
-    .addStringOption(option =>
-      option.setName('text')
-        .setDescription('Text to speak')
-        .setRequired(true)
+    .addStringOption((option) =>
+      option.setName('text').setDescription('Text to speak').setRequired(true)
     ),
-  
+
   async execute(interaction) {
     const text = interaction.options.getString('text');
     const userId = interaction.user.id;
@@ -193,9 +189,9 @@ app.post('/api/sounds/:id/play', async (req, res) => {
   const channelResult = await channelResolver.resolveTargetChannel(guildId, userId);
 
   if (channelResult.error) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: channelResult.error,
-      message: channelResult.message 
+      message: channelResult.message,
     });
   }
 
@@ -224,7 +220,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('disconnect')
     .setDescription('Disconnect all bots from voice'),
-  
+
   async execute(interaction) {
     const guildId = interaction.guild.id;
 
@@ -241,6 +237,7 @@ module.exports = {
 ## Session Management
 
 The orchestrator automatically:
+
 - ✅ Tracks current/last voice channels per user
 - ✅ Creates active sessions with 30-min TTL
 - ✅ Refreshes session on activity (play/tts/sound)
@@ -285,9 +282,9 @@ const result = await workerCoordinator.enqueueTrack(...);
 if (!result.success) {
   // Handle error
   log.error(`Failed to enqueue: ${result.message}`);
-  return interaction.reply({ 
-    content: `❌ Error: ${result.message}`, 
-    ephemeral: true 
+  return interaction.reply({
+    content: `❌ Error: ${result.message}`,
+    ephemeral: true
   });
 }
 
@@ -298,11 +295,13 @@ return interaction.reply(`✅ ${result.message}`);
 ## Testing Locally
 
 1. Start Redis:
+
 ```bash
 redis-server
 ```
 
 2. Set environment variables:
+
 ```bash
 export RAINCLOUD_TOKEN=...
 export RAINBOT_TOKEN=...
@@ -312,6 +311,7 @@ export REDIS_URL=redis://localhost:6379
 ```
 
 3. Start workers:
+
 ```bash
 # Terminal 1
 cd apps/rainbot && npm run dev
@@ -324,6 +324,7 @@ cd apps/hungerbot && npm run dev
 ```
 
 4. Start orchestrator:
+
 ```bash
 cd apps/raincloud && npm run dev
 ```

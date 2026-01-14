@@ -1,4 +1,3 @@
-
 export interface WhereFilters {
   guildId?: string;
   userId?: string;
@@ -53,7 +52,8 @@ export class QueryBuilder {
     if (filters.userId) this.addCondition('user_id', filters.userId);
     if (filters.source) this.addCondition('source', filters.source);
     if (filters.sourceType) this.addCondition('source_type', filters.sourceType);
-    if (filters.isSoundboard !== undefined) this.addCondition('is_soundboard', filters.isSoundboard);
+    if (filters.isSoundboard !== undefined)
+      this.addCondition('is_soundboard', filters.isSoundboard);
     if (filters.operationType) this.addCondition('operation_type', filters.operationType);
     if (filters.commandName) this.addCondition('command_name', filters.commandName);
     if (filters.interactionType) this.addCondition('interaction_type', filters.interactionType);
@@ -66,9 +66,7 @@ export class QueryBuilder {
   }
 
   build(): { whereClause: string; params: (string | boolean | Date)[] } {
-    const whereClause = this.conditions.length > 0 
-      ? `WHERE ${this.conditions.join(' AND ')}` 
-      : '';
+    const whereClause = this.conditions.length > 0 ? `WHERE ${this.conditions.join(' AND ')}` : '';
     return { whereClause, params: this.params };
   }
 

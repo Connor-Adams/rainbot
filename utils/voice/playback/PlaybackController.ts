@@ -3,20 +3,12 @@ import { AudioPlayerStatus, AudioResource } from '@discordjs/voice';
 import { createLogger } from '../logger';
 import type { VoiceState } from '@rainbot/protocol';
 import type { Track } from '@rainbot/protocol';
-import {
-  resetPlaybackTiming,
-  markPaused,
-  markResumed,
-} from './PlaybackTiming';
+import { resetPlaybackTiming, markPaused, markResumed } from './PlaybackTiming';
 
 const log = createLogger('PLAYBACK_CTRL');
 
 export class PlaybackController {
-  static play(
-    state: VoiceState,
-    track: Track,
-    resource: AudioResource
-  ): void {
+  static play(state: VoiceState, track: Track, resource: AudioResource): void {
     if (resource.volume) {
       resource.volume.setVolume((state.volume || 100) / 100);
     }

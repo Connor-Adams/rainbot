@@ -6,10 +6,7 @@
  */
 
 import { createLogger } from '../logger';
-import type {
-  SpeechRecognitionResult,
-  VoiceInteractionConfig,
-} from '@rainbot/protocol';
+import type { SpeechRecognitionResult, VoiceInteractionConfig } from '@rainbot/protocol';
 import { PassThrough } from 'stream';
 
 const log = createLogger('SPEECH_RECOGNITION');

@@ -1,12 +1,12 @@
-
 import { query } from '../utils/database';
 import { QueryBuilder, WhereFilters } from '../utils/queryBuilder';
 
 export class StatsService {
   async getSummary(filters: WhereFilters) {
     const commandBuilder = new QueryBuilder();
-    const { whereClause: commandWhere, params: commandParams } = 
-      commandBuilder.addFilters(filters, 'executed_at').build();
+    const { whereClause: commandWhere, params: commandParams } = commandBuilder
+      .addFilters(filters, 'executed_at')
+      .build();
 
     const soundWhere = commandWhere.replace(/executed_at/g, 'played_at');
 
@@ -64,7 +64,7 @@ export class StatsService {
   async getCommandStats(filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
     const { whereClause, params } = builder.addFilters(filters).build();
-    
+
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
 
@@ -87,7 +87,7 @@ export class StatsService {
     `;
 
     const result = await query(combinedQuery, params);
-    
+
     const total = parseInt(result?.rows[0]?.total || '0');
     const totalSuccess = parseInt(result?.rows[0]?.total_success || '0');
     const successRate = total > 0 ? (totalSuccess / total) * 100 : 0;
@@ -106,7 +106,7 @@ export class StatsService {
   async getSoundStats(filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
     const { whereClause, params } = builder.addFilters(filters, 'played_at').build();
-    
+
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
 
@@ -122,11 +122,17 @@ export class StatsService {
     `;
 
     const sourceParams = params.slice(0, -1);
-    
+
     const [topSounds, sourceTypes, soundboardBreakdown] = await Promise.all([
       query(topSoundsQuery, params),
-      query(`SELECT source_type, COUNT(*) as count FROM sound_stats ${whereClause} GROUP BY source_type`, sourceParams),
-      query(`SELECT is_soundboard, COUNT(*) as count FROM sound_stats ${whereClause} GROUP BY is_soundboard`, sourceParams),
+      query(
+        `SELECT source_type, COUNT(*) as count FROM sound_stats ${whereClause} GROUP BY source_type`,
+        sourceParams
+      ),
+      query(
+        `SELECT is_soundboard, COUNT(*) as count FROM sound_stats ${whereClause} GROUP BY is_soundboard`,
+        sourceParams
+      ),
     ]);
 
     return {
@@ -143,10 +149,10 @@ export class StatsService {
       startDate: filters.startDate,
       endDate: filters.endDate,
     };
-    
+
     const { whereClause, params } = builder.addFilters(commandFilters, 'executed_at').build();
     const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
-    
+
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
 
@@ -180,10 +186,10 @@ export class StatsService {
   async getUserSounds(userId: string, filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
     builder.addCondition('user_id', userId);
-    
+
     if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
     builder.addDateRange('played_at', filters.startDate, filters.endDate);
-    
+
     const { whereClause, params } = builder.build();
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
@@ -210,7 +216,7 @@ export class StatsService {
     const { whereClause, params } = builder
       .addDateRange('executed_at', filters.startDate, filters.endDate)
       .build();
-    
+
     const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
@@ -258,7 +264,7 @@ export class StatsService {
     const builder = new QueryBuilder();
     if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
     builder.addDateRange('executed_at', filters.startDate, filters.endDate);
-    
+
     const { whereClause, params } = builder.build();
     const soundWhereClause = whereClause.replace(/executed_at/g, 'played_at');
 
@@ -291,7 +297,7 @@ export class StatsService {
   async getQueueStats(filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
     const { whereClause, params } = builder.addFilters(filters, 'executed_at').build();
-    
+
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);
 
@@ -310,10 +316,10 @@ export class StatsService {
   async getErrorStats(filters: WhereFilters) {
     const builder = new QueryBuilder();
     builder.addCondition('success', 'false' as any);
-    
+
     if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
     builder.addDateRange('executed_at', filters.startDate, filters.endDate);
-    
+
     const { whereClause, params } = builder.build();
 
     const [errorsByType, errorsByCommand, errorTrend] = await Promise.all([
@@ -357,11 +363,11 @@ export class StatsService {
   async getPerformanceStats(filters: WhereFilters) {
     const builder = new QueryBuilder();
     builder.addCondition('execution_time_ms', 'IS NOT NULL' as any);
-    
+
     if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
     if (filters.commandName) builder.addCondition('command_name', filters.commandName);
     builder.addDateRange('executed_at', filters.startDate, filters.endDate);
-    
+
     const { whereClause, params } = builder.build();
 
     const [percentilesResult, byCommandResult] = await Promise.all([

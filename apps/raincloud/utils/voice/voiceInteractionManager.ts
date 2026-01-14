@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Voice Interaction Manager - Orchestrates voice command processing
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
@@ -32,6 +31,29 @@ import { Mutex } from 'async-mutex';
 
 const log = createLogger('VOICE_INTERACTION');
 
+interface VoiceManagerApi {
+  playSound: (
+    guildId: string,
+    query: string,
+    userId: string,
+    source: string,
+    username: string,
+    discriminator: string
+  ) => Promise<{ tracks: Array<{ title?: string }> }>;
+  skipTrack: (guildId: string, count: number) => Promise<unknown>;
+  pausePlayback: (guildId: string) => Promise<unknown>;
+  resumePlayback: (guildId: string) => Promise<unknown>;
+  stopPlayback: (guildId: string) => Promise<unknown>;
+  getQueue: (guildId: string) => { queue: Array<{ title: string }> };
+  setVolume: (guildId: string, volume: number) => Promise<unknown>;
+  clearQueue: (guildId: string) => Promise<unknown>;
+  getVoiceState?: (guildId: string) => { volume?: number } | null | undefined;
+}
+
+interface VoiceInteractionSessionWithConnection extends VoiceInteractionSession {
+  connection?: VoiceConnection;
+}
+
 /**
  * Default configuration for voice interactions
  */
@@ -58,14 +80,14 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private states: Map<string, VoiceInteractionState>;
   private speechRecognition: SpeechRecognitionManager;
   private textToSpeech: TextToSpeechManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private voiceManager: any; // Lazy loaded to avoid circular dependency
+  private voiceManager: VoiceManagerApi | null; // Lazy loaded to avoid circular dependency
   private commandMutex: Mutex;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
     this.commandMutex = new Mutex();
+    this.voiceManager = null;
 
     // Initialize STT and TTS
     this.speechRecognition = new SpeechRecognitionManager(this.config);
@@ -77,14 +99,14 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   /**
    * Lazy load voice manager to avoid circular dependency
    */
-  private getVoiceManager() {
+  private getVoiceManager(): VoiceManagerApi {
     if (!this.voiceManager) {
       // Use relative import to avoid hard-coded dist path
       try {
-        this.voiceManager = require('../voiceManager');
+        this.voiceManager = require('../voiceManager') as VoiceManagerApi;
       } catch (_error) {
         // Fallback to dist path for compatibility
-        this.voiceManager = require('../../dist/utils/voiceManager');
+        this.voiceManager = require('../../dist/utils/voiceManager') as VoiceManagerApi;
       }
     }
     return this.voiceManager;
@@ -185,7 +207,8 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     state.sessions.set(userId, session);
 
     // Store connection reference for TTS playback
-    (session as any).connection = connection;
+    const sessionWithConnection = session as VoiceInteractionSessionWithConnection;
+    sessionWithConnection.connection = connection;
 
     // Set up voice receiver
     const receiver = connection.receiver;
@@ -394,7 +417,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     // Calculate actual duration from total bytes
     // Stereo PCM: 16-bit (2 bytes) × 2 channels × 48000 Hz = 192000 bytes per second
-    const totalBytes = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+    const totalBytes = audioBuffers.reduce((sum: number, buf: Buffer) => sum + buf.length, 0);
     const totalDuration = totalBytes / 192000;
 
     // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)
@@ -665,8 +688,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Find a connection from any active session
       let connection: VoiceConnection | null = null;
       for (const [, session] of state.sessions) {
-        if ((session as any).connection) {
-          connection = (session as any).connection;
+        const sessionWithConnection = session as VoiceInteractionSessionWithConnection;
+        if (sessionWithConnection.connection) {
+          connection = sessionWithConnection.connection;
           break;
         }
       }

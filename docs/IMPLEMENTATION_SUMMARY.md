@@ -35,11 +35,13 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ### 1. Infrastructure (Phase 0)
 
 ✅ **Turborepo Monorepo**
+
 - `turbo.json` with build pipeline
 - Workspace structure (`apps/*`, `packages/*`)
 - Root package.json with Turborepo scripts
 
 ✅ **Shared Packages**
+
 - `@rainbot/shared` - Logger with context support
 - `@rainbot/redis-client` - Redis wrapper with typed API
 - `@rainbot/worker-protocol` - REST protocol types & base classes
@@ -47,6 +49,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ### 2. Worker Bots (Phases 2-5)
 
 ✅ **Rainbot (Music Worker)** - `apps/rainbot/`
+
 - Queue-based music playback
 - Auto-rejoin on network disconnect
 - Enqueue track endpoint
@@ -55,6 +58,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - **Port: 3001**
 
 ✅ **Pranjeet (TTS Worker)** - `apps/pranjeet/`
+
 - Text-to-speech playback
 - Overlay audio (plays overtop)
 - Always-connected behavior
@@ -62,6 +66,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - **Port: 3002**
 
 ✅ **HungerBot (Soundboard Worker)** - `apps/hungerbot/`
+
 - Soundboard effect playback
 - Per-user audio players (user replacement)
 - Multi-user overlap support
@@ -71,6 +76,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ### 3. Orchestrator Integration (Phases 1 & 6)
 
 ✅ **VoiceStateManager** - `apps/raincloud/lib/voiceStateManager.ts`
+
 - Redis-backed voice state tracking
 - Current channel per user (cleared on leave)
 - Last used channel per user (persistent)
@@ -79,6 +85,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Volume settings per guild/bot
 
 ✅ **ChannelResolver** - `apps/raincloud/lib/channelResolver.ts`
+
 - Channel selection algorithm:
   1. User's current voice channel
   2. Session conflict detection (rejects if active elsewhere)
@@ -87,6 +94,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Clear error messages with diagnostics
 
 ✅ **WorkerCoordinator** - `apps/raincloud/lib/workerCoordinator.ts`
+
 - Manages all worker bot communication
 - Ensures workers connected to voice
 - Enqueue tracks, speak TTS, play sounds
@@ -95,6 +103,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Request idempotency via UUID
 
 ✅ **Voice State Event** - `apps/raincloud/src/events/voiceStateUpdateMultibot.ts`
+
 - Tracks user voice movements
 - Updates current/last channel in Redis
 - Ignores bot movements
@@ -102,6 +111,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ### 4. Infrastructure & Deployment (Phase 7)
 
 ✅ **Docker Compose** - `docker-compose.yml`
+
 - Redis 7 service
 - PostgreSQL 15 service
 - 4 bot services with health checks
@@ -109,12 +119,14 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Volume mounts for logs/sounds
 
 ✅ **Dockerfiles**
+
 - `apps/rainbot/Dockerfile`
 - `apps/pranjeet/Dockerfile`
 - `apps/hungerbot/Dockerfile`
 - Existing `Dockerfile` for Raincloud
 
 ✅ **Environment Configuration**
+
 - Updated `.env.example` with all tokens
 - Worker URLs for internal communication
 - Redis URL
@@ -124,6 +136,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ### 5. Documentation (Phase 8)
 
 ✅ **Architecture Documentation** - `docs/MULTIBOT_ARCHITECTURE.md`
+
 - System overview with diagram
 - Bot responsibilities
 - Redis key structure
@@ -133,6 +146,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Running instructions
 
 ✅ **Integration Guide** - `docs/INTEGRATION_GUIDE.md`
+
 - Initialization code examples
 - Command examples (play, tts, disconnect)
 - API route examples
@@ -142,6 +156,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Error handling patterns
 
 ✅ **Deployment Guide** - `docs/DEPLOYMENT.md`
+
 - Discord bot setup (4 applications)
 - Environment configuration
 - 3 deployment options:
@@ -155,6 +170,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - Security considerations
 
 ✅ **Updated README** - `README.md`
+
 - Multi-bot architecture overview
 - Feature highlights
 - Quick start section
@@ -162,18 +178,21 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ## Key Features Implemented
 
 ### Channel Selection
+
 - ✅ Uses requester's current voice channel
 - ✅ Session conflict detection with clear error
 - ✅ Fallback to last used channel per guild/user
 - ✅ Permission preflight checks
 
 ### Connection Lifecycle
+
 - ✅ Auto-rejoin after network disconnect (NOT kick/ban)
 - ✅ Exponential backoff: 1s, 5s, 15s (max 3 attempts)
 - ✅ Bots stay put if requester moves
 - ✅ 30-minute session timeout with activity refresh
 
 ### State Management
+
 - ✅ Redis for all state tracking
 - ✅ Survives orchestrator restarts
 - ✅ Current/last channel tracking
@@ -182,11 +201,13 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - ✅ Volume settings per guild/bot
 
 ### Request Idempotency
+
 - ✅ All worker commands include requestId (UUID)
 - ✅ Response caching for 60 seconds
 - ✅ Prevents duplicate execution on retries
 
 ### Worker Protocol
+
 - ✅ REST API with 500ms timeout
 - ✅ 3 retry attempts with exponential backoff
 - ✅ Common endpoints: join/leave/volume/status/health
@@ -195,6 +216,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ## Testing Status
 
 ### Manual Testing Required
+
 - ⚠️ Worker bot independent operation
 - ⚠️ Multi-bot coordination
 - ⚠️ Session conflict scenarios
@@ -203,6 +225,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 - ⚠️ Docker Compose deployment
 
 ### Integration Tests Needed
+
 - ⚠️ Channel resolver logic
 - ⚠️ Worker coordinator communication
 - ⚠️ Voice state manager Redis operations
@@ -225,6 +248,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ## Next Steps for Production
 
 ### Immediate (Required)
+
 1. Test all worker bots individually
 2. Test multi-bot coordination
 3. Migrate at least one command to new pattern
@@ -233,6 +257,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 6. Test Docker Compose deployment
 
 ### Short-term (Recommended)
+
 1. Write integration tests
 2. Add metrics and monitoring
 3. Implement proper error handling in all workers
@@ -240,6 +265,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 5. Test at scale (multiple guilds)
 
 ### Long-term (Optional)
+
 1. Migrate all commands to orchestrator pattern
 2. Migrate all API routes to orchestrator pattern
 3. Replace REST with gRPC for lower latency
@@ -251,6 +277,7 @@ Successfully implemented a 4-bot orchestrated voice architecture for Rainbot, se
 ## File Inventory
 
 ### New Files Created
+
 ```
 apps/
 ├── rainbot/                    # Music worker

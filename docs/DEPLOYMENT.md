@@ -22,10 +22,11 @@ Go to https://discord.com/developers/applications and create:
 
 1. **Raincloud** - Orchestrator
 2. **Rainbot** - Music Worker
-3. **Pranjeet** - TTS Worker  
+3. **Pranjeet** - TTS Worker
 4. **HungerBot** - Soundboard Worker
 
 For each application:
+
 - Go to "Bot" section
 - Click "Reset Token" and save the token securely
 - Enable "SERVER MEMBERS INTENT"
@@ -36,8 +37,9 @@ For each application:
 For each bot, generate an OAuth2 URL:
 
 **Raincloud (Orchestrator):**
+
 - Scopes: `bot`, `applications.commands`
-- Permissions: 
+- Permissions:
   - View Channels
   - Send Messages
   - Connect
@@ -45,6 +47,7 @@ For each bot, generate an OAuth2 URL:
   - Use Slash Commands
 
 **Workers (Rainbot, Pranjeet, HungerBot):**
+
 - Scopes: `bot`
 - Permissions:
   - View Channels
@@ -101,6 +104,7 @@ LOG_LEVEL=info
 ### Option 1: Docker Compose (Recommended)
 
 **Advantages:**
+
 - All services in one stack
 - Automatic networking
 - Easy to manage
@@ -109,28 +113,33 @@ LOG_LEVEL=info
 **Steps:**
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/Connor-Adams/rainbot.git
 cd rainbot
 ```
 
 2. Configure environment:
+
 ```bash
 cp .env.example .env
 # Edit .env with your tokens and configuration
 ```
 
 3. Start all services:
+
 ```bash
 docker-compose up -d
 ```
 
 4. View logs:
+
 ```bash
 docker-compose logs -f
 ```
 
 5. Check service health:
+
 ```bash
 curl http://localhost:3001/health/ready  # Rainbot
 curl http://localhost:3002/health/ready  # Pranjeet
@@ -139,6 +148,7 @@ curl http://localhost:3000/health         # Raincloud
 ```
 
 6. Stop services:
+
 ```bash
 docker-compose down
 ```
@@ -146,6 +156,7 @@ docker-compose down
 ### Option 2: Manual Deployment
 
 **Advantages:**
+
 - More control
 - Can use existing infrastructure
 - Easier to debug
@@ -153,26 +164,31 @@ docker-compose down
 **Steps:**
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Build all packages:
+
 ```bash
 npm run build
 ```
 
 3. Start Redis (if not already running):
+
 ```bash
 redis-server
 ```
 
 4. Start PostgreSQL (if not already running):
+
 ```bash
 # Or use existing instance
 ```
 
 5. Run database migrations:
+
 ```bash
 cd apps/raincloud
 node dist/utils/database.js --migrate
@@ -181,24 +197,28 @@ node dist/utils/database.js --migrate
 6. Start workers (separate terminals):
 
 **Terminal 1 - Rainbot:**
+
 ```bash
 cd apps/rainbot
 npm run start
 ```
 
 **Terminal 2 - Pranjeet:**
+
 ```bash
 cd apps/pranjeet
 npm run start
 ```
 
 **Terminal 3 - HungerBot:**
+
 ```bash
 cd apps/hungerbot
 npm run start
 ```
 
 **Terminal 4 - Raincloud:**
+
 ```bash
 cd apps/raincloud
 npm run start
@@ -207,6 +227,7 @@ npm run start
 ### Option 3: Railway / Cloud Platform
 
 **Advantages:**
+
 - Managed infrastructure
 - Auto-scaling
 - Built-in monitoring
@@ -226,6 +247,7 @@ npm run start
    - Configure health checks
 
 3. Configure internal networking:
+
 ```env
 RAINBOT_URL=http://rainbot.railway.internal:3001
 PRANJEET_URL=http://pranjeet.railway.internal:3002
@@ -239,10 +261,12 @@ HUNGERBOT_URL=http://hungerbot.railway.internal:3003
 ### Worker Health Endpoints
 
 All workers expose:
+
 - `GET /health/live` - Liveness probe (returns 200 OK)
 - `GET /health/ready` - Readiness probe (returns JSON with status)
 
 Example readiness response:
+
 ```json
 {
   "status": "ok",
@@ -275,6 +299,7 @@ curl http://localhost:3001/status?guildId=123456789
 ### Workers not starting
 
 **Check logs:**
+
 ```bash
 docker-compose logs rainbot
 docker-compose logs pranjeet
@@ -282,12 +307,14 @@ docker-compose logs hungerbot
 ```
 
 **Common issues:**
+
 - Missing token in environment variables
 - Port already in use
 - FFmpeg not installed
 - Native dependencies not built
 
 **Solutions:**
+
 ```bash
 # Rebuild with fresh dependencies
 docker-compose build --no-cache
@@ -304,12 +331,14 @@ lsof -i :3003
 ### Orchestrator can't reach workers
 
 **Check network connectivity:**
+
 ```bash
 # From raincloud container
 docker-compose exec raincloud curl http://rainbot:3001/health/live
 ```
 
 **Verify URLs in environment:**
+
 ```bash
 docker-compose exec raincloud env | grep URL
 ```
@@ -317,12 +346,14 @@ docker-compose exec raincloud env | grep URL
 ### Redis connection issues
 
 **Check Redis is running:**
+
 ```bash
 redis-cli ping
 # Should return: PONG
 ```
 
 **Test connection:**
+
 ```bash
 docker-compose exec raincloud node -e "const redis = require('redis'); const client = redis.createClient({url: process.env.REDIS_URL}); client.connect().then(() => console.log('OK')).catch(e => console.error(e));"
 ```
@@ -330,6 +361,7 @@ docker-compose exec raincloud node -e "const redis = require('redis'); const cli
 ### Session conflicts
 
 **Clear stuck sessions:**
+
 ```bash
 redis-cli
 > KEYS session:*
@@ -339,11 +371,13 @@ redis-cli
 ### Permission errors
 
 **Check bot permissions in Discord:**
+
 1. Right-click the bot in member list
 2. View "Roles"
 3. Ensure it has Connect and Speak permissions
 
 **Check channel-specific permissions:**
+
 1. Right-click voice channel → Edit Channel
 2. Go to "Permissions"
 3. Check overrides for bot roles
@@ -353,22 +387,26 @@ redis-cli
 ### Logs
 
 **View orchestrator logs:**
+
 ```bash
 docker-compose logs -f raincloud
 ```
 
 **View worker logs:**
+
 ```bash
 docker-compose logs -f rainbot pranjeet hungerbot
 ```
 
 **Log files location:**
+
 - Docker: `/app/logs/` in each container
 - Manual: `./logs/` in project root
 
 ### Redis Monitoring
 
 **Monitor active sessions:**
+
 ```bash
 redis-cli
 > KEYS session:*
@@ -376,6 +414,7 @@ redis-cli
 ```
 
 **Monitor worker status:**
+
 ```bash
 redis-cli
 > KEYS worker:*
@@ -385,6 +424,7 @@ redis-cli
 ### Metrics (Future)
 
 Recommended metrics to track:
+
 - Worker response time
 - Request success/failure rate
 - Active sessions count
@@ -416,16 +456,19 @@ For high-traffic deployments:
 Resource recommendations:
 
 **Raincloud (Orchestrator):**
+
 - CPU: 1-2 cores
 - RAM: 512MB - 1GB
 - Network: Low latency to workers
 
 **Workers:**
+
 - CPU: 1 core each
 - RAM: 256MB - 512MB each
 - Disk: Minimal (streaming only)
 
 **Redis:**
+
 - RAM: 256MB minimum
 - Persistence: AOF or RDB
 - Maxmemory policy: allkeys-lru
@@ -435,6 +478,7 @@ Resource recommendations:
 ### Redis Backup
 
 **Enable persistence:**
+
 ```bash
 # In redis.conf
 save 900 1
@@ -444,6 +488,7 @@ appendonly yes
 ```
 
 **Manual backup:**
+
 ```bash
 redis-cli BGSAVE
 # Creates dump.rdb
@@ -458,6 +503,7 @@ pg_dump -h localhost -U rainbot rainbot > backup.sql
 ### Restore from Backup
 
 **Redis:**
+
 ```bash
 # Stop Redis
 # Replace dump.rdb with backup
@@ -465,6 +511,7 @@ pg_dump -h localhost -U rainbot rainbot > backup.sql
 ```
 
 **PostgreSQL:**
+
 ```bash
 psql -h localhost -U rainbot rainbot < backup.sql
 ```
@@ -496,21 +543,25 @@ psql -h localhost -U rainbot rainbot < backup.sql
 ### Updating
 
 1. Pull latest changes:
+
 ```bash
 git pull origin main
 ```
 
 2. Rebuild:
+
 ```bash
 docker-compose build
 ```
 
 3. Deploy:
+
 ```bash
 docker-compose up -d
 ```
 
 4. Verify health:
+
 ```bash
 docker-compose ps
 ```

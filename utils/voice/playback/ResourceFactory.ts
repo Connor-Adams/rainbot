@@ -1,8 +1,4 @@
-import {
-  createAudioResource,
-  StreamType,
-  AudioResource,
-} from '@discordjs/voice';
+import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
 import { Readable } from 'stream';
 import { createLogger } from '../logger';
 

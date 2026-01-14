@@ -22,7 +22,12 @@ export interface ListeningHistoryRepo {
   ) => void;
   getHistory: (userId: string) => HistoryEntry | null;
   clearHistory: (userId: string) => void;
-  trackPlayed: (userId: string, guildId: string, track: Track, queuedBy?: string | null) => Promise<void>;
+  trackPlayed: (
+    userId: string,
+    guildId: string,
+    track: Track,
+    queuedBy?: string | null
+  ) => Promise<void>;
   getListeningHistory: (
     userId?: string | null,
     guildId?: string | null,
@@ -249,7 +254,10 @@ export function createListeningHistoryRepo({
     }
   }
 
-  async function clearListeningHistory(userId: string, guildId: string | null = null): Promise<void> {
+  async function clearListeningHistory(
+    userId: string,
+    guildId: string | null = null
+  ): Promise<void> {
     if (!userId) return;
 
     try {
@@ -260,7 +268,9 @@ export function createListeningHistoryRepo({
       }
 
       clearHistory(userId);
-      logger.debug(`Cleared listening history for user ${userId}${guildId ? ` in guild ${guildId}` : ''}`);
+      logger.debug(
+        `Cleared listening history for user ${userId}${guildId ? ` in guild ${guildId}` : ''}`
+      );
     } catch (error) {
       const err = error as Error;
       logger.error(`Failed to clear listening history: ${err.message}`);

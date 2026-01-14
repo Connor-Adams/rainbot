@@ -43,11 +43,7 @@ export async function sendNowPlaying(
   }
 }
 
-export function trackTrackStart(
-  guildId: string,
-  state: VoiceState,
-  track: Track
-): void {
+export function trackTrackStart(guildId: string, state: VoiceState, track: Track): void {
   if (track.isSoundboard) return;
 
   const sourceType = detectSourceType(track);
@@ -83,9 +79,7 @@ export function trackTrackStart(
       },
       userId
     )
-    .catch((err) =>
-      log.error(`Listening history failed: ${(err as Error).message}`)
-    );
+    .catch((err) => log.error(`Listening history failed: ${(err as Error).message}`));
 
   stats.trackUserListen(
     guildId,

@@ -19,54 +19,34 @@ export interface VoiceEventContext {
  * ============================================================================
  */
 
-export function onQueueAdd(
-  ctx: VoiceEventContext,
-  meta: { added: number }
-) {
+export function onQueueAdd(ctx: VoiceEventContext, meta: { added: number }) {
   if (!ctx.userId) return;
 
   stats.trackQueueOperation('add', ctx.userId, ctx.guildId, ctx.source, meta);
 }
 
-export function onSkip(
-  ctx: VoiceEventContext,
-  meta: { count: number; skipped: number }
-) {
+export function onSkip(ctx: VoiceEventContext, meta: { count: number; skipped: number }) {
   if (!ctx.userId) return;
 
   stats.trackQueueOperation('skip', ctx.userId, ctx.guildId, ctx.source, meta);
 }
 
-export function onRemove(
-  ctx: VoiceEventContext,
-  meta: { index: number; title: string }
-) {
+export function onRemove(ctx: VoiceEventContext, meta: { index: number; title: string }) {
   if (!ctx.userId) return;
 
   stats.trackQueueOperation('remove', ctx.userId, ctx.guildId, ctx.source, meta);
 }
 
-export function onClear(
-  ctx: VoiceEventContext,
-  meta: { cleared: number }
-) {
+export function onClear(ctx: VoiceEventContext, meta: { cleared: number }) {
   if (!ctx.userId) return;
 
   stats.trackQueueOperation('clear', ctx.userId, ctx.guildId, ctx.source, meta);
 }
 
-export function onPauseToggle(
-  ctx: VoiceEventContext,
-  paused: boolean
-) {
+export function onPauseToggle(ctx: VoiceEventContext, paused: boolean) {
   if (!ctx.userId) return;
 
-  stats.trackQueueOperation(
-    paused ? 'pause' : 'resume',
-    ctx.userId,
-    ctx.guildId,
-    ctx.source
-  );
+  stats.trackQueueOperation(paused ? 'pause' : 'resume', ctx.userId, ctx.guildId, ctx.source);
 }
 
 /* ============================================================================
@@ -90,10 +70,7 @@ export function saveUserHistory(
   );
 }
 
-export function trackSoundboard(
-  ctx: VoiceEventContext,
-  soundName: string
-) {
+export function trackSoundboard(ctx: VoiceEventContext, soundName: string) {
   if (!ctx.userId) return;
 
   stats.trackSound(
@@ -120,7 +97,5 @@ export function trackSoundboard(
       },
       ctx.userId
     )
-    .catch((err) =>
-      log.error(`Failed to track soundboard history: ${(err as Error).message}`)
-    );
+    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
 }
