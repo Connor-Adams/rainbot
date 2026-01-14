@@ -1,5 +1,5 @@
 import { formatDuration, getYouTubeThumbnail, createPlayerEmbed } from '../playerEmbed';
-import type { Track } from '../../types/voice';
+import type { Track } from '@rainbot/protocol';
 
 describe('playerEmbed', () => {
   describe('formatDuration', () => {

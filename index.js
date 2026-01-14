@@ -63,8 +63,8 @@ const client = new Client({
 });
 
 // Load handlers (still JS files, not in dist)
-require('./handlers/commandHandler')(client);
-require('./handlers/eventHandler')(client);
+require('./apps/raincloud/handlers/commandHandler')(client);
+require('./apps/raincloud/handlers/eventHandler')(client);
 
 // Start Express server once bot is ready
 client.once(Events.ClientReady, async () => {

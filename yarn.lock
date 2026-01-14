@@ -2262,6 +2262,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rainbot/db@workspace:packages/db":
+  version: 0.0.0-use.local
+  resolution: "@rainbot/db@workspace:packages/db"
+  dependencies:
+    "@types/node": "npm:^25.0.3"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@rainbot/hungerbot-worker@workspace:apps/hungerbot":
   version: 0.0.0-use.local
   resolution: "@rainbot/hungerbot-worker@workspace:apps/hungerbot"
@@ -2298,6 +2307,15 @@ __metadata:
       optional: true
     openai:
       optional: true
+  languageName: unknown
+  linkType: soft
+
+"@rainbot/protocol@workspace:packages/protocol":
+  version: 0.0.0-use.local
+  resolution: "@rainbot/protocol@workspace:packages/protocol"
+  dependencies:
+    "@types/node": "npm:^25.0.3"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 

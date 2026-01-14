@@ -1,3 +1,4 @@
+// util-category: audio
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Text-to-Speech Module - Convert text responses to audio
@@ -7,7 +8,7 @@ import type {
   TextToSpeechRequest,
   TextToSpeechResult,
   VoiceInteractionConfig,
-} from '../../types/voice-interaction';
+} from '@rainbot/protocol';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

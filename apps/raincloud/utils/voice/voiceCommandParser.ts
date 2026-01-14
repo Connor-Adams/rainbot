@@ -2,7 +2,7 @@
  * Voice Command Parser - Parse natural language into music commands
  */
 
-import type { ParsedVoiceCommand, VoiceCommandType } from '../../types/voice-interaction';
+import type { ParsedVoiceCommand, VoiceCommandType } from '@rainbot/protocol';
 import { createLogger } from '../logger';
 
 const log = createLogger('VOICE_PARSER');

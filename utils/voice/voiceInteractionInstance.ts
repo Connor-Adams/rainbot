@@ -1,3 +1,4 @@
+// util-category: audio
 /**
  * Voice Interaction Manager Singleton
  * Provides global access to the voice interaction manager instance
@@ -5,7 +6,7 @@
 
 import type { Client } from 'discord.js';
 import { VoiceInteractionManager } from './voiceInteractionManager';
-import type { VoiceInteractionConfig } from '../../types/voice-interaction';
+import type { VoiceInteractionConfig } from '@rainbot/protocol';
 import { createLogger } from '../logger';
 
 const log = createLogger('VOICE_INTERACTION_INSTANCE');

@@ -1,3 +1,4 @@
+// util-category: audio
 /**
  * TTS Player - Mixed audio output for text-to-speech
  * Uses FFmpeg to blend TTS with existing playback streams

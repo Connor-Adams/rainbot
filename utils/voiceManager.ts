@@ -1,3 +1,4 @@
+// util-category: audio
 import { createAudioResource, AudioPlayerStatus, StreamType } from '@discordjs/voice';
 import type { VoiceBasedChannel } from 'discord.js';
 
@@ -13,7 +14,7 @@ import * as voiceEvents from './voice/voiceEvents';
 import { createLogger } from './logger';
 import * as stats from './statistics';
 import * as storage from './storage';
-import type { Track, QueueInfo, VoiceStatus } from '../types/voice';
+import type { Track, QueueInfo, VoiceStatus } from '@rainbot/protocol';
 
 const log = createLogger('VOICE');
 

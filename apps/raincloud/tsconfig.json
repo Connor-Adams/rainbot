@@ -8,12 +8,14 @@
     "noUnusedParameters": false,
     "noUnusedLocals": false,
     "paths": {
+      "@rainbot/protocol": ["../../packages/protocol/dist/index.d.ts"],
+      "@rainbot/protocol/*": ["../../packages/protocol/dist/*"],
       "@commands/*": ["commands/*"],
       "@utils/*": ["utils/*"],
       "@types/*": ["types/*"],
       "@server/*": ["server/*"],
       "@handlers/*": ["handlers/*"],
-      "@events/*": ["events/*"],
+      "@events/*": ["src/events/*"],
       "@components/*": ["components/*"],
       "@lib/*": ["lib/*"]
     }
@@ -25,7 +27,7 @@
     "types/**/*.d.ts",
     "server/**/*.ts",
     "handlers/**/*.ts",
-    "events/**/*.ts",
+    "src/events/**/*.ts",
     "components/**/*.ts",
     "lib/**/*.ts"
   ],

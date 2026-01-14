@@ -13,7 +13,7 @@ import { createLogger } from './logger';
 import * as stats from './statistics';
 import * as storage from './storage';
 import * as listeningHistory from './listeningHistory';
-import type { Track, QueueInfo, VoiceStatus } from '../types/voice';
+import type { Track, QueueInfo, VoiceStatus } from '@rainbot/protocol';
 
 const log = createLogger('VOICE');
 

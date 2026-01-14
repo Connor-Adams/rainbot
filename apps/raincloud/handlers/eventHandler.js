@@ -6,7 +6,7 @@ const log = createLogger('EVENTS');
 
 module.exports = (client) => {
   // Events are still JS files, look in original location
-  const eventsPath = path.join(__dirname, '..', 'events');
+  const eventsPath = path.join(__dirname, '..', 'src', 'events');
   const eventFiles = fs.readdirSync(eventsPath).filter((file) => file.endsWith('.js'));
 
   for (const file of eventFiles) {

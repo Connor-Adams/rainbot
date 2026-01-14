@@ -9,7 +9,7 @@ import {
   createSecondaryButton,
   createDangerButton,
 } from '../../builders/buttonBuilder';
-import type { MusicPlayerState } from '../../../types/buttons';
+import type { MusicPlayerState } from '@rainbot/protocol';
 
 /**
  * Create play/pause button

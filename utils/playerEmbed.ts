@@ -1,10 +1,11 @@
+// util-category: discord
 import {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js';
-import type { Track, QueueInfo } from '../types/voice';
+import type { Track, QueueInfo } from '@rainbot/protocol';
 
 /* ============================================================================
  * FORMATTERS

@@ -1,7 +1,8 @@
+// util-category: audio
 import { createLogger } from '../logger';
 import { query } from '../database';
-import type { VoiceState } from '../../types/voice-modules';
-import type { Track } from '../../types/voice';
+import type { VoiceState } from '@rainbot/protocol';
+import type { Track } from '@rainbot/protocol';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('SNAPSHOT_MANAGER');

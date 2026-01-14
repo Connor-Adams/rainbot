@@ -68,6 +68,71 @@ module.exports = [
     },
   },
   {
+    files: ['**/*.{js,ts,jsx,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            'types/*',
+            '**/types/*',
+            'commands/*',
+            '**/commands/*',
+            'utils/*',
+            '**/utils/*',
+            'components/*',
+            '**/components/*',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['**/*.{js,ts,jsx,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['apps/raincloud/events/*', 'events/*', 'handlers/*'],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/**/*.{js,ts,jsx,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            '../apps/*',
+            '../../apps/*',
+            '../../../apps/*',
+            '../../../../apps/*',
+            '../../../../../apps/*',
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/**/*.{js,ts,jsx,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            '../apps/*',
+            '../../apps/*',
+            '../../../apps/*',
+            '../../../../apps/*',
+            '../../../../../apps/*',
+          ],
+        },
+      ],
+    },
+  },
+  {
     ignores: [
       'node_modules/**',
       '**/node_modules/**',

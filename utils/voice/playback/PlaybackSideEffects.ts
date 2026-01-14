@@ -1,10 +1,11 @@
+// util-category: audio
 import { createLogger } from '../logger';
 import { getClient } from '../../server/client';
 import { detectSourceType } from '../sourceType';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
-import type { Track } from '../../types/voice';
-import type { VoiceState } from '../../types/voice-modules';
+import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 import type { VoiceChannel, TextChannel } from 'discord.js';
 import { getPlaybackPosition } from './PlaybackTiming';
 

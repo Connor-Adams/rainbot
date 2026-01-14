@@ -3,7 +3,7 @@
  */
 
 import { ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { ButtonMetadata } from '../../types/buttons';
+import type { ButtonMetadata } from '@rainbot/protocol';
 
 /**
  * Create a custom ID with embedded metadata
