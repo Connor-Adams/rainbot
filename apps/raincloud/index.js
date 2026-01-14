@@ -16,6 +16,28 @@ const { createLogger } = require('./dist/utils/logger');
 
 const log = createLogger('MAIN');
 
+function formatError(err) {
+  if (err instanceof Error) {
+    return { message: err.message, stack: err.stack };
+  }
+  return { message: String(err) };
+}
+
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled promise rejection', formatError(reason));
+});
+
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught exception', formatError(error));
+  process.exitCode = 1;
+});
+
+process.on('exit', (code) => {
+  log.info(`Process exiting with code ${code}`);
+});
+
+log.info(`Starting Raincloud (pid=${process.pid}, node=${process.version})`);
+
 // Debug: Log all process.env keys (for Railway debugging)
 if (process.env.RAILWAY_ENVIRONMENT) {
   log.info('Running on Railway');
@@ -32,6 +54,9 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 }
 
 const config = loadConfig();
+log.info(
+  `Config summary: token=${!!config.token}, clientId=${!!config.clientId}, sessionSecret=${!!config.sessionSecret}, databaseUrl=${!!config.databaseUrl}, redisUrl=${!!config.redisUrl}`
+);
 
 // Initialize play-dl with Spotify credentials (if provided)
 const play = require('play-dl');
@@ -63,13 +88,24 @@ const client = new Client({
 });
 
 // Load handlers (still JS files, not in dist)
-require('./handlers/commandHandler')(client);
-require('./handlers/eventHandler')(client);
+try {
+  require('./handlers/commandHandler')(client);
+  require('./handlers/eventHandler')(client);
+} catch (error) {
+  log.error('Failed to initialize handlers', formatError(error));
+  process.exit(1);
+}
 
 // Start Express server once bot is ready
 client.once(Events.ClientReady, async () => {
+  log.info(`Discord client ready as ${client.user?.tag}`);
   const port = config.dashboardPort;
-  await server.start(client, port);
+  try {
+    await server.start(client, port);
+    log.info(`Server started on port ${port}`);
+  } catch (error) {
+    log.error('Server failed to start', formatError(error));
+  }
 
   // Initialize voice interaction manager if configured
   try {
@@ -87,7 +123,8 @@ client.once(Events.ClientReady, async () => {
     initVoiceInteractionManager(client, voiceInteractionConfig);
     log.info('Voice interaction system initialized');
   } catch (error) {
-    log.warn(`Voice interaction not available: ${error.message}`);
+    const info = formatError(error);
+    log.warn(`Voice interaction not available: ${info.message}`);
   }
 });
 

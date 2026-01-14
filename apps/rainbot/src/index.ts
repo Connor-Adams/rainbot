@@ -19,6 +19,31 @@ const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['R
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
+function formatError(err: unknown): { message: string; stack?: string } {
+  if (err instanceof Error) {
+    return { message: err.message, stack: err.stack };
+  }
+  return { message: String(err) };
+}
+
+process.on('unhandledRejection', (reason) => {
+  const info = formatError(reason);
+  console.error(`[RAINBOT] Unhandled promise rejection: ${info.message}`);
+  if (info.stack) console.error(info.stack);
+});
+
+process.on('uncaughtException', (error) => {
+  const info = formatError(error);
+  console.error(`[RAINBOT] Uncaught exception: ${info.message}`);
+  if (info.stack) console.error(info.stack);
+  process.exitCode = 1;
+});
+
+console.log(`[RAINBOT] Starting (pid=${process.pid}, node=${process.version})`);
+console.log(
+  `[RAINBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
+);
+
 if (!hasToken) {
   console.error('RAINBOT_TOKEN environment variable is required');
 }

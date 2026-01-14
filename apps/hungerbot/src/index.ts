@@ -39,6 +39,31 @@ const S3_REGION = process.env['STORAGE_REGION'] || process.env['AWS_DEFAULT_REGI
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
+function formatError(err: unknown): { message: string; stack?: string } {
+  if (err instanceof Error) {
+    return { message: err.message, stack: err.stack };
+  }
+  return { message: String(err) };
+}
+
+process.on('unhandledRejection', (reason) => {
+  const info = formatError(reason);
+  console.error(`[HUNGERBOT] Unhandled promise rejection: ${info.message}`);
+  if (info.stack) console.error(info.stack);
+});
+
+process.on('uncaughtException', (error) => {
+  const info = formatError(error);
+  console.error(`[HUNGERBOT] Uncaught exception: ${info.message}`);
+  if (info.stack) console.error(info.stack);
+  process.exitCode = 1;
+});
+
+console.log(`[HUNGERBOT] Starting (pid=${process.pid}, node=${process.version})`);
+console.log(
+  `[HUNGERBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
+);
+
 if (!hasToken) {
   console.error('HUNGERBOT_TOKEN environment variable is required');
 }
