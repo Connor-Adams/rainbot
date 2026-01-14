@@ -1,54 +1,39 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 template: |
-  ## 🚀 What's Changed
+  ## dYs? What's Changed
 
   $CHANGES
 
-  ## 🐳 Docker Images
+  ## dY"İ Railway Deployment
 
-  Pull the images from GitHub Container Registry:
-
-  ```bash
-  # Raincloud Orchestrator
-  docker pull ghcr.io/$OWNER/rainbot-raincloud:v$RESOLVED_VERSION
-
-  # Worker Bots
-  docker pull ghcr.io/$OWNER/rainbot-rainbot:v$RESOLVED_VERSION
-  docker pull ghcr.io/$OWNER/rainbot-pranjeet:v$RESOLVED_VERSION
-  docker pull ghcr.io/$OWNER/rainbot-hungerbot:v$RESOLVED_VERSION
-  ```
-
-  ## 📦 Railway Deployment
-
-  Update your Railway services to use these image tags:
-  - `ghcr.io/$OWNER/rainbot-raincloud:v$RESOLVED_VERSION`
-  - `ghcr.io/$OWNER/rainbot-rainbot:v$RESOLVED_VERSION`
-  - `ghcr.io/$OWNER/rainbot-pranjeet:v$RESOLVED_VERSION`
-  - `ghcr.io/$OWNER/rainbot-hungerbot:v$RESOLVED_VERSION`
+  Deploy is gated on release. Stack commits safely, then publish a release when ready:
+  - Merge PRs into `main` to accumulate changes
+  - Review the draft release notes
+  - Publish the release to trigger Railway deploys
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
 
 categories:
-  - title: '🚀 Features'
+  - title: 'dYs? Features'
     labels:
       - 'feature'
       - 'enhancement'
-  - title: '🐛 Bug Fixes'
+  - title: 'dY?> Bug Fixes'
     labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
-  - title: '🧰 Maintenance'
+  - title: 'dYø Maintenance'
     labels:
       - 'chore'
       - 'maintenance'
       - 'dependencies'
-  - title: '📖 Documentation'
+  - title: 'dY"- Documentation'
     labels:
       - 'documentation'
       - 'docs'
-  - title: '🔧 Configuration'
+  - title: 'dY" Configuration'
     labels:
       - 'config'
       - 'infrastructure'

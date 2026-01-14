@@ -1,0 +1,39 @@
+name: Release Deploy (Railway)
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    name: Trigger Railway Deploys
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Raincloud to Railway
+        if: ${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD != '' }}
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      - name: Deploy Rainbot Worker to Railway
+        if: ${{ secrets.RAILWAY_WEBHOOK_RAINBOT != '' }}
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      - name: Deploy Pranjeet Worker to Railway
+        if: ${{ secrets.RAILWAY_WEBHOOK_PRANJEET != '' }}
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      - name: Deploy HungerBot Worker to Railway
+        if: ${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT != '' }}
+        run: |
+          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'

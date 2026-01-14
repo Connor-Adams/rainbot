@@ -2,7 +2,7 @@ name: Pre-Deploy Build Check
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop, dev]
   workflow_dispatch:
 
 jobs:
@@ -30,13 +30,8 @@ jobs:
       - name: Build TypeScript
         run: yarn build:ts
 
-      - name: Install frontend dependencies
-        working-directory: ./ui
-        run: npm ci
-
       - name: Build frontend
-        working-directory: ./ui
-        run: npm run build
+        run: yarn workspace @rainbot/ui build
 
       - name: Verify build output
         run: |

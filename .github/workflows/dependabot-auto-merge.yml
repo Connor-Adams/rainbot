@@ -17,30 +17,29 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install backend dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        working-directory: ./ui
-        run: npm ci
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
+        run: yarn install --immutable
 
       - name: Run backend lint
-        run: npm run lint || echo "No lint script"
+        run: yarn lint
 
       - name: Run frontend lint
-        working-directory: ./ui
-        run: npm run lint
+        run: yarn workspace @rainbot/ui lint
 
-      - name: Type check frontend
-        working-directory: ./ui
-        run: npx tsc --noEmit
+      - name: Build TypeScript
+        run: yarn build:ts
 
       - name: Build frontend
-        working-directory: ./ui
-        run: npm run build
+        run: yarn workspace @rainbot/ui build
 
       - name: Auto-merge PR
         if: success()
