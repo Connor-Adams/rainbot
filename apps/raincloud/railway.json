@@ -3,7 +3,7 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn build:ts && yarn workspace @rainbot/ui build"
+    "buildCommand": "yarn build:raincloud"
   },
   "deploy": {
     "startCommand": "node apps/raincloud/index.js",

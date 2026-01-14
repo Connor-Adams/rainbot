@@ -2,11 +2,11 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "installCommand": "corepack enable && cd .. && yarn install --immutable",
-    "buildCommand": "cd .. && yarn workspace @rainbot/ui build"
+    "installCommand": "corepack enable && yarn install --immutable",
+    "buildCommand": "yarn build"
   },
   "deploy": {
-    "startCommand": "sh -lc \"cd .. && yarn workspace @rainbot/ui preview --host 0.0.0.0 --port $PORT\"",
+    "startCommand": "yarn preview --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
