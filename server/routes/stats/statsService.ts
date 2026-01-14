@@ -31,9 +31,7 @@ export class StatsService {
       .addFilters(sharedFilters, 'executed_at')
       .build();
     const soundBuilder = new QueryBuilder();
-    const { whereClause: soundWhere } = soundBuilder
-      .addFilters(sharedFilters, 'played_at')
-      .build();
+    const { whereClause: soundWhere } = soundBuilder.addFilters(sharedFilters, 'played_at').build();
 
     const [commandsResult, soundsResult, usersResult, guildsResult, successResult] =
       await Promise.all([
@@ -130,7 +128,9 @@ export class StatsService {
 
   async getSoundStats(filters: WhereFilters, limit: number) {
     const builder = new QueryBuilder();
-    const { whereClause, params } = builder.addFilters(getSoundFilters(filters), 'played_at').build();
+    const { whereClause, params } = builder
+      .addFilters(getSoundFilters(filters), 'played_at')
+      .build();
 
     const nextIndex = builder.getNextParamIndex();
     params.push(limit as any);

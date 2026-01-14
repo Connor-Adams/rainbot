@@ -214,6 +214,24 @@ export async function createServer(): Promise<Application> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // Health checks (no auth)
+  app.get('/health/live', (_req: Request, res: Response) => {
+    res.status(200).send('OK');
+  });
+
+  app.get('/health/ready', (_req: Request, res: Response) => {
+    const client = getClient();
+    const ready = !!config.token && !!client && client.isReady();
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      service: 'raincloud',
+      ready,
+      degraded: !config.token,
+      timestamp: Date.now(),
+    });
+  });
+
   // Auth routes (must be before protected routes)
   const authRoutes = require('./routes/auth').default;
   app.use('/auth', authRoutes);

@@ -466,6 +466,8 @@ app.get('/health/ready', (req: Request, res: Response) => {
     status: 'ok',
     uptime: process.uptime(),
     botType: 'hungerbot',
+    ready: hasToken && client.isReady(),
+    degraded: !hasToken,
     timestamp: Date.now(),
   });
 });

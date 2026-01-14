@@ -131,10 +131,21 @@ client.once(Events.ClientReady, async () => {
 // Validate bot token
 if (!config.token) {
   log.error('Error: Discord bot token not found. Set DISCORD_BOT_TOKEN environment variable');
-  process.exit(1);
+  log.warn('Starting in degraded mode (no Discord connection)');
+  const port = config.dashboardPort || 3000;
+  server
+    .createServer()
+    .then((app) => {
+      app.listen(port, () => {
+        log.info(`Dashboard running in degraded mode at http://0.0.0.0:${port}`);
+      });
+    })
+    .catch((error) => {
+      log.error('Failed to start server in degraded mode', formatError(error));
+    });
+} else {
+  client.login(config.token);
 }
-
-client.login(config.token);
 
 // Graceful shutdown - save queue snapshots and flush statistics
 async function gracefulShutdown(signal) {

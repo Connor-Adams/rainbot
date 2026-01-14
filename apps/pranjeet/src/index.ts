@@ -444,6 +444,8 @@ app.get('/health/ready', (req: Request, res: Response) => {
     status: 'ok',
     uptime: process.uptime(),
     botType: 'pranjeet',
+    ready: hasToken && client.isReady(),
+    degraded: !hasToken,
     timestamp: Date.now(),
   });
 });

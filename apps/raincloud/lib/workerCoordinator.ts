@@ -121,11 +121,7 @@ export class WorkerCoordinator {
     const poll = async (): Promise<void> => {
       for (const [botType, worker] of this.workers.entries()) {
         try {
-          await this.requestWithRetry(
-            botType,
-            () => worker.get('/health/ready'),
-            true
-          );
+          await this.requestWithRetry(botType, () => worker.get('/health/ready'), true);
           this.health.set(botType, { ready: true, lastChecked: Date.now() });
         } catch (error) {
           const message = getErrorMessage(error);
@@ -306,7 +302,7 @@ export class WorkerCoordinator {
     }
     const guard = this.guardWorker(botType);
     if (!guard.ok) {
-      log.warn(guard.error);
+      log.warn(guard.error ?? `${botType} unavailable`);
       return;
     }
 
