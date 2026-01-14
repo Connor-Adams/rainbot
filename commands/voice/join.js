@@ -1,6 +1,9 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const voiceManager = require('../../dist/utils/voiceManager');
+const { ensureSession } = require('../../dist/utils/voice/voiceSessionManager');
 const { checkVoicePermissions, createErrorResponse } = require('../utils/commandHelpers');
+const { createLogger } = require('../../dist/utils/logger');
+
+const log = createLogger('JOIN');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,54 +27,21 @@ module.exports = {
     }
 
     try {
-      await voiceManager.joinChannel(voiceChannel);
-
-      // Start listening to all users already in the channel if voice control is enabled
-      try {
-        const {
-          getVoiceInteractionManager,
-        } = require('../../dist/utils/voice/voiceInteractionInstance');
-        const { getVoiceConnection } = require('@discordjs/voice');
-        const voiceInteractionMgr = getVoiceInteractionManager();
-
-        if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(interaction.guildId)) {
-          const connection = getVoiceConnection(interaction.guildId);
-          if (connection) {
-            // Get all members in the voice channel (excluding bots)
-            const members = voiceChannel.members.filter((m) => !m.user.bot);
-            for (const [userId, member] of members) {
-              await voiceInteractionMgr.startListening(userId, interaction.guildId, connection);
-              console.log(`Started voice listening for existing user: ${member.user.tag}`);
-            }
-          }
-        }
-      } catch (voiceError) {
-        // Don't fail the join if voice interaction setup fails
-        console.log(`Voice interaction setup failed (non-critical): ${voiceError.message}`);
-      }
-
-      await interaction.reply(
-        `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
-      );
+      await ensureSession({ guildId: interaction.guildId, voiceChannel });
+      await interaction.reply(`🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`);
+      log.info(`Joined VC: ${voiceChannel.name} in guild ${interaction.guild.name}`);
     } catch (error) {
-      console.error('Error joining voice channel:', error);
-      // Check if we already replied
+      log.error(`Failed to join VC: ${error.message}`);
+      const reply = createErrorResponse(
+        error,
+        'Failed to join the voice channel',
+        '💡 Make sure I have the necessary permissions and try again.'
+      );
+      // Check if already replied
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(
-          createErrorResponse(
-            error,
-            'Failed to join the voice channel',
-            '💡 Make sure I have the necessary permissions and try again.'
-          )
-        );
+        await interaction.followUp(reply);
       } else {
-        await interaction.reply(
-          createErrorResponse(
-            error,
-            'Failed to join the voice channel',
-            '💡 Make sure I have the necessary permissions and try again.'
-          )
-        );
+        await interaction.reply(reply);
       }
     }
   },
