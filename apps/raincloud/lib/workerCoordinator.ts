@@ -4,6 +4,7 @@ import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
+import { fetchWorkerHealthChecks } from '../src/rpc/clients';
 
 const log = createLogger('WORKER-COORDINATOR');
 
@@ -140,12 +141,27 @@ export class WorkerCoordinator {
 
   private startHealthPolling(): void {
     const poll = async (): Promise<void> => {
+      const rpcResults = await fetchWorkerHealthChecks().catch((error) => {
+        log.warn(`RPC health checks failed: ${getErrorMessage(error)}`);
+        return null;
+      });
+
       for (const [botType, worker] of this.workers.entries()) {
+        const rpcResult = rpcResults?.[botType];
+        if (rpcResult && rpcResult.status === 'fulfilled') {
+          this.health.set(botType, { ready: true, lastChecked: Date.now() });
+          continue;
+        }
+
         try {
           await this.requestWithRetry(botType, () => worker.get('/health/ready'), true);
           this.health.set(botType, { ready: true, lastChecked: Date.now() });
         } catch (error) {
-          const message = getErrorMessage(error);
+          const rpcMessage =
+            rpcResult && rpcResult.status === 'rejected'
+              ? getErrorMessage(rpcResult.reason)
+              : undefined;
+          const message = rpcMessage || getErrorMessage(error);
           this.health.set(botType, { ready: false, lastChecked: Date.now(), lastError: message });
           log.warn(`${botType} health check failed: ${message}`);
         }

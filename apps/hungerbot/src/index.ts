@@ -10,6 +10,8 @@ import {
   AudioPlayer,
   StreamType,
 } from '@discordjs/voice';
+import { createContext, hungerbotRouter } from '@rainbot/rpc';
+import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
@@ -194,6 +196,13 @@ function getOrCreateUserPlayer(guildId: string, userId: string): AudioPlayer {
 // Express server for worker protocol
 const app = express();
 app.use(express.json());
+app.use(
+  '/trpc',
+  trpcExpress.createExpressMiddleware({
+    router: hungerbotRouter,
+    createContext,
+  })
+);
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {

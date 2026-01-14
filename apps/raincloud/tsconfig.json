@@ -28,6 +28,7 @@
     "server/**/*.ts",
     "handlers/**/*.ts",
     "src/events/**/*.ts",
+    "src/rpc/**/*.ts",
     "components/**/*.ts",
     "lib/**/*.ts"
   ],

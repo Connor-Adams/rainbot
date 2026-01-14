@@ -9,6 +9,8 @@ import {
   VoiceConnection,
   AudioPlayer,
 } from '@discordjs/voice';
+import { rainbotRouter, createContext } from '@rainbot/rpc';
+import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
 import { Mutex } from 'async-mutex';
 
@@ -145,6 +147,13 @@ async function playNext(guildId: string): Promise<void> {
 // Express server for worker protocol
 const app = express();
 app.use(express.json());
+app.use(
+  '/trpc',
+  trpcExpress.createExpressMiddleware({
+    router: rainbotRouter,
+    createContext,
+  })
+);
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {
