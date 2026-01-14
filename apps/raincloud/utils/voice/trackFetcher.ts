@@ -13,6 +13,13 @@ const log = createLogger('FETCHER');
 // Use system yt-dlp if available
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
+const MAX_PLAYLIST_TRACKS = 100;
+
+function buildSpotifyTitle(name: string, artists?: { name: string }[]): string {
+  const artistNames = artists?.map((artist) => artist.name).filter(Boolean).join(', ');
+  return artistNames ? `${name} — ${artistNames}` : name;
+}
+
 /**
  * Fetch tracks from a source (URL, search query, or local file)
  */
@@ -82,9 +89,103 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
         url: cleanSource,
         duration,
         isLocal: false,
+        sourceType: 'youtube',
       });
     }
-    // TODO: Handle playlists, Spotify, SoundCloud
+    // Handle YouTube playlists
+    else if (urlType === 'yt_playlist') {
+      try {
+        const playlist = await play.playlist_info(source);
+        const videos = await playlist.next(MAX_PLAYLIST_TRACKS);
+
+        if (!videos.length) {
+          throw new Error('No videos found in playlist');
+        }
+
+        videos.forEach((video) => {
+          tracks.push({
+            title: video.title || 'Unknown Track',
+            url: video.url,
+            duration: video.durationInSec,
+            isLocal: false,
+            sourceType: 'youtube',
+          });
+        });
+      } catch (error) {
+        log.error(`Failed to load YouTube playlist: ${(error as Error).message}`);
+        throw new Error('Unable to fetch YouTube playlist tracks');
+      }
+    }
+    // Handle Spotify tracks/playlists/albums
+    else if (urlType === 'sp_track' || urlType === 'sp_playlist' || urlType === 'sp_album') {
+      try {
+        const spotifyInfo = await play.spotify(source);
+
+        if (spotifyInfo.type === 'track') {
+          const track = spotifyInfo;
+          tracks.push({
+            title: buildSpotifyTitle(track.name, track.artists),
+            url: track.url,
+            duration: track.durationInSec,
+            isLocal: false,
+            sourceType: 'spotify',
+            spotifyId: track.id,
+            spotifyUrl: track.url,
+          });
+        } else {
+          const pageOne = spotifyInfo.page(1) ?? [];
+          const spotifyTracks = pageOne.length
+            ? pageOne
+            : await spotifyInfo.all_tracks();
+
+          spotifyTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track) => {
+            tracks.push({
+              title: buildSpotifyTitle(track.name, track.artists),
+              url: track.url,
+              duration: track.durationInSec,
+              isLocal: false,
+              sourceType: 'spotify',
+              spotifyId: track.id,
+              spotifyUrl: track.url,
+            });
+          });
+        }
+      } catch (error) {
+        log.error(`Failed to load Spotify data: ${(error as Error).message}`);
+        throw new Error('Unable to fetch Spotify track metadata');
+      }
+    }
+    // Handle SoundCloud tracks/playlists
+    else if (urlType === 'so_track' || urlType === 'so_playlist') {
+      try {
+        const soundcloudInfo = await play.soundcloud(source);
+
+        if (soundcloudInfo.type === 'track') {
+          const track = soundcloudInfo;
+          tracks.push({
+            title: track.name || 'Unknown Track',
+            url: track.permalink || track.url,
+            duration: track.durationInSec,
+            isLocal: false,
+            sourceType: 'soundcloud',
+          });
+        } else {
+          const playlistTracks = await soundcloudInfo.all_tracks();
+          playlistTracks.slice(0, MAX_PLAYLIST_TRACKS).forEach((track) => {
+            tracks.push({
+              title: track.name || 'Unknown Track',
+              url: track.permalink || track.url,
+              duration: track.durationInSec,
+              isLocal: false,
+              sourceType: 'soundcloud',
+            });
+          });
+        }
+      } catch (error) {
+        log.error(`Failed to load SoundCloud data: ${(error as Error).message}`);
+        throw new Error('Unable to fetch SoundCloud track metadata');
+      }
+    }
     else {
       log.warn(`URL type ${urlType} not fully implemented yet`);
 
