@@ -12,6 +12,8 @@ import {
 } from '@discordjs/voice';
 import express, { Request, Response } from 'express';
 import { Readable } from 'stream';
+import { Queue, Worker } from 'bullmq';
+import IORedis from 'ioredis';
 
 const PORT = parseInt(process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
@@ -19,6 +21,7 @@ const TTS_API_KEY = process.env['TTS_API_KEY'] || process.env['OPENAI_API_KEY'];
 const TTS_PROVIDER = process.env['TTS_PROVIDER'] || 'openai';
 const TTS_VOICE = process.env['TTS_VOICE_NAME'] || 'alloy';
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
+const REDIS_URL = process.env['REDIS_URL'];
 
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
@@ -64,6 +67,7 @@ interface GuildState {
 
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
+let queueReady = false;
 let serverStarted = false;
 
 function startServer(): void {
@@ -143,6 +147,32 @@ async function generateTTS(text: string, voice?: string): Promise<Buffer> {
   }
 
   throw new Error(`Unsupported TTS provider: ${TTS_PROVIDER}`);
+}
+
+async function speakInGuild(
+  guildId: string,
+  text: string,
+  voice?: string
+): Promise<{ status: 'success' | 'error'; message: string }> {
+  const state = getOrCreateGuildState(guildId);
+
+  if (!state.connection) {
+    return { status: 'error', message: 'Not connected to voice channel' };
+  }
+
+  const audioBuffer = await generateTTS(text, voice);
+  const stream = Readable.from(audioBuffer);
+  const resource = createAudioResource(stream, {
+    inputType: StreamType.Arbitrary,
+    inlineVolume: true,
+  });
+
+  if (resource.volume) {
+    resource.volume.setVolume(state.volume);
+  }
+
+  state.player.play(resource);
+  return { status: 'success', message: 'TTS queued' };
 }
 
 /**
@@ -395,35 +425,15 @@ app.post('/speak', async (req: Request, res: Response) => {
   }
 
   try {
-    const state = getOrCreateGuildState(guildId);
-
-    if (!state.connection) {
-      const response = { status: 'error', message: 'Not connected to voice channel' };
+    const response = await speakInGuild(guildId, text, voice);
+    if (response.status === 'error') {
       requestCache.set(requestId, response);
       setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(400).json(response);
     }
 
-    // Generate TTS audio
-    const audioBuffer = await generateTTS(text, voice);
-
-    // Create audio resource
-    const stream = Readable.from(audioBuffer);
-    const resource = createAudioResource(stream, {
-      inputType: StreamType.Arbitrary,
-      inlineVolume: true,
-    });
-
-    if (resource.volume) {
-      resource.volume.setVolume(state.volume);
-    }
-
-    // Play TTS (overtop everything)
-    state.player.play(resource);
-
     console.log(`[PRANJEET] Speaking in guild ${guildId}: ${text}`);
 
-    const response = { status: 'success', message: 'TTS queued' };
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
@@ -446,6 +456,7 @@ app.get('/health/ready', (req: Request, res: Response) => {
     botType: 'pranjeet',
     ready: hasToken && client.isReady(),
     degraded: !hasToken,
+    queueReady,
     timestamp: Date.now(),
   });
 });
@@ -533,6 +544,41 @@ client.once('ready', async () => {
 
   // Start HTTP server
   startServer();
+
+  if (REDIS_URL) {
+    try {
+      const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+      const worker = new Worker(
+        'tts',
+        async (job) => {
+          if (!hasToken || !client.isReady()) {
+            throw new Error('Bot not ready');
+          }
+          const { guildId, text, voice } = job.data as {
+            guildId: string;
+            text: string;
+            voice?: string;
+          };
+          const result = await speakInGuild(guildId, text, voice);
+          if (result.status === 'error') {
+            throw new Error(result.message);
+          }
+          return { status: 'success' };
+        },
+        { connection, concurrency: 1 }
+      );
+
+      worker.on('failed', (job, err) => {
+        console.error(`[PRANJEET] TTS job failed ${job?.id}: ${err.message}`);
+      });
+
+      queueReady = true;
+      console.log('[PRANJEET] TTS queue worker started');
+    } catch (error) {
+      console.error('[PRANJEET] Failed to start TTS queue worker:', error);
+      queueReady = false;
+    }
+  }
 });
 
 client.on('error', (error) => {

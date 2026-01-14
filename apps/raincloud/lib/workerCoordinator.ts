@@ -2,6 +2,8 @@ import { createLogger } from '../utils/logger';
 import { VoiceStateManager } from './voiceStateManager';
 import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import { Queue } from 'bullmq';
+import IORedis from 'ioredis';
 
 const log = createLogger('WORKER-COORDINATOR');
 
@@ -39,6 +41,7 @@ const CIRCUIT_OPEN_MS = 30_000;
 const HEALTH_POLL_MS = 15_000;
 const RETRY_MAX = 2;
 const RETRY_BASE_MS = 150;
+const TTS_QUEUE_NAME = 'tts';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -74,11 +77,13 @@ export class WorkerCoordinator {
   private workers: Map<BotType, AxiosInstance>;
   private circuit: Map<BotType, CircuitState>;
   private health: Map<BotType, WorkerHealth>;
+  private ttsQueue: Queue | null;
 
   constructor(private voiceStateManager: VoiceStateManager) {
     this.workers = new Map();
     this.circuit = new Map();
     this.health = new Map();
+    this.ttsQueue = null;
 
     // Initialize worker clients
     const config: Record<BotType, WorkerConfig> = {
@@ -113,6 +118,22 @@ export class WorkerCoordinator {
 
     // Auto-follow is always enabled - workers join automatically when orchestrator joins
     log.info('Auto-follow enabled - workers will join voice automatically');
+
+    const redisUrl = process.env['REDIS_URL'];
+    if (redisUrl) {
+      try {
+        const connection = new IORedis(redisUrl, {
+          maxRetriesPerRequest: null,
+        });
+        this.ttsQueue = new Queue(TTS_QUEUE_NAME, { connection });
+        log.info('TTS queue enabled');
+      } catch (error) {
+        log.warn(`Failed to initialize TTS queue: ${getErrorMessage(error)}`);
+        this.ttsQueue = null;
+      }
+    } else {
+      log.info('TTS queue disabled (REDIS_URL not configured)');
+    }
 
     this.startHealthPolling();
   }
@@ -204,6 +225,35 @@ export class WorkerCoordinator {
     }
 
     throw lastError;
+  }
+
+  private async enqueueTTS(payload: {
+    requestId: string;
+    guildId: string;
+    text: string;
+    voice?: string;
+    userId?: string;
+  }): Promise<boolean> {
+    if (!this.ttsQueue) return false;
+    const useQueue = process.env['TTS_QUEUE_ENABLED'] === 'true';
+    if (!useQueue) return false;
+
+    try {
+      await this.ttsQueue.add('speak', payload, {
+        jobId: payload.requestId,
+        removeOnComplete: true,
+        removeOnFail: true,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 500,
+        },
+      });
+      return true;
+    } catch (error) {
+      log.warn(`Failed to enqueue TTS job: ${getErrorMessage(error)}`);
+      return false;
+    }
   }
 
   /**
@@ -399,6 +449,9 @@ export class WorkerCoordinator {
     userId?: string
   ): Promise<{ success: boolean; message?: string }> {
     const requestId = uuidv4();
+    if (await this.enqueueTTS({ requestId, guildId, text, voice, userId })) {
+      return { success: true, message: 'Queued' };
+    }
     const worker = this.workers.get('pranjeet');
 
     if (!worker) {
