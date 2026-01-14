@@ -38,66 +38,69 @@ const getConfig = (): OAuthConfig => {
   };
 };
 
-// Configure Discord OAuth Strategy using OAuth2
 const cfg = getConfig();
-passport.use(
-  'discord',
-  new OAuth2Strategy(
-    {
-      authorizationURL: 'https://discord.com/api/oauth2/authorize',
-      tokenURL: 'https://discord.com/api/oauth2/token',
-      clientID: cfg.clientId,
-      clientSecret: cfg.clientSecret,
-      callbackURL: cfg.callbackURL,
-      scope: ['identify', 'guilds'],
-    },
-    async (
-      accessToken: string,
-      _refreshToken: string,
-      _profile: unknown,
-      done: (
-        error: Error | null,
-        user?: DiscordUser | false,
-        info?: { message: string; details?: string }
-      ) => void
-    ) => {
-      try {
-        log.debug('OAuth strategy callback started');
+const oauthConfigured = !!cfg.clientId && !!cfg.clientSecret;
 
-        const botClient = getClient();
+if (oauthConfigured) {
+  // Configure Discord OAuth Strategy using OAuth2
+  passport.use(
+    'discord',
+    new OAuth2Strategy(
+      {
+        authorizationURL: 'https://discord.com/api/oauth2/authorize',
+        tokenURL: 'https://discord.com/api/oauth2/token',
+        clientID: cfg.clientId,
+        clientSecret: cfg.clientSecret,
+        callbackURL: cfg.callbackURL,
+        scope: ['identify', 'guilds'],
+      },
+      async (
+        accessToken: string,
+        _refreshToken: string,
+        _profile: unknown,
+        done: (
+          error: Error | null,
+          user?: DiscordUser | false,
+          info?: { message: string; details?: string }
+        ) => void
+      ) => {
+        try {
+          log.debug('OAuth strategy callback started');
 
-        if (!botClient || !botClient.isReady()) {
-          log.error('Bot client not ready during OAuth verification');
-          return done(
-            new Error('Bot is not ready. Please ensure the bot is running and connected.')
-          );
-        }
+          const botClient = getClient();
 
-        log.debug('Fetching user profile from Discord API');
-        // Fetch user profile from Discord API
-        const userResponse = await fetch('https://discord.com/api/users/@me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+          if (!botClient || !botClient.isReady()) {
+            log.error('Bot client not ready during OAuth verification');
+            return done(
+              new Error('Bot is not ready. Please ensure the bot is running and connected.')
+            );
+          }
 
-        if (!userResponse.ok) {
-          const errorText = await userResponse.text();
-          log.error(`Failed to fetch user profile: ${userResponse.status} ${errorText}`);
-          throw new Error(`Failed to fetch user profile from Discord: ${userResponse.status}`);
-        }
+          log.debug('Fetching user profile from Discord API');
+          // Fetch user profile from Discord API
+          const userResponse = await fetch('https://discord.com/api/users/@me', {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
 
-        interface DiscordApiUser {
-          id: string;
-          username: string;
-          discriminator: string;
-          avatar: string | null;
-        }
-        const discordUser = (await userResponse.json()) as DiscordApiUser;
-        log.debug(`Fetched user profile: ${discordUser.username} (${discordUser.id})`);
+          if (!userResponse.ok) {
+            const errorText = await userResponse.text();
+            log.error(`Failed to fetch user profile: ${userResponse.status} ${errorText}`);
+            throw new Error(`Failed to fetch user profile from Discord: ${userResponse.status}`);
+          }
 
-        // Verify user has required role
-        const currentCfg = getConfig();
+          interface DiscordApiUser {
+            id: string;
+            username: string;
+            discriminator: string;
+            avatar: string | null;
+          }
+          const discordUser = (await userResponse.json()) as DiscordApiUser;
+          log.debug(`Fetched user profile: ${discordUser.username} (${discordUser.id})`);
+
+          // Verify user has required role
+          const currentCfg = getConfig();
 
         // If no required role is configured, allow all authenticated Discord users
         if (!currentCfg.requiredRoleId) {
@@ -146,15 +149,18 @@ passport.use(
         };
 
         log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
-        return done(null, user);
-      } catch (error) {
-        const err = error as Error;
-        log.error(`Error during OAuth verification: ${err.message}`, { stack: err.stack });
-        return done(err);
+          return done(null, user);
+        } catch (error) {
+          const err = error as Error;
+          log.error(`Error during OAuth verification: ${err.message}`, { stack: err.stack });
+          return done(err);
+        }
       }
-    }
-  )
-);
+    )
+  );
+} else {
+  log.warn('Discord OAuth is not configured. Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET.');
+}
 
 // Serialize user for session
 passport.serializeUser((user: Express.User, done) => {
@@ -181,12 +187,22 @@ function getBaseUrl(req: Request): string {
 }
 
 // Initiate OAuth flow
-router.get('/discord', passport.authenticate('discord'));
+router.get('/discord', (req: Request, res: Response) => {
+  if (!oauthConfigured) {
+    res.status(503).json({ error: 'OAuth not configured' });
+    return;
+  }
+  return passport.authenticate('discord')(req, res);
+});
 
 // OAuth callback
 router.get(
   '/discord/callback',
-  (req: Request, _res: Response, next: NextFunction) => {
+  (req: Request, res: Response, next: NextFunction) => {
+    if (!oauthConfigured) {
+      res.status(503).json({ error: 'OAuth not configured' });
+      return;
+    }
     log.info('OAuth callback received', { query: req.query, sessionId: req.sessionID });
     next();
   },
