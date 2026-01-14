@@ -22,6 +22,24 @@ interface WorkerConfig {
   timeout: number;
 }
 
+interface WorkerHealth {
+  ready: boolean;
+  lastChecked: number;
+  lastError?: string;
+}
+
+interface CircuitState {
+  failureCount: number;
+  openedUntil: number;
+  lastFailure?: number;
+}
+
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+const CIRCUIT_OPEN_MS = 30_000;
+const HEALTH_POLL_MS = 15_000;
+const RETRY_MAX = 2;
+const RETRY_BASE_MS = 150;
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
@@ -48,11 +66,19 @@ function normalizeWorkerStatus(data: unknown): WorkerStatusResponse {
   };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class WorkerCoordinator {
   private workers: Map<BotType, AxiosInstance>;
+  private circuit: Map<BotType, CircuitState>;
+  private health: Map<BotType, WorkerHealth>;
 
   constructor(private voiceStateManager: VoiceStateManager) {
     this.workers = new Map();
+    this.circuit = new Map();
+    this.health = new Map();
 
     // Initialize worker clients
     const config: Record<BotType, WorkerConfig> = {
@@ -81,10 +107,107 @@ export class WorkerCoordinator {
           },
         })
       );
+      this.circuit.set(botType as BotType, { failureCount: 0, openedUntil: 0 });
+      this.health.set(botType as BotType, { ready: true, lastChecked: 0 });
     }
 
     // Auto-follow is always enabled - workers join automatically when orchestrator joins
     log.info('Auto-follow enabled - workers will join voice automatically');
+
+    this.startHealthPolling();
+  }
+
+  private startHealthPolling(): void {
+    const poll = async (): Promise<void> => {
+      for (const [botType, worker] of this.workers.entries()) {
+        try {
+          await this.requestWithRetry(
+            botType,
+            () => worker.get('/health/ready'),
+            true
+          );
+          this.health.set(botType, { ready: true, lastChecked: Date.now() });
+        } catch (error) {
+          const message = getErrorMessage(error);
+          this.health.set(botType, { ready: false, lastChecked: Date.now(), lastError: message });
+          log.warn(`${botType} health check failed: ${message}`);
+        }
+      }
+    };
+
+    poll().catch(() => {});
+    setInterval(() => {
+      poll().catch(() => {});
+    }, HEALTH_POLL_MS);
+  }
+
+  private isCircuitOpen(botType: BotType): boolean {
+    const state = this.circuit.get(botType);
+    if (!state) return false;
+    return state.openedUntil > Date.now();
+  }
+
+  private recordSuccess(botType: BotType): void {
+    const state = this.circuit.get(botType);
+    if (!state) return;
+    state.failureCount = 0;
+    state.openedUntil = 0;
+  }
+
+  private recordFailure(botType: BotType): void {
+    const state = this.circuit.get(botType);
+    if (!state) return;
+    state.failureCount += 1;
+    state.lastFailure = Date.now();
+    if (state.failureCount >= CIRCUIT_FAILURE_THRESHOLD) {
+      state.openedUntil = Date.now() + CIRCUIT_OPEN_MS;
+    }
+  }
+
+  private isWorkerReady(botType: BotType): boolean {
+    const health = this.health.get(botType);
+    if (!health) return true;
+    return health.ready;
+  }
+
+  private guardWorker(botType: BotType): { ok: boolean; error?: string } {
+    if (this.isCircuitOpen(botType)) {
+      return { ok: false, error: `${botType} temporarily unavailable (circuit open)` };
+    }
+    if (!this.isWorkerReady(botType)) {
+      return { ok: false, error: `${botType} not ready` };
+    }
+    return { ok: true };
+  }
+
+  private async requestWithRetry<T>(
+    botType: BotType,
+    fn: () => Promise<T>,
+    idempotent: boolean
+  ): Promise<T> {
+    let attempt = 0;
+    let lastError: unknown;
+
+    const maxAttempts = idempotent ? RETRY_MAX + 1 : 1;
+    while (attempt < maxAttempts) {
+      try {
+        const result = await fn();
+        this.recordSuccess(botType);
+        return result;
+      } catch (error) {
+        lastError = error;
+        this.recordFailure(botType);
+        if (attempt >= maxAttempts - 1) {
+          break;
+        }
+        const backoff = RETRY_BASE_MS * Math.pow(2, attempt);
+        const jitter = Math.floor(Math.random() * RETRY_BASE_MS);
+        await sleep(backoff + jitter);
+      }
+      attempt += 1;
+    }
+
+    throw lastError;
   }
 
   /**
@@ -103,12 +226,18 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, error: `Worker ${botType} not configured` };
     }
+    const guard = this.guardWorker(botType);
+    if (!guard.ok) {
+      return { success: false, error: guard.error };
+    }
 
     try {
       // Check if already connected
-      const statusResponse = await worker.get(`/status`, {
-        params: { guildId },
-      });
+      const statusResponse = await this.requestWithRetry(
+        botType,
+        () => worker.get(`/status`, { params: { guildId } }),
+        true
+      );
 
       if (statusResponse.data.connected && statusResponse.data.channelId === channelId) {
         log.debug(`${botType} already connected to channel ${channelId} in guild ${guildId}`);
@@ -121,7 +250,11 @@ export class WorkerCoordinator {
       // Wait up to 2 seconds for auto-follow to kick in
       for (let i = 0; i < 4; i++) {
         await new Promise((resolve) => setTimeout(resolve, 500));
-        const retryStatus = await worker.get(`/status`, { params: { guildId } });
+        const retryStatus = await this.requestWithRetry(
+          botType,
+          () => worker.get(`/status`, { params: { guildId } }),
+          true
+        );
         if (retryStatus.data.connected && retryStatus.data.channelId === channelId) {
           log.debug(`${botType} connected via auto-follow`);
           await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
@@ -131,11 +264,16 @@ export class WorkerCoordinator {
       log.warn(`${botType} did not auto-follow, falling back to explicit join`);
 
       // Fallback: Join the channel explicitly
-      const joinResponse = await worker.post('/join', {
-        requestId,
-        guildId,
-        channelId,
-      });
+      const joinResponse = await this.requestWithRetry(
+        botType,
+        () =>
+          worker.post('/join', {
+            requestId,
+            guildId,
+            channelId,
+          }),
+        true
+      );
 
       if (
         joinResponse.data.status === 'joined' ||
@@ -166,12 +304,22 @@ export class WorkerCoordinator {
       log.warn(`Worker ${botType} not configured`);
       return;
     }
+    const guard = this.guardWorker(botType);
+    if (!guard.ok) {
+      log.warn(guard.error);
+      return;
+    }
 
     try {
-      await worker.post('/leave', {
-        requestId,
-        guildId,
-      });
+      await this.requestWithRetry(
+        botType,
+        () =>
+          worker.post('/leave', {
+            requestId,
+            guildId,
+          }),
+        true
+      );
       await this.voiceStateManager.setWorkerStatus(botType, guildId, '', false);
       log.info(`${botType} left voice in guild ${guildId}`);
     } catch (error: unknown) {
@@ -207,15 +355,24 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/enqueue', {
-        requestId,
-        guildId,
-        url,
-        requestedBy,
-        requestedByUsername,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/enqueue', {
+            requestId,
+            guildId,
+            url,
+            requestedBy,
+            requestedByUsername,
+          }),
+        true
+      );
 
       // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
@@ -251,15 +408,24 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'TTS worker not configured' };
     }
+    const guard = this.guardWorker('pranjeet');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/speak', {
-        requestId,
-        guildId,
-        text,
-        voice,
-        userId,
-      });
+      const response = await this.requestWithRetry(
+        'pranjeet',
+        () =>
+          worker.post('/speak', {
+            requestId,
+            guildId,
+            text,
+            voice,
+            userId,
+          }),
+        true
+      );
 
       // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
@@ -291,15 +457,24 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Soundboard worker not configured' };
     }
+    const guard = this.guardWorker('hungerbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/play-sound', {
-        requestId,
-        guildId,
-        userId,
-        sfxId,
-        volume,
-      });
+      const response = await this.requestWithRetry(
+        'hungerbot',
+        () =>
+          worker.post('/play-sound', {
+            requestId,
+            guildId,
+            userId,
+            sfxId,
+            volume,
+          }),
+        true
+      );
 
       // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
@@ -330,13 +505,22 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: `Worker ${botType} not configured` };
     }
+    const guard = this.guardWorker(botType);
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/volume', {
-        requestId,
-        guildId,
-        volume,
-      });
+      const response = await this.requestWithRetry(
+        botType,
+        () =>
+          worker.post('/volume', {
+            requestId,
+            guildId,
+            volume,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         await this.voiceStateManager.setVolume(guildId, botType, volume);
@@ -358,10 +542,16 @@ export class WorkerCoordinator {
     const statuses: Partial<Record<BotType, WorkerStatusResponse>> = {};
 
     for (const [botType, worker] of this.workers.entries()) {
+      if (this.isCircuitOpen(botType) || !this.isWorkerReady(botType)) {
+        statuses[botType] = { connected: false, error: `${botType} unavailable` };
+        continue;
+      }
       try {
-        const response = await worker.get('/status', {
-          params: { guildId },
-        });
+        const response = await this.requestWithRetry(
+          botType,
+          () => worker.get('/status', { params: { guildId } }),
+          true
+        );
         statuses[botType] = normalizeWorkerStatus(response.data);
       } catch (_error) {
         statuses[botType] = { connected: false, error: 'Failed to get status' };
@@ -384,13 +574,22 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/skip', {
-        requestId,
-        guildId,
-        count,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/skip', {
+            requestId,
+            guildId,
+            count,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true, skipped: response.data.skipped };
@@ -416,12 +615,21 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/pause', {
-        requestId,
-        guildId,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/pause', {
+            requestId,
+            guildId,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true, paused: response.data.paused };
@@ -445,12 +653,21 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/stop', {
-        requestId,
-        guildId,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/stop', {
+            requestId,
+            guildId,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true };
@@ -476,12 +693,21 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/clear', {
-        requestId,
-        guildId,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/clear', {
+            requestId,
+            guildId,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true, cleared: response.data.cleared };
@@ -510,11 +736,16 @@ export class WorkerCoordinator {
     if (!worker) {
       return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
     }
+    if (this.isCircuitOpen('rainbot') || !this.isWorkerReady('rainbot')) {
+      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+    }
 
     try {
-      const response = await worker.get('/queue', {
-        params: { guildId },
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () => worker.get('/queue', { params: { guildId } }),
+        true
+      );
 
       return response.data;
     } catch (error: unknown) {
@@ -536,13 +767,22 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/autoplay', {
-        requestId,
-        guildId,
-        enabled,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/autoplay', {
+            requestId,
+            guildId,
+            enabled,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true, enabled: response.data.enabled };
@@ -566,12 +806,21 @@ export class WorkerCoordinator {
     if (!worker) {
       return { success: false, message: 'Music worker not configured' };
     }
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
 
     try {
-      const response = await worker.post('/replay', {
-        requestId,
-        guildId,
-      });
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          worker.post('/replay', {
+            requestId,
+            guildId,
+          }),
+        true
+      );
 
       if (response.data.status === 'success') {
         return { success: true, track: response.data.track };
