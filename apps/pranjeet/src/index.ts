@@ -10,6 +10,8 @@ import {
   AudioPlayer,
   StreamType,
 } from '@discordjs/voice';
+import { createContext, pranjeetRouter } from '@rainbot/rpc';
+import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
@@ -241,6 +243,13 @@ function resample24to48(pcm24k: Buffer): Buffer {
 // Express server for worker protocol
 const app = express();
 app.use(express.json());
+app.use(
+  '/trpc',
+  trpcExpress.createExpressMiddleware({
+    router: pranjeetRouter,
+    createContext,
+  })
+);
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {

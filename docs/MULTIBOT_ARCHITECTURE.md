@@ -311,6 +311,9 @@ curl http://localhost:3002/health/ready  # Pranjeet
 curl http://localhost:3003/health/ready  # HungerBot
 ```
 
+The internal tRPC control plane is mounted at `/trpc` and requires the
+`x-internal-secret` header to match `INTERNAL_RPC_SECRET`.
+
 ### Orchestrator can't reach workers
 
 Verify worker URLs in `.env`:
@@ -319,6 +322,7 @@ Verify worker URLs in `.env`:
 RAINBOT_URL=http://localhost:3001
 PRANJEET_URL=http://localhost:3002
 HUNGERBOT_URL=http://localhost:3003
+INTERNAL_RPC_SECRET=replace-with-a-shared-secret
 ```
 
 In Docker, use service names:
