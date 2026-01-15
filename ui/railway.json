@@ -3,7 +3,7 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && corepack prepare yarn@4.6.0 --activate && sh -lc \"cd ui && yarn install --immutable\"",
-    "buildCommand": "sh -lc \"cd ui && yarn build\""
+    "buildCommand": "sh -lc \"echo VITE_API_BASE_URL=$VITE_API_BASE_URL && echo VITE_AUTH_BASE_URL=$VITE_AUTH_BASE_URL && cd ui && yarn build\""
   },
   "deploy": {
     "startCommand": "sh -lc \"cd ui && yarn start:prod\"",
