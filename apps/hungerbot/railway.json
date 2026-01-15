@@ -3,7 +3,7 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn build:hungerbot"
+    "buildCommand": "yarn workspace @rainbot/hungerbot-worker build"
   },
   "deploy": {
     "startCommand": "node apps/hungerbot/dist/index.js",
