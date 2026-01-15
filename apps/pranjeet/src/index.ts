@@ -73,7 +73,14 @@ async function registerWithOrchestrator(): Promise<void> {
     }
   } catch (error) {
     const info = formatError(error);
-    console.warn(`[PRANJEET] Worker registration error: ${info.message}`);
+    const err = error as { cause?: unknown };
+    const cause =
+      err.cause && typeof err.cause === 'object' && 'message' in err.cause
+        ? (err.cause as { message?: string }).message
+        : err.cause
+        ? String(err.cause)
+        : 'n/a';
+    console.warn(`[PRANJEET] Worker registration error: ${info.message}; cause=${cause}`);
   }
 }
 
