@@ -1,9 +1,10 @@
 import { Button } from '@/components/ui'
 import { DiscordIcon } from '@/components/icons'
+import { buildAuthUrl } from '@/lib/api'
 
 export default function LoginPage() {
   const handleLogin = () => {
-    window.location.href = '/auth/discord'
+    window.location.href = buildAuthUrl('/auth/discord')
   }
 
   return (

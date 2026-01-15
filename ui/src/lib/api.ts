@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-const apiBaseUrl =
+export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL || 'http://raincloud.railway.internal:3000/api';
-const authBaseUrl = import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
+export const authBaseUrl =
+  import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
+
+export function buildAuthUrl(path: string): string {
+  const base = authBaseUrl.replace(/\/$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+}
 
 const api = axios.create({
   baseURL: apiBaseUrl,
