@@ -12,6 +12,7 @@ import { VoiceStateManager } from './voiceStateManager';
 import { ChannelResolver } from './channelResolver';
 import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '../utils/logger';
+import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
@@ -58,6 +59,7 @@ export class MultiBotService {
   private constructor(redisClient: RedisClient) {
     this.voiceStateManager = new VoiceStateManager(redisClient);
     this.coordinator = new WorkerCoordinator(this.voiceStateManager);
+    registerWorkerCoordinator(this.coordinator);
     this.channelResolver = new ChannelResolver(this.voiceStateManager);
   }
 

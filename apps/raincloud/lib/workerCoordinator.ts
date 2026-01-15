@@ -203,6 +203,15 @@ export class WorkerCoordinator {
     return health.ready;
   }
 
+  markWorkerReady(botType: BotType, meta?: { instanceId?: string; startedAt?: string }): void {
+    this.health.set(botType, { ready: true, lastChecked: Date.now() });
+    if (meta?.instanceId) {
+      log.info(`${botType} registered (instance=${meta.instanceId})`);
+    } else {
+      log.info(`${botType} registered`);
+    }
+  }
+
   private guardWorker(botType: BotType): { ok: boolean; error?: string } {
     if (this.isCircuitOpen(botType)) {
       return { ok: false, error: `${botType} temporarily unavailable (circuit open)` };

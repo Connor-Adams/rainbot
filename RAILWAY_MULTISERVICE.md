@@ -138,6 +138,7 @@ DISCORD_CLIENT_SECRET=your_raincloud_client_secret
 
 # Session
 SESSION_SECRET=your_random_session_secret
+WORKER_SECRET=shared_secret_for_internal_worker_registration
 
 # Worker URLs (use Railway's internal networking)
 RAINBOT_WORKER_URL=http://rainbot-worker.railway.internal:3001
@@ -166,7 +167,8 @@ DASHBOARD_ORIGIN=https://your-ui-domain
 DISCORD_TOKEN=your_rainbot_worker_token
 DISCORD_CLIENT_ID=your_rainbot_client_id
 WORKER_PORT=3001
-WORKER_SECRET=shared_secret_for_auth
+WORKER_SECRET=shared_secret_for_internal_worker_registration
+RAINCLOUD_URL=http://raincloud.railway.internal:3000
 ```
 
 #### Pranjeet Worker
@@ -175,7 +177,8 @@ WORKER_SECRET=shared_secret_for_auth
 DISCORD_TOKEN=your_pranjeet_worker_token
 DISCORD_CLIENT_ID=your_pranjeet_client_id
 WORKER_PORT=3001
-WORKER_SECRET=shared_secret_for_auth
+WORKER_SECRET=shared_secret_for_internal_worker_registration
+RAINCLOUD_URL=http://raincloud.railway.internal:3000
 
 # Optional: TTS providers
 GOOGLE_APPLICATION_CREDENTIALS_JSON=your_google_cloud_credentials
@@ -188,7 +191,8 @@ OPENAI_API_KEY=your_openai_key
 DISCORD_TOKEN=your_hungerbot_worker_token
 DISCORD_CLIENT_ID=your_hungerbot_client_id
 WORKER_PORT=3001
-WORKER_SECRET=shared_secret_for_auth
+WORKER_SECRET=shared_secret_for_internal_worker_registration
+RAINCLOUD_URL=http://raincloud.railway.internal:3000
 ```
 
 #### UI Service (optional, separate deploy)

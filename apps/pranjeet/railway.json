@@ -14,6 +14,8 @@
     "PRANJEET_TOKEN": "",
     "PRANJEET_PORT": "3002",
     "ORCHESTRATOR_BOT_ID": "",
+    "RAINCLOUD_URL": "http://raincloud.railway.internal:3000",
+    "WORKER_SECRET": "${{shared.WORKER_SECRET}}",
     "TTS_PROVIDER": "${{shared.TTS_PROVIDER}}",
     "TTS_API_KEY": "${{shared.TTS_API_KEY}}",
     "TTS_VOICE_NAME": "${{shared.TTS_VOICE_NAME}}",

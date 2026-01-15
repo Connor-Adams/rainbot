@@ -13,6 +13,8 @@
   "variables": {
     "RAINBOT_TOKEN": "",
     "RAINBOT_PORT": "3001",
-    "ORCHESTRATOR_BOT_ID": ""
+    "ORCHESTRATOR_BOT_ID": "",
+    "RAINCLOUD_URL": "http://raincloud.railway.internal:3000",
+    "WORKER_SECRET": "${{shared.WORKER_SECRET}}"
   }
 }

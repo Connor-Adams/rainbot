@@ -257,6 +257,10 @@ export async function createServer(): Promise<Application> {
     });
   });
 
+  // Internal routes (worker registration)
+  const internalRoutes = require('./routes/internal').default;
+  app.use('/internal', internalRoutes);
+
   // Auth routes (must be before protected routes)
   const authRoutes = require('./routes/auth').default;
   app.use('/auth', authRoutes);

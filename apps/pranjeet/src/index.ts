@@ -24,6 +24,11 @@ const TTS_PROVIDER = process.env['TTS_PROVIDER'] || 'openai';
 const TTS_VOICE = process.env['TTS_VOICE_NAME'] || 'alloy';
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
 const REDIS_URL = process.env['REDIS_URL'];
+const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
+const WORKER_SECRET = process.env['WORKER_SECRET'];
+const WORKER_INSTANCE_ID =
+  process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
+const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
@@ -33,6 +38,40 @@ function formatError(err: unknown): { message: string; stack?: string } {
     return { message: err.message, stack: err.stack };
   }
   return { message: String(err) };
+}
+
+async function registerWithOrchestrator(): Promise<void> {
+  if (!RAINCLOUD_URL || !WORKER_SECRET) {
+    console.warn('[PRANJEET] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
+    return;
+  }
+
+  const baseUrl = RAINCLOUD_URL.replace(/\/$/, '');
+  try {
+    const response = await fetch(`${baseUrl}/internal/workers/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': WORKER_SECRET,
+      },
+      body: JSON.stringify({
+        botType: 'pranjeet',
+        instanceId: WORKER_INSTANCE_ID,
+        startedAt: new Date().toISOString(),
+        version: WORKER_VERSION,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[PRANJEET] Worker registration failed: ${response.status} ${text}`);
+    } else {
+      console.log('[PRANJEET] Worker registered with orchestrator');
+    }
+  } catch (error) {
+    const info = formatError(error);
+    console.warn(`[PRANJEET] Worker registration error: ${info.message}`);
+  }
 }
 
 process.on('unhandledRejection', (reason) => {
@@ -553,6 +592,8 @@ client.once(Events.ClientReady, async () => {
 
   // Start HTTP server
   startServer();
+
+  await registerWithOrchestrator();
 
   if (REDIS_URL) {
     try {
