@@ -46,7 +46,9 @@ async function registerWithOrchestrator(): Promise<void> {
     return;
   }
 
-  const baseUrl = RAINCLOUD_URL.replace(/\/$/, '');
+  const baseUrl = RAINCLOUD_URL.match(/^https?:\/\//)
+    ? RAINCLOUD_URL.replace(/\/$/, '')
+    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
       method: 'POST',
