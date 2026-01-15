@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const apiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL || 'http://raincloud.railway.internal:3000/api';
+const authBaseUrl =
+  import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -10,7 +15,7 @@ const api = axios.create({
 
 // Auth API - uses root path, not /api (auth routes are at /auth/*, not /api/auth/*)
 const authApiClient = axios.create({
-  baseURL: '/',
+  baseURL: authBaseUrl,
   withCredentials: true, // Critical: send cookies with requests for session auth
   headers: {
     'Content-Type': 'application/json',

@@ -9,5 +9,9 @@
     "startCommand": "sh -lc \"cd ui && yarn start:prod\"",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
+  },
+  "variables": {
+    "VITE_API_BASE_URL": "",
+    "VITE_AUTH_BASE_URL": ""
   }
 }

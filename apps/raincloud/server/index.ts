@@ -29,6 +29,8 @@ export async function createServer(): Promise<Application> {
   const app = express();
   const { loadConfig } = require('../utils/config');
   const config: AppConfig = loadConfig();
+  const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
+  const enableCors = !!dashboardOrigin;
 
   // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
   // This enables correct handling of X-Forwarded-* headers
@@ -40,6 +42,28 @@ export async function createServer(): Promise<Application> {
 
   // Request logging
   app.use(requestLogger);
+
+  if (enableCors) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (origin && origin === dashboardOrigin) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Vary', 'Origin');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        res.header(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN'
+        );
+      }
+
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+
+      return next();
+    });
+  }
 
   // Session configuration
   // Prefer Redis for persistent sessions across deployments
@@ -181,7 +205,9 @@ export async function createServer(): Promise<Application> {
   }
 
   // Determine cookie security based on environment
-  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway;
+  const useSecureCookies =
+    process.env['NODE_ENV'] === 'production' || isRailway || enableCors;
+  const sameSitePolicy: 'lax' | 'none' = enableCors ? 'none' : 'lax';
 
   app.use(
     session({
@@ -194,7 +220,7 @@ export async function createServer(): Promise<Application> {
         httpOnly: true,
         secure: useSecureCookies, // Secure cookies on Railway/production
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax', // Allows cookies to be sent on top-level navigations
+        sameSite: sameSitePolicy, // Cross-origin UI needs SameSite=None
         // Don't set domain - let browser handle it (works better across subdomains)
       },
       rolling: true, // Reset expiration on activity (extends session on each request)

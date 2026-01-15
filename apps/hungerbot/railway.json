@@ -9,5 +9,10 @@
     "startCommand": "node apps/hungerbot/dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
+  },
+  "variables": {
+    "HUNGERBOT_TOKEN": "",
+    "HUNGERBOT_PORT": "3003",
+    "ORCHESTRATOR_BOT_ID": ""
   }
 }

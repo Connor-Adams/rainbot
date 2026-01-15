@@ -9,5 +9,10 @@
     "startCommand": "node apps/rainbot/dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
+  },
+  "variables": {
+    "RAINBOT_TOKEN": "",
+    "RAINBOT_PORT": "3001",
+    "ORCHESTRATOR_BOT_ID": ""
   }
 }

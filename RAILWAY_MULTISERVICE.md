@@ -4,7 +4,7 @@ This guide explains how to deploy the Rainbot multi-bot architecture on Railway.
 
 ## Architecture Overview
 
-The system consists of 4 services:
+The system consists of 4 services (plus an optional UI service):
 
 | Service       | Description                      | Port | Docker Image                             |
 | ------------- | -------------------------------- | ---- | ---------------------------------------- |
@@ -12,6 +12,7 @@ The system consists of 4 services:
 | **rainbot**   | Music worker bot                 | 3001 | `ghcr.io/connor-adams/rainbot-rainbot`   |
 | **pranjeet**  | TTS worker bot                   | 3001 | `ghcr.io/connor-adams/rainbot-pranjeet`  |
 | **hungerbot** | Soundboard worker bot            | 3001 | `ghcr.io/connor-adams/rainbot-hungerbot` |
+| **ui**        | Web dashboard (optional)         | 3000 | N/A (build from repo using `ui/railway.json`) |
 
 ## Deployment Options
 
@@ -154,6 +155,9 @@ AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=your_bucket_name
+
+# Optional: Allow separate UI origin (enables CORS + SameSite=None cookies)
+DASHBOARD_ORIGIN=https://your-ui-domain
 ```
 
 #### Rainbot Worker
@@ -185,6 +189,14 @@ DISCORD_TOKEN=your_hungerbot_worker_token
 DISCORD_CLIENT_ID=your_hungerbot_client_id
 WORKER_PORT=3001
 WORKER_SECRET=shared_secret_for_auth
+```
+
+#### UI Service (optional, separate deploy)
+
+```env
+# Public Raincloud URL for browser requests
+VITE_API_BASE_URL=https://your-raincloud-domain/api
+VITE_AUTH_BASE_URL=https://your-raincloud-domain
 ```
 
 ### 4. Set Up Internal Networking
