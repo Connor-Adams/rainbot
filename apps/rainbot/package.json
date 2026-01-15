@@ -15,6 +15,7 @@
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.0",
+    "@rainbot/protocol": "*",
     "@rainbot/rpc": "*",
     "@trpc/server": "^10.45.2",
     "async-mutex": "^0.5.0",

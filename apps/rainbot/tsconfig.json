@@ -3,8 +3,13 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "baseUrl": "./",
     "noImplicitReturns": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "paths": {
+      "@rainbot/protocol": ["../../packages/protocol/dist/index.d.ts"],
+      "@rainbot/protocol/*": ["../../packages/protocol/dist/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

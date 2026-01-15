@@ -2,14 +2,17 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
-  createAudioResource,
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
   VoiceConnection,
   AudioPlayer,
+  AudioResource,
 } from '@discordjs/voice';
-import * as play from 'play-dl';
+import { fetchTracks } from './voice/trackFetcher';
+import { createTrackResourceForAny } from './voice/audioResource';
+import type { Track } from '@rainbot/protocol';
+import { TrackKind } from '@rainbot/protocol';
 import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
@@ -114,13 +117,14 @@ interface GuildState {
   player: AudioPlayer;
   queue: Track[];
   currentTrack: Track | null;
+  currentResource: AudioResource | null;
+  lastPlayedTrack: Track | null;
   volume: number;
-}
-
-interface Track {
-  url: string;
-  title: string;
-  requestedBy: string;
+  nowPlaying: string | null;
+  playbackStartTime: number | null;
+  pauseStartTime: number | null;
+  totalPausedTime: number;
+  autoplay: boolean;
 }
 
 const guildStates = new Map<string, GuildState>();
@@ -144,28 +148,6 @@ function ensureClientReady(res: Response): boolean {
   return true;
 }
 
-function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
-
-async function resolveTrack(input: string): Promise<{ url: string; title: string }> {
-  if (isHttpUrl(input)) {
-    return { url: input, title: input };
-  }
-
-  try {
-    const results = await play.search(input, { limit: 1 });
-    const first = results[0];
-    if (first?.url) {
-      return { url: first.url, title: first.title || input };
-    }
-  } catch (error) {
-    console.warn('[RAINBOT] Search failed, using raw input:', error);
-  }
-
-  return { url: input, title: input };
-}
-
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
@@ -174,11 +156,18 @@ function getOrCreateGuildState(guildId: string): GuildState {
       const state = guildStates.get(guildId);
       if (state && state.queue.length > 0) {
         playNext(guildId);
+      } else if (state) {
+        state.nowPlaying = null;
+        state.currentTrack = null;
+        state.currentResource = null;
+        state.playbackStartTime = null;
+        state.pauseStartTime = null;
+        state.totalPausedTime = 0;
       }
     });
 
     player.on('error', (error) => {
-      console.error(`[RAINBOT] Player error in guild ${guildId}:`, error);
+      console.error(`[RAINBOT] Player error in guild ${guildId}: ${error.message}`);
     });
 
     guildStates.set(guildId, {
@@ -186,10 +175,53 @@ function getOrCreateGuildState(guildId: string): GuildState {
       player,
       queue: [],
       currentTrack: null,
-      volume: 0.5,
+      currentResource: null,
+      lastPlayedTrack: null,
+      volume: 100,
+      nowPlaying: null,
+      playbackStartTime: null,
+      pauseStartTime: null,
+      totalPausedTime: 0,
+      autoplay: false,
     });
   }
   return guildStates.get(guildId)!;
+}
+
+function resetPlaybackTiming(state: GuildState) {
+  state.playbackStartTime = Date.now();
+  state.pauseStartTime = null;
+  state.totalPausedTime = 0;
+}
+
+function markPaused(state: GuildState) {
+  if (!state.pauseStartTime) {
+    state.pauseStartTime = Date.now();
+  }
+}
+
+function markResumed(state: GuildState) {
+  if (state.pauseStartTime) {
+    state.totalPausedTime += Date.now() - state.pauseStartTime;
+    state.pauseStartTime = null;
+  }
+}
+
+function getPlaybackPosition(state: GuildState): number {
+  if (!state.playbackStartTime || !state.currentTrack) {
+    return 0;
+  }
+
+  const elapsed = Date.now() - state.playbackStartTime;
+  const pausedTime = state.totalPausedTime;
+  const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
+  let playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
+
+  if (state.currentTrack.duration && playbackPosition > state.currentTrack.duration) {
+    playbackPosition = state.currentTrack.duration;
+  }
+
+  return playbackPosition;
 }
 
 async function playNext(guildId: string): Promise<void> {
@@ -197,32 +229,32 @@ async function playNext(guildId: string): Promise<void> {
 
   if (state.queue.length === 0) {
     state.currentTrack = null;
+    state.currentResource = null;
+    state.nowPlaying = null;
+    state.playbackStartTime = null;
+    state.pauseStartTime = null;
+    state.totalPausedTime = 0;
     return;
   }
 
   const track = state.queue.shift()!;
   state.currentTrack = track;
+  state.lastPlayedTrack = track.url ? track : state.lastPlayedTrack;
+  state.nowPlaying = track.title;
 
   try {
-    let resource;
-    if (isHttpUrl(track.url)) {
-      const streamResult = await play.stream(track.url);
-      resource = createAudioResource(streamResult.stream, {
-        inlineVolume: true,
-        inputType: streamResult.type,
-      });
-    } else {
-      resource = createAudioResource(track.url, { inlineVolume: true });
-    }
+    const resource = await createTrackResourceForAny(track);
 
     if (resource.volume) {
-      resource.volume.setVolume(state.volume);
+      resource.volume.setVolume(state.volume / 100);
     }
 
+    state.currentResource = resource;
+    resetPlaybackTiming(state);
     state.player.play(resource);
     console.log(`[RAINBOT] Playing: ${track.title} in guild ${guildId}`);
   } catch (error) {
-    console.error(`[RAINBOT] Error playing track:`, error);
+    console.error(`[RAINBOT] Error playing track: ${(error as Error).message}`);
     // Skip to next track on error
     playNext(guildId);
   }
@@ -372,10 +404,10 @@ app.post('/volume', async (req: Request, res: Response) => {
     });
   }
 
-  if (volume < 0 || volume > 1) {
+  if (volume < 0 || volume > 100) {
     return res.status(400).json({
       status: 'error',
-      message: 'Volume must be between 0 and 1',
+      message: 'Volume must be between 0 and 100',
     });
   }
 
@@ -386,6 +418,9 @@ app.post('/volume', async (req: Request, res: Response) => {
 
   const state = getOrCreateGuildState(guildId);
   state.volume = volume;
+  if (state.currentResource?.volume) {
+    state.currentResource.volume.setVolume(state.volume / 100);
+  }
 
   const response = { status: 'success', volume };
   requestCache.set(requestId, response);
@@ -406,6 +441,7 @@ app.get('/status', (req: Request, res: Response) => {
     return res.json({
       connected: false,
       playing: false,
+      nowPlaying: null,
       queueLength: 0,
     });
   }
@@ -416,6 +452,9 @@ app.get('/status', (req: Request, res: Response) => {
     playing: state.player.state.status === AudioPlayerStatus.Playing,
     queueLength: state.queue.length,
     volume: state.volume,
+    nowPlaying: state.nowPlaying,
+    activePlayers: Array.from(guildStates.values()).filter((entry) => entry.connection !== null)
+      .length,
   });
 });
 
@@ -439,14 +478,19 @@ app.post('/enqueue', async (req: Request, res: Response) => {
   try {
     const state = getOrCreateGuildState(guildId);
 
-    const resolved = await resolveTrack(url);
-    const track: Track = {
-      url: resolved.url,
-      title: resolved.title,
-      requestedBy: requestedByUsername || requestedBy,
-    };
+    const fetchedTracks = await fetchTracks(url, guildId);
+    if (!fetchedTracks.length) {
+      throw new Error('No tracks found for the requested source');
+    }
 
-    state.queue.push(track);
+    const tracks = fetchedTracks.map((track) => ({
+      ...track,
+      kind: track.kind ?? TrackKind.Music,
+      userId: requestedBy,
+      username: requestedByUsername || undefined,
+    }));
+
+    state.queue.push(...tracks);
 
     // Start playing if not already
     if (state.player.state.status === AudioPlayerStatus.Idle && state.connection) {
@@ -455,8 +499,8 @@ app.post('/enqueue', async (req: Request, res: Response) => {
 
     const response = {
       status: 'success',
-      position: state.queue.length,
-      message: `Added to queue at position ${state.queue.length}`,
+      position: state.queue.length - tracks.length + 1,
+      message: `Added ${tracks.length} track(s) to queue`,
     };
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
@@ -544,9 +588,11 @@ app.post('/pause', async (req: Request, res: Response) => {
   let paused: boolean;
   if (state.player.state.status === AudioPlayerStatus.Paused) {
     state.player.unpause();
+    markResumed(state);
     paused = false;
   } else {
     state.player.pause();
+    markPaused(state);
     paused = true;
   }
 
@@ -581,6 +627,11 @@ app.post('/stop', async (req: Request, res: Response) => {
   state.player.stop();
   state.queue = [];
   state.currentTrack = null;
+  state.currentResource = null;
+  state.nowPlaying = null;
+  state.playbackStartTime = null;
+  state.pauseStartTime = null;
+  state.totalPausedTime = 0;
 
   const response = { status: 'success' };
   requestCache.set(requestId, response);
@@ -634,17 +685,82 @@ app.get('/queue', (req: Request, res: Response) => {
       queue: [],
       totalInQueue: 0,
       currentTrack: null,
-      paused: false,
+      isPaused: false,
+      playbackPosition: 0,
+      autoplay: false,
     });
   }
 
   res.json({
     nowPlaying: state.currentTrack?.title || null,
-    queue: state.queue.map((t) => ({ title: t.title, url: t.url })),
+    queue: state.queue.slice(0, 20),
     totalInQueue: state.queue.length,
     currentTrack: state.currentTrack,
-    paused: state.player.state.status === AudioPlayerStatus.Paused,
+    isPaused: state.player.state.status === AudioPlayerStatus.Paused,
+    playbackPosition: getPlaybackPosition(state),
+    autoplay: state.autoplay,
   });
+});
+
+// Replay last played track
+app.post('/replay', async (req: Request, res: Response) => {
+  const { requestId, guildId } = req.body;
+
+  if (!requestId || !guildId) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Missing required fields',
+    });
+  }
+
+  if (requestCache.has(requestId)) {
+    return res.json(requestCache.get(requestId));
+  }
+
+  const state = guildStates.get(guildId);
+  if (!state || !state.lastPlayedTrack) {
+    const response = { status: 'error', message: 'No track to replay' };
+    requestCache.set(requestId, response);
+    setTimeout(() => requestCache.delete(requestId), 60000);
+    return res.json(response);
+  }
+
+  const track = { ...state.lastPlayedTrack };
+  state.queue.unshift(track);
+  state.player.stop();
+
+  const response = { status: 'success', track: track.title };
+  requestCache.set(requestId, response);
+  setTimeout(() => requestCache.delete(requestId), 60000);
+  res.json(response);
+});
+
+// Autoplay toggle (disabled for now)
+app.post('/autoplay', async (req: Request, res: Response) => {
+  const { requestId, guildId } = req.body;
+
+  if (!requestId || !guildId) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Missing required fields',
+    });
+  }
+
+  if (requestCache.has(requestId)) {
+    return res.json(requestCache.get(requestId));
+  }
+
+  const state = getOrCreateGuildState(guildId);
+  state.autoplay = false;
+
+  const response = {
+    status: 'success',
+    enabled: false,
+    message: 'Autoplay is disabled in the rainbot worker',
+  };
+  requestCache.set(requestId, response);
+  setTimeout(() => requestCache.delete(requestId), 60000);
+  res.json(response);
 });
 
 // Health checks
