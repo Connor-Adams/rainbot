@@ -102,53 +102,57 @@ if (oauthConfigured) {
           // Verify user has required role
           const currentCfg = getConfig();
 
-        // If no required role is configured, allow all authenticated Discord users
-        if (!currentCfg.requiredRoleId) {
-          log.debug('No requiredRoleId configured - allowing all authenticated users');
+          // If no required role is configured, allow all authenticated Discord users
+          if (!currentCfg.requiredRoleId) {
+            log.debug('No requiredRoleId configured - allowing all authenticated users');
+            const user: DiscordUser = {
+              id: discordUser.id,
+              username: discordUser.username,
+              discriminator: discordUser.discriminator,
+              avatar: discordUser.avatar,
+            };
+            log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
+            return done(null, user);
+          }
+
+          log.debug(`Verifying role ${currentCfg.requiredRoleId} for user ${discordUser.id}`);
+          log.debug(`Bot is in ${botClient.guilds.cache.size} guild(s)`);
+
+          const hasRole = await verifyUserRole(
+            discordUser.id,
+            currentCfg.requiredRoleId,
+            botClient
+          );
+
+          if (!hasRole) {
+            log.warn(
+              `OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role ${currentCfg.requiredRoleId}`
+            );
+            log.debug(
+              `User is in ${botClient.guilds.cache.size} bot guild(s), but doesn't have required role`
+            );
+
+            // Get list of guild names for debugging
+            const guildNames = Array.from(botClient.guilds.cache.values())
+              .map((g) => g.name)
+              .join(', ');
+            log.debug(`Bot guilds: ${guildNames}`);
+
+            return done(null, false, {
+              message: 'You do not have the required role to access this dashboard',
+              details: `Required role ID: ${currentCfg.requiredRoleId}. User must have this role in at least one server where the bot is present. Bot is in: ${guildNames || 'no servers'}`,
+            });
+          }
+
+          // Store user info in session
           const user: DiscordUser = {
             id: discordUser.id,
             username: discordUser.username,
             discriminator: discordUser.discriminator,
             avatar: discordUser.avatar,
           };
+
           log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
-          return done(null, user);
-        }
-
-        log.debug(`Verifying role ${currentCfg.requiredRoleId} for user ${discordUser.id}`);
-        log.debug(`Bot is in ${botClient.guilds.cache.size} guild(s)`);
-
-        const hasRole = await verifyUserRole(discordUser.id, currentCfg.requiredRoleId, botClient);
-
-        if (!hasRole) {
-          log.warn(
-            `OAuth access denied for user ${discordUser.username} (${discordUser.id}) - missing required role ${currentCfg.requiredRoleId}`
-          );
-          log.debug(
-            `User is in ${botClient.guilds.cache.size} bot guild(s), but doesn't have required role`
-          );
-
-          // Get list of guild names for debugging
-          const guildNames = Array.from(botClient.guilds.cache.values())
-            .map((g) => g.name)
-            .join(', ');
-          log.debug(`Bot guilds: ${guildNames}`);
-
-          return done(null, false, {
-            message: 'You do not have the required role to access this dashboard',
-            details: `Required role ID: ${currentCfg.requiredRoleId}. User must have this role in at least one server where the bot is present. Bot is in: ${guildNames || 'no servers'}`,
-          });
-        }
-
-        // Store user info in session
-        const user: DiscordUser = {
-          id: discordUser.id,
-          username: discordUser.username,
-          discriminator: discordUser.discriminator,
-          avatar: discordUser.avatar,
-        };
-
-        log.info(`OAuth access granted for user ${discordUser.username} (${discordUser.id})`);
           return done(null, user);
         } catch (error) {
           const err = error as Error;

@@ -23,9 +23,9 @@ export const hungerbotClient = createTRPCClient<HungerbotRouter>({
 });
 
 export async function fetchWorkerHealthChecks(): Promise<{
-  rainbot: PromiseSettledResult<{ ok: true; service: string }>;
-  pranjeet: PromiseSettledResult<{ ok: true; service: string }>;
-  hungerbot: PromiseSettledResult<{ ok: true; service: string }>;
+  rainbot: PromiseSettledResult<{ ok: boolean; service: string }>;
+  pranjeet: PromiseSettledResult<{ ok: boolean; service: string }>;
+  hungerbot: PromiseSettledResult<{ ok: boolean; service: string }>;
 }> {
   const [rainbot, pranjeet, hungerbot] = await Promise.allSettled([
     rainbotClient.health.query(),
