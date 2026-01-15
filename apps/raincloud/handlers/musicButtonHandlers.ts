@@ -6,6 +6,7 @@ import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/protocol';
 import { createLogger } from '../utils/logger';
 import * as voiceManager from '../utils/voiceManager';
+import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createPlayerMessage } from '../utils/playerEmbed';
 
 const log = createLogger('MUSIC_BUTTONS');
@@ -24,7 +25,8 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
     return { success: false, error: 'No guild ID' };
   }
 
-  const status = voiceManager.getStatus(guildId);
+  const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -34,12 +36,12 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const result = voiceManager.togglePause(guildId);
-    const queueInfo = voiceManager.getQueue(guildId);
+    const result = multiBot ? await multiBot.togglePause(guildId) : voiceManager.togglePause(guildId);
+    const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
     const { nowPlaying, queue, currentTrack } = queueInfo;
 
     await interaction.update(
-      createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo)
+      createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo, guildId)
     );
 
     return {
@@ -75,7 +77,8 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
     return { success: false, error: 'No guild ID' };
   }
 
-  const status = voiceManager.getStatus(guildId);
+  const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -85,18 +88,22 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    voiceManager.skip(guildId, 1, interaction.user.id);
+    if (multiBot) {
+      await multiBot.skip(guildId, 1);
+    } else {
+      await voiceManager.skip(guildId, 1, interaction.user.id);
+    }
 
     // Small delay to let next track start
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const queueInfo = voiceManager.getQueue(guildId);
+    const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
     const { nowPlaying, queue, currentTrack } = queueInfo;
-    const skipStatus = voiceManager.getStatus(guildId);
+    const skipStatus = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
     const isPaused = skipStatus ? !skipStatus.isPlaying : false;
 
     await interaction.update(
-      createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+      createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
     );
 
     return {
@@ -132,7 +139,8 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
     return { success: false, error: 'No guild ID' };
   }
 
-  const status = voiceManager.getStatus(guildId);
+  const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -142,7 +150,11 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    voiceManager.stopSound(guildId);
+    if (multiBot) {
+      await multiBot.stop(guildId);
+    } else {
+      voiceManager.stopSound(guildId);
+    }
 
     await interaction.update({
       embeds: [
@@ -187,7 +199,8 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
     return { success: false, error: 'No guild ID' };
   }
 
-  const status = voiceManager.getStatus(guildId);
+  const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -197,7 +210,9 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const { nowPlaying, queue, totalInQueue, currentTrack } = voiceManager.getQueue(guildId);
+    const { nowPlaying, queue, totalInQueue, currentTrack } = multiBot
+      ? await multiBot.getQueue(guildId)
+      : voiceManager.getQueue(guildId);
 
     const formatDuration = (seconds: number | null | undefined): string | null => {
       if (!seconds || isNaN(seconds)) return null;

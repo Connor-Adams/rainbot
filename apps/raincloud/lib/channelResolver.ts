@@ -48,12 +48,11 @@ export class ChannelResolver {
     // 2. Check for active session in different channel
     const activeSession = await this.voiceStateManager.getActiveSession(guildId);
     if (activeSession) {
-      log.warn(
-        `Session active in guild ${guildId}, channel ${activeSession.channelId}, rejecting request from user ${userId}`
+      log.debug(
+        `Session active in guild ${guildId}, channel ${activeSession.channelId}, using active session for user ${userId}`
       );
       return {
-        error: 'SESSION_ACTIVE_ELSEWHERE',
-        message: `Bots are already active in <#${activeSession.channelId}>. Join that channel or use /disconnect first.`,
+        channelId: activeSession.channelId,
         activeChannelId: activeSession.channelId,
       };
     }

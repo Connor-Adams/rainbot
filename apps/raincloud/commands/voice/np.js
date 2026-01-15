@@ -58,7 +58,7 @@ module.exports = {
       const isPaused = !status.isPlaying;
 
       await interaction.reply(
-        createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+        createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
       );
     } else {
       const voiceManager = service;
@@ -80,7 +80,7 @@ module.exports = {
       const isPaused = !status.isPlaying;
 
       await interaction.reply(
-        createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+        createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
       );
     }
   },

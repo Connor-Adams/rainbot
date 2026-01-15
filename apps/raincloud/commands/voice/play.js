@@ -110,7 +110,7 @@ module.exports = {
         if (result.added === 1) {
           log.info(`Playing: "${result.tracks[0].title}" in ${interaction.guild.name}`);
           await interaction.editReply(
-            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
           );
         } else {
           log.info(`Added ${result.added} tracks to queue in ${interaction.guild.name}`);
@@ -120,7 +120,8 @@ module.exports = {
             queue,
             isPaused,
             currentTrack,
-            queueInfo
+            queueInfo,
+            guildId
           );
           playerMsg.content = `📋 Added **${result.added}** track${result.added === 1 ? '' : 's'} to queue!`;
           await interaction.editReply(playerMsg);

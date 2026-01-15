@@ -5,6 +5,7 @@ const { createLogger } = require('../../dist/utils/logger');
 const listeningHistory = require('../../dist/utils/listeningHistory');
 const stats = require('../../dist/utils/statistics');
 const { handleButtonInteraction, hasButtonHandler } = require('../../dist/handlers/buttonHandler');
+const { parseButtonId } = require('../../dist/components/builders/buttonBuilder');
 
 const log = createLogger('BUTTONS');
 
@@ -59,7 +60,14 @@ module.exports = {
         if (channel) {
           const queueInfo = voiceManager.getQueue(interaction.guildId);
           await channel.send(
-            createPlayerMessage(nowPlaying, queue, false, currentTrack, queueInfo)
+            createPlayerMessage(
+              nowPlaying,
+              queue,
+              false,
+              currentTrack,
+              queueInfo,
+              interaction.guildId
+            )
           );
         }
 
@@ -155,7 +163,7 @@ module.exports = {
 
     // Try to use the new handler system for player_ buttons
     if (interaction.customId.startsWith('player_')) {
-      const prefix = interaction.customId; // Use full customId as prefix for now
+      const { prefix } = parseButtonId(interaction.customId);
 
       // Check if we have a registered handler
       if (hasButtonHandler(prefix)) {
@@ -222,7 +230,7 @@ module.exports = {
           const queueInfo = voiceManager.getQueue(guildId);
           const { nowPlaying, queue, currentTrack } = queueInfo;
           await interaction.update(
-            createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo)
+            createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo, guildId)
           );
           stats.trackInteraction(
             'button',
@@ -249,7 +257,7 @@ module.exports = {
           const skipStatus = voiceManager.getStatus(guildId);
           const isPaused = skipStatus ? !skipStatus.isPlaying : false;
           await interaction.update(
-            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo)
+            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
           );
           stats.trackInteraction(
             'button',

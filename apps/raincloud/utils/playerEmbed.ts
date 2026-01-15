@@ -1,5 +1,6 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import type { Track, QueueInfo } from '@rainbot/protocol';
+import { createButtonId } from '../components/builders/buttonBuilder';
 
 /**
  * Format duration in seconds to MM:SS or HH:MM:SS
@@ -154,27 +155,34 @@ export function createPlayerEmbed(
  */
 export function createControlButtons(
   isPaused: boolean = false,
-  hasQueue: boolean = false
+  hasQueue: boolean = false,
+  guildId?: string
 ): ActionRowBuilder<ButtonBuilder> {
+  const metadata = guildId ? { guildId } : undefined;
+  const pauseId = metadata ? createButtonId('player_pause', metadata) : 'player_pause';
+  const skipId = metadata ? createButtonId('player_skip', metadata) : 'player_skip';
+  const stopId = metadata ? createButtonId('player_stop', metadata) : 'player_stop';
+  const queueId = metadata ? createButtonId('player_queue', metadata) : 'player_queue';
+
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId('player_pause')
+      .setCustomId(pauseId)
       .setLabel(isPaused ? 'Resume' : 'Pause')
       .setEmoji(isPaused ? '▶️' : '⏸️')
       .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId('player_skip')
+      .setCustomId(skipId)
       .setLabel('Skip')
       .setEmoji('⏭️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(!hasQueue),
     new ButtonBuilder()
-      .setCustomId('player_stop')
+      .setCustomId(stopId)
       .setLabel('Stop')
       .setEmoji('⏹️')
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId('player_queue')
+      .setCustomId(queueId)
       .setLabel('View Queue')
       .setEmoji('📋')
       .setStyle(ButtonStyle.Secondary)
@@ -191,11 +199,12 @@ export function createPlayerMessage(
   queue: Track[],
   isPaused: boolean = false,
   currentTrack: Track | null = null,
-  queueInfo: Partial<QueueInfo> = {}
+  queueInfo: Partial<QueueInfo> = {},
+  guildId?: string
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[]; content?: string } {
   const hasQueue = (queueInfo.totalInQueue ?? queue.length) > 0;
   return {
     embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack, queueInfo)],
-    components: [createControlButtons(isPaused, hasQueue)],
+    components: [createControlButtons(isPaused, hasQueue, guildId)],
   };
 }
