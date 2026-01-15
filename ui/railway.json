@@ -3,10 +3,10 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && corepack prepare yarn@4.6.0 --activate && sh -lc \"cd ui && yarn install --immutable\"",
-    "buildCommand": "sh -lc \"echo VITE_API_BASE_URL=$VITE_API_BASE_URL && echo VITE_AUTH_BASE_URL=$VITE_AUTH_BASE_URL && cd ui && yarn build\""
+    "buildCommand": "sh -lc \"cd ui && yarn build\""
   },
   "deploy": {
-    "startCommand": "sh -lc \"cd ui && yarn start:prod\"",
+    "startCommand": "sh -lc \"node -e \\\"const fs=require('fs');const cfg={VITE_API_BASE_URL:process.env.VITE_API_BASE_URL||'',VITE_AUTH_BASE_URL:process.env.VITE_AUTH_BASE_URL||''};fs.writeFileSync('ui/dist/runtime-config.js','window.__RAINBOT_CONFIG__='+JSON.stringify(cfg)+';');\\\" && cd ui && yarn start:prod\"",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   },

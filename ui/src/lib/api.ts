@@ -1,9 +1,16 @@
 import axios from 'axios';
 
+const runtimeConfig =
+  (globalThis as { __RAINBOT_CONFIG__?: Record<string, string> }).__RAINBOT_CONFIG__ || {};
+
 export const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || 'http://raincloud.railway.internal:3000/api';
+  runtimeConfig['VITE_API_BASE_URL'] ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'http://raincloud.railway.internal:3000/api';
 export const authBaseUrl =
-  import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
+  runtimeConfig['VITE_AUTH_BASE_URL'] ||
+  import.meta.env.VITE_AUTH_BASE_URL ||
+  'http://raincloud.railway.internal:3000';
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');

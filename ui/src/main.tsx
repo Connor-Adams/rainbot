@@ -18,7 +18,11 @@ const queryClient = new QueryClient({
 
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL
 const envAuthBaseUrl = import.meta.env.VITE_AUTH_BASE_URL
+const runtimeConfig =
+  (globalThis as { __RAINBOT_CONFIG__?: Record<string, string> }).__RAINBOT_CONFIG__ || {}
 console.info('[UI] Config:', {
+  runtimeApiBaseUrl: runtimeConfig['VITE_API_BASE_URL'] || '(unset)',
+  runtimeAuthBaseUrl: runtimeConfig['VITE_AUTH_BASE_URL'] || '(unset)',
   envApiBaseUrl: envApiBaseUrl || '(unset)',
   envAuthBaseUrl: envAuthBaseUrl || '(unset)',
   apiBaseUrl,
