@@ -85,6 +85,9 @@ RAINBOT_URL=http://localhost:3001
 PRANJEET_URL=http://localhost:3002
 HUNGERBOT_URL=http://localhost:3003
 
+# Internal RPC (tRPC control plane)
+INTERNAL_RPC_SECRET=replace-with-a-shared-secret
+
 # Web Dashboard
 PORT=3000
 SESSION_SECRET=generate-a-secure-random-string
@@ -253,6 +256,9 @@ PRANJEET_URL=http://pranjeet.railway.internal:3002
 HUNGERBOT_URL=http://hungerbot.railway.internal:3003
 ```
 
+The internal control plane uses `POST /trpc` on each worker and requires the
+`x-internal-secret` header to match `INTERNAL_RPC_SECRET`.
+
 4. Deploy each service
 
 ## Health Checks
@@ -263,6 +269,7 @@ All workers expose:
 
 - `GET /health/live` - Liveness probe (returns 200 OK)
 - `GET /health/ready` - Readiness probe (returns JSON with status)
+- `POST /trpc` - Internal tRPC control plane (requires `x-internal-secret`)
 
 Example readiness response:
 

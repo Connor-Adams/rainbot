@@ -1,0 +1,23 @@
+{
+  "name": "@rainbot/rpc",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:ts": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@rainbot/worker-protocol": "*",
+    "@trpc/client": "^10.45.2",
+    "@trpc/server": "^10.45.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  }
+}

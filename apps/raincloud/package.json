@@ -21,6 +21,7 @@
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.0",
     "@rainbot/redis-client": "*",
+    "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
     "@rainbot/worker-protocol": "*",
     "@snazzah/davey": "^0.1.9",
