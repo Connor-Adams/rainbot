@@ -654,7 +654,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-client.once('ready', () => {
+client.once(Events.ClientReady, () => {
   console.log(`[RAINBOT] Ready as ${client.user?.tag}`);
   console.log(`[RAINBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 

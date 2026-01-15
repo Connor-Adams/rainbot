@@ -560,7 +560,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-client.once('ready', () => {
+client.once(Events.ClientReady, () => {
   console.log(`[HUNGERBOT] Ready as ${client.user?.tag}`);
   console.log(`[HUNGERBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 

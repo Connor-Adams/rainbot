@@ -544,7 +544,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-client.once('ready', async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`[PRANJEET] Ready as ${client.user?.tag}`);
   console.log(`[PRANJEET] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 
