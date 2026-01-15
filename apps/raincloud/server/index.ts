@@ -205,8 +205,7 @@ export async function createServer(): Promise<Application> {
   }
 
   // Determine cookie security based on environment
-  const useSecureCookies =
-    process.env['NODE_ENV'] === 'production' || isRailway || enableCors;
+  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway || enableCors;
   const sameSitePolicy: 'lax' | 'none' = enableCors ? 'none' : 'lax';
 
   app.use(

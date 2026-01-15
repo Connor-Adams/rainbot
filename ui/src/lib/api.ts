@@ -2,8 +2,7 @@ import axios from 'axios';
 
 const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL || 'http://raincloud.railway.internal:3000/api';
-const authBaseUrl =
-  import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
+const authBaseUrl = import.meta.env.VITE_AUTH_BASE_URL || 'http://raincloud.railway.internal:3000';
 
 const api = axios.create({
   baseURL: apiBaseUrl,

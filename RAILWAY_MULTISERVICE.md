@@ -6,12 +6,12 @@ This guide explains how to deploy the Rainbot multi-bot architecture on Railway.
 
 The system consists of 4 services (plus an optional UI service):
 
-| Service       | Description                      | Port | Docker Image                             |
-| ------------- | -------------------------------- | ---- | ---------------------------------------- |
-| **raincloud** | Orchestrator bot + web dashboard | 3000 | `ghcr.io/connor-adams/rainbot-raincloud` |
-| **rainbot**   | Music worker bot                 | 3001 | `ghcr.io/connor-adams/rainbot-rainbot`   |
-| **pranjeet**  | TTS worker bot                   | 3001 | `ghcr.io/connor-adams/rainbot-pranjeet`  |
-| **hungerbot** | Soundboard worker bot            | 3001 | `ghcr.io/connor-adams/rainbot-hungerbot` |
+| Service       | Description                      | Port | Docker Image                                  |
+| ------------- | -------------------------------- | ---- | --------------------------------------------- |
+| **raincloud** | Orchestrator bot + web dashboard | 3000 | `ghcr.io/connor-adams/rainbot-raincloud`      |
+| **rainbot**   | Music worker bot                 | 3001 | `ghcr.io/connor-adams/rainbot-rainbot`        |
+| **pranjeet**  | TTS worker bot                   | 3001 | `ghcr.io/connor-adams/rainbot-pranjeet`       |
+| **hungerbot** | Soundboard worker bot            | 3001 | `ghcr.io/connor-adams/rainbot-hungerbot`      |
 | **ui**        | Web dashboard (optional)         | 3000 | N/A (build from repo using `ui/railway.json`) |
 
 ## Deployment Options
