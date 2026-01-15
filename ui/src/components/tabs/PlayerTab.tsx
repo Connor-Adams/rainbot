@@ -158,25 +158,7 @@ export default function PlayerTab() {
 
         {/* Volume Control */}
         <div className="volume-control mt-6 pt-6 border-t border-border">
-          <div className="flex items-center gap-4">
-            <span className="text-text-muted text-sm w-6">
-              {volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}
-            </span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={volume}
-              onChange={handleVolumeChange}
-              disabled={!selectedGuildId}
-              className="flex-1 h-2 bg-surface-input rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <span className="text-text-muted text-sm font-mono w-12 text-right">
-              {volume}%
-            </span>
-          </div>
-
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
                 <span>Rainbot Volume</span>
@@ -188,6 +170,7 @@ export default function PlayerTab() {
                 max="100"
                 value={volumes.rainbot}
                 onChange={(e) => handleVolumeChange('rainbot', e)}
+                disabled={!selectedGuildId}
                 className="w-full"
               />
             </div>
@@ -202,6 +185,7 @@ export default function PlayerTab() {
                 max="100"
                 value={volumes.pranjeet}
                 onChange={(e) => handleVolumeChange('pranjeet', e)}
+                disabled={!selectedGuildId}
                 className="w-full"
               />
             </div>
@@ -216,6 +200,7 @@ export default function PlayerTab() {
                 max="100"
                 value={volumes.hungerbot}
                 onChange={(e) => handleVolumeChange('hungerbot', e)}
+                disabled={!selectedGuildId}
                 className="w-full"
               />
             </div>

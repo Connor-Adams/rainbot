@@ -96,11 +96,8 @@ export const playbackApi = {
   stop: (guildId: string) => api.post('/stop', { guildId }),
   skip: (guildId: string) => api.post('/skip', { guildId }),
   pause: (guildId: string) => api.post('/pause', { guildId }),
-  volume: (
-    guildId: string,
-    level: number,
-    botType?: 'rainbot' | 'pranjeet' | 'hungerbot'
-  ) => api.post('/volume', { guildId, level, botType }),
+  volume: (guildId: string, level: number, botType?: 'rainbot' | 'pranjeet' | 'hungerbot') =>
+    api.post('/volume', { guildId, level, botType }),
 };
 
 // Sounds API

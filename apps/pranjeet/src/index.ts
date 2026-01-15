@@ -49,9 +49,8 @@ async function registerWithOrchestrator(): Promise<void> {
   const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
     ? RAINCLOUD_URL.replace(/\/$/, '')
     : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort = process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN']
-    ? 8080
-    : 3000;
+  const defaultPort =
+    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
   const baseUrl = normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
@@ -81,8 +80,8 @@ async function registerWithOrchestrator(): Promise<void> {
       err.cause && typeof err.cause === 'object' && 'message' in err.cause
         ? (err.cause as { message?: string }).message
         : err.cause
-        ? String(err.cause)
-        : 'n/a';
+          ? String(err.cause)
+          : 'n/a';
     console.warn(`[PRANJEET] Worker registration error: ${info.message}; cause=${cause}`);
   }
 }
