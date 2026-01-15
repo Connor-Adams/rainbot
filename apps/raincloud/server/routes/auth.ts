@@ -179,6 +179,11 @@ passport.deserializeUser((user: Express.User, done) => {
 // Helper to get base URL from request
 function getBaseUrl(req: Request): string {
   const config: AppConfig = loadConfig();
+  const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
+
+  if (dashboardOrigin) {
+    return dashboardOrigin.replace(/\/$/, '');
+  }
 
   // Railway provides public domain
   if (config.railwayPublicDomain) {
