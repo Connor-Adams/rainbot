@@ -190,8 +190,7 @@ redis-server
 5. Run database migrations:
 
 ```bash
-cd apps/raincloud
-node dist/utils/database.js --migrate
+yarn db:migrate
 ```
 
 6. Start workers (separate terminals):
