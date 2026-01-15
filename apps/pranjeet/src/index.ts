@@ -91,6 +91,9 @@ console.log(`[PRANJEET] Starting (pid=${process.pid}, node=${process.version})`)
 console.log(
   `[PRANJEET] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}, ttsProvider=${TTS_PROVIDER}`
 );
+console.log(
+  `[PRANJEET] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+);
 
 if (!hasToken) {
   console.error('PRANJEET_TOKEN environment variable is required');

@@ -106,6 +106,9 @@ console.log(`[HUNGERBOT] Starting (pid=${process.pid}, node=${process.version})`
 console.log(
   `[HUNGERBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
 );
+console.log(
+  `[HUNGERBOT] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+);
 
 if (!hasToken) {
   console.error('HUNGERBOT_TOKEN environment variable is required');

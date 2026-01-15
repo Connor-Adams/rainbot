@@ -84,6 +84,9 @@ console.log(`[RAINBOT] Starting (pid=${process.pid}, node=${process.version})`);
 console.log(
   `[RAINBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
 );
+console.log(
+  `[RAINBOT] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+);
 
 if (!hasToken) {
   console.error('RAINBOT_TOKEN environment variable is required');
