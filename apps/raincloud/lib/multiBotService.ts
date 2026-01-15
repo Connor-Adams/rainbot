@@ -13,6 +13,7 @@ import { ChannelResolver } from './channelResolver';
 import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '../utils/logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
+import * as voiceManager from '../utils/voiceManager';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
@@ -34,9 +35,9 @@ export interface VoiceStatus {
   nowPlaying: string | null;
   volume: number;
   workers: {
-    rainbot: { connected: boolean; playing?: boolean; queueLength?: number };
-    pranjeet: { connected: boolean; playing?: boolean };
-    hungerbot: { connected: boolean; playing?: boolean; activePlayers?: number };
+    rainbot: { connected: boolean; playing?: boolean; queueLength?: number; volume?: number };
+    pranjeet: { connected: boolean; playing?: boolean; volume?: number };
+    hungerbot: { connected: boolean; playing?: boolean; activePlayers?: number; volume?: number };
   };
 }
 
@@ -122,6 +123,13 @@ export class MultiBotService {
       await this.voiceStateManager.setLastChannel(guildId, userId, channelId);
       await this.voiceStateManager.setActiveSession(guildId, channelId);
 
+      try {
+        await voiceManager.joinChannel(channel);
+        log.info(`Orchestrator joined channel ${channel.name}`);
+      } catch (error) {
+        log.warn(`Orchestrator failed to join channel: ${(error as Error).message}`);
+      }
+
       // Connect all workers to the channel
       const results = await Promise.allSettled([
         this.coordinator.ensureWorkerConnected('rainbot', guildId, channelId),
@@ -157,6 +165,7 @@ export class MultiBotService {
     try {
       await this.coordinator.disconnectAllWorkers(guildId);
       await this.voiceStateManager.clearActiveSession(guildId);
+      voiceManager.leaveChannel(guildId);
       return true;
     } catch (error) {
       log.error(`Failed to leave channel: ${(error as Error).message}`);
@@ -352,15 +361,18 @@ export class MultiBotService {
             connected: rainbotStatus.connected || false,
             playing: isPlaying,
             queueLength: rainbotStatus.queueLength || 0,
+            volume: rainbotStatus.volume,
           },
           pranjeet: {
             connected: workerStatuses.pranjeet?.connected || false,
             playing: workerStatuses.pranjeet?.playing || false,
+            volume: workerStatuses.pranjeet?.volume,
           },
           hungerbot: {
             connected: workerStatuses.hungerbot?.connected || false,
             playing: workerStatuses.hungerbot?.playing || false,
             activePlayers: workerStatuses.hungerbot?.activePlayers || 0,
+            volume: workerStatuses.hungerbot?.volume,
           },
         },
       };

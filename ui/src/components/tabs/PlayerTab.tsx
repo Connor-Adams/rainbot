@@ -7,8 +7,16 @@ import NowPlayingCard from '../NowPlayingCard'
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore()
   const [urlInput, setUrlInput] = useState('')
-  const [localVolume, setLocalVolume] = useState<number | null>(null) // Only set while dragging
-  const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localVolumes, setLocalVolumes] = useState<{
+    rainbot: number | null
+    pranjeet: number | null
+    hungerbot: number | null
+  }>({ rainbot: null, pranjeet: null, hungerbot: null }) // Only set while dragging
+  const volumeDebounceRefs = useRef<{
+    rainbot: ReturnType<typeof setTimeout> | null
+    pranjeet: ReturnType<typeof setTimeout> | null
+    hungerbot: ReturnType<typeof setTimeout> | null
+  }>({ rainbot: null, pranjeet: null, hungerbot: null })
   const queryClient = useQueryClient()
 
   const { data: queueData } = useQuery({
@@ -24,19 +32,26 @@ export default function PlayerTab() {
     refetchInterval: 5000,
   })
 
-  // Derive server volume from bot status
-  const serverVolume = (() => {
+  const connection = (() => {
     if (botStatus?.connections && selectedGuildId) {
-      const connection = botStatus.connections.find(
-        (c: { guildId: string; volume?: number }) => c.guildId === selectedGuildId
+      return botStatus.connections.find(
+        (c: { guildId: string }) => c.guildId === selectedGuildId
       )
-      return connection?.volume ?? 100
     }
-    return 100
+    return null
   })()
 
-  // Use local volume while dragging, otherwise use server volume
-  const volume = localVolume ?? serverVolume
+  const serverVolumes = {
+    rainbot: connection?.workers?.rainbot?.volume ?? connection?.volume ?? 100,
+    pranjeet: connection?.workers?.pranjeet?.volume ?? 80,
+    hungerbot: connection?.workers?.hungerbot?.volume ?? 70,
+  }
+
+  const volumes = {
+    rainbot: localVolumes.rainbot ?? serverVolumes.rainbot,
+    pranjeet: localVolumes.pranjeet ?? serverVolumes.pranjeet,
+    hungerbot: localVolumes.hungerbot ?? serverVolumes.hungerbot,
+  }
 
   const playMutation = useMutation({
     mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
@@ -56,25 +71,29 @@ export default function PlayerTab() {
   })
 
   const volumeMutation = useMutation({
-    mutationFn: (level: number) => playbackApi.volume(selectedGuildId!, level),
+    mutationFn: (payload: { level: number; botType: 'rainbot' | 'pranjeet' | 'hungerbot' }) =>
+      playbackApi.volume(selectedGuildId!, payload.level, payload.botType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-status'] })
-      // Clear local volume after server confirms
-      setLocalVolume(null)
     },
     onError: () => {
-      setLocalVolume(null)
+      setLocalVolumes((prev) => ({ ...prev }))
     },
   })
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVolumeChange = (
+    botType: 'rainbot' | 'pranjeet' | 'hungerbot',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const newVolume = parseInt(e.target.value)
-    setLocalVolume(newVolume)
-    
+    setLocalVolumes((prev) => ({ ...prev, [botType]: newVolume }))
+
     // Debounce API call
-    if (volumeDebounceRef.current) clearTimeout(volumeDebounceRef.current)
-    volumeDebounceRef.current = setTimeout(() => {
-      volumeMutation.mutate(newVolume)
+    const ref = volumeDebounceRefs.current
+    if (ref[botType]) clearTimeout(ref[botType]!)
+    ref[botType] = setTimeout(() => {
+      volumeMutation.mutate({ level: newVolume, botType })
+      setLocalVolumes((prev) => ({ ...prev, [botType]: null }))
     }, 150)
   }
 
@@ -104,10 +123,10 @@ export default function PlayerTab() {
       )}
 
       <section className="panel player-panel bg-surface rounded-2xl border border-border p-6">
-        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-gradient-to-b from-primary to-secondary rounded shadow-glow"></span>
-          Add to Queue
-        </h2>
+          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
+            <span className="w-1 h-4 bg-gradient-to-b from-primary to-secondary rounded shadow-glow"></span>
+            Add to Queue
+          </h2>
         <div className="url-player space-y-4">
           <div className="input-group flex gap-3">
             <input
@@ -155,6 +174,51 @@ export default function PlayerTab() {
             <span className="text-text-muted text-sm font-mono w-12 text-right">
               {volume}%
             </span>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
+                <span>Rainbot Volume</span>
+                <span>{volumes.rainbot}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumes.rainbot}
+                onChange={(e) => handleVolumeChange('rainbot', e)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
+                <span>Pranjeet Volume</span>
+                <span>{volumes.pranjeet}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumes.pranjeet}
+                onChange={(e) => handleVolumeChange('pranjeet', e)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
+                <span>Hungerbot Volume</span>
+                <span>{volumes.hungerbot}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumes.hungerbot}
+                onChange={(e) => handleVolumeChange('hungerbot', e)}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
       </section>

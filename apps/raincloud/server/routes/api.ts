@@ -97,6 +97,11 @@ function getAuthUser(req: Request): AuthUser {
   };
 }
 
+function toPercent(volume?: number): number | undefined {
+  if (volume === undefined || volume === null) return undefined;
+  return volume <= 1 ? Math.round(volume * 100) : Math.round(volume);
+}
+
 // Configure multer for file uploads
 // Always use memory storage - files are uploaded to S3
 const upload = multer({
@@ -642,7 +647,7 @@ router.post(
   requireAuth,
   requireGuildMember,
   async (req: Request, res: Response): Promise<void> => {
-    const { guildId, level } = req.body;
+    const { guildId, level, botType } = req.body;
 
     if (!guildId) {
       res.status(400).json({ error: 'guildId is required' });
@@ -653,13 +658,17 @@ router.post(
       res.status(400).json({ error: 'level is required (1-100)' });
       return;
     }
+    if (botType && !['rainbot', 'pranjeet', 'hungerbot'].includes(botType)) {
+      res.status(400).json({ error: 'botType must be rainbot, pranjeet, or hungerbot' });
+      return;
+    }
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
       const multiBot = getPlaybackService();
       let volume = level;
       if (multiBot) {
-        const result = await multiBot.setVolume(guildId, level);
+        const result = await multiBot.setVolume(guildId, level, botType);
         if (!result.success) {
           throw new Error(result.message || 'Failed to set volume');
         }
@@ -718,13 +727,29 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
     const connections = statusResults
       .map((status, index) => {
         if (!status) return null;
+        const workers = status.workers;
         return {
           guildId: guilds[index]?.id,
           channelId: status.channelId,
           channelName: status.channelName,
           isPlaying: status.isPlaying,
-          volume: status.volume,
-          workers: status.workers,
+          volume: toPercent(status.volume),
+          workers: workers
+            ? {
+                rainbot: {
+                  ...workers.rainbot,
+                  volume: toPercent(workers.rainbot?.volume),
+                },
+                pranjeet: {
+                  ...workers.pranjeet,
+                  volume: toPercent(workers.pranjeet?.volume),
+                },
+                hungerbot: {
+                  ...workers.hungerbot,
+                  volume: toPercent(workers.hungerbot?.volume),
+                },
+              }
+            : workers,
         };
       })
       .filter((entry) => entry !== null);

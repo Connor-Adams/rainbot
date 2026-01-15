@@ -82,7 +82,7 @@ export default function SoundboardTab() {
   })
 
   const playMutation = useMutation({
-    mutationFn: (soundName: string) => playbackApi.play(selectedGuildId!, soundName),
+    mutationFn: (soundName: string) => playbackApi.soundboard(selectedGuildId!, soundName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] })
       queryClient.invalidateQueries({ queryKey: ['bot-status'] })

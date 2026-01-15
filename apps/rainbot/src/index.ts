@@ -9,12 +9,13 @@ import {
   VoiceConnection,
   AudioPlayer,
 } from '@discordjs/voice';
+import * as play from 'play-dl';
 import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
 import { Mutex } from 'async-mutex';
 
-const PORT = parseInt(process.env['RAINBOT_PORT'] || '3001', 10);
+const PORT = parseInt(process.env['PORT'] || process.env['RAINBOT_PORT'] || '3001', 10);
 const TOKEN = process.env['RAINBOT_TOKEN'];
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
 const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
@@ -144,6 +145,28 @@ function ensureClientReady(res: Response): boolean {
   return true;
 }
 
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+async function resolveTrack(input: string): Promise<{ url: string; title: string }> {
+  if (isHttpUrl(input)) {
+    return { url: input, title: input };
+  }
+
+  try {
+    const results = await play.search(input, { limit: 1 });
+    const first = results[0];
+    if (first?.url) {
+      return { url: first.url, title: first.title || input };
+    }
+  } catch (error) {
+    console.warn('[RAINBOT] Search failed, using raw input:', error);
+  }
+
+  return { url: input, title: input };
+}
+
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
@@ -182,9 +205,16 @@ async function playNext(guildId: string): Promise<void> {
   state.currentTrack = track;
 
   try {
-    const resource = createAudioResource(track.url, {
-      inlineVolume: true,
-    });
+    let resource;
+    if (isHttpUrl(track.url)) {
+      const streamResult = await play.stream(track.url);
+      resource = createAudioResource(streamResult.stream, {
+        inlineVolume: true,
+        inputType: streamResult.type,
+      });
+    } else {
+      resource = createAudioResource(track.url, { inlineVolume: true });
+    }
 
     if (resource.volume) {
       resource.volume.setVolume(state.volume);
@@ -410,9 +440,10 @@ app.post('/enqueue', async (req: Request, res: Response) => {
   try {
     const state = getOrCreateGuildState(guildId);
 
+    const resolved = await resolveTrack(url);
     const track: Track = {
-      url,
-      title: url, // In production, fetch actual title
+      url: resolved.url,
+      title: resolved.title,
       requestedBy: requestedByUsername || requestedBy,
     };
 

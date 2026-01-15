@@ -17,7 +17,7 @@ import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 
-const PORT = parseInt(process.env['PRANJEET_PORT'] || '3002', 10);
+const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
 const TTS_API_KEY = process.env['TTS_API_KEY'] || process.env['OPENAI_API_KEY'];
 const TTS_PROVIDER = process.env['TTS_PROVIDER'] || 'openai';

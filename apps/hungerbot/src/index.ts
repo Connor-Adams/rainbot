@@ -18,7 +18,7 @@ import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const PORT = parseInt(process.env['HUNGERBOT_PORT'] || '3003', 10);
+const PORT = parseInt(process.env['PORT'] || process.env['HUNGERBOT_PORT'] || '3003', 10);
 const TOKEN = process.env['HUNGERBOT_TOKEN'];
 const SOUNDS_DIR = process.env['SOUNDS_DIR'] || './sounds';
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];

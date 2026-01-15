@@ -141,9 +141,9 @@ SESSION_SECRET=your_random_session_secret
 WORKER_SECRET=shared_secret_for_internal_worker_registration
 
 # Worker URLs (use Railway's internal networking)
-RAINBOT_WORKER_URL=http://rainbot-worker.railway.internal:3001
-PRANJEET_WORKER_URL=http://pranjeet-worker.railway.internal:3001
-HUNGERBOT_WORKER_URL=http://hungerbot-worker.railway.internal:3001
+RAINBOT_WORKER_URL=http://rainbot-worker.railway.internal:8080
+PRANJEET_WORKER_URL=http://pranjeet-worker.railway.internal:8080
+HUNGERBOT_WORKER_URL=http://hungerbot-worker.railway.internal:8080
 
 # Optional: Database
 DATABASE_URL=your_postgres_url

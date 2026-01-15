@@ -43,6 +43,17 @@ const HEALTH_POLL_MS = 15_000;
 const RETRY_MAX = 2;
 const RETRY_BASE_MS = 150;
 const TTS_QUEUE_NAME = 'tts';
+const DEFAULT_WORKER_PORT =
+  process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+
+function normalizeWorkerUrl(rawUrl: string): string {
+  const withScheme = rawUrl.match(/^https?:\/\//) ? rawUrl : `http://${rawUrl}`;
+  const trimmed = withScheme.replace(/\/$/, '');
+  if (trimmed.match(/:\d+$/)) {
+    return trimmed;
+  }
+  return `${trimmed}:${DEFAULT_WORKER_PORT}`;
+}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -89,15 +100,15 @@ export class WorkerCoordinator {
     // Initialize worker clients
     const config: Record<BotType, WorkerConfig> = {
       rainbot: {
-        baseUrl: process.env['RAINBOT_URL'] || 'http://localhost:3001',
+        baseUrl: normalizeWorkerUrl(process.env['RAINBOT_URL'] || 'http://localhost:3001'),
         timeout: 500,
       },
       pranjeet: {
-        baseUrl: process.env['PRANJEET_URL'] || 'http://localhost:3002',
+        baseUrl: normalizeWorkerUrl(process.env['PRANJEET_URL'] || 'http://localhost:3002'),
         timeout: 500,
       },
       hungerbot: {
-        baseUrl: process.env['HUNGERBOT_URL'] || 'http://localhost:3003',
+        baseUrl: normalizeWorkerUrl(process.env['HUNGERBOT_URL'] || 'http://localhost:3003'),
         timeout: 500,
       },
     };
