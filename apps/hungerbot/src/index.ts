@@ -55,7 +55,9 @@ function formatError(err: unknown): { message: string; stack?: string } {
 
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    console.warn('[HUNGERBOT] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
+    console.warn(
+      '[HUNGERBOT] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)'
+    );
     return;
   }
 

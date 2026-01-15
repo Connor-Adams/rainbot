@@ -6,6 +6,7 @@ import * as storage from '../../utils/storage';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '../../utils/statistics';
+import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
 import type { GuildMember } from 'discord.js';
 import rateLimit from 'express-rate-limit';
 
@@ -34,6 +35,13 @@ interface AuthUser {
 
 interface RequestWithGuildMember extends Request {
   guildMember?: GuildMember;
+}
+
+function getPlaybackService(): ReturnType<typeof getMultiBotService> | null {
+  if (MultiBotService.isInitialized()) {
+    return getMultiBotService();
+  }
+  return null;
 }
 
 /**
@@ -245,11 +253,37 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
+      const effectiveUserId = userId || 'unknown';
+      const effectiveUsername = username || undefined;
+      const multiBot = getPlaybackService();
+      if (multiBot) {
+        const result = await multiBot.playSound(
+          guildId,
+          source,
+          effectiveUserId,
+          'api',
+          effectiveUsername
+        );
+        if (!result.success) {
+          throw new Error(result.message || result.error || 'Play failed');
+        }
+
+        if (userId) {
+          stats.trackCommand('play', userId, guildId, 'api', true, null, username, discriminator);
+        }
+
+        res.json({
+          message: 'Playing',
+          position: result.position ?? null,
+        });
+        return;
+      }
+
       // Pass 'api' as source indicator
       const result = await voiceManager.playSound(
         guildId,
         source,
-        userId,
+        effectiveUserId,
         'api',
         username,
         discriminator
@@ -319,6 +353,31 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
+      const effectiveUserId = userId || 'unknown';
+      const multiBot = getPlaybackService();
+      if (multiBot) {
+        const result = await multiBot.playSoundboard(guildId, effectiveUserId, sound);
+        if (!result.success) {
+          throw new Error(result.message || 'Soundboard failed');
+        }
+
+        if (userId) {
+          stats.trackCommand(
+            'soundboard',
+            userId,
+            guildId,
+            'api',
+            true,
+            null,
+            username,
+            discriminator
+          );
+        }
+
+        res.json(result);
+        return;
+      }
+
       const result = await voiceManager.playSoundboardOverlay(
         guildId,
         sound,
@@ -377,7 +436,8 @@ router.post(
     }
 
     const { id: userId, username, discriminator } = getAuthUser(req);
-    const stopped = voiceManager.stopSound(guildId);
+    const multiBot = getPlaybackService();
+    const stopped = multiBot ? await multiBot.stop(guildId) : voiceManager.stopSound(guildId);
     if (stopped) {
       // Track stop as clear operation
       if (userId) {
@@ -418,7 +478,10 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
-      const skipped = await voiceManager.skip(guildId, 1, userId);
+      const multiBot = getPlaybackService();
+      const skipped = multiBot
+        ? await multiBot.skip(guildId, 1)
+        : await voiceManager.skip(guildId, 1, userId);
       if (skipped && skipped.length > 0) {
         // Track API command and queue operation
         if (userId) {
@@ -475,6 +538,29 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
+      const multiBot = getPlaybackService();
+      if (multiBot) {
+        const result = await multiBot.replay(guildId);
+        if (result.success && result.track) {
+          if (userId) {
+            stats.trackCommand(
+              'replay',
+              userId,
+              guildId,
+              'api',
+              true,
+              null,
+              username,
+              discriminator
+            );
+          }
+          res.json({ message: `Replaying: ${result.track}`, track: result.track });
+          return;
+        }
+        res.status(400).json({ error: result.message || 'No track to replay' });
+        return;
+      }
+
       const result = await voiceManager.replay(guildId);
       if (result) {
         if (userId) {
@@ -519,7 +605,10 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
-      const paused = voiceManager.togglePause(guildId, userId, username);
+      const multiBot = getPlaybackService();
+      const paused = multiBot
+        ? (await multiBot.togglePause(guildId)).paused
+        : voiceManager.togglePause(guildId, userId, username);
 
       // Track API command
       if (userId) {
@@ -567,7 +656,17 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
-      const volume = voiceManager.setVolume(guildId, level, userId, username);
+      const multiBot = getPlaybackService();
+      let volume = level;
+      if (multiBot) {
+        const result = await multiBot.setVolume(guildId, level);
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to set volume');
+        }
+        volume = level;
+      } else {
+        volume = voiceManager.setVolume(guildId, level, userId, username);
+      }
 
       if (userId) {
         stats.trackCommand('volume', userId, guildId, 'api', true, null, username, discriminator);
@@ -595,7 +694,7 @@ router.post(
 );
 
 // GET /api/status - Get bot status
-router.get('/status', (_req, res: Response): void => {
+router.get('/status', async (_req, res: Response): Promise<void> => {
   const client = getClient();
 
   if (!client || !client.isReady()) {
@@ -612,6 +711,33 @@ router.get('/status', (_req, res: Response): void => {
     name: guild.name,
     memberCount: guild.memberCount,
   }));
+
+  const multiBot = getPlaybackService();
+  if (multiBot) {
+    const statusResults = await Promise.all(guilds.map((guild) => multiBot.getStatus(guild.id)));
+    const connections = statusResults
+      .map((status, index) => {
+        if (!status) return null;
+        return {
+          guildId: guilds[index]?.id,
+          channelId: status.channelId,
+          channelName: status.channelName,
+          isPlaying: status.isPlaying,
+          volume: status.volume,
+          workers: status.workers,
+        };
+      })
+      .filter((entry) => entry !== null);
+
+    res.json({
+      online: true,
+      username: client.user.username,
+      discriminator: client.user.discriminator,
+      guilds,
+      connections,
+    });
+    return;
+  }
 
   const connections = voiceManager.getAllConnections();
 
@@ -658,7 +784,8 @@ router.get(
     const guildId = req.params['guildId']!;
 
     try {
-      const queue = voiceManager.getQueue(guildId);
+      const multiBot = getPlaybackService();
+      const queue = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
       res.json(queue);
     } catch (error) {
       const err = error as Error;
@@ -677,7 +804,15 @@ router.post(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
-      const cleared = await voiceManager.clearQueue(guildId, userId);
+      const multiBot = getPlaybackService();
+      const clearedResult = multiBot
+        ? await multiBot.clearQueue(guildId)
+        : { success: true, cleared: await voiceManager.clearQueue(guildId, userId) };
+
+      if (!clearedResult.success) {
+        throw new Error(clearedResult.message || 'Failed to clear queue');
+      }
+      const cleared = clearedResult.cleared ?? 0;
 
       // Track API command
       if (userId) {
@@ -722,6 +857,12 @@ router.delete(
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
+      const multiBot = getPlaybackService();
+      if (multiBot) {
+        res.status(501).json({ error: 'Remove track not supported in multi-bot mode yet' });
+        return;
+      }
+
       const removed = voiceManager.removeTrackFromQueue(guildId, trackIndex);
 
       // Track API command

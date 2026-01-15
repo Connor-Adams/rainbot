@@ -107,6 +107,17 @@ client.once(Events.ClientReady, async () => {
     log.error('Server failed to start', formatError(error));
   }
 
+  // Initialize multi-bot service (worker orchestration)
+  try {
+    const MultiBotService = require('./dist/lib/multiBotService');
+    const redisUrl = config.redisUrl || process.env['REDIS_URL'];
+    const multiBot = await MultiBotService.default.initialize(redisUrl);
+    multiBot.setDiscordClient(client);
+    log.info('MultiBotService initialized');
+  } catch (error) {
+    log.warn(`MultiBotService unavailable: ${error.message}`);
+  }
+
   // Initialize voice interaction manager if configured
   try {
     const { initVoiceInteractionManager } = require('./dist/utils/voice/voiceInteractionInstance');
