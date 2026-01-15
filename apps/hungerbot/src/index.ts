@@ -30,18 +30,18 @@ const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT
 
 // S3 Configuration
 const S3_BUCKET =
-  process.env['STORAGE_BUCKET_NAME'] || process.env['AWS_S3_BUCKET_NAME'] || process.env['BUCKET'];
+  process.env['AWS_S3_BUCKET_NAME'] || process.env['STORAGE_BUCKET_NAME'] || process.env['BUCKET'];
 const S3_ACCESS_KEY =
-  process.env['STORAGE_ACCESS_KEY'] ||
   process.env['AWS_ACCESS_KEY_ID'] ||
+  process.env['STORAGE_ACCESS_KEY'] ||
   process.env['ACCESS_KEY_ID'];
 const S3_SECRET_KEY =
-  process.env['STORAGE_SECRET_KEY'] ||
   process.env['AWS_SECRET_ACCESS_KEY'] ||
+  process.env['STORAGE_SECRET_KEY'] ||
   process.env['SECRET_ACCESS_KEY'];
 const S3_ENDPOINT =
-  process.env['STORAGE_ENDPOINT'] || process.env['AWS_ENDPOINT_URL'] || process.env['ENDPOINT'];
-const S3_REGION = process.env['STORAGE_REGION'] || process.env['AWS_DEFAULT_REGION'] || 'us-east-1';
+  process.env['AWS_ENDPOINT_URL'] || process.env['STORAGE_ENDPOINT'] || process.env['ENDPOINT'];
+const S3_REGION = process.env['AWS_DEFAULT_REGION'] || process.env['STORAGE_REGION'] || 'us-east-1';
 
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
