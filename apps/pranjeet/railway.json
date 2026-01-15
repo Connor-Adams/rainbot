@@ -16,6 +16,11 @@
     "ORCHESTRATOR_BOT_ID": "",
     "TTS_PROVIDER": "${{shared.TTS_PROVIDER}}",
     "TTS_API_KEY": "${{shared.TTS_API_KEY}}",
-    "TTS_VOICE_NAME": "${{shared.TTS_VOICE_NAME}}"
+    "TTS_VOICE_NAME": "${{shared.TTS_VOICE_NAME}}",
+    "REDIS_URL": "${{Redis.REDIS_URL}}",
+    "REDISHOST": "${{Redis.REDISHOST}}",
+    "REDISPASSWORD": "${{Redis.REDISPASSWORD}}",
+    "REDISPORT": "${{Redis.REDISPORT}}",
+    "REDISUSER": "${{Redis.REDISUSER}}"
   }
 }
