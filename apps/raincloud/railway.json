@@ -46,6 +46,6 @@
     "RAINBOT_URL": "http://rainbot-worker.railway.internal:3001",
     "PRANJEET_URL": "http://pranjeet-worker.railway.internal:3002",
     "HUNGERBOT_URL": "http://hungerbot-worker.railway.internal:3003",
-    "DASHBOARD_ORIGIN": ""
+    "DASHBOARD_ORIGIN": "https://rainbot-production.up.railway.app"
   }
 }
