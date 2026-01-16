@@ -37,15 +37,38 @@ function toOggFilename(filename: string): string {
   return filename.slice(0, -ext.length) + '.ogg';
 }
 
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
+async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
-    chunks.push(chunk);
+    chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
 }
 
-async function transcodeToOggOpus(buffer: Buffer): Promise<Buffer> {
+async function bodyToBuffer(body: unknown): Promise<Buffer | null> {
+  if (!body) return null;
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof Readable) return streamToBuffer(body);
+  if (
+    typeof (body as { transformToWebStream?: () => ReadableStream }).transformToWebStream ===
+    'function'
+  ) {
+    const webStream = (
+      body as { transformToWebStream: () => ReadableStream }
+    ).transformToWebStream();
+    return streamToBuffer(Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0]));
+  }
+  if (typeof (body as Blob).arrayBuffer === 'function') {
+    const arrayBuffer = await (body as Blob).arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+  if (Symbol.asyncIterator in Object(body)) {
+    return streamToBuffer(body as AsyncIterable<Uint8Array>);
+  }
+  return null;
+}
+
+async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBufferLike>> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn('ffmpeg', [
       '-hide_banner',
@@ -103,26 +126,10 @@ async function ensureOggCopy(originalName: string, oggName: string): Promise<voi
       Key: `sounds/${originalName}`,
     });
     const response = await s3Client.send(getCommand);
-    let sourceStream: Readable;
-    if (response.Body instanceof Readable) {
-      sourceStream = response.Body;
-    } else if (
-      response.Body &&
-      typeof (response.Body as { transformToWebStream?: () => ReadableStream })
-        .transformToWebStream === 'function'
-    ) {
-      const webStream = (
-        response.Body as { transformToWebStream: () => ReadableStream }
-      ).transformToWebStream();
-      sourceStream = Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0]);
-    } else if (response.Body) {
-      const buffer = await streamToBuffer(response.Body as Readable);
-      sourceStream = Readable.from(buffer);
-    } else {
+    const sourceBuffer = await bodyToBuffer(response.Body);
+    if (!sourceBuffer) {
       return;
     }
-
-    const sourceBuffer = await streamToBuffer(sourceStream);
     const oggBuffer = await transcodeToOggOpus(sourceBuffer);
 
     const putCommand = new PutObjectCommand({
@@ -430,10 +437,10 @@ export async function uploadSound(
   for await (const chunk of fileStream) {
     chunks.push(chunk);
   }
-  const buffer = Buffer.concat(chunks);
+  const buffer: Buffer<ArrayBufferLike> = Buffer.concat(chunks);
 
   let uploadName = safeName;
-  let uploadBuffer = buffer;
+  let uploadBuffer: Buffer<ArrayBufferLike> = buffer;
   let contentType = getContentType(uploadName);
   const isRecording = uploadName.startsWith(RECORDS_PREFIX);
   if (!isRecording && TRANSCODE_ENABLED && !isOpusFilename(uploadName)) {

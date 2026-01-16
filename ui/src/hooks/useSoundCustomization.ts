@@ -62,5 +62,11 @@ export function useSoundCustomization() {
     [customizations]
   );
 
-  return { customizations, updateCustomization, deleteCustomization, renameCustomization, getCustomization };
+  return {
+    customizations,
+    updateCustomization,
+    deleteCustomization,
+    renameCustomization,
+    getCustomization,
+  };
 }

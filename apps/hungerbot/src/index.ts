@@ -396,9 +396,7 @@ async function playSoundNow(state: GuildState, request: SoundRequest): Promise<v
   state.connection.subscribe(state.player);
   state.player.play(resource);
   log.info(`Soundboard play issued status=${state.player.state.status}`);
-  log.info(
-    `Playing sound ${request.sfxId} for user ${request.userId} in guild ${request.guildId}`
-  );
+  log.info(`Playing sound ${request.sfxId} for user ${request.userId} in guild ${request.guildId}`);
 
   void reportSoundStat({
     soundName: request.sfxId,

@@ -38,11 +38,7 @@ function toOggName(filename: string): string {
   return `${filename.slice(0, lastDot)}.ogg`;
 }
 
-async function trimToOggOpus(
-  input: Buffer,
-  startMs: number,
-  endMs: number
-): Promise<Buffer> {
+async function trimToOggOpus(input: Buffer, startMs: number, endMs: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const startSec = (startMs / 1000).toFixed(3);
     const endSec = (endMs / 1000).toFixed(3);
