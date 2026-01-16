@@ -16,6 +16,7 @@ import express, { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
+import { createLogger } from '@rainbot/shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
@@ -30,6 +31,8 @@ const WORKER_INSTANCE_ID =
   process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
 const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 
+const log = createLogger('PRANJEET');
+
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
@@ -40,9 +43,18 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function logErrorWithStack(message: string, err: unknown): void {
+  const info = formatError(err);
+  log.error(`${message}: ${info.message}`);
+  if (info.stack) {
+    log.debug(info.stack);
+  }
+}
+
+
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    console.warn('[PRANJEET] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
+    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
   }
 
@@ -69,9 +81,9 @@ async function registerWithOrchestrator(): Promise<void> {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[PRANJEET] Worker registration failed: ${response.status} ${text}`);
+      log.warn(`Worker registration failed: ${response.status} ${text}`);
     } else {
-      console.log('[PRANJEET] Worker registered with orchestrator');
+      log.info('Worker registered with orchestrator');
     }
   } catch (error) {
     const info = formatError(error);
@@ -82,37 +94,36 @@ async function registerWithOrchestrator(): Promise<void> {
         : err.cause
           ? String(err.cause)
           : 'n/a';
-    console.warn(`[PRANJEET] Worker registration error: ${info.message}; cause=${cause}`);
+    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
+    if (info.stack) {
+      log.debug(info.stack);
+    }
   }
 }
 
 process.on('unhandledRejection', (reason) => {
-  const info = formatError(reason);
-  console.error(`[PRANJEET] Unhandled promise rejection: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Unhandled promise rejection', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  const info = formatError(error);
-  console.error(`[PRANJEET] Uncaught exception: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Uncaught exception', error);
   process.exitCode = 1;
 });
 
-console.log(`[PRANJEET] Starting (pid=${process.pid}, node=${process.version})`);
-console.log(
-  `[PRANJEET] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}, ttsProvider=${TTS_PROVIDER}`
+log.info(`Starting (pid=${process.pid}, node=${process.version})`);
+log.info(
+  `Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}, ttsProvider=${TTS_PROVIDER}`
 );
-console.log(
-  `[PRANJEET] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+log.info(
+  `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
 
 if (!hasToken) {
-  console.error('PRANJEET_TOKEN environment variable is required');
+  log.error('PRANJEET_TOKEN environment variable is required');
 }
 
 if (!hasOrchestrator) {
-  console.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
+  log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
 interface GuildState {
@@ -130,7 +141,7 @@ function startServer(): void {
   if (serverStarted) return;
   serverStarted = true;
   app.listen(PORT, () => {
-    console.log(`[PRANJEET] Worker server listening on port ${PORT}`);
+    log.info(`Worker server listening on port ${PORT}`);
   });
 }
 
@@ -151,20 +162,20 @@ async function initTTS(): Promise<void> {
     try {
       const { OpenAI } = await import('openai');
       ttsClient = new OpenAI({ apiKey: TTS_API_KEY });
-      console.log('[PRANJEET] OpenAI TTS client initialized');
+      log.info('OpenAI TTS client initialized');
     } catch (error) {
-      console.error('[PRANJEET] Failed to initialize OpenAI TTS:', error);
+      logErrorWithStack('Failed to initialize OpenAI TTS', error);
     }
   } else if (TTS_PROVIDER === 'google' && TTS_API_KEY) {
     try {
       const textToSpeech = await import('@google-cloud/text-to-speech');
       ttsClient = new textToSpeech.TextToSpeechClient({ apiKey: TTS_API_KEY });
-      console.log('[PRANJEET] Google TTS client initialized');
+      log.info('Google TTS client initialized');
     } catch (error) {
-      console.error('[PRANJEET] Failed to initialize Google TTS:', error);
+      logErrorWithStack('Failed to initialize Google TTS', error);
     }
   } else {
-    console.warn('[PRANJEET] No TTS API key configured - TTS will not work');
+    log.warn('No TTS API key configured - TTS will not work');
   }
 }
 
@@ -173,7 +184,7 @@ function getOrCreateGuildState(guildId: string): GuildState {
     const player = createAudioPlayer();
 
     player.on('error', (error) => {
-      console.error(`[PRANJEET] Player error in guild ${guildId}:`, error);
+      logErrorWithStack(`Player error in guild ${guildId}`, error);
     });
 
     guildStates.set(guildId, {
@@ -189,10 +200,10 @@ function getOrCreateGuildState(guildId: string): GuildState {
  * Generate TTS audio using configured provider
  */
 async function generateTTS(text: string, voice?: string): Promise<Buffer> {
-  console.log(`[PRANJEET] Generating TTS for: "${text.substring(0, 50)}..."`);
+  log.info(`Generating TTS for: "${text.substring(0, 50)}..."`);
 
   if (!ttsClient) {
-    console.error('[PRANJEET] TTS client not initialized');
+    log.error('TTS client not initialized');
     throw new Error('TTS not configured');
   }
 
@@ -366,7 +377,7 @@ app.post('/join', async (req: Request, res: Response) => {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch (_error) {
-        console.log(`[PRANJEET] Connection lost in guild ${guildId}, attempting rejoin...`);
+        log.warn(`Connection lost in guild ${guildId}, attempting rejoin...`);
         connection.destroy();
         state.connection = null;
       }
@@ -377,7 +388,7 @@ app.post('/join', async (req: Request, res: Response) => {
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    console.error('[PRANJEET] Join error:', error);
+    logErrorWithStack('Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -496,13 +507,13 @@ app.post('/speak', async (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    console.log(`[PRANJEET] Speaking in guild ${guildId}: ${text}`);
+    log.info(`Speaking in guild ${guildId}: ${text}`);
 
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    console.error('[PRANJEET] Speak error:', error);
+    logErrorWithStack('Speak error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -550,7 +561,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   if (orchestratorLeft) {
     // Orchestrator left - leave too
-    console.log(`[PRANJEET] Orchestrator left voice in guild ${guildId}, following...`);
+    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
     const state = guildStates.get(guildId);
     if (state?.connection) {
       state.connection.destroy();
@@ -559,8 +570,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
     const channelId = newState.channelId!;
-    console.log(
-      `[PRANJEET] Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
+    log.info(
+      `Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
     );
 
     const guild = client.guilds.cache.get(guildId);
@@ -592,7 +603,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch {
-        console.log(`[PRANJEET] Connection lost in guild ${guildId}`);
+        log.warn(`Connection lost in guild ${guildId}`);
         connection.destroy();
         state.connection = null;
       }
@@ -601,8 +612,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 client.once(Events.ClientReady, async () => {
-  console.log(`[PRANJEET] Ready as ${client.user?.tag}`);
-  console.log(`[PRANJEET] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+  log.info(`Ready as ${client.user?.tag}`);
+  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 
   // Initialize TTS client
   await initTTS();
@@ -636,25 +647,25 @@ client.once(Events.ClientReady, async () => {
       );
 
       worker.on('failed', (job, err) => {
-        console.error(`[PRANJEET] TTS job failed ${job?.id}: ${err.message}`);
+        log.error(`TTS job failed ${job?.id}: ${err.message}`);
       });
 
       queueReady = true;
-      console.log('[PRANJEET] TTS queue worker started');
+      log.info('TTS queue worker started');
     } catch (error) {
-      console.error('[PRANJEET] Failed to start TTS queue worker:', error);
+      logErrorWithStack('Failed to start TTS queue worker', error);
       queueReady = false;
     }
   }
 });
 
 client.on('error', (error) => {
-  console.error('[PRANJEET] Client error:', error);
+  logErrorWithStack('Client error', error);
 });
 
 if (hasToken) {
   client.login(TOKEN);
 } else {
-  console.warn('[PRANJEET] Bot token missing; running in degraded mode (HTTP only)');
+  log.warn('Bot token missing; running in degraded mode (HTTP only)');
   startServer();
 }

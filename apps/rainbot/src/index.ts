@@ -17,6 +17,7 @@ import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import express, { Request, Response } from 'express';
 import { Mutex } from 'async-mutex';
+import { createLogger } from '@rainbot/shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['RAINBOT_PORT'] || '3001', 10);
 const TOKEN = process.env['RAINBOT_TOKEN'];
@@ -27,6 +28,8 @@ const WORKER_INSTANCE_ID =
   process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
 const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 
+const log = createLogger('RAINBOT');
+
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
@@ -35,6 +38,22 @@ function formatError(err: unknown): { message: string; stack?: string } {
     return { message: err.message, stack: err.stack };
   }
   return { message: String(err) };
+}
+
+function logErrorWithStack(message: string, err: unknown): void {
+  const info = formatError(err);
+  log.error(`${message}: ${info.message}`);
+  if (info.stack) {
+    log.debug(info.stack);
+  }
+}
+
+function logWarnWithStack(message: string, err: unknown): void {
+  const info = formatError(err);
+  log.warn(`${message}: ${info.message}`);
+  if (info.stack) {
+    log.debug(info.stack);
+  }
 }
 
 function getOrchestratorBaseUrl(): string | null {
@@ -49,13 +68,13 @@ function getOrchestratorBaseUrl(): string | null {
 
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    console.warn('[RAINBOT] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
+    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
   }
 
   const baseUrl = getOrchestratorBaseUrl();
   if (!baseUrl) {
-    console.warn('[RAINBOT] Worker registration skipped (invalid RAINCLOUD_URL)');
+    log.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
     return;
   }
   try {
@@ -75,9 +94,9 @@ async function registerWithOrchestrator(): Promise<void> {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[RAINBOT] Worker registration failed: ${response.status} ${text}`);
+      log.warn(`Worker registration failed: ${response.status} ${text}`);
     } else {
-      console.log('[RAINBOT] Worker registered with orchestrator');
+      log.info('Worker registered with orchestrator');
     }
   } catch (error) {
     const info = formatError(error);
@@ -88,7 +107,10 @@ async function registerWithOrchestrator(): Promise<void> {
         : err.cause
           ? String(err.cause)
           : 'n/a';
-    console.warn(`[RAINBOT] Worker registration error: ${info.message}; cause=${cause}`);
+    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
+    if (info.stack) {
+      log.debug(info.stack);
+    }
   }
 }
 
@@ -118,44 +140,37 @@ async function reportSoundStat(payload: {
     });
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[RAINBOT] Stats report failed: ${response.status} ${text}`);
+      log.warn(`Stats report failed: ${response.status} ${text}`);
     }
   } catch (error) {
-    const info = formatError(error);
-    console.warn(`[RAINBOT] Stats report failed: ${info.message}`);
+    logWarnWithStack('Stats report failed', error);
   }
 }
 
 process.on('unhandledRejection', (reason) => {
-  const info = formatError(reason);
-  console.error(`[RAINBOT] Unhandled promise rejection: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Unhandled promise rejection', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  const info = formatError(error);
-  console.error(`[RAINBOT] Uncaught exception: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Uncaught exception', error);
   process.exitCode = 1;
 });
 
-console.log(`[RAINBOT] Starting (pid=${process.pid}, node=${process.version})`);
-console.log(
-  `[RAINBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
+log.info(`Starting (pid=${process.pid}, node=${process.version})`);
+log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
+log.info(
+  `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
-console.log(
-  `[RAINBOT] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
-);
-console.log(
-  `[RAINBOT] Stats reporting config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+log.info(
+  `Stats reporting config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
 
 if (!hasToken) {
-  console.error('RAINBOT_TOKEN environment variable is required');
+  log.error('RAINBOT_TOKEN environment variable is required');
 }
 
 if (!hasOrchestrator) {
-  console.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
+  log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
 interface GuildState {
@@ -182,7 +197,7 @@ function startServer(): void {
   if (serverStarted) return;
   serverStarted = true;
   app.listen(PORT, () => {
-    console.log(`[RAINBOT] Worker server listening on port ${PORT}`);
+    log.info(`Worker server listening on port ${PORT}`);
   });
 }
 
@@ -213,7 +228,10 @@ function getOrCreateGuildState(guildId: string): GuildState {
     });
 
     player.on('error', (error) => {
-      console.error(`[RAINBOT] Player error in guild ${guildId}: ${error.message}`);
+      log.error(`Player error in guild ${guildId}: ${error.message}`);
+      if (error.stack) {
+        log.debug(error.stack);
+      }
     });
 
     guildStates.set(guildId, {
@@ -289,8 +307,8 @@ async function playNext(guildId: string): Promise<void> {
   state.nowPlaying = track.title;
 
   try {
-    console.log(
-      `[RAINBOT] playNext title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+    log.info(
+      `playNext title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
     );
     const resource = await createTrackResourceForAny(track);
 
@@ -301,7 +319,7 @@ async function playNext(guildId: string): Promise<void> {
     state.currentResource = resource;
     resetPlaybackTiming(state);
     state.player.play(resource);
-    console.log(`[RAINBOT] Playing: ${track.title} in guild ${guildId}`);
+    log.info(`Playing: ${track.title} in guild ${guildId}`);
     if (track.userId) {
       void reportSoundStat({
         soundName: track.title,
@@ -316,7 +334,7 @@ async function playNext(guildId: string): Promise<void> {
       });
     }
   } catch (error) {
-    console.error(`[RAINBOT] Error playing track: ${(error as Error).message}`);
+    logErrorWithStack('Error playing track', error);
     // Skip to next track on error
     playNext(guildId);
   }
@@ -401,7 +419,7 @@ app.post('/join', async (req: Request, res: Response) => {
         // Connection recovered
       } catch (_error) {
         // Connection destroyed, attempt rejoin
-        console.log(`[RAINBOT] Connection lost in guild ${guildId}, attempting rejoin...`);
+        log.warn(`Connection lost in guild ${guildId}, attempting rejoin...`);
         connection.destroy();
         state.connection = null;
       }
@@ -412,7 +430,7 @@ app.post('/join', async (req: Request, res: Response) => {
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    console.error('[RAINBOT] Join error:', error);
+    logErrorWithStack('Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -871,7 +889,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   if (orchestratorLeft) {
     // Orchestrator left - leave too
-    console.log(`[RAINBOT] Orchestrator left voice in guild ${guildId}, following...`);
+    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
     const state = guildStates.get(guildId);
     if (state?.connection) {
       state.connection.destroy();
@@ -882,8 +900,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
     const channelId = newState.channelId!;
-    console.log(
-      `[RAINBOT] Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
+    log.info(
+      `Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
     );
 
     const guild = client.guilds.cache.get(guildId);
@@ -915,7 +933,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch {
-        console.log(`[RAINBOT] Connection lost in guild ${guildId}`);
+        log.warn(`Connection lost in guild ${guildId}`);
         connection.destroy();
         state.connection = null;
       }
@@ -924,8 +942,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 client.once(Events.ClientReady, () => {
-  console.log(`[RAINBOT] Ready as ${client.user?.tag}`);
-  console.log(`[RAINBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+  log.info(`Ready as ${client.user?.tag}`);
+  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 
   // Start HTTP server
   startServer();
@@ -934,12 +952,12 @@ client.once(Events.ClientReady, () => {
 });
 
 client.on('error', (error) => {
-  console.error('[RAINBOT] Client error:', error);
+  logErrorWithStack('Client error', error);
 });
 
 if (hasToken) {
   client.login(TOKEN);
 } else {
-  console.warn('[RAINBOT] Bot token missing; running in degraded mode (HTTP only)');
+  log.warn('Bot token missing; running in degraded mode (HTTP only)');
   startServer();
 }

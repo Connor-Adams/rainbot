@@ -15,6 +15,23 @@ import type {
 
 const log = createLogger('WORKER-SERVER');
 
+function logRequestError(
+  action: string,
+  identifiers: Record<string, string | undefined>,
+  error: unknown
+): void {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const detail = Object.entries(identifiers)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ');
+  const suffix = detail ? ` (${detail})` : '';
+  log.error(`${action} failed${suffix}: ${err.message}`);
+  if (err.stack) {
+    log.debug(err.stack);
+  }
+}
+
 /**
  * Base class for worker servers with idempotency support
  */
@@ -53,6 +70,7 @@ export abstract class WorkerServerBase {
         this.cacheResponse(request.requestId, response);
         res.json(response);
       } catch (error) {
+        logRequestError('Join request', { requestId: request.requestId, guildId: request.guildId }, error);
         const errorResponse: JoinResponse = {
           status: 'error',
           message: (error as Error).message,
@@ -83,6 +101,7 @@ export abstract class WorkerServerBase {
         this.cacheResponse(request.requestId, response);
         res.json(response);
       } catch (error) {
+        logRequestError('Leave request', { requestId: request.requestId, guildId: request.guildId }, error);
         const errorResponse: LeaveResponse = {
           status: 'error',
           message: (error as Error).message,
@@ -121,6 +140,11 @@ export abstract class WorkerServerBase {
         this.cacheResponse(request.requestId, response);
         res.json(response);
       } catch (error) {
+        logRequestError(
+          'Volume request',
+          { requestId: request.requestId, guildId: request.guildId },
+          error
+        );
         const errorResponse: VolumeResponse = {
           status: 'error',
           message: (error as Error).message,
@@ -143,6 +167,7 @@ export abstract class WorkerServerBase {
         const response = await this.handleStatus({ guildId });
         res.json(response);
       } catch (error) {
+        logRequestError('Status request', { guildId }, error);
         res.status(500).json({
           error: (error as Error).message,
         });
