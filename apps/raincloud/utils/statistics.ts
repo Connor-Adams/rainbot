@@ -316,6 +316,17 @@ const activeSessions = new Map<string, VoiceSessionEvent>();
 
 let batchTimer: NodeJS.Timeout | null = null;
 
+async function executeInsert(
+  text: string,
+  params: unknown[],
+  description: string
+): Promise<void> {
+  const result = await query(text, params);
+  if (!result) {
+    throw new Error(`Insert failed for ${description}`);
+  }
+}
+
 /**
  * Start batch processing timer
  */
@@ -452,9 +463,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.error_type || null,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO command_stats (command_name, user_id, username, discriminator, guild_id, source, executed_at, success, error_message, execution_time_ms, error_type) VALUES ${values}`,
-        params
+        params,
+        'command_stats'
       );
 
       await upsertUserProfiles(commandEvents);
@@ -480,9 +492,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.source,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO sound_stats (sound_name, user_id, username, discriminator, guild_id, source_type, is_soundboard, played_at, duration, source) VALUES ${values}`,
-        params
+        params,
+        'sound_stats'
       );
 
       await upsertUserProfiles(soundEvents);
@@ -504,9 +517,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.metadata ? JSON.stringify(e.metadata) : null,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO queue_operations (operation_type, user_id, guild_id, executed_at, source, metadata) VALUES ${values}`,
-        params
+        params,
+        'queue_operations'
       );
     } else if (table === 'voice_events') {
       const voiceEvents = events as VoiceEvent[];
@@ -526,9 +540,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.source,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO voice_events (event_type, guild_id, channel_id, channel_name, executed_at, source) VALUES ${values}`,
-        params
+        params,
+        'voice_events'
       );
     } else if (table === 'search_stats') {
       const searchEvents = events as SearchEvent[];
@@ -551,9 +566,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.source,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO search_stats (user_id, guild_id, query, query_type, results_count, selected_index, selected_title, searched_at, source) VALUES ${values}`,
-        params
+        params,
+        'search_stats'
       );
     } else if (table === 'user_voice_sessions') {
       const sessionEvents = events as UserSessionEvent[];
@@ -579,9 +595,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.tracks_heard,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO user_voice_sessions (session_id, bot_session_id, user_id, username, discriminator, guild_id, channel_id, channel_name, joined_at, left_at, duration_seconds, tracks_heard) VALUES ${values}`,
-        params
+        params,
+        'user_voice_sessions'
       );
 
       await upsertUserProfiles(sessionEvents);
@@ -606,16 +623,17 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.queued_by,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO user_track_listens (user_session_id, user_id, guild_id, track_title, track_url, source_type, duration, listened_at, queued_by) VALUES ${values}`,
-        params
+        params,
+        'user_track_listens'
       );
     } else if (table === 'track_engagement') {
       const engagementEvents = events as TrackEngagementEvent[];
       const values = engagementEvents
         .map(
           (_, i) =>
-            `($${i * 17 + 1}, $${i * 17 + 2}, $${i * 17 + 3}, $${i * 17 + 4}, $${i * 17 + 5}, $${i * 17 + 6}, $${i * 17 + 7}, $${i * 17 + 8}, $${i * 17 + 9}, $${i * 17 + 10}, $${i * 17 + 11}, $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}, $${i * 17 + 17})`
+            `($${i * 18 + 1}, $${i * 18 + 2}, $${i * 18 + 3}, $${i * 18 + 4}, $${i * 18 + 5}, $${i * 18 + 6}, $${i * 18 + 7}, $${i * 18 + 8}, $${i * 18 + 9}, $${i * 18 + 10}, $${i * 18 + 11}, $${i * 18 + 12}, $${i * 18 + 13}, $${i * 18 + 14}, $${i * 18 + 15}, $${i * 18 + 16}, $${i * 18 + 17}, $${i * 18 + 18})`
         )
         .join(', ');
 
@@ -637,11 +655,13 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.queued_by,
         e.skipped_by,
         e.listeners_at_start,
+        e.listeners_at_end,
       ]);
 
-      await query(
-        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start) VALUES ${values}`,
-        params
+      await executeInsert(
+        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start, listeners_at_end) VALUES ${values}`,
+        params,
+        'track_engagement'
       );
     } else if (table === 'interaction_events') {
       const interactionEvents = events as InteractionEvent[];
@@ -667,9 +687,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.created_at,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO interaction_events (interaction_type, interaction_id, custom_id, user_id, username, guild_id, channel_id, response_time_ms, success, error_message, metadata, created_at) VALUES ${values}`,
-        params
+        params,
+        'interaction_events'
       );
     } else if (table === 'playback_state_changes') {
       const stateEvents = events as PlaybackStateChangeEvent[];
@@ -694,9 +715,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.created_at,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO playback_state_changes (guild_id, channel_id, state_type, old_value, new_value, user_id, username, track_title, track_position_seconds, source, created_at) VALUES ${values}`,
-        params
+        params,
+        'playback_state_changes'
       );
     } else if (table === 'web_events') {
       const webEvents = events as WebEvent[];
@@ -718,9 +740,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.created_at,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO web_events (web_session_id, user_id, event_type, event_target, event_value, guild_id, duration_ms, created_at) VALUES ${values}`,
-        params
+        params,
+        'web_events'
       );
     } else if (table === 'guild_events') {
       const guildEvents = events as GuildEvent[];
@@ -741,9 +764,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.created_at,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO guild_events (event_type, guild_id, guild_name, member_count, user_id, metadata, created_at) VALUES ${values}`,
-        params
+        params,
+        'guild_events'
       );
     } else if (table === 'api_latency') {
       const latencyEvents = events as ApiLatencyEvent[];
@@ -765,9 +789,10 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.created_at,
       ]);
 
-      await query(
+      await executeInsert(
         `INSERT INTO api_latency (endpoint, method, response_time_ms, status_code, user_id, request_size_bytes, response_size_bytes, created_at) VALUES ${values}`,
-        params
+        params,
+        'api_latency'
       );
     }
 

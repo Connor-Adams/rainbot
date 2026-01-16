@@ -3,6 +3,7 @@ import { playbackApi } from '@/lib/api'
 import type { QueueData } from '@/types'
 import { useState, useEffect } from 'react'
 import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player'
+import { trackWebEvent } from '@/lib/webAnalytics'
 
 interface NowPlayingCardProps {
   queueData: QueueData
@@ -97,12 +98,27 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
           <PlaybackControls
             isPaused={isPaused}
             isLoading={pauseMutation.isPending || skipMutation.isPending}
-            onPlayPause={() => pauseMutation.mutate()}
-            onSkip={() => skipMutation.mutate()}
+            onPlayPause={() => {
+              trackWebEvent({
+                eventType: 'playback_toggle',
+                eventTarget: isPaused ? 'resume' : 'pause',
+                eventValue: currentTrack.title,
+                guildId,
+              })
+              pauseMutation.mutate()
+            }}
+            onSkip={() => {
+              trackWebEvent({
+                eventType: 'playback_skip',
+                eventTarget: 'skip',
+                eventValue: currentTrack.title,
+                guildId,
+              })
+              skipMutation.mutate()
+            }}
           />
         </div>
       </div>
     </section>
   )
 }
-

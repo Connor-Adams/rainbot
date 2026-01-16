@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { playbackApi, botApi } from '@/lib/api'
 import { useGuildStore } from '@/stores/guildStore'
 import NowPlayingCard from '../NowPlayingCard'
+import { trackWebEvent } from '@/lib/webAnalytics'
 
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore()
@@ -93,6 +94,12 @@ export default function PlayerTab() {
     if (ref[botType]) clearTimeout(ref[botType]!)
     ref[botType] = setTimeout(() => {
       volumeMutation.mutate({ level: newVolume, botType })
+      trackWebEvent({
+        eventType: 'volume_change',
+        eventTarget: botType,
+        eventValue: String(newVolume),
+        guildId: selectedGuildId || undefined,
+      })
       setLocalVolumes((prev) => ({ ...prev, [botType]: null }))
     }, 150)
   }
@@ -107,6 +114,12 @@ export default function PlayerTab() {
       alert('Please select a server first')
       return
     }
+    trackWebEvent({
+      eventType: 'queue_add',
+      eventTarget: 'add_to_queue',
+      eventValue: url,
+      guildId: selectedGuildId,
+    })
     playMutation.mutate(url)
   }
 
@@ -148,7 +161,14 @@ export default function PlayerTab() {
             </button>
             <button
               className="btn btn-danger"
-              onClick={() => stopMutation.mutate()}
+              onClick={() => {
+                trackWebEvent({
+                  eventType: 'playback_stop',
+                  eventTarget: 'stop',
+                  guildId: selectedGuildId || undefined,
+                })
+                stopMutation.mutate()
+              }}
               disabled={stopMutation.isPending || !selectedGuildId}
             >
               <span className="btn-icon">■</span> Stop
@@ -210,4 +230,3 @@ export default function PlayerTab() {
     </>
   )
 }
-

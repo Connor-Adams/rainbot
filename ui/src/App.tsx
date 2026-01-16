@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import LoadingOverlay from './components/LoadingOverlay'
+import { initWebAnalytics, setWebTrackingEnabled, trackWebEvent } from './lib/webAnalytics'
 
 function App() {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore()
@@ -37,6 +38,14 @@ function App() {
     
     checkAuthWithDelay();
   }, [checkAuth])
+
+  useEffect(() => {
+    setWebTrackingEnabled(isAuthenticated)
+    if (isAuthenticated) {
+      initWebAnalytics()
+      trackWebEvent({ eventType: 'page_view', eventTarget: 'dashboard' })
+    }
+  }, [isAuthenticated])
 
   if (isLoading) {
     return <LoadingOverlay />
