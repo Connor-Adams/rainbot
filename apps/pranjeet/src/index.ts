@@ -40,18 +40,27 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function getOrchestratorBaseUrl(): string | null {
+  if (!RAINCLOUD_URL) return null;
+  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
+    ? RAINCLOUD_URL.replace(/\/$/, '')
+    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
+  const defaultPort =
+    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+}
+
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
     console.warn('[PRANJEET] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
   }
 
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  const baseUrl = normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+  const baseUrl = getOrchestratorBaseUrl();
+  if (!baseUrl) {
+    console.warn('[PRANJEET] Worker registration skipped (invalid RAINCLOUD_URL)');
+    return;
+  }
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
       method: 'POST',
@@ -82,7 +91,9 @@ async function registerWithOrchestrator(): Promise<void> {
         : err.cause
           ? String(err.cause)
           : 'n/a';
-    console.warn(`[PRANJEET] Worker registration error: ${info.message}; cause=${cause}`);
+    console.warn(
+      `[PRANJEET] Worker registration error: ${info.message}; cause=${cause}; baseUrl=${baseUrl}`
+    );
   }
 }
 
@@ -106,6 +117,7 @@ console.log(
 console.log(
   `[PRANJEET] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
+console.log(`[PRANJEET] Worker registration target: ${getOrchestratorBaseUrl() || 'unset'}`);
 
 if (!hasToken) {
   console.error('PRANJEET_TOKEN environment variable is required');
