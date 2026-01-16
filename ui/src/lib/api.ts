@@ -235,4 +235,17 @@ export const statsApi = {
     api.get('/stats/api-latency', { params }),
 };
 
+// Tracking API
+export const trackingApi = {
+  event: (payload: {
+    eventType: string;
+    eventTarget?: string | null;
+    eventValue?: string | null;
+    guildId?: string | null;
+    durationMs?: number | null;
+    webSessionId?: string | null;
+  }) => api.post('/track/event', payload),
+  batch: (events: Array<Record<string, unknown>>) => api.post('/track/batch', { events }),
+};
+
 export default api;
