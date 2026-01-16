@@ -221,6 +221,10 @@ export class TextToSpeechManager {
           return new MockTTSProvider();
         }
 
+      case 'pranjeet':
+        log.info('TTS handled by Pranjeet worker; local TTS disabled');
+        return new MockTTSProvider();
+
       case 'azure':
       case 'aws':
       case 'polly':

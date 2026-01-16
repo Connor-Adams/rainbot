@@ -53,6 +53,16 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function getOrchestratorBaseUrl(): string | null {
+  if (!RAINCLOUD_URL) return null;
+  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
+    ? RAINCLOUD_URL.replace(/\/$/, '')
+    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
+  const defaultPort =
+    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+}
+
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
     console.warn(
@@ -61,12 +71,11 @@ async function registerWithOrchestrator(): Promise<void> {
     return;
   }
 
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  const baseUrl = normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+  const baseUrl = getOrchestratorBaseUrl();
+  if (!baseUrl) {
+    console.warn('[HUNGERBOT] Worker registration skipped (invalid RAINCLOUD_URL)');
+    return;
+  }
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
       method: 'POST',
@@ -98,6 +107,36 @@ async function registerWithOrchestrator(): Promise<void> {
           ? String(err.cause)
           : 'n/a';
     console.warn(`[HUNGERBOT] Worker registration error: ${info.message}; cause=${cause}`);
+  }
+}
+
+async function reportSoundStat(payload: {
+  soundName: string;
+  userId: string;
+  guildId: string;
+  sourceType?: string;
+  isSoundboard?: boolean;
+  duration?: number | null;
+  source?: string;
+  username?: string | null;
+  discriminator?: string | null;
+}): Promise<void> {
+  if (!WORKER_SECRET) return;
+  const baseUrl = getOrchestratorBaseUrl();
+  if (!baseUrl) return;
+
+  try {
+    await fetch(`${baseUrl}/internal/stats/sound`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': WORKER_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const info = formatError(error);
+    console.warn(`[HUNGERBOT] Stats report failed: ${info.message}`);
   }
 }
 
@@ -179,10 +218,12 @@ function ensureClientReady(res: Response): boolean {
 async function getSoundStream(sfxId: string): Promise<Readable> {
   // Normalize filename (add extension if not present)
   const filename = sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
+  console.log(`[HUNGERBOT] Soundboard fetch start name=${filename}`);
 
   // Try S3 first if configured
   if (s3Client && S3_BUCKET) {
     try {
+      console.log(`[HUNGERBOT] Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${filename}`);
       const command = new GetObjectCommand({
         Bucket: S3_BUCKET,
         Key: `sounds/${filename}`,
@@ -197,6 +238,7 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
       }
 
       if (response.Body instanceof Readable) {
+        console.log(`[HUNGERBOT] Soundboard fetch S3 stream ready name=${filename}`);
         return response.Body;
       }
 
@@ -455,14 +497,24 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     }
 
     console.log(
-      `[HUNGERBOT] Soundboard volume=${effectiveVolume} connected=${state.connection.state.status}`
+      `[HUNGERBOT] Soundboard volume=${effectiveVolume} connected=${state.connection.state.status} player=${state.player.state.status}`
     );
 
     // Play sound immediately (interrupts any current sound)
     state.player.stop(true);
     state.player.play(resource);
+    console.log(`[HUNGERBOT] Soundboard play issued status=${state.player.state.status}`);
 
     console.log(`[HUNGERBOT] Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
+    void reportSoundStat({
+      soundName: sfxId,
+      userId,
+      guildId,
+      sourceType: 'local',
+      isSoundboard: true,
+      duration: null,
+      source: 'discord',
+    });
 
     const response = { status: 'success', message: 'Sound playing' };
     requestCache.set(requestId, response);

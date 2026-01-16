@@ -50,7 +50,7 @@ export interface VoiceInteractionSession {
 export interface VoiceInteractionConfig {
   enabled: boolean;
   sttProvider: 'google' | 'azure' | 'aws' | 'whisper' | 'openai';
-  ttsProvider: 'google' | 'azure' | 'aws' | 'polly' | 'openai';
+  ttsProvider: 'google' | 'azure' | 'aws' | 'polly' | 'openai' | 'pranjeet';
   sttApiKey?: string;
   ttsApiKey?: string;
   language: string; // e.g., 'en-US'

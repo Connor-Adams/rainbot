@@ -37,18 +37,27 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function getOrchestratorBaseUrl(): string | null {
+  if (!RAINCLOUD_URL) return null;
+  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
+    ? RAINCLOUD_URL.replace(/\/$/, '')
+    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
+  const defaultPort =
+    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+}
+
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
     console.warn('[RAINBOT] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
   }
 
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  const baseUrl = normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+  const baseUrl = getOrchestratorBaseUrl();
+  if (!baseUrl) {
+    console.warn('[RAINBOT] Worker registration skipped (invalid RAINCLOUD_URL)');
+    return;
+  }
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
       method: 'POST',
@@ -80,6 +89,36 @@ async function registerWithOrchestrator(): Promise<void> {
           ? String(err.cause)
           : 'n/a';
     console.warn(`[RAINBOT] Worker registration error: ${info.message}; cause=${cause}`);
+  }
+}
+
+async function reportSoundStat(payload: {
+  soundName: string;
+  userId: string;
+  guildId: string;
+  sourceType?: string;
+  isSoundboard?: boolean;
+  duration?: number | null;
+  source?: string;
+  username?: string | null;
+  discriminator?: string | null;
+}): Promise<void> {
+  if (!WORKER_SECRET) return;
+  const baseUrl = getOrchestratorBaseUrl();
+  if (!baseUrl) return;
+
+  try {
+    await fetch(`${baseUrl}/internal/stats/sound`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': WORKER_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const info = formatError(error);
+    console.warn(`[RAINBOT] Stats report failed: ${info.message}`);
   }
 }
 
@@ -256,6 +295,19 @@ async function playNext(guildId: string): Promise<void> {
     resetPlaybackTiming(state);
     state.player.play(resource);
     console.log(`[RAINBOT] Playing: ${track.title} in guild ${guildId}`);
+    if (track.userId) {
+      void reportSoundStat({
+        soundName: track.title,
+        userId: track.userId,
+        guildId,
+        sourceType: track.sourceType || 'other',
+        isSoundboard: false,
+        duration: track.duration ?? null,
+        source: 'discord',
+        username: track.username || null,
+        discriminator: track.discriminator || null,
+      });
+    }
   } catch (error) {
     console.error(`[RAINBOT] Error playing track: ${(error as Error).message}`);
     // Skip to next track on error

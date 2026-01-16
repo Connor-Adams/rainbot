@@ -139,8 +139,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       state.enabled = true;
     }
 
-    // Preload common TTS responses
-    await this.textToSpeech.preloadCommonResponses();
+    if (this.config.ttsProvider !== 'pranjeet') {
+      // Preload common TTS responses
+      await this.textToSpeech.preloadCommonResponses();
+    }
 
     log.info(`Voice interactions enabled for guild ${guildId}`);
   }
@@ -459,7 +461,8 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         log.warn(`Invalid command: ${validation.reason}`);
         await this.sendVoiceResponse(
           session.guildId,
-          "I'm sorry, I didn't understand that. Try saying 'help' for available commands."
+          "I'm sorry, I didn't understand that. Try saying 'help' for available commands.",
+          session.userId
         );
         return;
       }
@@ -473,7 +476,8 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       if (session.consecutiveFailures >= 3) {
         await this.sendVoiceResponse(
           session.guildId,
-          "I'm having trouble understanding you. Voice commands are temporarily disabled."
+          "I'm having trouble understanding you. Voice commands are temporarily disabled.",
+          session.userId
         );
         await this.stopListening(session.userId, session.guildId);
       }
@@ -653,7 +657,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       log.info(`\u2705 Command ${success ? 'succeeded' : 'failed'} in ${latency}ms`);
 
       // Send voice response
-      await this.sendVoiceResponse(session.guildId, responseText);
+      await this.sendVoiceResponse(session.guildId, responseText, session.userId);
 
       return {
         success,
@@ -669,9 +673,39 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   /**
    * Send a voice response using TTS
    */
-  private async sendVoiceResponse(guildId: string, text: string): Promise<void> {
+  private async sendVoiceResponse(
+    guildId: string,
+    text: string,
+    userId?: string
+  ): Promise<void> {
     try {
       log.info(`🔊 Preparing TTS response: "${text}"`);
+
+      if (this.config.ttsProvider === 'pranjeet') {
+        try {
+          const multiBot = require('../../lib/multiBotService') as {
+            getMultiBotService: () => {
+              speakTTS: (
+                guildId: string,
+                text: string,
+                userId: string
+              ) => Promise<{ success: boolean; message?: string }>;
+            };
+          };
+          if (!userId) {
+            log.warn('No userId available for Pranjeet TTS routing');
+            return;
+          }
+          const result = await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+          if (!result.success) {
+            log.warn(`Pranjeet TTS failed: ${result.message || 'unknown error'}`);
+          }
+          return;
+        } catch (error) {
+          log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
+          return;
+        }
+      }
 
       // Generate TTS audio file
       log.debug(`🎙️ Synthesizing speech...`);
