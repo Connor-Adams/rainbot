@@ -98,6 +98,10 @@ interface RequestWithGuildMember extends Request {
   guildMember?: GuildMember;
 }
 
+function getParamValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function getPlaybackService(): ReturnType<typeof getMultiBotService> | null {
   if (MultiBotService.isInitialized()) {
     return getMultiBotService();
@@ -109,7 +113,7 @@ function getPlaybackService(): ReturnType<typeof getMultiBotService> | null {
  * Middleware to verify user is a member of the requested guild
  */
 async function requireGuildMember(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const guildId = req.body?.guildId || req.params?.['guildId'];
+  const guildId = getParamValue(req.body?.guildId) || getParamValue(req.params?.['guildId']);
   if (!guildId) {
     next();
     return;
@@ -206,7 +210,11 @@ router.get('/recordings', async (req, res: Response) => {
 // GET /api/sounds/:name/download - Download a sound file
 router.get('/sounds/:name/download', async (req, res: Response) => {
   try {
-    const filename = req.params.name;
+    const filename = getParamValue(req.params.name);
+    if (!filename) {
+      res.status(400).json({ error: 'Sound name is required' });
+      return;
+    }
     const stream = await storage.getSoundStream(filename);
 
     // Set headers for download
@@ -223,11 +231,15 @@ router.get('/sounds/:name/download', async (req, res: Response) => {
 // GET /api/sounds/:name/preview - Stream a sound file for preview
 router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
   try {
-    const filename = req.params['name'];
-    const stream = await storage.getSoundStream(filename!);
+    const filename = getParamValue(req.params['name']);
+    if (!filename) {
+      res.status(400).json({ error: 'Sound name is required' });
+      return;
+    }
+    const stream = await storage.getSoundStream(filename);
 
     // Get the appropriate audio content type based on file extension
-    const ext = filename!.split('.').pop()?.toLowerCase();
+    const ext = filename.split('.').pop()?.toLowerCase();
     const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
 
     // Set headers for inline playback
@@ -296,7 +308,12 @@ router.post(
 // DELETE /api/sounds/:name - Delete a sound
 router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    await voiceManager.deleteSound(req.params['name']!);
+    const filename = getParamValue(req.params['name']);
+    if (!filename) {
+      res.status(400).json({ error: 'Sound name is required' });
+      return;
+    }
+    await voiceManager.deleteSound(filename);
     res.json({ message: 'Sound deleted successfully' });
   } catch (error) {
     const err = error as Error;
@@ -923,7 +940,12 @@ router.get('/guilds/:id/channels', (req, res: Response): void => {
     return;
   }
 
-  const guild = client.guilds.cache.get(req.params['id']!);
+  const guildId = getParamValue(req.params['id']);
+  if (!guildId) {
+    res.status(400).json({ error: 'Guild id is required' });
+    return;
+  }
+  const guild = client.guilds.cache.get(guildId);
   if (!guild) {
     res.status(404).json({ error: 'Guild not found' });
     return;
@@ -945,7 +967,11 @@ router.get(
   requireAuth,
   requireGuildMember,
   async (req: Request, res: Response): Promise<void> => {
-    const guildId = req.params['guildId']!;
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
 
     try {
       const multiBot = getPlaybackService();
@@ -964,7 +990,11 @@ router.post(
   requireAuth,
   requireGuildMember,
   async (req: Request, res: Response): Promise<void> => {
-    const guildId = req.params['guildId']!;
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
 
     try {
       const { id: userId, username, discriminator } = getAuthUser(req);
@@ -1010,8 +1040,12 @@ router.delete(
   requireAuth,
   requireGuildMember,
   async (req: Request, res: Response): Promise<void> => {
-    const guildId = req.params['guildId']!;
-    const index = req.params['index']!;
+    const guildId = getParamValue(req.params['guildId']);
+    const index = getParamValue(req.params['index']);
+    if (!guildId || !index) {
+      res.status(400).json({ error: 'guildId and index are required' });
+      return;
+    }
     const trackIndex = parseInt(index);
 
     if (isNaN(trackIndex) || trackIndex < 0) {
