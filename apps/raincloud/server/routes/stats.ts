@@ -17,6 +17,10 @@ const statsRateLimiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
+function getParamValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 /**
  * Parse and validate a date string
  * @param dateStr - Date string to parse
@@ -1319,7 +1323,7 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const userId = req.params['userId'];
+      const userId = getParamValue(req.params['userId']);
       const guildId = req.query['guildId'] as string | undefined;
 
       if (!userId) {
