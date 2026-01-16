@@ -1,4 +1,41 @@
 name-template: 'v$NEXT_PATCH_VERSION'
 tag-template: 'v$NEXT_PATCH_VERSION'
-change-template: '- $TITLE (#$NUMBER)'
-no-changes-template: '- No changes'
+change-template: '    $TITLE @$AUTHOR (#$NUMBER)'
+no-changes-template: '    No changes'
+categories:
+  - title: '🧰 Maintenance'
+    labels:
+      - 'chore'
+      - 'deps'
+      - 'dependencies'
+      - 'maintenance'
+  - title: '🚀 What''s Changed'
+    labels:
+      - '*'
+template: |
+  🚀 What's Changed
+
+  $CHANGES
+
+  🐳 Docker Images
+
+  Pull the images from GitHub Container Registry:
+
+  # Raincloud Orchestrator
+  docker pull ghcr.io/Connor-Adams/rainbot-raincloud:$TAG_NAME
+
+  # Worker Bots
+  docker pull ghcr.io/Connor-Adams/rainbot-rainbot:$TAG_NAME
+  docker pull ghcr.io/Connor-Adams/rainbot-pranjeet:$TAG_NAME
+  docker pull ghcr.io/Connor-Adams/rainbot-hungerbot:$TAG_NAME
+
+  📦 Railway Deployment
+
+  Update your Railway services to use these image tags:
+
+      ghcr.io/Connor-Adams/rainbot-raincloud:$TAG_NAME
+      ghcr.io/Connor-Adams/rainbot-rainbot:$TAG_NAME
+      ghcr.io/Connor-Adams/rainbot-pranjeet:$TAG_NAME
+      ghcr.io/Connor-Adams/rainbot-hungerbot:$TAG_NAME
+
+  Full Changelog: https://github.com/Connor-Adams/rainbot/compare/$PREVIOUS_TAG...$TAG_NAME
