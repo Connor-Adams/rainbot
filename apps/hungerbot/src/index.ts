@@ -149,7 +149,7 @@ if (S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY && S3_ENDPOINT) {
 
 interface GuildState {
   connection: VoiceConnection | null;
-  userPlayers: Map<string, AudioPlayer>; // Per-user audio players
+  player: AudioPlayer;
   volume: number;
 }
 
@@ -219,34 +219,18 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
 
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
+    const player = createAudioPlayer();
+    player.on('error', (error) => {
+      console.error(`[HUNGERBOT] Player error in guild ${guildId}:`, error);
+    });
+
     guildStates.set(guildId, {
       connection: null,
-      userPlayers: new Map(),
+      player,
       volume: 0.7,
     });
   }
   return guildStates.get(guildId)!;
-}
-
-function getOrCreateUserPlayer(guildId: string, userId: string): AudioPlayer {
-  const state = getOrCreateGuildState(guildId);
-
-  if (!state.userPlayers.has(userId)) {
-    const player = createAudioPlayer();
-
-    player.on('error', (error) => {
-      console.error(`[HUNGERBOT] Player error for user ${userId} in guild ${guildId}:`, error);
-    });
-
-    state.userPlayers.set(userId, player);
-
-    // Subscribe player to connection
-    if (state.connection) {
-      state.connection.subscribe(player);
-    }
-  }
-
-  return state.userPlayers.get(userId)!;
 }
 
 // Express server for worker protocol
@@ -310,11 +294,7 @@ app.post('/join', async (req: Request, res: Response) => {
     });
 
     state.connection = connection;
-
-    // Subscribe all existing user players
-    state.userPlayers.forEach((player) => {
-      connection.subscribe(player);
-    });
+    connection.subscribe(state.player);
 
     // Auto-rejoin on disconnect
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -367,7 +347,7 @@ app.post('/leave', async (req: Request, res: Response) => {
 
   state.connection.destroy();
   state.connection = null;
-  state.userPlayers.clear();
+  state.player.stop();
 
   const response = { status: 'left' };
   requestCache.set(requestId, response);
@@ -423,18 +403,11 @@ app.get('/status', (req: Request, res: Response) => {
     });
   }
 
-  let anyPlaying = false;
-  state.userPlayers.forEach((player) => {
-    if (player.state.status === AudioPlayerStatus.Playing) {
-      anyPlaying = true;
-    }
-  });
-
   res.json({
     connected: state.connection !== null,
     channelId: state.connection?.joinConfig.channelId,
-    playing: anyPlaying,
-    activePlayers: state.userPlayers.size,
+    playing: state.player.state.status === AudioPlayerStatus.Playing,
+    activePlayers: state.player.state.status === AudioPlayerStatus.Playing ? 1 : 0,
     volume: state.volume,
   });
 });
@@ -465,8 +438,7 @@ app.post('/play-sound', async (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    // Get or create player for this user
-    const player = getOrCreateUserPlayer(guildId, userId);
+    state.connection.subscribe(state.player);
 
     // Load sound from S3 or local storage
     const soundStream = await getSoundStream(sfxId);
@@ -482,8 +454,13 @@ app.post('/play-sound', async (req: Request, res: Response) => {
       resource.volume.setVolume(effectiveVolume);
     }
 
-    // Play sound (replaces user's previous sound if still playing)
-    player.play(resource);
+    console.log(
+      `[HUNGERBOT] Soundboard volume=${effectiveVolume} connected=${state.connection.state.status}`
+    );
+
+    // Play sound immediately (interrupts any current sound)
+    state.player.stop(true);
+    state.player.play(resource);
 
     console.log(`[HUNGERBOT] Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
 
@@ -511,11 +488,7 @@ app.post('/cleanup-user', async (req: Request, res: Response) => {
 
   const state = guildStates.get(guildId);
   if (state) {
-    const player = state.userPlayers.get(userId);
-    if (player) {
-      player.stop();
-      state.userPlayers.delete(userId);
-    }
+    state.player.stop(true);
   }
 
   res.json({ status: 'success' });

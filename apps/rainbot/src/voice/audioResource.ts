@@ -152,16 +152,32 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
   }
 
   if (!track.url) {
+    console.warn(
+      `[RAINBOT] stream skipped (missing url) title="${track.title}" sourceType=${track.sourceType || 'n/a'}`
+    );
     throw new Error('Track URL is required');
   }
 
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  console.log(
+    `[RAINBOT] stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+  );
   if (ytMatch) {
-    const asyncResource = await createTrackResourceAsync(track);
-    if (asyncResource) return asyncResource;
+    try {
+      const asyncResource = await createTrackResourceAsync(track);
+      if (asyncResource) return asyncResource;
+    } catch (error) {
+      const err = error as Error;
+      console.warn(`[RAINBOT] stream async failed: ${err.message}`);
+    }
 
-    const fallback = createTrackResource(track);
-    if (fallback) return fallback;
+    try {
+      const fallback = createTrackResource(track);
+      if (fallback) return fallback;
+    } catch (error) {
+      const err = error as Error;
+      console.warn(`[RAINBOT] stream yt-dlp pipe failed: ${err.message}`);
+    }
 
     console.log(`[RAINBOT] stream play-dl fallback title="${track.title}" url="${track.url}"`);
     const streamInfo = await play.stream(track.url, { quality: 2 });
@@ -169,6 +185,9 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
   }
 
   const urlType = await play.validate(track.url);
+  console.log(
+    `[RAINBOT] stream validate urlType=${urlType || 'unknown'} title="${track.title}" url="${track.url}"`
+  );
   if (urlType) {
     console.log(
       `[RAINBOT] stream play-dl non-youtube type=${urlType} title="${track.title}" url="${track.url}"`
