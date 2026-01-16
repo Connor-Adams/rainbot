@@ -36,7 +36,9 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const result = multiBot ? await multiBot.togglePause(guildId) : voiceManager.togglePause(guildId);
+    const result = multiBot
+      ? await multiBot.togglePause(guildId)
+      : voiceManager.togglePause(guildId);
     const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
     const { nowPlaying, queue, currentTrack } = queueInfo;
 
@@ -99,7 +101,9 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
 
     const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
     const { nowPlaying, queue, currentTrack } = queueInfo;
-    const skipStatus = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+    const skipStatus = multiBot
+      ? await multiBot.getStatus(guildId)
+      : voiceManager.getStatus(guildId);
     const isPaused = skipStatus ? !skipStatus.isPlaying : false;
 
     await interaction.update(

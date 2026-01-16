@@ -158,7 +158,7 @@ export function createControlButtons(
   hasQueue: boolean = false,
   guildId?: string
 ): ActionRowBuilder<ButtonBuilder> {
-  const metadata = guildId ? { guildId } : undefined;
+  const metadata = guildId ? { action: 'player', guildId } : undefined;
   const pauseId = metadata ? createButtonId('player_pause', metadata) : 'player_pause';
   const skipId = metadata ? createButtonId('player_skip', metadata) : 'player_skip';
   const stopId = metadata ? createButtonId('player_stop', metadata) : 'player_stop';
