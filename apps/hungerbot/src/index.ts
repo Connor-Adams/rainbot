@@ -203,11 +203,23 @@ interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
+  soundQueue: SoundRequest[];
+  isProcessingQueue: boolean;
 }
 
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
 let serverStarted = false;
+const SOUND_QUEUE_LIMIT = 10;
+
+interface SoundRequest {
+  requestId: string;
+  guildId: string;
+  userId: string;
+  sfxId: string;
+  volume?: number;
+  inputType: StreamType;
+}
 
 function startServer(): void {
   if (serverStarted) return;
@@ -231,28 +243,46 @@ function ensureClientReady(res: Response): boolean {
 async function getSoundStream(sfxId: string): Promise<Readable> {
   // Normalize filename (add extension if not present)
   const filename = sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
+  const oggFilename = getOggVariant(filename);
   log.debug(`Soundboard fetch start name=${filename}`);
 
   // Try S3 first if configured
   if (s3Client && S3_BUCKET) {
     try {
-      log.debug(`Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${filename}`);
-      const command = new GetObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: `sounds/${filename}`,
-      });
-
-      const response = await s3Client.send(command);
-
-      if (response.Body && typeof (response.Body as any).transformToWebStream === 'function') {
-        // Node.js SDK v3 returns a web stream, convert to Node stream
-        const webStream = (response.Body as any).transformToWebStream();
-        return Readable.fromWeb(webStream as any);
+      if (oggFilename !== filename) {
+        try {
+          log.debug(`Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${oggFilename}`);
+          const oggResponse = await s3Client.send(
+            new GetObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: `sounds/${oggFilename}`,
+            })
+          );
+          const oggStream = responseBodyToStream(oggResponse.Body);
+          if (oggStream) {
+            log.debug(`Soundboard fetch S3 stream ready name=${oggFilename}`);
+            return oggStream;
+          }
+        } catch (error) {
+          const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+          if (err.name !== 'NoSuchKey' && err.$metadata?.httpStatusCode !== 404) {
+            logErrorWithStack(`S3 fetch failed for ${oggFilename}`, error);
+          }
+        }
       }
 
-      if (response.Body instanceof Readable) {
+      log.debug(`Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${filename}`);
+      const response = await s3Client.send(
+        new GetObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: `sounds/${filename}`,
+        })
+      );
+
+      const stream = responseBodyToStream(response.Body);
+      if (stream) {
         log.debug(`Soundboard fetch S3 stream ready name=${filename}`);
-        return response.Body;
+        return stream;
       }
 
       throw new Error('Invalid response body from S3');
@@ -263,6 +293,12 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
   }
 
   // Try local filesystem
+  const localOggPath = path.join(SOUNDS_DIR, oggFilename);
+  if (oggFilename !== filename && fs.existsSync(localOggPath)) {
+    log.debug(`Loading sound from local: ${localOggPath}`);
+    return fs.createReadStream(localOggPath);
+  }
+
   const localPath = path.join(SOUNDS_DIR, filename);
   if (fs.existsSync(localPath)) {
     log.debug(`Loading sound from local: ${localPath}`);
@@ -272,20 +308,122 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
   throw new Error(`Sound file not found: ${filename}`);
 }
 
+function responseBodyToStream(body: unknown): Readable | null {
+  if (body && typeof (body as any).transformToWebStream === 'function') {
+    const webStream = (body as any).transformToWebStream();
+    return Readable.fromWeb(webStream as any);
+  }
+  if (body instanceof Readable) {
+    return body;
+  }
+  return null;
+}
+
+function getOggVariant(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.ogg' || ext === '.opus' || ext === '.oga' || ext === '.webm') {
+    return filename;
+  }
+  if (!ext) return `${filename}.ogg`;
+  return filename.slice(0, -ext.length) + '.ogg';
+}
+
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
     player.on('error', (error) => {
       logErrorWithStack(`Player error in guild ${guildId}`, error);
     });
+    player.on(AudioPlayerStatus.Idle, () => {
+      void playNextQueuedSound(guildId);
+    });
 
     guildStates.set(guildId, {
       connection: null,
       player,
       volume: 0.7,
+      soundQueue: [],
+      isProcessingQueue: false,
     });
   }
   return guildStates.get(guildId)!;
+}
+
+async function playNextQueuedSound(guildId: string): Promise<void> {
+  const state = guildStates.get(guildId);
+  if (!state || state.isProcessingQueue) return;
+  if (state.soundQueue.length === 0) return;
+
+  state.isProcessingQueue = true;
+  const next = state.soundQueue.shift();
+  if (!next) {
+    state.isProcessingQueue = false;
+    return;
+  }
+
+  try {
+    await playSoundNow(state, next);
+  } catch (error) {
+    logErrorWithStack('Failed to play queued sound', error);
+  } finally {
+    state.isProcessingQueue = false;
+    if (state.soundQueue.length > 0 && state.player.state.status === AudioPlayerStatus.Idle) {
+      void playNextQueuedSound(guildId);
+    }
+  }
+}
+
+async function playSoundNow(state: GuildState, request: SoundRequest): Promise<void> {
+  if (!state.connection) {
+    throw new Error('Not connected to voice channel');
+  }
+
+  const soundStream = await getSoundStream(request.sfxId);
+  const resource = createAudioResource(soundStream, {
+    inputType: request.inputType,
+    inlineVolume: true,
+  });
+
+  const effectiveVolume = request.volume !== undefined ? request.volume : state.volume;
+  if (resource.volume) {
+    resource.volume.setVolume(effectiveVolume);
+  }
+
+  log.info(
+    `Soundboard volume=${effectiveVolume} inputType=${request.inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+  );
+
+  state.connection.subscribe(state.player);
+  state.player.play(resource);
+  log.info(`Soundboard play issued status=${state.player.state.status}`);
+  log.info(
+    `Playing sound ${request.sfxId} for user ${request.userId} in guild ${request.guildId}`
+  );
+
+  void reportSoundStat({
+    soundName: request.sfxId,
+    userId: request.userId,
+    guildId: request.guildId,
+    sourceType: 'local',
+    isSoundboard: true,
+    duration: null,
+    source: 'discord',
+  });
+}
+
+function normalizeSoundName(sfxId: string): string {
+  return sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
+}
+
+function getSoundInputType(sfxId: string): StreamType {
+  const ext = path.extname(normalizeSoundName(sfxId)).toLowerCase();
+  if (ext === '.ogg' || ext === '.opus' || ext === '.oga') {
+    return StreamType.OggOpus;
+  }
+  if (ext === '.webm') {
+    return StreamType.WebmOpus;
+  }
+  return StreamType.Arbitrary;
 }
 
 // Express server for worker protocol
@@ -494,43 +632,28 @@ app.post('/play-sound', async (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    state.connection.subscribe(state.player);
-
-    // Load sound from S3 or local storage
-    const soundStream = await getSoundStream(sfxId);
-
-    // Create audio resource from stream
-    const resource = createAudioResource(soundStream, {
-      inputType: StreamType.Arbitrary,
-      inlineVolume: true,
-    });
-
-    const effectiveVolume = volume !== undefined ? volume : state.volume;
-    if (resource.volume) {
-      resource.volume.setVolume(effectiveVolume);
+    const inputType = getSoundInputType(sfxId);
+    if (inputType === StreamType.OggOpus || inputType === StreamType.WebmOpus) {
+      await playSoundNow(state, { requestId, guildId, userId, sfxId, volume, inputType });
+      const response = { status: 'success', message: 'Sound playing' };
+      requestCache.set(requestId, response);
+      setTimeout(() => requestCache.delete(requestId), 60000);
+      return res.json(response);
     }
 
-    log.debug(
-      `Soundboard volume=${effectiveVolume} connected=${state.connection.state.status} player=${state.player.state.status}`
-    );
+    if (state.soundQueue.length >= SOUND_QUEUE_LIMIT) {
+      const response = { status: 'error', message: 'Soundboard queue is full' };
+      requestCache.set(requestId, response);
+      setTimeout(() => requestCache.delete(requestId), 60000);
+      return res.status(429).json(response);
+    }
 
-    // Play sound immediately (interrupts any current sound)
-    state.player.stop(true);
-    state.player.play(resource);
-    log.debug(`Soundboard play issued status=${state.player.state.status}`);
+    state.soundQueue.push({ requestId, guildId, userId, sfxId, volume, inputType });
+    if (state.player.state.status === AudioPlayerStatus.Idle) {
+      void playNextQueuedSound(guildId);
+    }
 
-    log.info(`Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
-    void reportSoundStat({
-      soundName: sfxId,
-      userId,
-      guildId,
-      sourceType: 'local',
-      isSoundboard: true,
-      duration: null,
-      source: 'discord',
-    });
-
-    const response = { status: 'success', message: 'Sound playing' };
+    const response = { status: 'success', message: 'Sound queued' };
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);

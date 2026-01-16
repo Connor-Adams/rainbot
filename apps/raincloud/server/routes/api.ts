@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { Readable } from 'stream';
+import { spawn } from 'child_process';
 import * as voiceManager from '../../utils/voiceManager';
 import * as storage from '../../utils/storage';
 import { getClient } from '../client';
@@ -21,6 +22,70 @@ const AUDIO_CONTENT_TYPES: Record<string, string> = {
   webm: 'audio/webm',
   flac: 'audio/flac',
 };
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function toOggName(filename: string): string {
+  if (filename.toLowerCase().endsWith('.ogg')) return filename;
+  const lastDot = filename.lastIndexOf('.');
+  if (lastDot === -1) return `${filename}.ogg`;
+  return `${filename.slice(0, lastDot)}.ogg`;
+}
+
+async function trimToOggOpus(
+  input: Buffer,
+  startMs: number,
+  endMs: number
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const startSec = (startMs / 1000).toFixed(3);
+    const endSec = (endMs / 1000).toFixed(3);
+    const ffmpeg = spawn('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-ss',
+      startSec,
+      '-to',
+      endSec,
+      '-i',
+      'pipe:0',
+      '-c:a',
+      'libopus',
+      '-b:a',
+      '96k',
+      '-vbr',
+      'on',
+      '-f',
+      'ogg',
+      'pipe:1',
+    ]);
+
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+
+    ffmpeg.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+    ffmpeg.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+    ffmpeg.on('error', (error) => reject(error));
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(Buffer.concat(stdoutChunks));
+      } else {
+        const stderr = Buffer.concat(stderrChunks).toString('utf8');
+        reject(new Error(stderr || `ffmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.stdin.write(input);
+    ffmpeg.stdin.end();
+  });
+}
 
 const uploadRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -242,6 +307,75 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
     res.status(404).json({ error: err.message });
   }
 });
+
+// POST /api/sounds/transcode-sweep - Convert all sounds to Ogg Opus
+router.post(
+  '/sounds/transcode-sweep',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const deleteOriginal = req.body?.deleteOriginal === true;
+      const limit = Number(req.body?.limit || 0);
+      const result = await storage.sweepTranscodeSounds({
+        deleteOriginal,
+        limit: Number.isFinite(limit) ? limit : 0,
+      });
+      res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/sounds/:name/trim - Trim a sound (start/end in ms)
+router.post(
+  '/sounds/:name/trim',
+  requireAuth,
+  uploadRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const name = decodeURIComponent(req.params['name'] || '');
+    const startMs = Number(req.body?.startMs);
+    const endMs = Number(req.body?.endMs);
+
+    if (!name) {
+      res.status(400).json({ error: 'sound name is required' });
+      return;
+    }
+
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs) {
+      res.status(400).json({ error: 'startMs/endMs must be valid and endMs > startMs' });
+      return;
+    }
+
+    try {
+      const stream = await storage.getSoundStream(name);
+      const buffer = await streamToBuffer(stream);
+      const trimmed = await trimToOggOpus(buffer, startMs, endMs);
+      const targetName = toOggName(name);
+
+      const trimmedStream = (async function* () {
+        yield trimmed;
+      })();
+
+      const uploadedName = await storage.uploadSound(trimmedStream, targetName);
+
+      if (uploadedName !== name) {
+        try {
+          await storage.deleteSound(name);
+        } catch (error) {
+          const err = error as Error;
+          console.warn(`Failed to delete original sound ${name}: ${err.message}`);
+        }
+      }
+
+      res.json({ name: uploadedName });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // POST /api/play - Play a sound
 router.post(
@@ -668,9 +802,18 @@ router.post(
       const multiBot = getPlaybackService();
       let volume = level;
       if (multiBot) {
-        const result = await multiBot.setVolume(guildId, level, botType);
-        if (!result.success) {
-          throw new Error(result.message || 'Failed to set volume');
+        if (botType) {
+          const result = await multiBot.setVolume(guildId, level, botType);
+          if (!result.success) {
+            throw new Error(result.message || 'Failed to set volume');
+          }
+        } else {
+          const rainbotResult = await multiBot.setVolume(guildId, level, 'rainbot');
+          if (!rainbotResult.success) {
+            throw new Error(rainbotResult.message || 'Failed to set volume');
+          }
+          // Best-effort: keep soundboard volume in sync with music volume.
+          await multiBot.setVolume(guildId, level, 'hungerbot');
         }
         volume = level;
       } else {

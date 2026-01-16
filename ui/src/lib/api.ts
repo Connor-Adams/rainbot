@@ -115,6 +115,10 @@ export const soundsApi = {
     });
   },
   delete: (name: string) => api.delete(`/sounds/${encodeURIComponent(name)}`),
+  sweepTranscode: (options?: { deleteOriginal?: boolean; limit?: number }) =>
+    api.post('/sounds/transcode-sweep', options || {}),
+  trim: (name: string, startMs: number, endMs: number) =>
+    api.post(`/sounds/${encodeURIComponent(name)}/trim`, { startMs, endMs }),
   downloadUrl: (name: string) => `/api/sounds/${encodeURIComponent(name)}/download`,
   previewUrl: (name: string) => `/api/sounds/${encodeURIComponent(name)}/preview`,
 };
