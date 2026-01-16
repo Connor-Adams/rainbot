@@ -1,6 +1,7 @@
 import { query } from './database';
 import { createLogger } from './logger';
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import type { SourceType } from './sourceType';
 
 const log = createLogger('STATS');
@@ -1054,7 +1055,7 @@ export function startVoiceSession(
   channelName: string | null = null,
   source: string = 'discord'
 ): string {
-  const sessionId = `${guildId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = randomUUID();
 
   const session: VoiceSessionEvent = {
     session_id: sessionId,

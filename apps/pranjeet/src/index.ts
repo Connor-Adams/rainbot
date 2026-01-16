@@ -352,6 +352,7 @@ app.post('/join', async (req: Request, res: Response) => {
       channelId: channel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator as any,
+      selfDeaf: false,
     });
 
     connection.subscribe(state.player);
@@ -577,6 +578,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       channelId: channel.id,
       guildId: guild!.id,
       adapterCreator: guild!.voiceAdapterCreator as any,
+      selfDeaf: false,
     });
 
     connection.subscribe(state.player);

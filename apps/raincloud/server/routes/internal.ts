@@ -77,9 +77,12 @@ router.post('/stats/sound', (req: Request, res: Response) => {
   };
 
   if (!soundName || !userId || !guildId) {
+    log.warn('Stats sound missing required fields');
     res.status(400).json({ error: 'Missing required fields' });
     return;
   }
+
+  log.info(`Stats sound received guild=${guildId} sound=${soundName}`);
 
   stats.trackSound(
     soundName,

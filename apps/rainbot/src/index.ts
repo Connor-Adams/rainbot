@@ -108,7 +108,7 @@ async function reportSoundStat(payload: {
   if (!baseUrl) return;
 
   try {
-    await fetch(`${baseUrl}/internal/stats/sound`, {
+    const response = await fetch(`${baseUrl}/internal/stats/sound`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,6 +116,10 @@ async function reportSoundStat(payload: {
       },
       body: JSON.stringify(payload),
     });
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[RAINBOT] Stats report failed: ${response.status} ${text}`);
+    }
   } catch (error) {
     const info = formatError(error);
     console.warn(`[RAINBOT] Stats report failed: ${info.message}`);
@@ -141,6 +145,9 @@ console.log(
 );
 console.log(
   `[RAINBOT] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+);
+console.log(
+  `[RAINBOT] Stats reporting config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
 
 if (!hasToken) {
@@ -378,6 +385,7 @@ app.post('/join', async (req: Request, res: Response) => {
       channelId: channel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator as any,
+      selfDeaf: false,
     });
 
     connection.subscribe(state.player);
@@ -893,6 +901,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       channelId: channel.id,
       guildId: guild!.id,
       adapterCreator: guild!.voiceAdapterCreator as any,
+      selfDeaf: false,
     });
 
     connection.subscribe(state.player);
