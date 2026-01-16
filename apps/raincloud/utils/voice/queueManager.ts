@@ -39,6 +39,7 @@ function scheduleSave(guildId: string): void {
       log.debug(`Debounced save failed for ${guildId}: ${(error as Error).message}`);
     }
   }, SAVE_DEBOUNCE_MS);
+  timer.unref?.();
 
   saveDebounceTimers.set(guildId, timer);
 }

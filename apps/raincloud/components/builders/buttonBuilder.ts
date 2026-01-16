@@ -25,24 +25,16 @@ export function createButtonId(prefix: string, metadata: ButtonMetadata): string
  * Parse custom ID to extract metadata
  */
 export function parseButtonId(customId: string): { prefix: string; metadata: ButtonMetadata } {
-  const parts = customId.split('_');
-  const prefixParts: string[] = [];
-  const metadata: ButtonMetadata = { action: '' };
+  const [prefix = '', ...parts] = customId.split('_');
+  const metadata: ButtonMetadata = { action: prefix };
 
   for (const part of parts) {
-    if (!part) continue;
-    if (part.includes(':')) {
-      const [key, value] = part.split(':');
-      if (key && value) {
-        metadata[key] = isNaN(Number(value)) ? value : Number(value);
-      }
-      continue;
+    if (!part || !part.includes(':')) continue;
+    const [key, value] = part.split(':');
+    if (key && value) {
+      metadata[key] = isNaN(Number(value)) ? value : Number(value);
     }
-    prefixParts.push(part);
   }
-
-  const prefix = prefixParts.join('_');
-  metadata.action = prefix;
 
   return { prefix, metadata };
 }

@@ -229,9 +229,10 @@ async function speakInGuild(
   }
 
   const audioBuffer = await generateTTS(text, voice);
-  const stream = Readable.from(audioBuffer);
+  const stereoBuffer = monoToStereoPcm(audioBuffer);
+  const stream = Readable.from(stereoBuffer);
   const resource = createAudioResource(stream, {
-    inputType: StreamType.Arbitrary,
+    inputType: StreamType.Raw,
     inlineVolume: true,
   });
 
@@ -304,6 +305,25 @@ function resample24to48(pcm24k: Buffer): Buffer {
   }
 
   return pcm48k;
+}
+
+/**
+ * Convert 48kHz mono PCM to 48kHz stereo PCM by duplicating channels.
+ */
+function monoToStereoPcm(pcmMono: Buffer): Buffer {
+  const validLength = Math.floor(pcmMono.length / 2) * 2;
+  const trimmed = validLength < pcmMono.length ? pcmMono.subarray(0, validLength) : pcmMono;
+  const samples = trimmed.length / 2;
+  const stereo = Buffer.alloc(samples * 4);
+
+  for (let i = 0; i < samples; i++) {
+    const sample = trimmed.readInt16LE(i * 2);
+    const offset = i * 4;
+    stereo.writeInt16LE(sample, offset);
+    stereo.writeInt16LE(sample, offset + 2);
+  }
+
+  return stereo;
 }
 
 // Express server for worker protocol
