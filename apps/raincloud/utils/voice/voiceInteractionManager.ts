@@ -82,8 +82,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private textToSpeech: TextToSpeechManager;
   private voiceManager: VoiceManagerApi | null; // Lazy loaded to avoid circular dependency
   private commandMutex: Mutex;
+  private client: Client;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
+    this.client = _client;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
     this.commandMutex = new Mutex();
@@ -144,6 +146,17 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       await this.textToSpeech.preloadCommonResponses();
     }
 
+    // Start listening for current channel members if already connected
+    try {
+      const { getVoiceConnection } = require('@discordjs/voice');
+      const connection = getVoiceConnection(guildId);
+      if (connection) {
+        await this.startListeningForChannelMembers(guildId, connection);
+      }
+    } catch (error) {
+      log.warn(`Failed to start listening for existing members: ${(error as Error).message}`);
+    }
+
     log.info(`Voice interactions enabled for guild ${guildId}`);
   }
 
@@ -164,6 +177,30 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     }
 
     log.info(`Voice interactions disabled for guild ${guildId}`);
+  }
+
+  private async startListeningForChannelMembers(
+    guildId: string,
+    connection: VoiceConnection
+  ): Promise<void> {
+    const channelId = connection.joinConfig.channelId;
+    if (!channelId) return;
+
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel || !channel.isVoiceBased()) return;
+
+    for (const [, member] of channel.members) {
+      if (member.user.bot) continue;
+      try {
+        await this.startListening(member.user.id, guildId, connection);
+        log.info(`Started voice listening for existing member ${member.user.tag}`);
+      } catch (error) {
+        log.warn(`Failed to start listening for ${member.user.tag}: ${(error as Error).message}`);
+      }
+    }
   }
 
   /**
@@ -236,7 +273,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       if (!session.isListening) return;
 
       if (!firstChunkReceived) {
-        log.info(`🎙️ First audio chunk received from user ${userId} (${chunk.length} bytes)`);
+        log.info(`First audio chunk received from user ${userId} (${chunk.length} bytes)`);
         firstChunkReceived = true;
       }
 
@@ -673,11 +710,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   /**
    * Send a voice response using TTS
    */
-  private async sendVoiceResponse(
-    guildId: string,
-    text: string,
-    userId?: string
-  ): Promise<void> {
+  private async sendVoiceResponse(guildId: string, text: string, userId?: string): Promise<void> {
     try {
       log.info(`🔊 Preparing TTS response: "${text}"`);
 
