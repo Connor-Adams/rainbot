@@ -13,6 +13,7 @@ import { SearchBar } from '@/components/soundboard/SearchBar'
 import { EmptyState } from '@/components/soundboard/EmptyState'
 import { UploadButton } from '@/components/soundboard/UploadButton'
 import type { Sound } from '@/types'
+import { trackWebEvent } from '@/lib/webAnalytics'
 
 export default function SoundboardTab() {
   const { selectedGuildId } = useGuildStore()
@@ -85,6 +86,11 @@ export default function SoundboardTab() {
         alert('Please select a server first')
         return
       }
+      trackWebEvent({
+        eventType: 'sound_play',
+        eventTarget: sound.name,
+        guildId: selectedGuildId,
+      })
       playMutation.mutate(sound.name)
     },
     [selectedGuildId, playMutation]
@@ -94,16 +100,29 @@ export default function SoundboardTab() {
     (name: string) => {
       setOpenMenuId(null)
       if (window.confirm(`Delete "${name}"?`)) {
+        trackWebEvent({
+          eventType: 'sound_delete',
+          eventTarget: name,
+          guildId: selectedGuildId || undefined,
+        })
         deleteMutation.mutate(name)
       }
     },
-    [deleteMutation]
+    [deleteMutation, selectedGuildId]
   )
 
-  const handleEdit = useCallback((soundName: string) => {
-    setEditingSound(soundName)
-    setOpenMenuId(null)
-  }, [])
+  const handleEdit = useCallback(
+    (soundName: string) => {
+      trackWebEvent({
+        eventType: 'sound_edit',
+        eventTarget: soundName,
+        guildId: selectedGuildId || undefined,
+      })
+      setEditingSound(soundName)
+      setOpenMenuId(null)
+    },
+    [selectedGuildId]
+  )
 
   const handleSaveEdit = useCallback(
     (displayName: string, emoji: string) => {
@@ -119,9 +138,14 @@ export default function SoundboardTab() {
 
   const handlePreview = useCallback(
     (soundName: string) => {
+      trackWebEvent({
+        eventType: 'sound_preview',
+        eventTarget: soundName,
+        guildId: selectedGuildId || undefined,
+      })
       playPreview(soundName, soundsApi.previewUrl(soundName))
     },
-    [playPreview]
+    [playPreview, selectedGuildId]
   )
 
   // Keyboard shortcuts
@@ -162,7 +186,15 @@ export default function SoundboardTab() {
           )}
         </h2>
         <UploadButton
-          onUpload={(files) => uploadMutation.mutate(files)}
+          onUpload={(files) => {
+            trackWebEvent({
+              eventType: 'sound_upload',
+              eventTarget: 'soundboard',
+              eventValue: String(files.length),
+              guildId: selectedGuildId || undefined,
+            })
+            uploadMutation.mutate(files)
+          }}
           isUploading={uploadMutation.isPending}
         />
       </div>

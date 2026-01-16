@@ -4,11 +4,14 @@ import SoundboardTab from '../components/tabs/SoundboardTab'
 import RecordingsTab from '../components/tabs/RecordingsTab'
 import StatisticsTab from '../components/tabs/stats/StatisticsTab'
 import StatusTab from '../components/tabs/StatusTab'
+import { useGuildStore } from '../stores/guildStore'
+import { trackWebEvent } from '../lib/webAnalytics'
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<
     'player' | 'soundboard' | 'recordings' | 'stats' | 'status'
   >('player')
+  const { selectedGuildId } = useGuildStore()
 
   useEffect(() => {
     const handleTabChange = (
@@ -23,6 +26,14 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    trackWebEvent({
+      eventType: 'tab_view',
+      eventTarget: activeTab,
+      guildId: selectedGuildId || undefined,
+    })
+  }, [activeTab, selectedGuildId])
+
   return (
     <>
       {activeTab === 'player' && <PlayerTab />}
@@ -33,4 +44,3 @@ export default function DashboardPage() {
     </>
   )
 }
-

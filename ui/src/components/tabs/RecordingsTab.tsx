@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../hooks/useToast'
+import { trackWebEvent } from '../../lib/webAnalytics'
 
 interface Recording {
   name: string
@@ -16,6 +17,7 @@ export default function RecordingsTab() {
   const loadRecordings = useCallback(async () => {
     try {
       setLoading(true)
+      trackWebEvent({ eventType: 'recordings_refresh', eventTarget: 'recordings' })
       const response = await fetch('/api/recordings')
       if (!response.ok) throw new Error('Failed to load recordings')
       const data = await response.json()
@@ -34,6 +36,7 @@ export default function RecordingsTab() {
   const playRecording = async (name: string) => {
     try {
       setPlaying(name)
+      trackWebEvent({ eventType: 'recording_play', eventTarget: name })
       const response = await fetch('/api/play', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,6 +53,7 @@ export default function RecordingsTab() {
   }
 
   const downloadRecording = (name: string) => {
+    trackWebEvent({ eventType: 'recording_download', eventTarget: name })
     window.open(`/api/sounds/records%2F${encodeURIComponent(name)}/download`, '_blank')
   }
 
@@ -57,6 +61,7 @@ export default function RecordingsTab() {
     if (!confirm(`Delete recording "${name}"?`)) return
 
     try {
+      trackWebEvent({ eventType: 'recording_delete', eventTarget: name })
       const response = await fetch(`/api/sounds/records%2F${encodeURIComponent(name)}`, {
         method: 'DELETE',
       })

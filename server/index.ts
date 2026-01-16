@@ -7,6 +7,7 @@ import passport from 'passport';
 import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
 import requestLogger from './middleware/requestLogger';
+import apiLatencyTracker from './middleware/apiLatency';
 import { apiErrorHandler } from './middleware/errorHandler';
 import { setClient, getClient } from './client';
 import { getServerConfig, initServerConfig } from './config';
@@ -214,6 +215,7 @@ export async function createServer(): Promise<Application> {
   // Middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(apiLatencyTracker);
 
   // Auth routes (must be before protected routes)
   const authRoutes = require('./routes/auth').default;

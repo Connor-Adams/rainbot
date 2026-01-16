@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { Strategy as OAuth2Strategy } from 'passport-oauth2';
 import { createLogger } from '../../utils/logger';
+import * as stats from '../../utils/statistics';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
 import { getServerConfig } from '../config';
@@ -231,6 +232,8 @@ router.get(
             authenticated: req.isAuthenticated(),
           });
 
+          stats.trackWebEvent(user.id, 'auth_login', 'discord_oauth');
+
           const baseUrl = getBaseUrl(req);
           log.debug(`Redirecting to: ${baseUrl}/`);
           res.redirect(`${baseUrl}/`);
@@ -248,6 +251,9 @@ router.get(
 router.get('/logout', (req: AuthenticatedRequest, res: Response): void => {
   const user = req.user as DiscordUser | undefined;
   const username = user?.username || 'Unknown';
+  if (user?.id) {
+    stats.trackWebEvent(user.id, 'auth_logout', 'logout');
+  }
   req.logout((err) => {
     if (err) {
       log.error(`Error during logout: ${err.message}`);

@@ -7,6 +7,7 @@ import passport from 'passport';
 import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
 import requestLogger from './middleware/requestLogger';
+import apiLatencyTracker from './middleware/apiLatency';
 import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/protocol';
 
@@ -238,6 +239,7 @@ export async function createServer(): Promise<Application> {
   // Middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(apiLatencyTracker);
 
   // Health checks (no auth)
   app.get('/health/live', (_req: Request, res: Response) => {

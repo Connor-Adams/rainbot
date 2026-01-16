@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import StatsSummary from './components/StatsSummary'
 import CommandsStats from './components/CommandsStats'
 import SoundsStats from './components/SoundsStats'
@@ -22,6 +22,8 @@ import WebAnalyticsStats from './components/WebAnalyticsStats'
 import GuildEventsStats from './components/GuildEventsStats'
 import ApiLatencyStats from './components/ApiLatencyStats'
 import { StatsErrorBoundary } from '@/components/ErrorBoundary'
+import { trackWebEvent } from '@/lib/webAnalytics'
+import { useGuildStore } from '@/stores/guildStore'
 
 type StatsTab =
   | 'summary'
@@ -48,6 +50,15 @@ type StatsTab =
 
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
+  const { selectedGuildId } = useGuildStore()
+
+  useEffect(() => {
+    trackWebEvent({
+      eventType: 'stats_tab_view',
+      eventTarget: activeTab,
+      guildId: selectedGuildId || undefined,
+    })
+  }, [activeTab, selectedGuildId])
 
   return (
     <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">

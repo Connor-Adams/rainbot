@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { botApi } from '@/lib/api'
+import { trackWebEvent } from '@/lib/webAnalytics'
 
 type WorkerStatus = {
   connected?: boolean
@@ -52,7 +53,10 @@ export default function StatusTab() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => {
+            trackWebEvent({ eventType: 'status_refresh', eventTarget: 'status' })
+            refetch()
+          }}
           className="btn btn-secondary"
           disabled={isFetching}
         >
