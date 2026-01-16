@@ -7,8 +7,10 @@ import type {
   SpotifyTrack,
 } from 'play-dl';
 import type { Track } from '@rainbot/protocol';
+import { createLogger } from '@rainbot/shared';
 
 const MAX_PLAYLIST_TRACKS = 100;
+const log = createLogger('RAINBOT-TRACKS');
 
 function buildSpotifyTitle(name: string, artists?: { name: string }[]): string {
   const artistNames = artists
@@ -20,7 +22,7 @@ function buildSpotifyTitle(name: string, artists?: { name: string }[]): string {
 
 export async function fetchTracks(source: string, _guildId?: string): Promise<Track[]> {
   const tracks: Track[] = [];
-  console.log(`[RAINBOT] fetchTracks source="${source}"`);
+  log.debug(`fetchTracks source="${source}"`);
 
   if (source.startsWith('http://') || source.startsWith('https://')) {
     let url: URL;
@@ -48,7 +50,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
       urlType = await play.validate(source);
     }
 
-    console.log(`[RAINBOT] fetchTracks urlType=${urlType || 'unknown'}`);
+    log.debug(`fetchTracks urlType=${urlType || 'unknown'}`);
     if (!urlType) {
       throw new Error('Unsupported URL. Supported: YouTube, SoundCloud, Spotify');
     }
@@ -78,9 +80,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
         isLocal: false,
         sourceType: 'youtube',
       });
-      console.log(
-        `[RAINBOT] fetchTracks youtube video title="${title}" duration=${duration ?? 'n/a'}`
-      );
+      log.debug(`fetchTracks youtube video title="${title}" duration=${duration ?? 'n/a'}`);
     } else if (urlType === 'yt_playlist') {
       const playlist = await play.playlist_info(source);
       const videos = await playlist.next(MAX_PLAYLIST_TRACKS);
@@ -96,7 +96,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
           sourceType: 'youtube',
         });
       });
-      console.log(`[RAINBOT] fetchTracks youtube playlist count=${tracks.length}`);
+      log.debug(`fetchTracks youtube playlist count=${tracks.length}`);
     } else if (urlType === 'sp_track' || urlType === 'sp_playlist' || urlType === 'sp_album') {
       const spotifyInfo = await play.spotify(source);
       if (spotifyInfo.type === 'track') {
@@ -126,7 +126,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
           });
         });
       }
-      console.log(`[RAINBOT] fetchTracks spotify count=${tracks.length}`);
+      log.debug(`fetchTracks spotify count=${tracks.length}`);
     } else if (urlType === 'so_track' || urlType === 'so_playlist') {
       const soundcloudInfo = await play.soundcloud(source);
       if (soundcloudInfo.type === 'track') {
@@ -150,7 +150,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
           });
         });
       }
-      console.log(`[RAINBOT] fetchTracks soundcloud count=${tracks.length}`);
+      log.debug(`fetchTracks soundcloud count=${tracks.length}`);
     } else {
       tracks.push({
         title: 'Unknown Track',
@@ -158,14 +158,14 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
         isLocal: false,
         sourceType: 'other',
       });
-      console.log(`[RAINBOT] fetchTracks fallback urlType=${urlType}`);
+      log.debug(`fetchTracks fallback urlType=${urlType}`);
     }
 
     return tracks;
   }
 
   // Treat as search query
-  console.log(`[RAINBOT] Searching YouTube for: "${source}"`);
+  log.debug(`Searching YouTube for: "${source}"`);
   const ytResults = await play.search(source, { limit: 1 });
   const result = ytResults?.[0];
   if (!result) {
@@ -178,9 +178,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
     isLocal: false,
     sourceType: 'youtube',
   });
-  console.log(
-    `[RAINBOT] fetchTracks search result title="${tracks[0]?.title}" url="${tracks[0]?.url}"`
-  );
+  log.debug(`fetchTracks search result title="${tracks[0]?.title}" url="${tracks[0]?.url}"`);
 
   return tracks;
 }

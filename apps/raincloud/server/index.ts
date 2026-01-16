@@ -6,6 +6,7 @@ import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
 import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
+import * as storage from '../utils/storage';
 import requestLogger from './middleware/requestLogger';
 import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/protocol';
@@ -63,6 +64,22 @@ export async function createServer(): Promise<Application> {
 
       return next();
     });
+  }
+
+  if (process.env['SOUND_TRANSCODE_SWEEP'] === 'true') {
+    const deleteOriginal = process.env['SOUND_TRANSCODE_DELETE_ORIGINAL'] === 'true';
+    const limit = Number(process.env['SOUND_TRANSCODE_SWEEP_LIMIT'] || 0);
+    void storage
+      .sweepTranscodeSounds({ deleteOriginal, limit: Number.isFinite(limit) ? limit : 0 })
+      .then((result) => {
+        log.info(
+          `Sound transcode sweep complete: converted=${result.converted}, deleted=${result.deleted}, skipped=${result.skipped}`
+        );
+      })
+      .catch((error) => {
+        const err = error as Error;
+        log.warn(`Sound transcode sweep failed: ${err.message}`);
+      });
   }
 
   // Session configuration

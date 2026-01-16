@@ -18,6 +18,12 @@ export function buildAuthUrl(path: string): string {
   return `${base}${normalizedPath}`;
 }
 
+export function buildApiUrl(path: string): string {
+  const base = apiBaseUrl.replace(/\/$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+}
+
 const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
@@ -115,8 +121,14 @@ export const soundsApi = {
     });
   },
   delete: (name: string) => api.delete(`/sounds/${encodeURIComponent(name)}`),
-  downloadUrl: (name: string) => `/api/sounds/${encodeURIComponent(name)}/download`,
-  previewUrl: (name: string) => `/api/sounds/${encodeURIComponent(name)}/preview`,
+  sweepTranscode: (options?: { deleteOriginal?: boolean; limit?: number }) =>
+    api.post('/sounds/transcode-sweep', options || {}),
+  trim: (name: string, startMs: number, endMs: number) =>
+    api.post(`/sounds/${encodeURIComponent(name)}/trim`, { startMs, endMs }),
+  downloadUrl: (name: string) =>
+    buildApiUrl(`/sounds/${encodeURIComponent(name)}/download`),
+  previewUrl: (name: string) =>
+    buildApiUrl(`/sounds/${encodeURIComponent(name)}/preview`),
 };
 
 // Stats API

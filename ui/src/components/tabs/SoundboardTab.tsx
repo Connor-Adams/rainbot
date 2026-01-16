@@ -28,7 +28,7 @@ export default function SoundboardTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Custom hooks
-  const { updateCustomization, deleteCustomization, getCustomization } =
+  const { updateCustomization, deleteCustomization, renameCustomization, getCustomization } =
     useSoundCustomization()
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
@@ -59,6 +59,24 @@ export default function SoundboardTab() {
     },
   })
 
+  const trimMutation = useMutation({
+    mutationFn: ({ name, startMs, endMs }: { name: string; startMs: number; endMs: number }) =>
+      soundsApi.trim(name, startMs, endMs),
+    onSuccess: (res, variables) => {
+      const newName = res.data?.name || variables.name
+      queryClient.invalidateQueries({ queryKey: ['sounds'] })
+      if (variables.name !== newName) {
+        renameCustomization(variables.name, newName)
+        if (previewingSound === variables.name) {
+          stopPreview()
+        }
+        if (editingSound === variables.name) {
+          setEditingSound(newName)
+        }
+      }
+    },
+  })
+
   const playMutation = useMutation({
     mutationFn: (soundName: string) => playbackApi.soundboard(selectedGuildId!, soundName),
     onSuccess: () => {
@@ -71,8 +89,40 @@ export default function SoundboardTab() {
     },
   })
 
+  const sweepMutation = useMutation({
+    mutationFn: (options: { deleteOriginal: boolean }) => soundsApi.sweepTranscode(options),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sounds'] })
+      alert('Transcode sweep started. This may take a few minutes.')
+    },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      const message = error.response?.data?.error || error.message || 'Transcode sweep failed'
+      alert(`Error: ${message}`)
+    },
+  })
+
+  const oggExtensions = new Set(['.ogg', '.opus', '.oga', '.webm'])
+  const getBaseName = (name: string) => {
+    const dotIndex = name.lastIndexOf('.')
+    return dotIndex === -1 ? name : name.slice(0, dotIndex)
+  }
+  const getExt = (name: string) => {
+    const dotIndex = name.lastIndexOf('.')
+    return dotIndex === -1 ? '' : name.slice(dotIndex).toLowerCase()
+  }
+  const oggBases = new Set(
+    sounds
+      .filter((sound: Sound) => oggExtensions.has(getExt(sound.name)))
+      .map((sound: Sound) => getBaseName(sound.name).toLowerCase())
+  )
+  const visibleSounds = sounds.filter((sound: Sound) => {
+    const ext = getExt(sound.name)
+    if (oggExtensions.has(ext)) return true
+    return !oggBases.has(getBaseName(sound.name).toLowerCase())
+  })
+
   // Filter sounds based on search query
-  const filteredSounds = sounds.filter((sound: Sound) => {
+  const filteredSounds = visibleSounds.filter((sound: Sound) => {
     const custom = getCustomization(sound.name)
     const searchTarget = `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`.toLowerCase()
     return searchTarget.includes(searchQuery.toLowerCase())
@@ -117,6 +167,14 @@ export default function SoundboardTab() {
     [editingSound, updateCustomization]
   )
 
+  const handleTrim = useCallback(
+    async (startMs: number, endMs: number) => {
+      if (!editingSound) return
+      await trimMutation.mutateAsync({ name: editingSound, startMs, endMs })
+    },
+    [editingSound, trimMutation]
+  )
+
   const handlePreview = useCallback(
     (soundName: string) => {
       playPreview(soundName, soundsApi.previewUrl(soundName))
@@ -157,14 +215,27 @@ export default function SoundboardTab() {
         <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
           <span className="w-1 h-5 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
           Soundboard
-          {sounds.length > 0 && (
-            <span className="text-sm text-text-secondary font-normal">({sounds.length})</span>
+          {visibleSounds.length > 0 && (
+            <span className="text-sm text-text-secondary font-normal">({visibleSounds.length})</span>
           )}
         </h2>
-        <UploadButton
-          onUpload={(files) => uploadMutation.mutate(files)}
-          isUploading={uploadMutation.isPending}
-        />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="px-3 py-2 text-xs font-semibold rounded-lg border border-purple-500/40 text-purple-200 hover:bg-purple-500/10 transition-colors"
+            onClick={() => {
+              if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return
+              sweepMutation.mutate({ deleteOriginal: true })
+            }}
+            disabled={sweepMutation.isPending}
+          >
+            {sweepMutation.isPending ? 'Transcoding...' : 'Transcode + Archive'}
+          </button>
+          <UploadButton
+            onUpload={(files) => uploadMutation.mutate(files)}
+            isUploading={uploadMutation.isPending}
+          />
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -218,6 +289,7 @@ export default function SoundboardTab() {
           initialDisplayName={getCustomization(editingSound)?.displayName}
           initialEmoji={getCustomization(editingSound)?.emoji}
           onSave={handleSaveEdit}
+          onTrim={handleTrim}
           onCancel={() => setEditingSound(null)}
         />
       )}
