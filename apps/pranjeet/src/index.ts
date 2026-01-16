@@ -43,6 +43,14 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function logErrorWithStack(message: string, err: unknown): void {
+  const info = formatError(err);
+  log.error(`${message}: ${info.message}`);
+  if (info.stack) {
+    log.debug(info.stack);
+  }
+}
+
 function getOrchestratorBaseUrl(): string | null {
   if (!RAINCLOUD_URL) return null;
   const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
@@ -571,9 +579,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
     const channelId = newState.channelId!;
-    log.info(
-      `Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
-    );
+    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
 
     const guild = client.guilds.cache.get(guildId);
     const channel = guild?.channels.cache.get(channelId);

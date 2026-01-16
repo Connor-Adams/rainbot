@@ -64,7 +64,6 @@ function logErrorWithStack(message: string, err: unknown): void {
   }
 }
 
-
 function getOrchestratorBaseUrl(): string | null {
   if (!RAINCLOUD_URL) return null;
   const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
@@ -167,9 +166,7 @@ process.on('uncaughtException', (error) => {
 });
 
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
-log.info(
-  `Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
-);
+log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
 log.info(
   `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
@@ -614,9 +611,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
     const channelId = newState.channelId!;
-    log.info(
-      `Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
-    );
+    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
 
     const guild = client.guilds.cache.get(guildId);
     const channel = guild?.channels.cache.get(channelId);

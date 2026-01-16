@@ -673,11 +673,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   /**
    * Send a voice response using TTS
    */
-  private async sendVoiceResponse(
-    guildId: string,
-    text: string,
-    userId?: string
-  ): Promise<void> {
+  private async sendVoiceResponse(guildId: string, text: string, userId?: string): Promise<void> {
     try {
       log.info(`🔊 Preparing TTS response: "${text}"`);
 

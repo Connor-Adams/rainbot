@@ -70,7 +70,11 @@ export abstract class WorkerServerBase {
         this.cacheResponse(request.requestId, response);
         res.json(response);
       } catch (error) {
-        logRequestError('Join request', { requestId: request.requestId, guildId: request.guildId }, error);
+        logRequestError(
+          'Join request',
+          { requestId: request.requestId, guildId: request.guildId },
+          error
+        );
         const errorResponse: JoinResponse = {
           status: 'error',
           message: (error as Error).message,
@@ -101,7 +105,11 @@ export abstract class WorkerServerBase {
         this.cacheResponse(request.requestId, response);
         res.json(response);
       } catch (error) {
-        logRequestError('Leave request', { requestId: request.requestId, guildId: request.guildId }, error);
+        logRequestError(
+          'Leave request',
+          { requestId: request.requestId, guildId: request.guildId },
+          error
+        );
         const errorResponse: LeaveResponse = {
           status: 'error',
           message: (error as Error).message,
