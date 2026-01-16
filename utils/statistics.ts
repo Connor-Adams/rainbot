@@ -2,6 +2,7 @@
 import { query } from './database';
 import { createLogger } from './logger';
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import type { SourceType } from './sourceType';
 
 const log = createLogger('STATS');
@@ -12,6 +13,7 @@ export const statsEmitter = new EventEmitter();
 // Batch processing configuration
 const BATCH_SIZE = 100;
 const BATCH_INTERVAL = 5000; // 5 seconds
+const MAX_BUFFER_SIZE = BATCH_SIZE * 20;
 
 type Source = 'discord' | 'api';
 type OperationType = 'skip' | 'pause' | 'resume' | 'clear' | 'remove' | 'replay';
@@ -315,6 +317,8 @@ const bufferMap: Record<BufferType, unknown[]> = {
 const activeSessions = new Map<string, VoiceSessionEvent>();
 
 let batchTimer: NodeJS.Timeout | null = null;
+let flushInProgress = false;
+let flushQueued = false;
 
 /**
  * Start batch processing timer
@@ -323,7 +327,12 @@ function startBatchProcessor(): void {
   if (batchTimer) return;
 
   batchTimer = setInterval(async () => {
-    await flushBatches();
+    try {
+      await flushBatches();
+    } catch (error) {
+      const err = error as Error;
+      log.error(`Batch flush failed: ${err.message}`);
+    }
   }, BATCH_INTERVAL);
 
   log.debug('Batch processor started');
@@ -333,6 +342,25 @@ function startBatchProcessor(): void {
  * Flush all buffered events to database (parallel inserts)
  */
 async function flushBatches(): Promise<void> {
+  if (flushInProgress) {
+    flushQueued = true;
+    return;
+  }
+
+  flushInProgress = true;
+  try {
+    await flushBatchesInternal();
+  } finally {
+    flushInProgress = false;
+  }
+
+  if (flushQueued) {
+    flushQueued = false;
+    await flushBatches();
+  }
+}
+
+async function flushBatchesInternal(): Promise<void> {
   const batches: Array<{ name: BufferType; buffer: unknown[]; table: string }> = [
     { name: 'commands', buffer: commandBuffer, table: 'command_stats' },
     { name: 'sounds', buffer: soundBuffer, table: 'sound_stats' },
@@ -366,6 +394,22 @@ async function flushBatches(): Promise<void> {
   if (insertPromises.length > 0) {
     await Promise.all(insertPromises);
   }
+}
+
+function enqueueEvent<T>(type: BufferType, buffer: T[], event: T): void {
+  buffer.push(event);
+
+  if (buffer.length > MAX_BUFFER_SIZE) {
+    const overflow = buffer.length - MAX_BUFFER_SIZE;
+    buffer.splice(0, overflow);
+    log.warn(`Stats buffer overflow for ${type}; dropped ${overflow} event(s).`);
+  }
+
+  if (buffer.length >= BATCH_SIZE) {
+    flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
+  }
+
+  startBatchProcessor();
 }
 
 interface UserProfile {
@@ -615,7 +659,7 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
       const values = engagementEvents
         .map(
           (_, i) =>
-            `($${i * 17 + 1}, $${i * 17 + 2}, $${i * 17 + 3}, $${i * 17 + 4}, $${i * 17 + 5}, $${i * 17 + 6}, $${i * 17 + 7}, $${i * 17 + 8}, $${i * 17 + 9}, $${i * 17 + 10}, $${i * 17 + 11}, $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}, $${i * 17 + 17})`
+            `($${i * 18 + 1}, $${i * 18 + 2}, $${i * 18 + 3}, $${i * 18 + 4}, $${i * 18 + 5}, $${i * 18 + 6}, $${i * 18 + 7}, $${i * 18 + 8}, $${i * 18 + 9}, $${i * 18 + 10}, $${i * 18 + 11}, $${i * 18 + 12}, $${i * 18 + 13}, $${i * 18 + 14}, $${i * 18 + 15}, $${i * 18 + 16}, $${i * 18 + 17}, $${i * 18 + 18})`
         )
         .join(', ');
 
@@ -637,10 +681,11 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.queued_by,
         e.skipped_by,
         e.listeners_at_start,
+        e.listeners_at_end,
       ]);
 
       await query(
-        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start) VALUES ${values}`,
+        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start, listeners_at_end) VALUES ${values}`,
         params
       );
     } else if (table === 'interaction_events') {
@@ -859,7 +904,7 @@ export function trackCommand(
   }
 
   try {
-    commandBuffer.push({
+    enqueueEvent('commands', commandBuffer, {
       command_name: commandName,
       user_id: userId,
       guild_id: guildId,
@@ -872,13 +917,6 @@ export function trackCommand(
       execution_time_ms: executionTimeMs,
       error_type: success ? null : classifyError(errorMessage),
     });
-
-    // Flush if buffer is full
-    if (commandBuffer.length >= BATCH_SIZE) {
-      flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-    }
-
-    startBatchProcessor();
   } catch (error) {
     const err = error as Error;
     log.error(`Error tracking command: ${err.message}`);
@@ -905,7 +943,7 @@ export function trackSound(
   }
 
   try {
-    soundBuffer.push({
+    enqueueEvent('sounds', soundBuffer, {
       sound_name: soundName,
       user_id: userId,
       guild_id: guildId,
@@ -917,13 +955,6 @@ export function trackSound(
       duration,
       source: source === 'api' ? 'api' : 'discord',
     });
-
-    // Flush if buffer is full
-    if (soundBuffer.length >= BATCH_SIZE) {
-      flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-    }
-
-    startBatchProcessor();
   } catch (error) {
     const err = error as Error;
     log.error(`Error tracking sound: ${err.message}`);
@@ -946,7 +977,7 @@ export function trackQueueOperation(
   }
 
   try {
-    queueBuffer.push({
+    enqueueEvent('queue', queueBuffer, {
       operation_type: operationType as OperationType,
       user_id: userId,
       guild_id: guildId,
@@ -954,13 +985,6 @@ export function trackQueueOperation(
       source: source === 'api' ? 'api' : 'discord',
       metadata,
     });
-
-    // Flush if buffer is full
-    if (queueBuffer.length >= BATCH_SIZE) {
-      flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-    }
-
-    startBatchProcessor();
   } catch (error) {
     const err = error as Error;
     log.error(`Error tracking queue operation: ${err.message}`);
@@ -983,7 +1007,7 @@ export function trackVoiceEvent(
   }
 
   try {
-    voiceBuffer.push({
+    enqueueEvent('voice', voiceBuffer, {
       event_type: eventType as VoiceEventType,
       guild_id: guildId,
       channel_id: channelId,
@@ -991,13 +1015,6 @@ export function trackVoiceEvent(
       executed_at: new Date(),
       source: source === 'api' ? 'api' : 'discord',
     });
-
-    // Flush if buffer is full
-    if (voiceBuffer.length >= BATCH_SIZE) {
-      flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-    }
-
-    startBatchProcessor();
   } catch (error) {
     const err = error as Error;
     log.error(`Error tracking voice event: ${err.message}`);
@@ -1023,7 +1040,7 @@ export function trackSearch(
   }
 
   try {
-    searchBuffer.push({
+    enqueueEvent('search', searchBuffer, {
       user_id: userId,
       guild_id: guildId,
       query: queryText,
@@ -1034,12 +1051,6 @@ export function trackSearch(
       searched_at: new Date(),
       source: source === 'api' ? 'api' : 'discord',
     });
-
-    if (searchBuffer.length >= BATCH_SIZE) {
-      flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-    }
-
-    startBatchProcessor();
   } catch (error) {
     const err = error as Error;
     log.error(`Error tracking search: ${err.message}`);
@@ -1055,7 +1066,7 @@ export function startVoiceSession(
   channelName: string | null = null,
   source: string = 'discord'
 ): string {
-  const sessionId = `${guildId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = randomUUID();
 
   const session: VoiceSessionEvent = {
     session_id: sessionId,
@@ -1197,7 +1208,7 @@ export function startUserSession(
     return activeUserSessions.get(key)!.sessionId;
   }
 
-  const sessionId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = randomUUID();
   const botSession = activeSessions.get(guildId);
 
   const session: ActiveUserSession = {
@@ -1242,8 +1253,7 @@ export async function endUserSession(
   const leftAt = new Date();
   const durationSeconds = Math.floor((leftAt.getTime() - session.joinedAt.getTime()) / 1000);
 
-  // Add to buffer for batch processing
-  userSessionBuffer.push({
+  enqueueEvent('userSessions', userSessionBuffer, {
     session_id: session.sessionId,
     bot_session_id: session.botSessionId,
     user_id: session.userId,
@@ -1263,12 +1273,7 @@ export async function endUserSession(
     `Ended user session ${session.sessionId} - duration: ${durationSeconds}s, tracks: ${session.tracksHeard}`
   );
 
-  // Trigger flush if buffer is full
-  if (userSessionBuffer.length >= BATCH_SIZE) {
-    await flushBatches();
-  }
-
-  startBatchProcessor();
+  await flushBatches();
 }
 
 /**
@@ -1293,8 +1298,7 @@ export function trackUserListen(
     session.tracksHeard++;
     session.trackTitles.push(trackTitle);
 
-    // Add to buffer for batch processing
-    userTrackListenBuffer.push({
+    enqueueEvent('userTrackListens', userTrackListenBuffer, {
       user_session_id: session.sessionId,
       user_id: session.userId,
       guild_id: guildId,
@@ -1306,13 +1310,6 @@ export function trackUserListen(
       queued_by: queuedBy,
     });
   }
-
-  // Trigger flush if buffer is full
-  if (userTrackListenBuffer.length >= BATCH_SIZE) {
-    flushBatches().catch((err) => log.error(`Error flushing batches: ${err.message}`));
-  }
-
-  startBatchProcessor();
 }
 
 /**
@@ -1400,7 +1397,7 @@ export function startTrackEngagement(
   durationSeconds: number | null,
   queuedBy: string | null
 ): string {
-  const engagementId = `${guildId}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  const engagementId = randomUUID();
   const listenersAtStart = getActiveUserCount(guildId, channelId);
 
   const engagement: ActiveTrackEngagement = {
@@ -1448,7 +1445,7 @@ export function endTrackEngagement(
 
   const listenersAtEnd = getActiveUserCount(guildId, engagement.channelId);
 
-  trackEngagementBuffer.push({
+  enqueueEvent('trackEngagement', trackEngagementBuffer, {
     engagement_id: engagement.engagementId,
     track_title: engagement.trackTitle,
     track_url: engagement.trackUrl,
@@ -1474,7 +1471,6 @@ export function endTrackEngagement(
     `Ended track engagement ${engagement.engagementId} - skipped: ${wasSkipped}, completed: ${wasCompleted}, played: ${actualPlayedSeconds}s`
   );
 
-  startBatchProcessor();
 }
 
 /**
@@ -1504,7 +1500,7 @@ export function trackInteraction(
   errorMessage: string | null = null,
   metadata: Record<string, unknown> | null = null
 ): void {
-  interactionEventBuffer.push({
+  enqueueEvent('interactionEvents', interactionEventBuffer, {
     interaction_type: interactionType,
     interaction_id: interactionId,
     custom_id: customId,
@@ -1520,7 +1516,6 @@ export function trackInteraction(
   });
 
   log.debug(`Tracked ${interactionType} interaction: ${customId || interactionId} by ${userId}`);
-  startBatchProcessor();
 }
 
 // ============================================================================
@@ -1542,7 +1537,7 @@ export function trackPlaybackStateChange(
   trackPositionSeconds: number | null = null,
   source: 'discord' | 'api' = 'discord'
 ): void {
-  playbackStateChangeBuffer.push({
+  enqueueEvent('playbackStateChanges', playbackStateChangeBuffer, {
     guild_id: guildId,
     channel_id: channelId,
     state_type: stateType,
@@ -1557,7 +1552,6 @@ export function trackPlaybackStateChange(
   });
 
   log.debug(`Tracked ${stateType} change: ${oldValue} -> ${newValue} in guild ${guildId}`);
-  startBatchProcessor();
 }
 
 // ============================================================================
@@ -1576,7 +1570,7 @@ export function trackWebEvent(
   durationMs: number | null = null,
   webSessionId: string | null = null
 ): void {
-  webEventBuffer.push({
+  enqueueEvent('webEvents', webEventBuffer, {
     web_session_id: webSessionId,
     user_id: userId,
     event_type: eventType,
@@ -1588,7 +1582,6 @@ export function trackWebEvent(
   });
 
   log.debug(`Tracked web event: ${eventType} by ${userId}`);
-  startBatchProcessor();
 }
 
 // ============================================================================
@@ -1606,7 +1599,7 @@ export function trackGuildEvent(
   userId: string | null = null,
   metadata: Record<string, unknown> | null = null
 ): void {
-  guildEventBuffer.push({
+  enqueueEvent('guildEvents', guildEventBuffer, {
     event_type: eventType,
     guild_id: guildId,
     guild_name: guildName,
@@ -1617,7 +1610,6 @@ export function trackGuildEvent(
   });
 
   log.debug(`Tracked guild event: ${eventType} for guild ${guildId}`);
-  startBatchProcessor();
 }
 
 // ============================================================================
@@ -1636,7 +1628,7 @@ export function trackApiLatency(
   requestSizeBytes: number | null = null,
   responseSizeBytes: number | null = null
 ): void {
-  apiLatencyBuffer.push({
+  enqueueEvent('apiLatency', apiLatencyBuffer, {
     endpoint,
     method,
     response_time_ms: responseTimeMs,
@@ -1648,5 +1640,4 @@ export function trackApiLatency(
   });
 
   log.debug(`Tracked API latency: ${method} ${endpoint} - ${responseTimeMs}ms`);
-  startBatchProcessor();
 }

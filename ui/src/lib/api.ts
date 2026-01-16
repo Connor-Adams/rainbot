@@ -100,6 +100,19 @@ export const playbackApi = {
     api.post('/volume', { guildId, level, botType }),
 };
 
+// Tracking API
+export const trackingApi = {
+  trackEvent: (payload: {
+    eventType: string;
+    eventTarget?: string | null;
+    eventValue?: string | null;
+    guildId?: string | null;
+    durationMs?: number | null;
+    webSessionId?: string | null;
+  }) => api.post('/track/event', payload),
+  trackBatch: (events: Array<Record<string, unknown>>) => api.post('/track/batch', { events }),
+};
+
 // Sounds API
 export const soundsApi = {
   list: () => api.get('/sounds'),

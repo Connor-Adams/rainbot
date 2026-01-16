@@ -1,4 +1,4 @@
-import { query } from '../utils/database';
+import { query } from '../../../utils/database';
 import { QueryBuilder, WhereFilters } from '../utils/queryBuilder';
 
 function getSharedFilters(filters: WhereFilters): WhereFilters {

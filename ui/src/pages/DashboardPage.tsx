@@ -4,8 +4,11 @@ import SoundboardTab from '../components/tabs/SoundboardTab'
 import RecordingsTab from '../components/tabs/RecordingsTab'
 import StatisticsTab from '../components/tabs/stats/StatisticsTab'
 import StatusTab from '../components/tabs/StatusTab'
+import { trackPageView } from '@/lib/tracking'
+import { useGuildStore } from '@/stores/guildStore'
 
 export default function DashboardPage() {
+  const { selectedGuildId } = useGuildStore()
   const [activeTab, setActiveTab] = useState<
     'player' | 'soundboard' | 'recordings' | 'stats' | 'status'
   >('player')
@@ -23,6 +26,14 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    trackPageView({
+      page: activeTab,
+      guildId: selectedGuildId ?? null,
+      context: 'dashboard',
+    })
+  }, [activeTab, selectedGuildId])
+
   return (
     <>
       {activeTab === 'player' && <PlayerTab />}
@@ -33,4 +44,3 @@ export default function DashboardPage() {
     </>
   )
 }
-
