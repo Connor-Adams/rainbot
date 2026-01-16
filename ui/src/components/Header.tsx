@@ -14,7 +14,7 @@ interface HeaderProps {
 
 export default function Header({ user, onLogout }: HeaderProps) {
   const [activeTab, setActiveTab] = useState<
-    'player' | 'soundboard' | 'recordings' | 'stats' | 'status'
+    'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'
   >('player')
 
   const { data: status } = useQuery({
@@ -23,7 +23,9 @@ export default function Header({ user, onLogout }: HeaderProps) {
     refetchInterval: 5000,
   })
 
-  const handleTabChange = (tab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status') => {
+  const handleTabChange = (
+    tab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'
+  ) => {
     setActiveTab(tab)
     window.dispatchEvent(new CustomEvent('tab-change', { detail: tab }))
   }

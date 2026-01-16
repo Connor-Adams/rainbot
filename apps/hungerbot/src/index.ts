@@ -203,23 +203,11 @@ interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
-  soundQueue: SoundRequest[];
-  isProcessingQueue: boolean;
 }
 
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
 let serverStarted = false;
-const SOUND_QUEUE_LIMIT = 10;
-
-interface SoundRequest {
-  requestId: string;
-  guildId: string;
-  userId: string;
-  sfxId: string;
-  volume?: number;
-  inputType: StreamType;
-}
 
 function startServer(): void {
   if (serverStarted) return;
@@ -334,79 +322,14 @@ function getOrCreateGuildState(guildId: string): GuildState {
     player.on('error', (error) => {
       logErrorWithStack(`Player error in guild ${guildId}`, error);
     });
-    player.on(AudioPlayerStatus.Idle, () => {
-      void playNextQueuedSound(guildId);
-    });
 
     guildStates.set(guildId, {
       connection: null,
       player,
       volume: 0.7,
-      soundQueue: [],
-      isProcessingQueue: false,
     });
   }
   return guildStates.get(guildId)!;
-}
-
-async function playNextQueuedSound(guildId: string): Promise<void> {
-  const state = guildStates.get(guildId);
-  if (!state || state.isProcessingQueue) return;
-  if (state.soundQueue.length === 0) return;
-
-  state.isProcessingQueue = true;
-  const next = state.soundQueue.shift();
-  if (!next) {
-    state.isProcessingQueue = false;
-    return;
-  }
-
-  try {
-    await playSoundNow(state, next);
-  } catch (error) {
-    logErrorWithStack('Failed to play queued sound', error);
-  } finally {
-    state.isProcessingQueue = false;
-    if (state.soundQueue.length > 0 && state.player.state.status === AudioPlayerStatus.Idle) {
-      void playNextQueuedSound(guildId);
-    }
-  }
-}
-
-async function playSoundNow(state: GuildState, request: SoundRequest): Promise<void> {
-  if (!state.connection) {
-    throw new Error('Not connected to voice channel');
-  }
-
-  const soundStream = await getSoundStream(request.sfxId);
-  const resource = createAudioResource(soundStream, {
-    inputType: request.inputType,
-    inlineVolume: true,
-  });
-
-  const effectiveVolume = request.volume !== undefined ? request.volume : state.volume;
-  if (resource.volume) {
-    resource.volume.setVolume(effectiveVolume);
-  }
-
-  log.info(
-    `Soundboard volume=${effectiveVolume} inputType=${request.inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
-  );
-
-  state.connection.subscribe(state.player);
-  state.player.play(resource);
-  log.info(`Soundboard play issued status=${state.player.state.status}`);
-  log.info(`Playing sound ${request.sfxId} for user ${request.userId} in guild ${request.guildId}`);
-
-  void reportSoundStat({
-    soundName: request.sfxId,
-    userId: request.userId,
-    guildId: request.guildId,
-    sourceType: 'local',
-    isSoundboard: true,
-    duration: null,
-    source: 'discord',
-  });
 }
 
 function normalizeSoundName(sfxId: string): string {
@@ -631,27 +554,38 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     }
 
     const inputType = getSoundInputType(sfxId);
-    if (inputType === StreamType.OggOpus || inputType === StreamType.WebmOpus) {
-      await playSoundNow(state, { requestId, guildId, userId, sfxId, volume, inputType });
-      const response = { status: 'success', message: 'Sound playing' };
-      requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
-      return res.json(response);
+    const soundStream = await getSoundStream(sfxId);
+    const resource = createAudioResource(soundStream, {
+      inputType,
+      inlineVolume: true,
+    });
+
+    const effectiveVolume = volume !== undefined ? volume : state.volume;
+    if (resource.volume) {
+      resource.volume.setVolume(effectiveVolume);
     }
 
-    if (state.soundQueue.length >= SOUND_QUEUE_LIMIT) {
-      const response = { status: 'error', message: 'Soundboard queue is full' };
-      requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
-      return res.status(429).json(response);
-    }
+    log.debug(
+      `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+    );
 
-    state.soundQueue.push({ requestId, guildId, userId, sfxId, volume, inputType });
-    if (state.player.state.status === AudioPlayerStatus.Idle) {
-      void playNextQueuedSound(guildId);
-    }
+    // Play immediately (interrupt any current sound)
+    state.player.stop(true);
+    state.player.play(resource);
+    log.debug(`Soundboard play issued status=${state.player.state.status}`);
 
-    const response = { status: 'success', message: 'Sound queued' };
+    log.info(`Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
+    void reportSoundStat({
+      soundName: sfxId,
+      userId,
+      guildId,
+      sourceType: 'local',
+      isSoundboard: true,
+      duration: null,
+      source: 'discord',
+    });
+
+    const response = { status: 'success', message: 'Sound playing' };
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);

@@ -8,6 +8,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3';
 import { createLogger } from './logger';
 import { loadConfig } from './config';
@@ -25,6 +26,7 @@ export interface SoundFile {
 
 const TRANSCODE_ENABLED = process.env['NODE_ENV'] !== 'test';
 const RECORDS_PREFIX = 'records/';
+const ARCHIVE_PREFIX = 'archived/';
 
 function isOpusFilename(filename: string): boolean {
   const ext = path.extname(filename).toLowerCase();
@@ -146,6 +148,23 @@ async function ensureOggCopy(originalName: string, oggName: string): Promise<voi
   }
 }
 
+async function archiveSound(filename: string): Promise<void> {
+  if (!s3Client || !bucketName) {
+    throw new Error('Storage not configured');
+  }
+
+  const sourceKey = `sounds/${filename}`;
+  const encodedSource = encodeURIComponent(sourceKey).replace(/%2F/g, '/');
+  const copyCommand = new CopyObjectCommand({
+    Bucket: bucketName,
+    CopySource: `${bucketName}/${encodedSource}`,
+    Key: `sounds/${ARCHIVE_PREFIX}${filename}`,
+  });
+
+  await s3Client.send(copyCommand);
+  await deleteSound(filename);
+}
+
 /**
  * Initialize storage - requires Railway S3-compatible bucket
  */
@@ -239,7 +258,8 @@ export async function listSounds(): Promise<SoundFile[]> {
         (obj) =>
           obj.Key &&
           /\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(obj.Key) &&
-          !obj.Key.includes('sounds/records/') // Exclude recordings from main list
+          !obj.Key.includes('sounds/records/') && // Exclude recordings from main list
+          !obj.Key.includes(`sounds/${ARCHIVE_PREFIX}`) // Exclude archived originals
       ).forEach((obj) => {
         const name = path.basename(obj.Key!);
         if (TRANSCODE_ENABLED && !isOpusFilename(name)) {
@@ -298,7 +318,7 @@ export async function sweepTranscodeSounds(options?: {
       if (await soundExists(oggName)) {
         converted += 1;
         if (deleteOriginal) {
-          await deleteSound(name);
+          await archiveSound(name);
           deleted += 1;
         }
       }

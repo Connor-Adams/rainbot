@@ -101,8 +101,28 @@ export default function SoundboardTab() {
     },
   })
 
+  const oggExtensions = new Set(['.ogg', '.opus', '.oga', '.webm'])
+  const getBaseName = (name: string) => {
+    const dotIndex = name.lastIndexOf('.')
+    return dotIndex === -1 ? name : name.slice(0, dotIndex)
+  }
+  const getExt = (name: string) => {
+    const dotIndex = name.lastIndexOf('.')
+    return dotIndex === -1 ? '' : name.slice(dotIndex).toLowerCase()
+  }
+  const oggBases = new Set(
+    sounds
+      .filter((sound: Sound) => oggExtensions.has(getExt(sound.name)))
+      .map((sound: Sound) => getBaseName(sound.name).toLowerCase())
+  )
+  const visibleSounds = sounds.filter((sound: Sound) => {
+    const ext = getExt(sound.name)
+    if (oggExtensions.has(ext)) return true
+    return !oggBases.has(getBaseName(sound.name).toLowerCase())
+  })
+
   // Filter sounds based on search query
-  const filteredSounds = sounds.filter((sound: Sound) => {
+  const filteredSounds = visibleSounds.filter((sound: Sound) => {
     const custom = getCustomization(sound.name)
     const searchTarget = `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`.toLowerCase()
     return searchTarget.includes(searchQuery.toLowerCase())
@@ -195,8 +215,8 @@ export default function SoundboardTab() {
         <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
           <span className="w-1 h-5 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
           Soundboard
-          {sounds.length > 0 && (
-            <span className="text-sm text-text-secondary font-normal">({sounds.length})</span>
+          {visibleSounds.length > 0 && (
+            <span className="text-sm text-text-secondary font-normal">({visibleSounds.length})</span>
           )}
         </h2>
         <div className="flex items-center gap-3">
@@ -204,12 +224,12 @@ export default function SoundboardTab() {
             type="button"
             className="px-3 py-2 text-xs font-semibold rounded-lg border border-purple-500/40 text-purple-200 hover:bg-purple-500/10 transition-colors"
             onClick={() => {
-              if (!window.confirm('Transcode all sounds to Ogg Opus?')) return
+              if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return
               sweepMutation.mutate({ deleteOriginal: true })
             }}
             disabled={sweepMutation.isPending}
           >
-            {sweepMutation.isPending ? 'Transcoding...' : 'Transcode All'}
+            {sweepMutation.isPending ? 'Transcoding...' : 'Transcode + Archive'}
           </button>
           <UploadButton
             onUpload={(files) => uploadMutation.mutate(files)}

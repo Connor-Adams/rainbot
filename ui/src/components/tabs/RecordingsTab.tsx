@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../hooks/useToast'
+import { buildApiUrl } from '@/lib/api'
 
 interface Recording {
   name: string
@@ -16,7 +17,7 @@ export default function RecordingsTab() {
   const loadRecordings = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/recordings')
+      const response = await fetch(buildApiUrl('/recordings'))
       if (!response.ok) throw new Error('Failed to load recordings')
       const data = await response.json()
       setRecordings(data)
@@ -34,7 +35,7 @@ export default function RecordingsTab() {
   const playRecording = async (name: string) => {
     try {
       setPlaying(name)
-      const response = await fetch('/api/play', {
+      const response = await fetch(buildApiUrl('/play'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sound: `records/${name}` }),
@@ -50,16 +51,22 @@ export default function RecordingsTab() {
   }
 
   const downloadRecording = (name: string) => {
-    window.open(`/api/sounds/records%2F${encodeURIComponent(name)}/download`, '_blank')
+    window.open(
+      buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}/download`),
+      '_blank'
+    )
   }
 
   const deleteRecording = async (name: string) => {
     if (!confirm(`Delete recording "${name}"?`)) return
 
     try {
-      const response = await fetch(`/api/sounds/records%2F${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-      })
+      const response = await fetch(
+        buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}`),
+        {
+          method: 'DELETE',
+        }
+      )
 
       if (!response.ok) throw new Error('Failed to delete recording')
       showToast('Recording deleted', 'success')
