@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import EmojiPicker, { type EmojiClickData } from 'emoji-picker-react'
-import 'emoji-picker-react/dist/universal/style.css'
 
 interface EditModalProps {
   soundName: string

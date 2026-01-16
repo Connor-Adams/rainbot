@@ -1,36 +1,42 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
-/* Global Resets and Base Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@layer base {
+  /* Global Resets and Base Styles */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-body {
-  @apply font-sans bg-background text-text-primary min-h-screen;
-  background-image: 
-    radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(236, 72, 153, 0.08) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(10, 10, 15, 0.8) 0%, rgba(10, 10, 15, 1) 100%);
-  background-attachment: fixed;
-}
+  body {
+    @apply font-sans bg-background text-text-primary min-h-screen;
+    background-image: 
+      radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(236, 72, 153, 0.08) 0%, transparent 70%),
+      linear-gradient(180deg, rgba(10, 10, 15, 0.8) 0%, rgba(10, 10, 15, 1) 100%);
+    background-attachment: fixed;
+  }
 
-/* Custom scrollbar styles */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+  /* Custom scrollbar styles */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
 
-::-webkit-scrollbar-track {
-  @apply bg-surface-input rounded;
-}
+  ::-webkit-scrollbar-track {
+    background-color: #0f0f14;
+    border-radius: 0.25rem;
+  }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-border rounded hover:bg-text-muted;
+  ::-webkit-scrollbar-thumb {
+    background-color: #252530;
+    border-radius: 0.25rem;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #6b6b7a;
+  }
 }
 
 /* Utility layer for custom utilities */
