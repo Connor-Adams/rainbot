@@ -314,8 +314,9 @@ export class MultiBotService {
     volume: number,
     botType: BotType = 'rainbot'
   ): Promise<{ success: boolean; message?: string }> {
-    // Convert 1-100 to 0-1 if needed
-    const normalizedVolume = volume > 1 ? volume / 100 : volume;
+    // Convert 0-100 to 0-1 (keep fractional 0-1 values as-is)
+    const normalizedVolume =
+      volume >= 0 && volume <= 1 && volume % 1 !== 0 ? volume : volume / 100;
     return await this.coordinator.setWorkerVolume(botType, guildId, normalizedVolume);
   }
 

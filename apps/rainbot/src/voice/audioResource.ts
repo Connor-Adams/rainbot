@@ -70,6 +70,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
   if (!ytMatch) return null;
 
   try {
+    console.log(`[RAINBOT] stream async (yt-dlp url) title="${track.title}" url="${track.url}"`);
     const streamUrl = await getStreamUrl(track.url);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -101,6 +102,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
       nodeStream.on('error', () => {});
 
+      console.log(`[RAINBOT] stream async ok url="${track.url}"`);
       return createAudioResource(nodeStream, {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
@@ -112,6 +114,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
   } catch (error) {
     const err = error as Error;
     if (err.message.includes('Stream fetch failed') || err.message.includes('fetch')) {
+      console.warn(`[RAINBOT] stream async failed, will fallback: ${err.message}`);
       return null;
     }
     throw error;
@@ -124,6 +127,7 @@ function createTrackResource(track: Track): AudioResource | null {
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
+  console.log(`[RAINBOT] stream yt-dlp pipe title="${track.title}" url="${track.url}"`);
   const subprocess = youtubedl.exec(track.url, {
     ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio',
@@ -159,12 +163,16 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     const fallback = createTrackResource(track);
     if (fallback) return fallback;
 
+    console.log(`[RAINBOT] stream play-dl fallback title="${track.title}" url="${track.url}"`);
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
   }
 
   const urlType = await play.validate(track.url);
   if (urlType) {
+    console.log(
+      `[RAINBOT] stream play-dl non-youtube type=${urlType} title="${track.title}" url="${track.url}"`
+    );
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
   }

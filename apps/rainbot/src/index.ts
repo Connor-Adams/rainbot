@@ -243,6 +243,9 @@ async function playNext(guildId: string): Promise<void> {
   state.nowPlaying = track.title;
 
   try {
+    console.log(
+      `[RAINBOT] playNext title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+    );
     const resource = await createTrackResourceForAny(track);
 
     if (resource.volume) {
@@ -404,7 +407,11 @@ app.post('/volume', async (req: Request, res: Response) => {
     });
   }
 
-  if (volume < 0 || volume > 100) {
+  let normalizedVolume = volume;
+  if (normalizedVolume >= 0 && normalizedVolume <= 1) {
+    normalizedVolume = Math.round(normalizedVolume * 100);
+  }
+  if (normalizedVolume < 0 || normalizedVolume > 100) {
     return res.status(400).json({
       status: 'error',
       message: 'Volume must be between 0 and 100',
@@ -417,12 +424,12 @@ app.post('/volume', async (req: Request, res: Response) => {
   }
 
   const state = getOrCreateGuildState(guildId);
-  state.volume = volume;
+  state.volume = normalizedVolume;
   if (state.currentResource?.volume) {
     state.currentResource.volume.setVolume(state.volume / 100);
   }
 
-  const response = { status: 'success', volume };
+  const response = { status: 'success', volume: state.volume };
   requestCache.set(requestId, response);
   setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
