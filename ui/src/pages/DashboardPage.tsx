@@ -4,6 +4,7 @@ import SoundboardTab from '../components/tabs/SoundboardTab'
 import RecordingsTab from '../components/tabs/RecordingsTab'
 import StatisticsTab from '../components/tabs/stats/StatisticsTab'
 import StatusTab from '../components/tabs/StatusTab'
+import { trackPageView, trackTabView } from '@/lib/tracking'
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<
@@ -23,6 +24,14 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    trackPageView('dashboard')
+  }, [])
+
+  useEffect(() => {
+    trackTabView(activeTab, 'dashboard')
+  }, [activeTab])
+
   return (
     <>
       {activeTab === 'player' && <PlayerTab />}
@@ -33,4 +42,3 @@ export default function DashboardPage() {
     </>
   )
 }
-

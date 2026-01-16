@@ -1,11 +1,18 @@
+import { useEffect } from 'react'
 import { Button } from '@/components/ui'
 import { DiscordIcon } from '@/components/icons'
 import { buildAuthUrl } from '@/lib/api'
+import { trackClick, trackPageView } from '@/lib/tracking'
 
 export default function LoginPage() {
   const handleLogin = () => {
+    trackClick('login', 'discord')
     window.location.href = buildAuthUrl('/auth/discord')
   }
+
+  useEffect(() => {
+    trackPageView('login')
+  }, [])
 
   return (
     <div className="flex items-center justify-center min-h-screen p-8 animate-fade-in">
@@ -36,4 +43,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
