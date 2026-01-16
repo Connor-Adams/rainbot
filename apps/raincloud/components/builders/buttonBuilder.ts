@@ -26,23 +26,17 @@ export function createButtonId(prefix: string, metadata: ButtonMetadata): string
  */
 export function parseButtonId(customId: string): { prefix: string; metadata: ButtonMetadata } {
   const parts = customId.split('_');
-  const prefixParts: string[] = [];
-  const metadata: ButtonMetadata = { action: '' };
+  const prefix = parts[0] || '';
+  const metadata: ButtonMetadata = { action: prefix };
 
-  for (const part of parts) {
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
     if (!part) continue;
-    if (part.includes(':')) {
-      const [key, value] = part.split(':');
-      if (key && value) {
-        metadata[key] = isNaN(Number(value)) ? value : Number(value);
-      }
-      continue;
+    const [key, value] = part.split(':');
+    if (key && value) {
+      metadata[key] = isNaN(Number(value)) ? value : Number(value);
     }
-    prefixParts.push(part);
   }
-
-  const prefix = prefixParts.join('_');
-  metadata.action = prefix;
 
   return { prefix, metadata };
 }

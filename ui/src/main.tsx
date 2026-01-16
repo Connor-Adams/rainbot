@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { apiBaseUrl, authBaseUrl } from './lib/api'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,9 +33,11 @@ console.info('[UI] Config:', {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ErrorBoundary onError={(error, errorInfo) => console.error('[UI] Uncaught error:', error, errorInfo)}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,
 )

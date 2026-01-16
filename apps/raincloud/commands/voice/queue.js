@@ -7,6 +7,9 @@ const {
   formatDuration,
   getYouTubeThumbnail,
 } = require('../utils/commandHelpers');
+const { createLogger } = require('../../dist/utils/logger');
+
+const log = createLogger('QUEUE_CMD');
 
 // Try to use multi-bot service, fall back to local voiceManager
 async function getPlaybackService() {
@@ -185,7 +188,7 @@ module.exports = {
         components.push(createSimplePaginationRow(safePage, totalPages, guildId));
       } catch (error) {
         // If pagination buttons aren't available yet, just show the queue without buttons
-        console.warn('Pagination buttons not available:', error.message);
+        log.warn(`Pagination buttons not available: ${error.message}`);
       }
     }
 

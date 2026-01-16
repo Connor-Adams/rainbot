@@ -3,10 +3,12 @@ import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
 import type { Track } from '@rainbot/protocol';
+import { createLogger } from '@rainbot/shared';
 
 // Use system yt-dlp if available, otherwise fall back to bundled.
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
+const log = createLogger('RAINBOT-AUDIO');
 
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
@@ -70,7 +72,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
   if (!ytMatch) return null;
 
   try {
-    console.log(`[RAINBOT] stream async (yt-dlp url) title="${track.title}" url="${track.url}"`);
+    log.debug(`stream async (yt-dlp url) title="${track.title}" url="${track.url}"`);
     const streamUrl = await getStreamUrl(track.url);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -102,7 +104,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
       const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
       nodeStream.on('error', () => {});
 
-      console.log(`[RAINBOT] stream async ok url="${track.url}"`);
+      log.debug(`stream async ok url="${track.url}"`);
       return createAudioResource(nodeStream, {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
@@ -114,7 +116,7 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
   } catch (error) {
     const err = error as Error;
     if (err.message.includes('Stream fetch failed') || err.message.includes('fetch')) {
-      console.warn(`[RAINBOT] stream async failed, will fallback: ${err.message}`);
+      log.warn(`stream async failed, will fallback: ${err.message}`);
       return null;
     }
     throw error;
@@ -127,7 +129,7 @@ function createTrackResource(track: Track): AudioResource | null {
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
-  console.log(`[RAINBOT] stream yt-dlp pipe title="${track.title}" url="${track.url}"`);
+  log.debug(`stream yt-dlp pipe title="${track.title}" url="${track.url}"`);
   const subprocess = youtubedl.exec(track.url, {
     ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio',
@@ -152,15 +154,15 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
   }
 
   if (!track.url) {
-    console.warn(
-      `[RAINBOT] stream skipped (missing url) title="${track.title}" sourceType=${track.sourceType || 'n/a'}`
+    log.warn(
+      `stream skipped (missing url) title="${track.title}" sourceType=${track.sourceType || 'n/a'}`
     );
     throw new Error('Track URL is required');
   }
 
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  console.log(
-    `[RAINBOT] stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+  log.debug(
+    `stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
   );
   if (ytMatch) {
     try {
@@ -168,7 +170,7 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
       if (asyncResource) return asyncResource;
     } catch (error) {
       const err = error as Error;
-      console.warn(`[RAINBOT] stream async failed: ${err.message}`);
+      log.warn(`stream async failed: ${err.message}`);
     }
 
     try {
@@ -176,21 +178,21 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
       if (fallback) return fallback;
     } catch (error) {
       const err = error as Error;
-      console.warn(`[RAINBOT] stream yt-dlp pipe failed: ${err.message}`);
+      log.warn(`stream yt-dlp pipe failed: ${err.message}`);
     }
 
-    console.log(`[RAINBOT] stream play-dl fallback title="${track.title}" url="${track.url}"`);
+    log.debug(`stream play-dl fallback title="${track.title}" url="${track.url}"`);
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
   }
 
   const urlType = await play.validate(track.url);
-  console.log(
-    `[RAINBOT] stream validate urlType=${urlType || 'unknown'} title="${track.title}" url="${track.url}"`
+  log.debug(
+    `stream validate urlType=${urlType || 'unknown'} title="${track.title}" url="${track.url}"`
   );
   if (urlType) {
-    console.log(
-      `[RAINBOT] stream play-dl non-youtube type=${urlType} title="${track.title}" url="${track.url}"`
+    log.debug(
+      `stream play-dl non-youtube type=${urlType} title="${track.title}" url="${track.url}"`
     );
     const streamInfo = await play.stream(track.url, { quality: 2 });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });

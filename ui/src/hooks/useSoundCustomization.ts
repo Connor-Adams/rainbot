@@ -43,6 +43,18 @@ export function useSoundCustomization() {
     });
   }, []);
 
+  const renameCustomization = useCallback((fromName: string, toName: string) => {
+    if (fromName === toName) return;
+    setCustomizations((prev) => {
+      const existing = prev[fromName];
+      if (!existing) return prev;
+      const { [fromName]: _, ...rest } = prev;
+      const updated = { ...rest, [toName]: existing };
+      saveToStorage(updated);
+      return updated;
+    });
+  }, []);
+
   const getCustomization = useCallback(
     (soundName: string): SoundCustomization | undefined => {
       return customizations[soundName];
@@ -50,5 +62,11 @@ export function useSoundCustomization() {
     [customizations]
   );
 
-  return { customizations, updateCustomization, deleteCustomization, getCustomization };
+  return {
+    customizations,
+    updateCustomization,
+    deleteCustomization,
+    renameCustomization,
+    getCustomization,
+  };
 }

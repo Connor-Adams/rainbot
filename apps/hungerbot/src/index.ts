@@ -17,6 +17,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createLogger } from '@rainbot/shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['HUNGERBOT_PORT'] || '3003', 10);
 const TOKEN = process.env['HUNGERBOT_TOKEN'];
@@ -27,6 +28,8 @@ const WORKER_SECRET = process.env['WORKER_SECRET'];
 const WORKER_INSTANCE_ID =
   process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
 const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
+
+const log = createLogger('HUNGERBOT');
 
 // S3 Configuration
 const S3_BUCKET =
@@ -53,6 +56,14 @@ function formatError(err: unknown): { message: string; stack?: string } {
   return { message: String(err) };
 }
 
+function logErrorWithStack(message: string, err: unknown): void {
+  const info = formatError(err);
+  log.error(`${message}: ${info.message}`);
+  if (info.stack) {
+    log.debug(info.stack);
+  }
+}
+
 function getOrchestratorBaseUrl(): string | null {
   if (!RAINCLOUD_URL) return null;
   const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
@@ -65,15 +76,13 @@ function getOrchestratorBaseUrl(): string | null {
 
 async function registerWithOrchestrator(): Promise<void> {
   if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    console.warn(
-      '[HUNGERBOT] Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)'
-    );
+    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
   }
 
   const baseUrl = getOrchestratorBaseUrl();
   if (!baseUrl) {
-    console.warn('[HUNGERBOT] Worker registration skipped (invalid RAINCLOUD_URL)');
+    log.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
     return;
   }
   try {
@@ -93,9 +102,9 @@ async function registerWithOrchestrator(): Promise<void> {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[HUNGERBOT] Worker registration failed: ${response.status} ${text}`);
+      log.warn(`Worker registration failed: ${response.status} ${text}`);
     } else {
-      console.log('[HUNGERBOT] Worker registered with orchestrator');
+      log.info('Worker registered with orchestrator');
     }
   } catch (error) {
     const info = formatError(error);
@@ -106,7 +115,10 @@ async function registerWithOrchestrator(): Promise<void> {
         : err.cause
           ? String(err.cause)
           : 'n/a';
-    console.warn(`[HUNGERBOT] Worker registration error: ${info.message}; cause=${cause}`);
+    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
+    if (info.stack) {
+      log.debug(info.stack);
+    }
   }
 }
 
@@ -136,44 +148,38 @@ async function reportSoundStat(payload: {
     });
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[HUNGERBOT] Stats report failed: ${response.status} ${text}`);
+      log.warn(`Stats report failed: ${response.status} ${text}`);
     }
   } catch (error) {
     const info = formatError(error);
-    console.warn(`[HUNGERBOT] Stats report failed: ${info.message}`);
+    log.warn(`Stats report failed: ${info.message}`);
   }
 }
 
 process.on('unhandledRejection', (reason) => {
-  const info = formatError(reason);
-  console.error(`[HUNGERBOT] Unhandled promise rejection: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Unhandled promise rejection', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  const info = formatError(error);
-  console.error(`[HUNGERBOT] Uncaught exception: ${info.message}`);
-  if (info.stack) console.error(info.stack);
+  logErrorWithStack('Uncaught exception', error);
   process.exitCode = 1;
 });
 
-console.log(`[HUNGERBOT] Starting (pid=${process.pid}, node=${process.version})`);
-console.log(
-  `[HUNGERBOT] Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`
+log.info(`Starting (pid=${process.pid}, node=${process.version})`);
+log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
+log.info(
+  `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
-console.log(
-  `[HUNGERBOT] Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
-);
-console.log(
-  `[HUNGERBOT] Stats reporting config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+log.info(
+  `Stats reporting config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
 
 if (!hasToken) {
-  console.error('HUNGERBOT_TOKEN environment variable is required');
+  log.error('HUNGERBOT_TOKEN environment variable is required');
 }
 
 if (!hasOrchestrator) {
-  console.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
+  log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
 // Initialize S3 client if configured
@@ -188,26 +194,38 @@ if (S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY && S3_ENDPOINT) {
     },
     forcePathStyle: false,
   });
-  console.log(`[HUNGERBOT] S3 storage initialized: bucket "${S3_BUCKET}"`);
+  log.info(`S3 storage initialized: bucket "${S3_BUCKET}"`);
 } else {
-  console.log(`[HUNGERBOT] S3 not configured, using local storage: ${SOUNDS_DIR}`);
+  log.info(`S3 not configured, using local storage: ${SOUNDS_DIR}`);
 }
 
 interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
+  soundQueue: SoundRequest[];
+  isProcessingQueue: boolean;
 }
 
 const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
 let serverStarted = false;
+const SOUND_QUEUE_LIMIT = 10;
+
+interface SoundRequest {
+  requestId: string;
+  guildId: string;
+  userId: string;
+  sfxId: string;
+  volume?: number;
+  inputType: StreamType;
+}
 
 function startServer(): void {
   if (serverStarted) return;
   serverStarted = true;
   app.listen(PORT, () => {
-    console.log(`[HUNGERBOT] Worker server listening on port ${PORT}`);
+    log.info(`Worker server listening on port ${PORT}`);
   });
 }
 
@@ -225,61 +243,185 @@ function ensureClientReady(res: Response): boolean {
 async function getSoundStream(sfxId: string): Promise<Readable> {
   // Normalize filename (add extension if not present)
   const filename = sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
-  console.log(`[HUNGERBOT] Soundboard fetch start name=${filename}`);
+  const oggFilename = getOggVariant(filename);
+  log.debug(`Soundboard fetch start name=${filename}`);
 
   // Try S3 first if configured
   if (s3Client && S3_BUCKET) {
     try {
-      console.log(`[HUNGERBOT] Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${filename}`);
-      const command = new GetObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: `sounds/${filename}`,
-      });
-
-      const response = await s3Client.send(command);
-
-      if (response.Body && typeof (response.Body as any).transformToWebStream === 'function') {
-        // Node.js SDK v3 returns a web stream, convert to Node stream
-        const webStream = (response.Body as any).transformToWebStream();
-        return Readable.fromWeb(webStream as any);
+      if (oggFilename !== filename) {
+        try {
+          log.debug(`Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${oggFilename}`);
+          const oggResponse = await s3Client.send(
+            new GetObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: `sounds/${oggFilename}`,
+            })
+          );
+          const oggStream = responseBodyToStream(oggResponse.Body);
+          if (oggStream) {
+            log.debug(`Soundboard fetch S3 stream ready name=${oggFilename}`);
+            return oggStream;
+          }
+        } catch (error) {
+          const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+          if (err.name !== 'NoSuchKey' && err.$metadata?.httpStatusCode !== 404) {
+            logErrorWithStack(`S3 fetch failed for ${oggFilename}`, error);
+          }
+        }
       }
 
-      if (response.Body instanceof Readable) {
-        console.log(`[HUNGERBOT] Soundboard fetch S3 stream ready name=${filename}`);
-        return response.Body;
+      log.debug(`Soundboard fetch S3 bucket=${S3_BUCKET} key=sounds/${filename}`);
+      const response = await s3Client.send(
+        new GetObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: `sounds/${filename}`,
+        })
+      );
+
+      const stream = responseBodyToStream(response.Body);
+      if (stream) {
+        log.debug(`Soundboard fetch S3 stream ready name=${filename}`);
+        return stream;
       }
 
       throw new Error('Invalid response body from S3');
     } catch (error) {
-      console.error(`[HUNGERBOT] S3 fetch failed for ${filename}:`, error);
+      logErrorWithStack(`S3 fetch failed for ${filename}`, error);
       // Fall through to local storage
     }
   }
 
   // Try local filesystem
+  const localOggPath = path.join(SOUNDS_DIR, oggFilename);
+  if (oggFilename !== filename && fs.existsSync(localOggPath)) {
+    log.debug(`Loading sound from local: ${localOggPath}`);
+    return fs.createReadStream(localOggPath);
+  }
+
   const localPath = path.join(SOUNDS_DIR, filename);
   if (fs.existsSync(localPath)) {
-    console.log(`[HUNGERBOT] Loading sound from local: ${localPath}`);
+    log.debug(`Loading sound from local: ${localPath}`);
     return fs.createReadStream(localPath);
   }
 
   throw new Error(`Sound file not found: ${filename}`);
 }
 
+function responseBodyToStream(body: unknown): Readable | null {
+  if (body && typeof (body as any).transformToWebStream === 'function') {
+    const webStream = (body as any).transformToWebStream();
+    return Readable.fromWeb(webStream as any);
+  }
+  if (body instanceof Readable) {
+    return body;
+  }
+  return null;
+}
+
+function getOggVariant(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.ogg' || ext === '.opus' || ext === '.oga' || ext === '.webm') {
+    return filename;
+  }
+  if (!ext) return `${filename}.ogg`;
+  return filename.slice(0, -ext.length) + '.ogg';
+}
+
 function getOrCreateGuildState(guildId: string): GuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
     player.on('error', (error) => {
-      console.error(`[HUNGERBOT] Player error in guild ${guildId}:`, error);
+      logErrorWithStack(`Player error in guild ${guildId}`, error);
+    });
+    player.on(AudioPlayerStatus.Idle, () => {
+      void playNextQueuedSound(guildId);
     });
 
     guildStates.set(guildId, {
       connection: null,
       player,
       volume: 0.7,
+      soundQueue: [],
+      isProcessingQueue: false,
     });
   }
   return guildStates.get(guildId)!;
+}
+
+async function playNextQueuedSound(guildId: string): Promise<void> {
+  const state = guildStates.get(guildId);
+  if (!state || state.isProcessingQueue) return;
+  if (state.soundQueue.length === 0) return;
+
+  state.isProcessingQueue = true;
+  const next = state.soundQueue.shift();
+  if (!next) {
+    state.isProcessingQueue = false;
+    return;
+  }
+
+  try {
+    await playSoundNow(state, next);
+  } catch (error) {
+    logErrorWithStack('Failed to play queued sound', error);
+  } finally {
+    state.isProcessingQueue = false;
+    if (state.soundQueue.length > 0 && state.player.state.status === AudioPlayerStatus.Idle) {
+      void playNextQueuedSound(guildId);
+    }
+  }
+}
+
+async function playSoundNow(state: GuildState, request: SoundRequest): Promise<void> {
+  if (!state.connection) {
+    throw new Error('Not connected to voice channel');
+  }
+
+  const soundStream = await getSoundStream(request.sfxId);
+  const resource = createAudioResource(soundStream, {
+    inputType: request.inputType,
+    inlineVolume: true,
+  });
+
+  const effectiveVolume = request.volume !== undefined ? request.volume : state.volume;
+  if (resource.volume) {
+    resource.volume.setVolume(effectiveVolume);
+  }
+
+  log.info(
+    `Soundboard volume=${effectiveVolume} inputType=${request.inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+  );
+
+  state.connection.subscribe(state.player);
+  state.player.play(resource);
+  log.info(`Soundboard play issued status=${state.player.state.status}`);
+  log.info(`Playing sound ${request.sfxId} for user ${request.userId} in guild ${request.guildId}`);
+
+  void reportSoundStat({
+    soundName: request.sfxId,
+    userId: request.userId,
+    guildId: request.guildId,
+    sourceType: 'local',
+    isSoundboard: true,
+    duration: null,
+    source: 'discord',
+  });
+}
+
+function normalizeSoundName(sfxId: string): string {
+  return sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
+}
+
+function getSoundInputType(sfxId: string): StreamType {
+  const ext = path.extname(normalizeSoundName(sfxId)).toLowerCase();
+  if (ext === '.ogg' || ext === '.opus' || ext === '.oga') {
+    return StreamType.OggOpus;
+  }
+  if (ext === '.webm') {
+    return StreamType.WebmOpus;
+  }
+  return StreamType.Arbitrary;
 }
 
 // Express server for worker protocol
@@ -354,7 +496,7 @@ app.post('/join', async (req: Request, res: Response) => {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch (_error) {
-        console.log(`[HUNGERBOT] Connection lost in guild ${guildId}, attempting rejoin...`);
+        log.warn(`Connection lost in guild ${guildId}, attempting rejoin...`);
         connection.destroy();
         state.connection = null;
       }
@@ -365,7 +507,7 @@ app.post('/join', async (req: Request, res: Response) => {
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    console.error('[HUNGERBOT] Join error:', error);
+    logErrorWithStack('Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -488,48 +630,33 @@ app.post('/play-sound', async (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    state.connection.subscribe(state.player);
-
-    // Load sound from S3 or local storage
-    const soundStream = await getSoundStream(sfxId);
-
-    // Create audio resource from stream
-    const resource = createAudioResource(soundStream, {
-      inputType: StreamType.Arbitrary,
-      inlineVolume: true,
-    });
-
-    const effectiveVolume = volume !== undefined ? volume : state.volume;
-    if (resource.volume) {
-      resource.volume.setVolume(effectiveVolume);
+    const inputType = getSoundInputType(sfxId);
+    if (inputType === StreamType.OggOpus || inputType === StreamType.WebmOpus) {
+      await playSoundNow(state, { requestId, guildId, userId, sfxId, volume, inputType });
+      const response = { status: 'success', message: 'Sound playing' };
+      requestCache.set(requestId, response);
+      setTimeout(() => requestCache.delete(requestId), 60000);
+      return res.json(response);
     }
 
-    console.log(
-      `[HUNGERBOT] Soundboard volume=${effectiveVolume} connected=${state.connection.state.status} player=${state.player.state.status}`
-    );
+    if (state.soundQueue.length >= SOUND_QUEUE_LIMIT) {
+      const response = { status: 'error', message: 'Soundboard queue is full' };
+      requestCache.set(requestId, response);
+      setTimeout(() => requestCache.delete(requestId), 60000);
+      return res.status(429).json(response);
+    }
 
-    // Play sound immediately (interrupts any current sound)
-    state.player.stop(true);
-    state.player.play(resource);
-    console.log(`[HUNGERBOT] Soundboard play issued status=${state.player.state.status}`);
+    state.soundQueue.push({ requestId, guildId, userId, sfxId, volume, inputType });
+    if (state.player.state.status === AudioPlayerStatus.Idle) {
+      void playNextQueuedSound(guildId);
+    }
 
-    console.log(`[HUNGERBOT] Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
-    void reportSoundStat({
-      soundName: sfxId,
-      userId,
-      guildId,
-      sourceType: 'local',
-      isSoundboard: true,
-      duration: null,
-      source: 'discord',
-    });
-
-    const response = { status: 'success', message: 'Sound playing' };
+    const response = { status: 'success', message: 'Sound queued' };
     requestCache.set(requestId, response);
     setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    console.error('[HUNGERBOT] Play sound error:', error);
+    logErrorWithStack('Play sound error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -595,7 +722,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   if (orchestratorLeft) {
     // Orchestrator left - leave too
-    console.log(`[HUNGERBOT] Orchestrator left voice in guild ${guildId}, following...`);
+    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
     const state = guildStates.get(guildId);
     if (state?.connection) {
       state.connection.destroy();
@@ -605,9 +732,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
     const channelId = newState.channelId!;
-    console.log(
-      `[HUNGERBOT] Orchestrator joined channel ${channelId} in guild ${guildId}, following...`
-    );
+    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
 
     const guild = client.guilds.cache.get(guildId);
     const channel = guild?.channels.cache.get(channelId);
@@ -639,7 +764,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch {
-        console.log(`[HUNGERBOT] Connection lost in guild ${guildId}`);
+        log.warn(`Connection lost in guild ${guildId}`);
         connection.destroy();
         state.connection = null;
       }
@@ -648,8 +773,8 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 });
 
 client.once(Events.ClientReady, () => {
-  console.log(`[HUNGERBOT] Ready as ${client.user?.tag}`);
-  console.log(`[HUNGERBOT] Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+  log.info(`Ready as ${client.user?.tag}`);
+  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
 
   // Start HTTP server
   startServer();
@@ -658,12 +783,12 @@ client.once(Events.ClientReady, () => {
 });
 
 client.on('error', (error) => {
-  console.error('[HUNGERBOT] Client error:', error);
+  logErrorWithStack('Client error', error);
 });
 
 if (hasToken) {
   client.login(TOKEN);
 } else {
-  console.warn('[HUNGERBOT] Bot token missing; running in degraded mode (HTTP only)');
+  log.warn('Bot token missing; running in degraded mode (HTTP only)');
   startServer();
 }
