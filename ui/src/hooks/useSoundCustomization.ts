@@ -1,4 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { soundsApi } from '@/lib/api';
 
 export interface SoundCustomization {
   displayName?: string;
@@ -7,53 +9,46 @@ export interface SoundCustomization {
 
 type Customizations = Record<string, SoundCustomization>;
 
-const STORAGE_KEY = 'soundCustomizations';
-
-function loadCustomizations(): Customizations {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function saveToStorage(customizations: Customizations) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(customizations));
-}
-
 export function useSoundCustomization() {
-  const [customizations, setCustomizations] = useState<Customizations>(loadCustomizations);
+  const queryClient = useQueryClient();
+  const { data: customizations = {} } = useQuery({
+    queryKey: ['sound-customizations'],
+    queryFn: () => soundsApi.listCustomizations().then((res) => res.data as Customizations),
+  });
+
+  const upsertMutation = useMutation({
+    mutationFn: ({
+      soundName,
+      customization,
+    }: {
+      soundName: string;
+      customization: SoundCustomization;
+    }) => soundsApi.setCustomization(soundName, customization.displayName, customization.emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sound-customizations'] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (soundName: string) => soundsApi.deleteCustomization(soundName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sound-customizations'] });
+    },
+  });
 
   const updateCustomization = useCallback(
     (soundName: string, customization: SoundCustomization) => {
-      setCustomizations((prev) => {
-        const updated = { ...prev, [soundName]: customization };
-        saveToStorage(updated);
-        return updated;
-      });
+      upsertMutation.mutate({ soundName, customization });
     },
-    []
+    [upsertMutation]
   );
 
-  const deleteCustomization = useCallback((soundName: string) => {
-    setCustomizations((prev) => {
-      const { [soundName]: _, ...rest } = prev;
-      saveToStorage(rest);
-      return rest;
-    });
-  }, []);
-
-  const renameCustomization = useCallback((fromName: string, toName: string) => {
-    if (fromName === toName) return;
-    setCustomizations((prev) => {
-      const existing = prev[fromName];
-      if (!existing) return prev;
-      const { [fromName]: _, ...rest } = prev;
-      const updated = { ...rest, [toName]: existing };
-      saveToStorage(updated);
-      return updated;
-    });
-  }, []);
+  const deleteCustomization = useCallback(
+    (soundName: string) => {
+      deleteMutation.mutate(soundName);
+    },
+    [deleteMutation]
+  );
 
   const getCustomization = useCallback(
     (soundName: string): SoundCustomization | undefined => {
@@ -66,7 +61,6 @@ export function useSoundCustomization() {
     customizations,
     updateCustomization,
     deleteCustomization,
-    renameCustomization,
     getCustomization,
   };
 }

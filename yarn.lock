@@ -2852,6 +2852,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^5.1.1"
     autoprefixer: "npm:^10.4.23"
     axios: "npm:^1.13.2"
+    emoji-picker-react: "npm:^4.13.2"
     eslint: "npm:^9.39.1"
     eslint-plugin-react-hooks: "npm:^7.0.1"
     eslint-plugin-react-refresh: "npm:^0.4.24"
@@ -6391,6 +6392,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"emoji-picker-react@npm:^4.13.2":
+  version: 4.16.1
+  resolution: "emoji-picker-react@npm:4.16.1"
+  dependencies:
+    flairup: "npm:1.0.0"
+  peerDependencies:
+    react: ">=16"
+  checksum: 10c0/2597d121717cb093283661ac6dad6b03c471b685c3c12b3246a6b67115a1dda99a21491c91b8cca6a9af261238ac82e867f8d7bf05d6fb833df177f70887f5bf
+  languageName: node
+  linkType: hard
+
 "emoji-regex@npm:^10.3.0":
   version: 10.6.0
   resolution: "emoji-regex@npm:10.6.0"
@@ -7283,6 +7295,13 @@ __metadata:
     semver-regex: "npm:^4.0.5"
     super-regex: "npm:^1.0.0"
   checksum: 10c0/1e38da3058f389c8657cd6f47fbcf12412051e7d2d14017594b8ca54ec239d19058f2d9dde80f27415726ab62822e32e3ed0a81141cfc206a3b8c8f0d87a5732
+  languageName: node
+  linkType: hard
+
+"flairup@npm:1.0.0":
+  version: 1.0.0
+  resolution: "flairup@npm:1.0.0"
+  checksum: 10c0/2d9fe1f1c890383be65ae0ec95d57b96f3ff42eecffaf493f8a39f09f4982e12109a865e79baca051e784919eecd72fa6cf620cfae8a4663b98deaa6d883d7ba
   languageName: node
   linkType: hard
 

@@ -121,6 +121,11 @@ export const soundsApi = {
     });
   },
   delete: (name: string) => api.delete(`/sounds/${encodeURIComponent(name)}`),
+  listCustomizations: () => api.get('/sounds/customizations'),
+  setCustomization: (name: string, displayName?: string, emoji?: string) =>
+    api.put(`/sounds/${encodeURIComponent(name)}/customization`, { displayName, emoji }),
+  deleteCustomization: (name: string) =>
+    api.delete(`/sounds/${encodeURIComponent(name)}/customization`),
   sweepTranscode: (options?: { deleteOriginal?: boolean; limit?: number }) =>
     api.post('/sounds/transcode-sweep', options || {}),
   trim: (name: string, startMs: number, endMs: number) =>

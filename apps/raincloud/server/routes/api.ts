@@ -4,6 +4,7 @@ import { Readable } from 'stream';
 import { spawn } from 'child_process';
 import * as voiceManager from '../../utils/voiceManager';
 import * as storage from '../../utils/storage';
+import { query } from '../../utils/database';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '../../utils/statistics';
@@ -22,6 +23,45 @@ const AUDIO_CONTENT_TYPES: Record<string, string> = {
   webm: 'audio/webm',
   flac: 'audio/flac',
 };
+
+type SoundCustomization = {
+  displayName?: string;
+  emoji?: string;
+};
+
+type CustomizationRow = {
+  sound_name: string;
+  display_name: string | null;
+  emoji: string | null;
+};
+
+function mapCustomizations(rows: CustomizationRow[]): Record<string, SoundCustomization> {
+  const result: Record<string, SoundCustomization> = {};
+  for (const row of rows) {
+    result[row.sound_name] = {
+      displayName: row.display_name || undefined,
+      emoji: row.emoji || undefined,
+    };
+  }
+  return result;
+}
+
+async function renameSoundCustomization(fromName: string, toName: string): Promise<void> {
+  const result = await query(
+    `UPDATE sound_customizations SET sound_name = $2, updated_at = NOW() WHERE sound_name = $1`,
+    [fromName, toName]
+  );
+  if (!result) {
+    throw new Error('Sound customizations unavailable');
+  }
+}
+
+async function deleteSoundCustomization(name: string): Promise<void> {
+  const result = await query(`DELETE FROM sound_customizations WHERE sound_name = $1`, [name]);
+  if (!result) {
+    throw new Error('Sound customizations unavailable');
+  }
+}
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -195,6 +235,19 @@ router.get('/sounds', async (_req, res: Response) => {
   }
 });
 
+// GET /api/sounds/customizations - List all sound customizations
+router.get('/sounds/customizations', requireAuth, async (_req, res: Response) => {
+  const result = await query(
+    `SELECT sound_name, display_name, emoji FROM sound_customizations ORDER BY sound_name`
+  );
+  if (!result) {
+    res.status(503).json({ error: 'Sound customizations unavailable' });
+    return;
+  }
+
+  res.json(mapCustomizations(result.rows as CustomizationRow[]));
+});
+
 // GET /api/recordings - List all voice recordings
 router.get('/recordings', async (req, res: Response) => {
   try {
@@ -314,12 +367,81 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
       return;
     }
     await voiceManager.deleteSound(filename);
+    try {
+      await deleteSoundCustomization(filename);
+    } catch {
+      // Best-effort cleanup if DB is unavailable.
+    }
     res.json({ message: 'Sound deleted successfully' });
   } catch (error) {
     const err = error as Error;
     res.status(404).json({ error: err.message });
   }
 });
+
+// PUT /api/sounds/:name/customization - Set display name/emoji for a sound
+router.put(
+  '/sounds/:name/customization',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const name = getParamValue(req.params['name']);
+    if (!name) {
+      res.status(400).json({ error: 'Sound name is required' });
+      return;
+    }
+
+    const displayName =
+      typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : '';
+    const emoji = typeof req.body?.emoji === 'string' ? req.body.emoji.trim() : '';
+
+    if (!displayName && !emoji) {
+      try {
+        await deleteSoundCustomization(name);
+        res.json({ deleted: true });
+      } catch (error) {
+        const err = error as Error;
+        res.status(503).json({ error: err.message });
+      }
+      return;
+    }
+
+    const result = await query(
+      `INSERT INTO sound_customizations (sound_name, display_name, emoji, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (sound_name)
+       DO UPDATE SET display_name = EXCLUDED.display_name, emoji = EXCLUDED.emoji, updated_at = NOW()`,
+      [name, displayName || null, emoji || null]
+    );
+
+    if (!result) {
+      res.status(503).json({ error: 'Sound customizations unavailable' });
+      return;
+    }
+
+    res.json({ soundName: name, displayName: displayName || null, emoji: emoji || null });
+  }
+);
+
+// DELETE /api/sounds/:name/customization - Remove customization
+router.delete(
+  '/sounds/:name/customization',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const name = getParamValue(req.params['name']);
+    if (!name) {
+      res.status(400).json({ error: 'Sound name is required' });
+      return;
+    }
+
+    try {
+      await deleteSoundCustomization(name);
+      res.json({ deleted: true });
+    } catch (error) {
+      const err = error as Error;
+      res.status(503).json({ error: err.message });
+    }
+  }
+);
 
 // POST /api/sounds/transcode-sweep - Convert all sounds to Ogg Opus
 router.post(
@@ -379,6 +501,11 @@ router.post(
         } catch (error) {
           const err = error as Error;
           console.warn(`Failed to delete original sound ${name}: ${err.message}`);
+        }
+        try {
+          await renameSoundCustomization(name, uploadedName);
+        } catch {
+          // Best-effort rename if DB is unavailable.
         }
       }
 

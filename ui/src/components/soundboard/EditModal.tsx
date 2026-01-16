@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import EmojiPicker, { type EmojiClickData } from 'emoji-picker-react'
+import 'emoji-picker-react/dist/universal/style.css'
 
 interface EditModalProps {
   soundName: string
@@ -24,6 +26,7 @@ export function EditModal({
   const [trimStartSec, setTrimStartSec] = useState('0')
   const [trimEndSec, setTrimEndSec] = useState('')
   const [isTrimming, setIsTrimming] = useState(false)
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,16 +81,40 @@ export function EditModal({
               <label htmlFor="emoji-input" className="block text-sm text-gray-400 mb-2">
                 Emoji
               </label>
-              <input
-                id="emoji-input"
-                type="text"
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                placeholder="dYZæ"
-                maxLength={4}
-                autoFocus
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  id="emoji-input"
+                  type="text"
+                  value={emoji}
+                  onChange={(e) => setEmoji(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  placeholder="dYZ?"
+                  maxLength={4}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="px-3 py-3 rounded-lg border border-gray-700 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                  onClick={() => setIsPickerOpen((prev) => !prev)}
+                >
+                  Pick
+                </button>
+              </div>
+              {isPickerOpen && (
+                <div className="mt-3 rounded-lg border border-gray-700 bg-gray-900 p-3">
+                  <EmojiPicker
+                    onEmojiClick={(emojiData: EmojiClickData) => {
+                      setEmoji(emojiData.emoji)
+                      setIsPickerOpen(false)
+                    }}
+                    skinTonesDisabled
+                    searchDisabled={false}
+                    lazyLoadEmojis
+                    height={320}
+                    width="100%"
+                  />
+                </div>
+              )}
             </div>
 
             <div>

@@ -172,6 +172,15 @@ export async function initializeSchema(): Promise<boolean> {
         `);
 
     await pool.query(`
+            CREATE TABLE IF NOT EXISTS sound_customizations (
+                sound_name VARCHAR(255) PRIMARY KEY,
+                display_name VARCHAR(255),
+                emoji VARCHAR(32),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id VARCHAR(20) PRIMARY KEY,
                 username VARCHAR(100),

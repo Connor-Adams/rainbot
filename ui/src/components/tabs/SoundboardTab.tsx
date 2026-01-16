@@ -28,8 +28,7 @@ export default function SoundboardTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Custom hooks
-  const { updateCustomization, deleteCustomization, renameCustomization, getCustomization } =
-    useSoundCustomization()
+  const { updateCustomization, deleteCustomization, getCustomization } = useSoundCustomization()
   const { previewingSound, playPreview, stopPreview } = useAudioPreview()
 
   // Close menu when clicking outside
@@ -65,8 +64,8 @@ export default function SoundboardTab() {
     onSuccess: (res, variables) => {
       const newName = res.data?.name || variables.name
       queryClient.invalidateQueries({ queryKey: ['sounds'] })
+      queryClient.invalidateQueries({ queryKey: ['sound-customizations'] })
       if (variables.name !== newName) {
-        renameCustomization(variables.name, newName)
         if (previewingSound === variables.name) {
           stopPreview()
         }
