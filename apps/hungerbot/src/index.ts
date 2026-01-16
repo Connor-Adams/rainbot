@@ -540,7 +540,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     if (state?.connection) {
       state.connection.destroy();
       state.connection = null;
-      state.userPlayers.clear();
+      state.player.stop(true);
     }
   } else if (orchestratorJoined || orchestratorMoved) {
     // Orchestrator joined/moved - follow
@@ -568,10 +568,7 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
     state.connection = connection;
 
-    // Subscribe all existing user players
-    state.userPlayers.forEach((player) => {
-      connection.subscribe(player);
-    });
+    connection.subscribe(state.player);
 
     // Auto-rejoin on disconnect (network issues only)
     connection.on(VoiceConnectionStatus.Disconnected, async () => {

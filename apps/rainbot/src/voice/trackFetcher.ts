@@ -78,7 +78,9 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
         isLocal: false,
         sourceType: 'youtube',
       });
-      console.log(`[RAINBOT] fetchTracks youtube video title="${title}" duration=${duration ?? 'n/a'}`);
+      console.log(
+        `[RAINBOT] fetchTracks youtube video title="${title}" duration=${duration ?? 'n/a'}`
+      );
     } else if (urlType === 'yt_playlist') {
       const playlist = await play.playlist_info(source);
       const videos = await playlist.next(MAX_PLAYLIST_TRACKS);
