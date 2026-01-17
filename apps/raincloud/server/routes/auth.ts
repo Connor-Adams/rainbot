@@ -190,8 +190,8 @@ function getBaseUrl(req: Request): string {
     return `https://${config.railwayPublicDomain}`;
   }
   // Local development
-  const protocol = req.protocol || 'http';
-  const host = req.get('host') || 'localhost:3000';
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
   return `${protocol}://${host}`;
 }
 
