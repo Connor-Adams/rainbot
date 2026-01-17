@@ -469,7 +469,10 @@ router.post(
   requireAuth,
   uploadRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
-    const name = decodeURIComponent(req.params['name'] || '');
+    const nameParam = req.params['name'];
+    const name = decodeURIComponent(
+      Array.isArray(nameParam) ? nameParam[0] || '' : nameParam || ''
+    );
     const startMs = Number(req.body?.startMs);
     const endMs = Number(req.body?.endMs);
 
