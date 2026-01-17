@@ -13,7 +13,14 @@ categories:
       - 'maintenance'
   - title: '🚀 What''s Changed'
     labels:
-      - '*'
+      - 'feature'
+      - 'enhancement'
+      - 'feat'
+      - 'fix'
+      - 'bug'
+  - title: "🧩 Other Changes"
+    labels:
+      - "*"
 category-template: |
   $TITLE
 
