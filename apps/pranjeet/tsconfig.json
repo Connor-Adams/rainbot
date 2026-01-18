@@ -8,10 +8,10 @@
     "noUnusedLocals": false,
     "baseUrl": "../../",
     "paths": {
-      "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/dist/*"],
-      "@rainbot/shared": ["packages/shared/dist/index.d.ts"],
-      "@rainbot/shared/*": ["packages/shared/dist/*"],
+      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
+      "@rainbot/protocol/*": ["packages/protocol/src/*"],
+      "@rainbot/shared": ["packages/shared/src/index.ts"],
+      "@rainbot/shared/*": ["packages/shared/src/*"],
       "@utils/*": ["utils/*"],
       "@voice/*": ["utils/voice/*"]
     }

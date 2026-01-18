@@ -8,8 +8,8 @@
     "noUnusedParameters": false,
     "noUnusedLocals": false,
     "paths": {
-      "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/dist/*"],
+      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
+      "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@commands/*": ["apps/raincloud/commands/*"],
       "@utils/*": ["utils/*"],
       "@types/*": ["apps/raincloud/types/*"],

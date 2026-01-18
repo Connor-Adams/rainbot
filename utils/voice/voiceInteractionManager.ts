@@ -495,6 +495,38 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       log.info(`⚡ Executing voice command: ${command.type} (query: ${command.query || 'N/A'})`);
 
+      // Use custom command handler if provided
+      if (this.config.commandHandler) {
+        const result = await this.config.commandHandler(session, command);
+        if (result) {
+          // Update statistics based on custom handler result
+          if (result.success) {
+            state.statistics.successfulCommands++;
+            session.consecutiveFailures = 0;
+          } else {
+            state.statistics.failedCommands++;
+            session.consecutiveFailures++;
+          }
+
+          const latency = Date.now() - startTime;
+          const currentAvg = state.statistics.averageLatency;
+          const totalCommands = state.statistics.totalCommands;
+          state.statistics.averageLatency =
+            (currentAvg * (totalCommands - 1) + latency) / totalCommands;
+
+          log.info(
+            `✅ Custom command handler ${result.success ? 'succeeded' : 'failed'} in ${latency}ms`
+          );
+
+          // Send voice response if provided
+          if (result.response) {
+            await this.sendVoiceResponse(session.guildId, result.response);
+          }
+
+          return result;
+        }
+      }
+
       const vm = this.getVoiceManager();
       let success = false;
       let responseText = '';
