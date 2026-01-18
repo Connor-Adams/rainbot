@@ -225,6 +225,44 @@ async function generateTTS(text: string, voice?: string): Promise<Buffer> {
   throw new Error(`Unsupported TTS provider: ${TTS_PROVIDER}`);
 }
 
+const PCM_48K_FRAME_SAMPLES = 960; // 20ms at 48kHz
+const PCM_S16LE_BYTES_PER_SAMPLE = 2;
+const PCM_48K_STEREO_FRAME_BYTES = PCM_48K_FRAME_SAMPLES * 2 * PCM_S16LE_BYTES_PER_SAMPLE; // 3840
+
+/**
+ * Chunk PCM into fixed-size frames. Pads the final partial frame with zeros (silence).
+ * This is better than truncation for Opus stability and avoids end-clicks.
+ */
+function chunkPcmIntoFrames(pcm: Buffer, frameBytes: number): Buffer[] {
+  const frames: Buffer[] = [];
+  if (pcm.length === 0) return frames;
+
+  let i = 0;
+  for (; i + frameBytes <= pcm.length; i += frameBytes) {
+    frames.push(pcm.subarray(i, i + frameBytes));
+  }
+
+  // Pad trailing partial
+  const remaining = pcm.length - i;
+  if (remaining > 0) {
+    const last = Buffer.alloc(frameBytes); // zero-filled
+    pcm.copy(last, 0, i);
+    frames.push(last);
+  }
+
+  return frames;
+}
+
+function framesToReadable(frames: Buffer[]): Readable {
+  let idx = 0;
+  return new Readable({
+    read() {
+      if (idx >= frames.length) return this.push(null);
+      this.push(frames[idx++]);
+    },
+  });
+}
+
 async function speakInGuild(
   guildId: string,
   text: string,
@@ -236,9 +274,20 @@ async function speakInGuild(
     return { status: 'error', message: 'Not connected to voice channel' };
   }
 
-  const audioBuffer = await generateTTS(text, voice);
-  const stereoBuffer = monoToStereoPcm(audioBuffer);
-  const stream = Readable.from(stereoBuffer);
+  // generateTTS() should return 48kHz mono s16le for OpenAI (after your resample24to48)
+  const pcm48kMono = await generateTTS(text, voice);
+
+  // Upmix to 48kHz stereo s16le
+  const pcm48kStereo = monoToStereoPcm(pcm48kMono);
+
+  // CRITICAL: feed StreamType.Raw as fixed 20ms frames (3840 bytes) to avoid Opus artifacts
+  const frames = chunkPcmIntoFrames(pcm48kStereo, PCM_48K_STEREO_FRAME_BYTES);
+  if (frames.length === 0) {
+    return { status: 'error', message: 'Generated TTS audio too short (no full 20ms frames)' };
+  }
+
+  const stream = framesToReadable(frames);
+
   const resource = createAudioResource(stream, {
     inputType: StreamType.Raw,
     inlineVolume: true,
@@ -300,35 +349,42 @@ async function generateGoogleTTS(text: string, voice?: string): Promise<Buffer> 
 
 /**
  * Resample 24kHz mono 16-bit PCM → 48kHz mono 16-bit PCM (2×) using cubic interpolation.
- * Higher quality than linear; no deps; fast enough for realtime TTS.
+ * Safely trims odd bytes to keep int16 alignment.
  */
 export function resample24to48(pcm24k: Buffer): Buffer {
-  const inSamples = pcm24k.length >> 1;      // int16 mono
-  const outSamples = inSamples << 1;         // 2×
+  // Ensure int16 alignment
+  if ((pcm24k.length & 1) === 1) {
+    pcm24k = pcm24k.subarray(0, pcm24k.length - 1);
+  }
+
+  const inSamples = pcm24k.length >> 1; // int16 mono
+  if (inSamples === 0) return Buffer.alloc(0);
+
+  const outSamples = inSamples << 1; // 2×
   const out = Buffer.allocUnsafe(outSamples << 1);
 
   const read = (i: number) => {
-    i = Math.max(0, Math.min(inSamples - 1, i));
+    if (i < 0) i = 0;
+    else if (i >= inSamples) i = inSamples - 1;
     return pcm24k.readInt16LE(i << 1);
   };
 
   let o = 0;
-
   for (let i = 0; i < inSamples; i++) {
     const s0 = read(i - 1);
     const s1 = read(i);
     const s2 = read(i + 1);
     const s3 = read(i + 2);
 
-    // write original (even index)
+    // Even sample = original
     out.writeInt16LE(s1, o);
     o += 2;
 
-    // interpolate halfway (odd index) with Catmull-Rom cubic
+    // Odd sample = cubic (Catmull-Rom) at t=0.5
     const t = 0.5;
-    const a = (-0.5 * s0) + (1.5 * s1) - (1.5 * s2) + (0.5 * s3);
-    const b = (s0) - (2.5 * s1) + (2 * s2) - (0.5 * s3);
-    const c = (-0.5 * s0) + (0.5 * s2);
+    const a = -0.5 * s0 + 1.5 * s1 - 1.5 * s2 + 0.5 * s3;
+    const b = s0 - 2.5 * s1 + 2 * s2 - 0.5 * s3;
+    const c = -0.5 * s0 + 0.5 * s2;
     const d = s1;
 
     const y = Math.round(a * t * t * t + b * t * t + c * t + d);
@@ -338,7 +394,6 @@ export function resample24to48(pcm24k: Buffer): Buffer {
 
   return out;
 }
-
 
 /**
  * Convert 48kHz mono PCM to 48kHz stereo PCM by duplicating channels.
