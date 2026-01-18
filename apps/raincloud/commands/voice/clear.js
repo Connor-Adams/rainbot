@@ -2,7 +2,7 @@
  * Clear command - Multi-bot architecture version
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils');
 const { validateVoiceConnection, createErrorResponse } = require('../utils/commandHelpers');
 
 const log = createLogger('CLEAR');
@@ -10,7 +10,7 @@ const log = createLogger('CLEAR');
 // Try to use multi-bot service, fall back to local voiceManager
 async function getPlaybackService() {
   try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    const { MultiBotService } = require('@rainbot/utils');
     if (MultiBotService.isInitialized()) {
       return { type: 'multibot', service: MultiBotService.getInstance() };
     }
@@ -18,7 +18,7 @@ async function getPlaybackService() {
     // Multi-bot service not available
   }
 
-  const voiceManager = require('../../dist/utils/voiceManager');
+  const voiceManager = require('@rainbot/utils');
   return { type: 'local', service: voiceManager };
 }
 

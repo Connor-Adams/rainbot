@@ -2,13 +2,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { Readable } from 'stream';
 import { spawn } from 'child_process';
-import * as voiceManager from '@utils/voiceManager';
-import * as storage from '@utils/storage';
-import { query } from '@utils/database';
+import * as voiceManager from '@rainbot/utils';
+import * as storage from '@rainbot/utils';
+import { query } from '@rainbot/utils';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
-import * as stats from '@utils/statistics';
-import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
+import * as stats from '@rainbot/utils';
+import { MultiBotService, getMultiBotService } from '@rainbot/utils';
 import type { GuildMember } from 'discord.js';
 import rateLimit from 'express-rate-limit';
 
@@ -1009,7 +1009,7 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
   if (multiBot) {
     const statusResults = await Promise.all(guilds.map((guild) => multiBot.getStatus(guild.id)));
     const connections = statusResults
-      .map((status, index) => {
+      .map((status: any, index: number) => {
         if (!status) return null;
         const workers = status.workers;
         return {
@@ -1036,7 +1036,7 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
             : workers,
         };
       })
-      .filter((entry) => entry !== null);
+      .filter((entry: any) => entry !== null);
 
     res.json({
       online: true,

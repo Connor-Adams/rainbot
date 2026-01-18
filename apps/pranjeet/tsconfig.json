@@ -6,14 +6,10 @@
     "noImplicitReturns": false,
     "noUnusedParameters": false,
     "noUnusedLocals": false,
-    "baseUrl": "../../",
+    "baseUrl": "./",
     "paths": {
-      "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/dist/*"],
-      "@rainbot/shared": ["packages/shared/dist/index.d.ts"],
-      "@rainbot/shared/*": ["packages/shared/dist/*"],
-      "@utils/*": ["utils/*"],
-      "@voice/*": ["utils/voice/*"]
+      "@rainbot/utils": ["../../packages/utils/src/index.ts"],
+      "@rainbot/utils/*": ["../../packages/utils/src/*"]
     }
   },
   "include": ["src/**/*"],

@@ -8,7 +8,7 @@ import {
   createSuccessButton,
   createSecondaryButton,
   createDangerButton,
-} from '../../builders/buttonBuilder';
+} from '@rainbot/utils';
 import type { MusicPlayerState } from '@rainbot/protocol';
 
 /**

@@ -3,7 +3,16 @@
  */
 
 // Builder utilities
-export * from './builders/buttonBuilder';
+export {
+  createButtonId,
+  parseButtonId,
+  createButton,
+  createPrimaryButton,
+  createSecondaryButton,
+  createSuccessButton,
+  createDangerButton,
+  createLinkButton,
+} from '@rainbot/utils';
 
 // Music control buttons
 export * from './buttons/music/controlButtons';

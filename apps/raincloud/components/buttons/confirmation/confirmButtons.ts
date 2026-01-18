@@ -8,7 +8,7 @@ import {
   createDangerButton,
   createSecondaryButton,
   createButtonId,
-} from '../../builders/buttonBuilder';
+} from '@rainbot/utils';
 
 /**
  * Confirmation action types

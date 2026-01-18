@@ -3,7 +3,7 @@
  */
 
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
-import { createSecondaryButton, createButtonId } from '../../builders/buttonBuilder';
+import { createSecondaryButton, createButtonId } from '@rainbot/utils';
 import type { PaginationState } from '@rainbot/protocol';
 
 /**

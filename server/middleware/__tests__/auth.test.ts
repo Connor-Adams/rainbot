@@ -3,7 +3,7 @@ import type { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
 
 // Mock logger
-jest.mock('../../../utils/logger', () => ({
+jest.mock('@rainbot/utils', () => ({
   createLogger: () => ({
     debug: jest.fn(),
     info: jest.fn(),

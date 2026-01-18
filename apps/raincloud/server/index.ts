@@ -5,8 +5,8 @@ import session from 'express-session';
 import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
 import type { Client } from 'discord.js';
-import { createLogger } from '@utils/logger';
-import * as storage from '@utils/storage';
+import { createLogger } from '@rainbot/utils';
+import * as storage from '@rainbot/utils';
 import requestLogger from './middleware/requestLogger';
 import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/protocol';
@@ -28,7 +28,7 @@ try {
 
 export async function createServer(): Promise<Application> {
   const app = express();
-  const { loadConfig } = require('@utils/config');
+  const { loadConfig } = require('@rainbot/utils');
   const config: AppConfig = loadConfig();
   const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
   const enableCors = !!dashboardOrigin;

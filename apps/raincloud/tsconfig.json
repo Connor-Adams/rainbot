@@ -1,36 +1,17 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": ".",
     "outDir": "./dist",
-    "rootDir": "../../",
-    "baseUrl": "../../",
-    "noImplicitReturns": false,
-    "noUnusedParameters": false,
-    "noUnusedLocals": false,
-    "paths": {
-      "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/dist/*"],
-      "@commands/*": ["apps/raincloud/commands/*"],
-      "@utils/*": ["utils/*"],
-      "@types/*": ["apps/raincloud/types/*"],
-      "@server/*": ["apps/raincloud/server/*"],
-      "@handlers/*": ["apps/raincloud/handlers/*"],
-      "@events/*": ["apps/raincloud/src/events/*"],
-      "@components/*": ["apps/raincloud/components/*"],
-      "@lib/*": ["apps/raincloud/lib/*"]
-    }
+    "baseUrl": "."
   },
   "include": [
-    "commands/**/*.ts",
-    "../../utils/**/*.ts",
-    "types/**/*.ts",
-    "types/**/*.d.ts",
+    "src/**/*.ts",
     "server/**/*.ts",
-    "handlers/**/*.ts",
-    "src/events/**/*.ts",
-    "src/rpc/**/*.ts",
     "components/**/*.ts",
-    "lib/**/*.ts"
+    "handlers/**/*.ts",
+    "events/**/*.ts",
+    "types/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 }

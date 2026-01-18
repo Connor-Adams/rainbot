@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
-import { query } from '@utils/database';
+import { query } from '@rainbot/utils';
 import { requireAuth } from '../middleware/auth';
-import { statsEmitter } from '@utils/statistics';
+import { statsEmitter } from '@rainbot/utils';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();

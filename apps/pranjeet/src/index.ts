@@ -16,8 +16,7 @@ import express, { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { createLogger } from '@rainbot/shared';
-import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
+import { createLogger, initVoiceInteractionManager } from '@rainbot/utils';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
@@ -788,17 +787,8 @@ client.once(Events.ClientReady, async () => {
     ttsHandler: async (guildId: string, text: string, userId?: string) => {
       if (!userId) return;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const multiBot = require('./dist/lib/multiBotService') as {
-          getMultiBotService: () => {
-            speakTTS: (
-              guildId: string,
-              text: string,
-              userId: string
-            ) => Promise<{ success: boolean; message?: string }>;
-          };
-        };
-        await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+        const { getMultiBotService } = await import('@rainbot/utils');
+        await getMultiBotService().speakTTS(guildId, text, userId);
       } catch (error) {
         log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
       }
