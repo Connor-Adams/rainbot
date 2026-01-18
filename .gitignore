@@ -78,6 +78,9 @@ ui/.vite-cache/
 # Monorepo app/package builds
 apps/*/dist/
 packages/*/dist/
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.map
 
 # Temporary files
 *.tmp

@@ -10,9 +10,9 @@ if (dotenvResult.error) {
 }
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
-const server = require('./dist/apps/raincloud/server');
-const { loadConfig } = require('./dist/utils/config');
-const { createLogger } = require('./dist/utils/logger');
+const server = require('./dist/server');
+const { loadConfig } = require('../../packages/utils/dist/config');
+const { createLogger } = require('../../packages/shared/dist/logger');
 
 const log = createLogger('MAIN');
 
@@ -80,7 +80,7 @@ if (config.spotifyClientId && config.spotifyClientSecret) {
 }
 
 // Initialize database (non-blocking, handles errors gracefully)
-const { initDatabase } = require('./dist/utils/database');
+const { initDatabase } = require('../../packages/utils/dist/database');
 initDatabase();
 
 const client = new Client({
@@ -109,7 +109,7 @@ client.once(Events.ClientReady, async () => {
 
   // Initialize multi-bot service (worker orchestration)
   try {
-    const MultiBotService = require('./dist/apps/raincloud/lib/multiBotService');
+    const MultiBotService = require('./dist/lib/multiBotService');
     const redisUrl = config.redisUrl || process.env['REDIS_URL'];
     const multiBot = await MultiBotService.default.initialize(redisUrl);
     multiBot.setDiscordClient(client);
@@ -142,7 +142,7 @@ if (!config.token) {
 async function gracefulShutdown(signal) {
   log.info(`Received ${signal}, shutting down gracefully...`);
 
-  const { saveAllQueueSnapshots, stopAutoSave } = require('./dist/utils/voiceManager');
+  const { saveAllQueueSnapshots, stopAutoSave } = require('../../packages/utils/dist/voiceManager');
 
   // Stop auto-save interval
   stopAutoSave();
@@ -152,18 +152,20 @@ async function gracefulShutdown(signal) {
 
   // Cleanup voice interaction manager
   try {
-    const { cleanupVoiceInteraction } = require('./dist/utils/voice/voiceInteractionInstance');
+    const {
+      cleanupVoiceInteraction,
+    } = require('../../packages/utils/dist/voice/voiceInteractionInstance');
     await cleanupVoiceInteraction();
   } catch (error) {
     log.warn(`Error cleaning up voice interaction: ${error.message}`);
   }
 
   // Flush statistics buffers
-  const { flushAll } = require('./dist/utils/statistics');
+  const { flushAll } = require('../../packages/utils/dist/statistics');
   await flushAll();
 
   // Close database connection
-  const { close } = require('./dist/utils/database');
+  const { close } = require('../../packages/utils/dist/database');
   await close();
 
   log.info('Shutdown complete');

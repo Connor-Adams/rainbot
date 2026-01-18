@@ -16,8 +16,7 @@ import express, { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { createLogger } from '@rainbot/shared';
-import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
+import { createLogger, initVoiceInteractionManager } from '@rainbot/utils';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];

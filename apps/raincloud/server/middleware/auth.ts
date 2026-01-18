@@ -1,5 +1,5 @@
 import type { Response, NextFunction } from 'express';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
 import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
@@ -31,7 +31,7 @@ export async function requireAuth(
   }
 
   // Get config and bot client
-  const { loadConfig } = require('@utils/config');
+  const { loadConfig } = require('@rainbot/utils');
   const config = loadConfig();
   const botClient = getClient();
 

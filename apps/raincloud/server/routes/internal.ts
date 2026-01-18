@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
-import * as stats from '@utils/statistics';
-import type { SourceType } from '@utils/sourceType';
+import * as stats from '@rainbot/utils';
+import type { SourceType } from '@rainbot/utils';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();

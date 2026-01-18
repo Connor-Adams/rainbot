@@ -15,7 +15,7 @@ import { getVoiceState } from './connectionManager';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { detectSourceType } from '../sourceType';
-import { getClient } from '../../apps/raincloud/server/client';
+import { getClient } from '../client';
 import type { Track } from '@rainbot/protocol';
 import type { VoiceState } from '@rainbot/protocol';
 import type { TextChannel, VoiceChannel } from 'discord.js';

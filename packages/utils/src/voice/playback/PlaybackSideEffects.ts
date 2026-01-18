@@ -1,6 +1,6 @@
 // util-category: audio
 import { createLogger } from '@utils/logger';
-import { getClient } from '../../../apps/raincloud/server/client';
+import { getClient } from '../../client';
 import { detectSourceType } from '@utils/sourceType';
 import * as stats from '@utils/statistics';
 import * as listeningHistory from '@utils/listeningHistory';

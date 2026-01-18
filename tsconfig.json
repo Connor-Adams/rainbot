@@ -5,14 +5,12 @@
     "lib": ["ES2022"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-
     /* Modules */
     "module": "CommonJS",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "esModuleInterop": true,
-
     /* Emit */
     "declaration": true,
     "declarationMap": true,
@@ -20,12 +18,10 @@
     "outDir": "./dist",
     "removeComments": false,
     "noEmit": false,
-
     /* Interop Constraints */
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-
     /* Type Checking */
     "strict": true,
     "noImplicitAny": true,
@@ -42,23 +38,20 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
-
     /* Completeness */
     "skipLibCheck": true,
-
     /* Path Mapping */
     "baseUrl": "./",
     "paths": {
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@commands/*": ["commands/*"],
-      "@utils/*": ["utils/*"],
+      "@utils/*": ["packages/utils/*"],
       "@types/*": ["types/*"],
       "@server/*": ["server/*"],
       "@events/*": ["events/*"],
       "@components/*": ["components/*"]
     },
-
     /* Types */
     "types": ["node", "jest"]
   },
