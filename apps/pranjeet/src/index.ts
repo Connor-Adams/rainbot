@@ -135,10 +135,46 @@ if (!hasOrchestrator) {
   log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
+function waitForPlaybackEnd(player: AudioPlayer, timeoutMs = 30_000): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      player.off(AudioPlayerStatus.Idle, finish);
+      player.off('error', finish);
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+
+    // If it’s already idle, resolve immediately
+    if (player.state.status === AudioPlayerStatus.Idle) return finish();
+
+    player.on(AudioPlayerStatus.Idle, finish);
+    player.on('error', finish);
+  });
+}
+
+function normalizeSpeakKey(text: string, voice?: string): string {
+  return `${(voice || '').trim().toLowerCase()}::${text.trim().toLowerCase()}`;
+}
+
+
 interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
+    // NEW: speech queue + bookkeeping
+  speakQueue: Promise<void>;
+  lastSpeakAt: number;
+  lastSpeakKey: string;
 }
 
 const guildStates = new Map<string, GuildState>();
@@ -200,10 +236,16 @@ function getOrCreateGuildState(guildId: string): GuildState {
       connection: null,
       player,
       volume: 0.8,
+
+      // NEW
+      speakQueue: Promise.resolve(),
+      lastSpeakAt: 0,
+      lastSpeakKey: '',
     });
   }
   return guildStates.get(guildId)!;
 }
+
 
 /**
  * Generate TTS audio using configured provider
@@ -274,32 +316,49 @@ async function speakInGuild(
     return { status: 'error', message: 'Not connected to voice channel' };
   }
 
-  // generateTTS() should return 48kHz mono s16le for OpenAI (after your resample24to48)
-  const pcm48kMono = await generateTTS(text, voice);
+  const speakKey = normalizeSpeakKey(text, voice);
+  const now = Date.now();
 
-  // Upmix to 48kHz stereo s16le
-  const pcm48kStereo = monoToStereoPcm(pcm48kMono);
-
-  // CRITICAL: feed StreamType.Raw as fixed 20ms frames (3840 bytes) to avoid Opus artifacts
-  const frames = chunkPcmIntoFrames(pcm48kStereo, PCM_48K_STEREO_FRAME_BYTES);
-  if (frames.length === 0) {
-    return { status: 'error', message: 'Generated TTS audio too short (no full 20ms frames)' };
+  // NEW: burst dedupe (prevents double-hit repeats)
+  // If the exact same line arrives within 1.5s, drop it.
+  if (speakKey === state.lastSpeakKey && now - state.lastSpeakAt < 1500) {
+    return { status: 'success', message: 'Dropped duplicate TTS (burst dedupe)' };
   }
+  state.lastSpeakKey = speakKey;
+  state.lastSpeakAt = now;
 
-  const stream = framesToReadable(frames);
+  // NEW: serialize per guild via promise chain
+  state.speakQueue = state.speakQueue
+    .catch(() => undefined) // keep queue alive even if prior failed
+    .then(async () => {
+      // Generate audio
+      const pcm48kMono = await generateTTS(text, voice);
+      if (!pcm48kMono || pcm48kMono.length === 0) return;
 
-  const resource = createAudioResource(stream, {
-    inputType: StreamType.Raw,
-    inlineVolume: true,
-  });
+      const pcm48kStereo = monoToStereoPcm(pcm48kMono);
 
-  if (resource.volume) {
-    resource.volume.setVolume(state.volume);
-  }
+      const frames = chunkPcmIntoFrames(pcm48kStereo, PCM_48K_STEREO_FRAME_BYTES);
+      if (frames.length === 0) return;
 
-  state.player.play(resource);
+      const stream = framesToReadable(frames);
+
+      const resource = createAudioResource(stream, {
+        inputType: StreamType.Raw,
+        inlineVolume: true,
+      });
+
+      if (resource.volume) resource.volume.setVolume(state.volume);
+
+      // Play
+      state.player.play(resource);
+
+      // IMPORTANT: wait until done before next queued speak
+      await waitForPlaybackEnd(state.player, 60_000);
+    });
+
   return { status: 'success', message: 'TTS queued' };
 }
+
 
 /**
  * Generate TTS using OpenAI
