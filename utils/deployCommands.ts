@@ -1,4 +1,3 @@
-// util-category: discord
 import { REST, Routes, RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
 import fs from 'fs';
 import path from 'path';

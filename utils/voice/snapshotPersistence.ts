@@ -1,4 +1,3 @@
-// util-category: audio
 /**
  * Snapshot Persistence - Handles queue snapshot save/restore for crash recovery
  */

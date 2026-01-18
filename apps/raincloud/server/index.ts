@@ -5,8 +5,8 @@ import session from 'express-session';
 import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
 import type { Client } from 'discord.js';
-import { createLogger } from '../utils/logger';
-import * as storage from '../utils/storage';
+import { createLogger } from '@utils/logger';
+import * as storage from '@utils/storage';
 import requestLogger from './middleware/requestLogger';
 import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/protocol';
@@ -28,7 +28,7 @@ try {
 
 export async function createServer(): Promise<Application> {
   const app = express();
-  const { loadConfig } = require('../utils/config');
+  const { loadConfig } = require('@utils/config');
   const config: AppConfig = loadConfig();
   const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
   const enableCors = !!dashboardOrigin;
@@ -71,14 +71,13 @@ export async function createServer(): Promise<Application> {
     const limit = Number(process.env['SOUND_TRANSCODE_SWEEP_LIMIT'] || 0);
     void storage
       .sweepTranscodeSounds({ deleteOriginal, limit: Number.isFinite(limit) ? limit : 0 })
-      .then((result) => {
+      .then((result: { converted: number; deleted: number; skipped: number }) => {
         log.info(
           `Sound transcode sweep complete: converted=${result.converted}, deleted=${result.deleted}, skipped=${result.skipped}`
         );
       })
-      .catch((error) => {
-        const err = error as Error;
-        log.warn(`Sound transcode sweep failed: ${err.message}`);
+      .catch((error: Error) => {
+        log.warn(`Sound transcode sweep failed: ${error.message}`);
       });
   }
 
@@ -334,7 +333,7 @@ export async function createServer(): Promise<Application> {
 export async function start(client: Client, port = 3000): Promise<Application> {
   setClient(client);
   const app = await createServer();
-  const { loadConfig } = require('../utils/config');
+  const { loadConfig } = require('@utils/config');
   const config: AppConfig = loadConfig();
 
   // Railway and other platforms use 0.0.0.0 instead of localhost

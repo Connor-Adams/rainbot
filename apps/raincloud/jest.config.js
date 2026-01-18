@@ -7,6 +7,18 @@ module.exports = {
     '^.+\\.ts$': 'ts-jest',
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleNameMapper: {
+    '^@utils/(.*)$': '<rootDir>/../../utils/$1',
+    '^@voice/(.*)$': '<rootDir>/../../utils/voice/$1',
+    '^@commands/(.*)$': '<rootDir>/commands/$1',
+    '^@types/(.*)$': '<rootDir>/types/$1',
+    '^@server/(.*)$': '<rootDir>/server/$1',
+    '^@handlers/(.*)$': '<rootDir>/handlers/$1',
+    '^@events/(.*)$': '<rootDir>/src/events/$1',
+    '^@components/(.*)$': '<rootDir>/components/$1',
+    '^@lib/(.*)$': '<rootDir>/lib/$1',
+  },
+  modulePathIgnorePatterns: ['<rootDir>/dist/'],
   passWithNoTests: true,
   verbose: true,
 };

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '@utils/logger';
 
 const log = createLogger('HTTP');
 

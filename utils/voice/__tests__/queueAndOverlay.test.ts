@@ -39,13 +39,13 @@ describe('Queue and Overlay Management', () => {
       // FFmpeg is mixing soundboard over music and playing both together
       expect(mockState.overlayProcess).toBeTruthy();
       expect(mockState.currentTrack).toBeTruthy();
-      expect(mockState.queue).toHaveLength(1);
+      expect(mockState.queue!).toHaveLength(1);
 
       // When overlay finishes (music track completed), idle handler should:
       // - Clear overlayProcess
       // - NOT resume music (already played through overlay)
       // - Continue with normal flow (playNext if queue has items)
-      expect(mockState.queue[0]?.title).toBe('Next Track');
+      expect(mockState.queue![0]?.title).toBe('Next Track');
     });
 
     it('should calculate correct playback position for overlay creation', () => {
@@ -77,7 +77,7 @@ describe('Queue and Overlay Management', () => {
 
       // First overlay finishes
       // State should still have 2 items in queue
-      expect(mockState.queue).toHaveLength(2);
+      expect(mockState.queue!).toHaveLength(2);
 
       // Second overlay starts while first is finishing
       // isTransitioningToOverlay flag should prevent idle handler from running
@@ -88,8 +88,8 @@ describe('Queue and Overlay Management', () => {
       expect(transitioningState.isTransitioningToOverlay).toBe(true);
 
       // After transition completes, queue should be unchanged
-      expect(mockState.queue).toHaveLength(2);
-      expect(mockState.queue[0]?.title).toBe('Track 2');
+      expect(mockState.queue!).toHaveLength(2);
+      expect(mockState.queue![0]?.title).toBe('Track 2');
     });
   });
 
@@ -176,7 +176,7 @@ describe('Queue and Overlay Management', () => {
 
       // If no current track, should play next from queue
       expect(mockState.currentTrack).toBeNull();
-      expect(mockState.queue).toHaveLength(1);
+      expect(mockState.queue!).toHaveLength(1);
     });
   });
 });

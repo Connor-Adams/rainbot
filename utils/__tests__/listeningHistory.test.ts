@@ -1,5 +1,5 @@
-import { saveHistory, getHistory, clearHistory } from '../listeningHistory';
-import type { Track } from '../listeningHistory';
+import { saveHistory, getHistory, clearHistory } from '@utils/listeningHistory';
+import type { Track } from '@utils/listeningHistory';
 
 describe('listeningHistory', () => {
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe('listeningHistory', () => {
         { title: 'Track 1', url: 'https://youtube.com/watch?v=123' },
         { title: 'Track 2', url: 'https://youtube.com/watch?v=456' },
       ];
-      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing Track', tracks[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing Track', tracks[0] ?? null);
 
       const history = getHistory('test-user-1');
       expect(history).not.toBeNull();
@@ -53,7 +53,13 @@ describe('listeningHistory', () => {
         title: `Track ${i}`,
         url: `https://youtube.com/watch?v=${i}`,
       }));
-      saveHistory('test-user-1', 'test-guild-1', largeTracks, 'Now Playing', largeTracks[0]);
+      saveHistory(
+        'test-user-1',
+        'test-guild-1',
+        largeTracks,
+        'Now Playing',
+        largeTracks[0] ?? null
+      );
 
       const history = getHistory('test-user-1');
       expect(history?.queue).toHaveLength(50);
@@ -63,8 +69,8 @@ describe('listeningHistory', () => {
       const tracks1: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
       const tracks2: Track[] = [{ title: 'Track 2', url: 'https://youtube.com/watch?v=456' }];
 
-      saveHistory('test-user-1', 'test-guild-1', tracks1, 'First', tracks1[0]);
-      saveHistory('test-user-1', 'test-guild-1', tracks2, 'Second', tracks2[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks1, 'First', tracks1[0] ?? null);
+      saveHistory('test-user-1', 'test-guild-1', tracks2, 'Second', tracks2[0] ?? null);
 
       const history = getHistory('test-user-1');
       expect(history?.nowPlaying).toBe('Second');
@@ -83,7 +89,7 @@ describe('listeningHistory', () => {
 
     it('returns saved history for user', () => {
       const tracks: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
-      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0] ?? null);
 
       const history = getHistory('test-user-1');
       expect(history).not.toBeNull();
@@ -93,7 +99,7 @@ describe('listeningHistory', () => {
     it('includes timestamp in returned history', () => {
       const tracks: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
       const beforeSave = Date.now();
-      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0] ?? null);
       const afterSave = Date.now();
 
       const history = getHistory('test-user-1');
@@ -103,7 +109,7 @@ describe('listeningHistory', () => {
 
     it('deletes and returns null for expired history (> 24 hours)', () => {
       const tracks: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
-      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0] ?? null);
 
       // Manually modify the timestamp to simulate old data
       // We need to access the internal map for this test
@@ -121,7 +127,7 @@ describe('listeningHistory', () => {
   describe('clearHistory', () => {
     it('clears history for a user', () => {
       const tracks: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
-      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks, 'Now Playing', tracks[0] ?? null);
 
       expect(getHistory('test-user-1')).not.toBeNull();
       clearHistory('test-user-1');
@@ -132,8 +138,8 @@ describe('listeningHistory', () => {
       const tracks1: Track[] = [{ title: 'Track 1', url: 'https://youtube.com/watch?v=123' }];
       const tracks2: Track[] = [{ title: 'Track 2', url: 'https://youtube.com/watch?v=456' }];
 
-      saveHistory('test-user-1', 'test-guild-1', tracks1, 'User 1', tracks1[0]);
-      saveHistory('test-user-2', 'test-guild-1', tracks2, 'User 2', tracks2[0]);
+      saveHistory('test-user-1', 'test-guild-1', tracks1, 'User 1', tracks1[0] ?? null);
+      saveHistory('test-user-2', 'test-guild-1', tracks2, 'User 2', tracks2[0] ?? null);
 
       clearHistory('test-user-1');
 

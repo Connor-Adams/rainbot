@@ -1,7 +1,7 @@
-// util-category: db
 import { query } from './database';
 import { createLogger } from './logger';
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import type { SourceType } from './sourceType';
 
 const log = createLogger('STATS');
@@ -788,7 +788,7 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
     const err = error as Error;
     log.error(`Failed to insert ${type} batch: ${err.message}`);
     // Put events back in buffer to retry later (but limit buffer size)
-    const buffer = bufferMap[type];
+    const buffer = bufferMap[type] as unknown[];
     if (buffer && buffer.length < BATCH_SIZE * 10) {
       buffer.unshift(...events);
     }
@@ -1055,7 +1055,7 @@ export function startVoiceSession(
   channelName: string | null = null,
   source: string = 'discord'
 ): string {
-  const sessionId = `${guildId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = randomUUID();
 
   const session: VoiceSessionEvent = {
     session_id: sessionId,

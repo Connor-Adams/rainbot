@@ -2706,6 +2706,7 @@ __metadata:
     ioredis: "npm:^5.4.1"
     openai: "npm:^4.104.0"
     opusscript: "npm:^0.1.1"
+    prism-media: "npm:^1.3.4"
     typescript: "npm:^5.9.3"
   dependenciesMeta:
     "@google-cloud/text-to-speech":

@@ -1,4 +1,3 @@
-// util-category: audio
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../../",
+    "baseUrl": "../../",
+    "paths": {
+      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
+      "@rainbot/protocol/*": ["packages/protocol/src/*"],
+      "@rainbot/shared": ["packages/shared/src/index.ts"],
+      "@rainbot/shared/*": ["packages/shared/src/*"],
+      "@utils/*": ["utils/*"],
+      "@voice/*": ["utils/voice/*"]
+    }
+  },
+  "include": ["src/**/*", "../../utils/**/*.ts"]
+}

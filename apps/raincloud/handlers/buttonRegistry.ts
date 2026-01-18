@@ -11,7 +11,7 @@ import {
 } from './musicButtonHandlers';
 import { handleQueuePaginationButton } from './paginationButtonHandlers';
 import { handleConfirmButton, handleCancelButton } from './confirmButtonHandlers';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '@utils/logger';
 
 const log = createLogger('BUTTON_REGISTRY');
 

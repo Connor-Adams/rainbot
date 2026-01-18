@@ -1,4 +1,3 @@
-// util-category: audio
 import { createAudioResource, StreamType, AudioPlayerStatus } from '@discordjs/voice';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';

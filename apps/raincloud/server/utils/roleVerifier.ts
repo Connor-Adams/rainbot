@@ -1,5 +1,5 @@
 import type { Client } from 'discord.js';
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '@utils/logger';
 
 const log = createLogger('ROLE_VERIFIER');
 

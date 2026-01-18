@@ -1,4 +1,3 @@
-// util-category: audio
 import { createLogger } from '../logger';
 import { query } from '../database';
 import type { VoiceState } from '@rainbot/protocol';
