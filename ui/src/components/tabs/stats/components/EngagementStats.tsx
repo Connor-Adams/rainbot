@@ -76,32 +76,32 @@ export default function EngagementStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{totalTracks}</div>
-          <div className="text-sm text-gray-400">Total Tracks</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-primary-light">{totalTracks}</div>
+          <div className="text-sm text-text-secondary">Total Tracks</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{completed}</div>
-          <div className="text-sm text-gray-400">Completed</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-success-light">{completed}</div>
+          <div className="text-sm text-text-secondary">Completed</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{skipped}</div>
-          <div className="text-sm text-gray-400">Skipped</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger-light">{skipped}</div>
+          <div className="text-sm text-text-secondary">Skipped</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-gray-400">{other}</div>
-          <div className="text-sm text-gray-400">Other</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-text-secondary">{other}</div>
+          <div className="text-sm text-text-secondary">Other</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{avgCompletionDisplay}%</div>
-          <div className="text-sm text-gray-400">Avg Completion</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-secondary-light">{avgCompletionDisplay}%</div>
+          <div className="text-sm text-text-secondary">Avg Completion</div>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {completionData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Completion vs Skips</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Completion vs Skips</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -129,8 +129,8 @@ export default function EngagementStats() {
         )}
         
         {skipData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Skip Reasons</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Skip Reasons</h3>
             <div style={{ width: '100%', height: Math.max(200, skipData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={skipData} layout="vertical" margin={{ left: 80, right: 20 }}>

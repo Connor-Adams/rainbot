@@ -19,7 +19,7 @@ export default function GuildsStats() {
       id: 'guild_id',
       header: 'Guild ID',
       render: (guild: GuildStat) => <span className="font-mono">{escapeHtml(guild.guild_id)}</span>,
-      className: 'px-4 py-3 text-sm text-white',
+      className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'commands',
@@ -27,7 +27,7 @@ export default function GuildsStats() {
       render: (guild: GuildStat) => (
         <span className="font-mono">{parseInt(guild.command_count || '0').toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'sounds',
@@ -35,7 +35,7 @@ export default function GuildsStats() {
       render: (guild: GuildStat) => (
         <span className="font-mono">{parseInt(guild.sound_count || '0').toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'unique_users',
@@ -43,7 +43,7 @@ export default function GuildsStats() {
       render: (guild: GuildStat) => (
         <span className="font-mono">{parseInt(guild.unique_users || '0').toLocaleString()}</span>
       ),
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'total',
@@ -52,14 +52,14 @@ export default function GuildsStats() {
         const total = parseInt(guild.command_count || '0') + parseInt(guild.sound_count || '0')
         return <span className="font-mono">{total.toLocaleString()}</span>
       },
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {
       id: 'last_active',
       header: 'Last Active',
       render: (guild: GuildStat) =>
         guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never',
-      className: 'px-4 py-3 text-sm text-gray-400',
+      className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ]
 

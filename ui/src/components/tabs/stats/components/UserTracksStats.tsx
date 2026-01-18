@@ -57,8 +57,8 @@ export default function UserTracksStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">🎵</span>
-        <p className="text-sm text-gray-400">No user track data available yet</p>
-        <small className="text-xs text-gray-500">Track data will appear as users listen to music</small>
+        <p className="text-sm text-text-secondary">No user track data available yet</p>
+        <small className="text-xs text-text-muted">Track data will appear as users listen to music</small>
       </div>
     )
   }
@@ -79,8 +79,8 @@ export default function UserTracksStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {sourceData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Track Sources</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Track Sources</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -108,8 +108,8 @@ export default function UserTracksStats() {
         )}
         
         {topTracksData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Most Listened Tracks</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Most Listened Tracks</h3>
             <div style={{ width: '100%', height: Math.max(200, topTracksData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topTracksData} layout="vertical" margin={{ left: 100, right: 20 }}>
@@ -125,12 +125,12 @@ export default function UserTracksStats() {
       </div>
 
       {topTracks.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Tracks Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Top Tracks Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Source</th>
                   <th className="pb-2 px-4">Listens</th>
@@ -139,15 +139,15 @@ export default function UserTracksStats() {
               </thead>
               <tbody>
                 {topTracks.slice(0, 10).map((track, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">
                       {track.track_url ? (
-                        <a href={track.track_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                        <a href={track.track_url} target="_blank" rel="noopener noreferrer" className="text-primary-light hover:underline">
                           {track.track_title}
                         </a>
                       ) : track.track_title}
                     </td>
-                    <td className="py-2 px-4"><span className="px-2 py-1 rounded text-xs bg-gray-700">{track.source_type}</span></td>
+                    <td className="py-2 px-4"><span className="px-2 py-1 rounded text-xs bg-surface-hover">{track.source_type}</span></td>
                     <td className="py-2 px-4">{track.listen_count}</td>
                     <td className="py-2 px-4">{track.unique_listeners}</td>
                   </tr>
@@ -159,12 +159,12 @@ export default function UserTracksStats() {
       )}
 
       {recentListens.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Recent Listens</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Recent Listens</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Track</th>
                   <th className="pb-2 px-4">Source</th>
                   <th className="pb-2 px-4">Queued By</th>
@@ -173,9 +173,9 @@ export default function UserTracksStats() {
               </thead>
               <tbody>
                 {recentListens.slice(0, 15).map((listen, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{listen.track_title}</td>
-                    <td className="py-2 px-4"><span className="px-2 py-1 rounded text-xs bg-gray-700">{listen.source_type}</span></td>
+                    <td className="py-2 px-4"><span className="px-2 py-1 rounded text-xs bg-surface-hover">{listen.source_type}</span></td>
                     <td className="py-2 px-4 font-mono text-sm">{listen.queued_by}</td>
                     <td className="py-2 px-4 text-sm">{safeDateLabel(listen.listened_at)}</td>
                   </tr>

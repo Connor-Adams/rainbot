@@ -17,11 +17,8 @@ export default function ServerSelector() {
   const guilds = status?.guilds || []
 
   return (
-    <div className="server-selector-wrapper bg-surface rounded-2xl border border-border p-6">
-      <label
-        className="block text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"
-      >
-        <span className="w-1 h-4 bg-gradient-to-b from-danger to-danger-dark rounded shadow-glow-danger"></span>
+    <div className="server-selector-wrapper bg-surface rounded-2xl border border-border p-5">
+      <label className="block text-sm font-semibold text-text-secondary mb-3">
         Select Server
       </label>
       <CustomDropdown<Guild>
@@ -37,4 +34,3 @@ export default function ServerSelector() {
     </div>
   )
 }
-

@@ -57,8 +57,8 @@ export default function SearchStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">🔍</span>
-        <p className="text-sm text-gray-400">No search data available yet</p>
-        <small className="text-xs text-gray-500">Search statistics will appear as users search for content</small>
+        <p className="text-sm text-text-secondary">No search data available yet</p>
+        <small className="text-xs text-text-muted">Search statistics will appear as users search for content</small>
       </div>
     )
   }
@@ -76,18 +76,18 @@ export default function SearchStats() {
   })).filter(d => d.value > 0)
 
   const columns = [
-    { id: 'query', header: 'Query', render: (q: TopQuery) => q.query, className: 'px-4 py-3 text-sm text-white' },
-    { id: 'type', header: 'Type', render: (q: TopQuery) => <span className="px-2 py-1 bg-gray-700 rounded text-xs">{q.query_type}</span>, className: 'px-4 py-3 text-sm' },
-    { id: 'count', header: 'Count', render: (q: TopQuery) => q.count, className: 'px-4 py-3 text-sm text-gray-400' },
-    { id: 'avg_results', header: 'Avg Results', render: (q: TopQuery) => q.avg_results, className: 'px-4 py-3 text-sm text-gray-400' },
+    { id: 'query', header: 'Query', render: (q: TopQuery) => q.query, className: 'px-4 py-3 text-sm text-text-primary' },
+    { id: 'type', header: 'Type', render: (q: TopQuery) => <span className="px-2 py-1 bg-surface-hover rounded text-xs">{q.query_type}</span>, className: 'px-4 py-3 text-sm' },
+    { id: 'count', header: 'Count', render: (q: TopQuery) => q.count, className: 'px-4 py-3 text-sm text-text-secondary' },
+    { id: 'avg_results', header: 'Avg Results', render: (q: TopQuery) => q.avg_results, className: 'px-4 py-3 text-sm text-text-secondary' },
   ]
 
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {queryData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Top Searches</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Top Searches</h3>
             <div style={{ width: '100%', height: Math.max(200, queryData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={queryData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -102,8 +102,8 @@ export default function SearchStats() {
         )}
         
         {typeData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Search Types</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Search Types</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -136,12 +136,12 @@ export default function SearchStats() {
         </StatsSection>
 
       {zeroResults.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Zero Result Searches</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Zero Result Searches</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Query</th>
                   <th className="pb-2 px-4">Type</th>
                   <th className="pb-2 px-4">Count</th>
@@ -149,9 +149,9 @@ export default function SearchStats() {
               </thead>
               <tbody>
                 {zeroResults.slice(0, 10).map((z, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{z.query}</td>
-                    <td className="py-2 px-4"><span className="px-2 py-1 bg-gray-700 rounded text-xs">{z.query_type}</span></td>
+                    <td className="py-2 px-4"><span className="px-2 py-1 bg-surface-hover rounded text-xs">{z.query_type}</span></td>
                     <td className="py-2 px-4">{z.count}</td>
                   </tr>
                 ))}

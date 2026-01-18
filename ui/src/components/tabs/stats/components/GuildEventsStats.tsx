@@ -62,8 +62,8 @@ export default function GuildEventsStats() {
   return (
     <div className="space-y-6">
       {summaryData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Guild Events Summary</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Guild Events Summary</h3>
           <div style={{ width: '100%', height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -91,8 +91,8 @@ export default function GuildEventsStats() {
       )}
 
       {growth.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Guild Growth Over Time</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Guild Growth Over Time</h3>
           <div className="space-y-2">
             {growth.slice(-14).map((g, idx) => {
               const joins = safeInt(g.joins)
@@ -100,10 +100,10 @@ export default function GuildEventsStats() {
               const net = joins - leaves
               return (
                 <div key={idx} className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-400 w-24">{safeDateLabel(g.date)}</span>
-                  <span className="text-green-400 w-16">+{joins}</span>
-                  <span className="text-red-400 w-16">-{leaves}</span>
-                  <span className={`w-16 ${net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className="text-text-secondary w-24">{safeDateLabel(g.date)}</span>
+                  <span className="text-success-light w-16">+{joins}</span>
+                  <span className="text-danger-light w-16">-{leaves}</span>
+                  <span className={`w-16 ${net >= 0 ? 'text-success-light' : 'text-danger-light'}`}>
                     {net >= 0 ? '+' : ''}{net}
                   </span>
                 </div>
@@ -114,12 +114,12 @@ export default function GuildEventsStats() {
       )}
 
       {recentEvents.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Recent Guild Events</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Recent Guild Events</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Event</th>
                   <th className="pb-2 px-4">Guild</th>
                   <th className="pb-2 px-4">Members</th>
@@ -128,9 +128,9 @@ export default function GuildEventsStats() {
               </thead>
               <tbody>
                 {recentEvents.slice(0, 10).map((event, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">
-                      <span className={`px-2 py-1 rounded text-xs ${event.event_type === 'bot_added' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                      <span className={`px-2 py-1 rounded text-xs ${event.event_type === 'bot_added' ? 'bg-success/10 text-success-light' : 'bg-danger/10 text-danger-light'}`}>
                         {event.event_type.replace('bot_', '')}
                       </span>
                     </td>

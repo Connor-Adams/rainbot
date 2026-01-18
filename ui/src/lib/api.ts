@@ -3,14 +3,17 @@ import axios from 'axios';
 const runtimeConfig =
   (globalThis as { __RAINBOT_CONFIG__?: Record<string, string> }).__RAINBOT_CONFIG__ || {};
 
+const defaultAuthOrigin = 'https://raincloud-production.up.railway.app';
+const defaultApiOrigin = `${defaultAuthOrigin}/api`;
+
 export const apiBaseUrl =
   runtimeConfig['VITE_API_BASE_URL'] ||
   import.meta.env.VITE_API_BASE_URL ||
-  'http://raincloud.railway.internal:3000/api';
+  defaultApiOrigin;
 export const authBaseUrl =
   runtimeConfig['VITE_AUTH_BASE_URL'] ||
   import.meta.env.VITE_AUTH_BASE_URL ||
-  'http://raincloud.railway.internal:3000';
+  defaultAuthOrigin;
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');

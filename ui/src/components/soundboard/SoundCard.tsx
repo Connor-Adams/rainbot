@@ -92,7 +92,7 @@ export function SoundCard({
 
       {/* Preview indicator */}
       {isPreviewing && (
-        <div className="absolute bottom-2 left-2 text-xs text-purple-400 flex items-center gap-1">
+        <div className="absolute bottom-2 left-2 text-xs text-secondary-light flex items-center gap-1">
           <span className="animate-pulse">▶</span>
         </div>
       )}

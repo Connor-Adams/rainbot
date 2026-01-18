@@ -58,39 +58,39 @@ export default function PerformanceStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{overall.sample_count || 0}</div>
-          <div className="text-sm text-gray-400">Samples</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-primary-light">{overall.sample_count || 0}</div>
+          <div className="text-sm text-text-secondary">Samples</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{overall.avg_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">Avg</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-success-light">{overall.avg_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">Avg</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{overall.p50_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P50</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-secondary-light">{overall.p50_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P50</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">{overall.p95_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P95</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning-light">{overall.p95_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P95</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{overall.p99_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P99</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning">{overall.p99_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P99</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-gray-400">{overall.min_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">Min</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-text-secondary">{overall.min_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">Min</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{overall.max_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">Max</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger-light">{overall.max_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">Max</div>
         </div>
       </div>
 
       {commandData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Avg Execution Time by Command (ms)</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Avg Execution Time by Command (ms)</h3>
           <div style={{ width: '100%', height: Math.max(200, commandData.length * 32) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={commandData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -105,12 +105,12 @@ export default function PerformanceStats() {
       )}
 
       {byCommand.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Command Performance</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Command Performance</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Command</th>
                   <th className="pb-2 px-4">Avg (ms)</th>
                   <th className="pb-2 px-4">P95 (ms)</th>
@@ -119,7 +119,7 @@ export default function PerformanceStats() {
               </thead>
               <tbody>
                 {byCommand.map((cmd, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{cmd.command_name}</td>
                     <td className="py-2 px-4">{cmd.avg_ms}</td>
                     <td className="py-2 px-4">{cmd.p95_ms}</td>

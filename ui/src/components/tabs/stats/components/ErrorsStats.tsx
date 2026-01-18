@@ -65,8 +65,8 @@ export default function ErrorsStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">✅</span>
-        <p className="text-sm text-gray-400">No errors recorded</p>
-        <small className="text-xs text-gray-500">Error statistics will appear here if commands fail</small>
+        <p className="text-sm text-text-secondary">No errors recorded</p>
+        <small className="text-xs text-text-muted">Error statistics will appear here if commands fail</small>
       </div>
     )
   }
@@ -86,28 +86,28 @@ export default function ErrorsStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{summary.total_errors || 0}</div>
-          <div className="text-sm text-gray-400">Total Errors</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger-light">{summary.total_errors || 0}</div>
+          <div className="text-sm text-text-secondary">Total Errors</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{summary.unique_commands || 0}</div>
-          <div className="text-sm text-gray-400">Unique Commands</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning">{summary.unique_commands || 0}</div>
+          <div className="text-sm text-text-secondary">Unique Commands</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-sm font-bold text-yellow-400 truncate">{summary.most_common_error || 'N/A'}</div>
-          <div className="text-sm text-gray-400">Most Common Error</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-sm font-bold text-warning-light truncate">{summary.most_common_error || 'N/A'}</div>
+          <div className="text-sm text-text-secondary">Most Common Error</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-sm font-bold text-purple-400 truncate">{summary.most_failing_command || 'N/A'}</div>
-          <div className="text-sm text-gray-400">Most Failing Command</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-sm font-bold text-secondary-light truncate">{summary.most_failing_command || 'N/A'}</div>
+          <div className="text-sm text-text-secondary">Most Failing Command</div>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {typeData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Errors by Type</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Errors by Type</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -135,8 +135,8 @@ export default function ErrorsStats() {
         )}
         
         {commandData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Errors by Command</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Errors by Command</h3>
             <div style={{ width: '100%', height: Math.max(200, commandData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={commandData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -152,12 +152,12 @@ export default function ErrorsStats() {
       </div>
 
       {recent.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Recent Errors</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Recent Errors</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Command</th>
                   <th className="pb-2 px-4">Error Type</th>
                   <th className="pb-2 px-4">Message</th>
@@ -165,9 +165,9 @@ export default function ErrorsStats() {
               </thead>
               <tbody>
                 {recent.slice(0, 10).map((err, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{err.command_name}</td>
-                    <td className="py-2 px-4"><span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs">{err.error_type}</span></td>
+                    <td className="py-2 px-4"><span className="px-2 py-1 bg-danger/10 text-danger-light rounded text-xs">{err.error_type}</span></td>
                     <td className="py-2 px-4 text-sm truncate max-w-xs">{err.error_message}</td>
                   </tr>
                 ))}

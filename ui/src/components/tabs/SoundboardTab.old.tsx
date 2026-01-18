@@ -224,10 +224,10 @@ export default function SoundboardTab() {
   }
 
   return (
-    <section className="panel sounds-panel bg-gray-800 rounded-2xl border border-gray-700 p-6">
+    <section className="panel sounds-panel bg-surface rounded-2xl border border-border p-6">
       <div className="panel-header flex justify-between items-center mb-6">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <span className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-500 rounded shadow-lg shadow-blue-500/40"></span>
+        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+          <span className="w-1 h-5 bg-gradient-to-b from-primary to-secondary rounded shadow-lg shadow-glow"></span>
           Soundboard
         </h2>
         <div className="upload-area">
@@ -249,12 +249,12 @@ export default function SoundboardTab() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-4 py-3 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-500"
+          className="w-full px-4 py-3 pr-10 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-text-muted"
           placeholder="Search sounds..."
         />
         {searchQuery && (
           <button
-            className="clear-btn absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-500 cursor-pointer p-1 flex items-center justify-center rounded transition-all hover:bg-gray-800 hover:text-white"
+            className="clear-btn absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-text-muted cursor-pointer p-1 flex items-center justify-center rounded transition-all hover:bg-surface hover:text-text-primary"
             onClick={() => setSearchQuery('')}
           >
             ✕
@@ -265,41 +265,41 @@ export default function SoundboardTab() {
       {/* Edit Modal */}
       {editingSound && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={handleCancelEdit}>
-          <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white mb-4">Customize Sound</h3>
+          <div className="bg-surface rounded-xl border border-border p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-text-primary mb-4">Customize Sound</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Emoji</label>
+                <label className="block text-sm text-text-secondary mb-2">Emoji</label>
                 <input
                   type="text"
                   value={editEmoji}
                   onChange={(e) => setEditEmoji(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-2xl text-center focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="🎵"
                   maxLength={4}
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Display Name</label>
+                <label className="block text-sm text-text-secondary mb-2">Display Name</label>
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder={editingSound.replace(/\.[^/.]+$/, '')}
                 />
               </div>
-              <p className="text-xs text-gray-500">File: {editingSound}</p>
+              <p className="text-xs text-text-muted">File: {editingSound}</p>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                className="flex-1 px-4 py-2 bg-surface-elevated hover:bg-surface-hover text-text-primary rounded-lg transition-colors"
                 onClick={handleCancelEdit}
               >
                 Cancel
               </button>
               <button
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                className="flex-1 px-4 py-2 bg-primary-dark hover:bg-primary text-text-primary rounded-lg transition-colors"
                 onClick={handleSaveEdit}
               >
                 Save
@@ -312,7 +312,7 @@ export default function SoundboardTab() {
       <div className="sounds-grid grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
         {filteredSounds.length === 0 ? (
           <div className="col-span-full">
-            <p className="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
+            <p className="empty-state text-text-muted text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
               <span className="text-2xl opacity-50">
                 {searchQuery ? '🔍' : '📭'}
               </span>
@@ -327,14 +327,14 @@ export default function SoundboardTab() {
             <div
               key={sound.name}
               onClick={(e) => handlePlay(sound.name, e)}
-              className={`sound-card relative bg-gray-900 border border-gray-700 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer select-none transition-all hover:border-blue-500 hover:-translate-y-1 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/20 hover:bg-gray-800 active:scale-95 ${
+              className={`sound-card relative bg-surface-input border border-border rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer select-none transition-all hover:border-primary hover:-translate-y-1 hover:scale-105 hover:shadow-xl hover:shadow-glow hover:bg-surface active:scale-95 ${
                 playMutation.isPending ? 'opacity-50 pointer-events-none' : ''
               } ${!selectedGuildId ? 'opacity-50' : ''}`}
             >
               {/* Hamburger Menu */}
               <div className="sound-menu absolute top-2 right-2" ref={openMenuId === sound.name ? menuRef : null}>
                 <button
-                  className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
                   onClick={(e) => {
                     e.stopPropagation()
                     setOpenMenuId(openMenuId === sound.name ? null : sound.name)
@@ -345,9 +345,9 @@ export default function SoundboardTab() {
                   </svg>
                 </button>
                 {openMenuId === sound.name && (
-                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 min-w-[140px] overflow-hidden max-h-[280px] overflow-y-auto">
+                  <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-xl z-10 min-w-[140px] overflow-hidden max-h-[280px] overflow-y-auto">
                     <button
-                      className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-elevated flex items-center gap-2 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         handlePreview(sound.name)
@@ -356,7 +356,7 @@ export default function SoundboardTab() {
                       {previewingSound === sound.name ? '⏸️ Stop Preview' : '▶️ Preview'}
                     </button>
                     <button
-                      className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-elevated flex items-center gap-2 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleEdit(sound)
@@ -367,7 +367,7 @@ export default function SoundboardTab() {
                     <a
                       href={soundsApi.downloadUrl(sound.name)}
                       download={sound.name}
-                      className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-elevated flex items-center gap-2 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         setOpenMenuId(null)
@@ -376,7 +376,7 @@ export default function SoundboardTab() {
                       ⬇️ Download
                     </a>
                     <button
-                      className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2 transition-colors"
+                      className="w-full px-4 py-2.5 text-left text-sm text-danger-light hover:bg-danger/10 flex items-center gap-2 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDelete(sound.name)
@@ -391,12 +391,12 @@ export default function SoundboardTab() {
               <div className="sound-icon text-4xl">{getEmoji(sound)}</div>
               <div className="sound-info text-center w-full">
                 <div
-                  className="sound-name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis"
+                  className="sound-name text-sm font-medium text-text-primary whitespace-nowrap overflow-hidden text-ellipsis"
                   title={escapeHtml(sound.name)}
                 >
                   {escapeHtml(getDisplayName(sound))}
                 </div>
-                <div className="text-xs text-gray-500 font-mono mt-1">
+                <div className="text-xs text-text-muted font-mono mt-1">
                   {formatSize(sound.size)}
                 </div>
               </div>
@@ -407,4 +407,3 @@ export default function SoundboardTab() {
     </section>
   )
 }
-

@@ -85,8 +85,8 @@ export default function InteractionsStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {typeData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Interaction Types</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Interaction Types</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -114,8 +114,8 @@ export default function InteractionsStats() {
         )}
         
         {rtData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Response Time Distribution</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Response Time Distribution</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -144,8 +144,8 @@ export default function InteractionsStats() {
       </div>
       
       {actionData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Top Interactions</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Top Interactions</h3>
           <div style={{ width: '100%', height: Math.max(200, actionData.length * 32) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={actionData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -160,19 +160,19 @@ export default function InteractionsStats() {
       )}
 
       {topActions.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Interaction Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Interaction Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Custom ID</th>
                   <th className="pb-2 px-4">Count</th>
                 </tr>
               </thead>
               <tbody>
                 {topActions.slice(0, 15).map((action, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
                     <td className="py-2 px-4">{action.count}</td>
                   </tr>
