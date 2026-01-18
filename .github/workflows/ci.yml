@@ -6,52 +6,168 @@ on:
   pull_request:
     branches: ["**"]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.12.0"
+  TURBO_CACHE_DIR: .turbo
+
+  # Optional (Turbo Remote Cache). Put these in GitHub Secrets.
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+
 jobs:
-  ci:
-    name: Build, Lint, Test
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack (Yarn 4.6.0)
+        run: |
+          corepack enable
+          corepack prepare yarn@4.6.0 --activate
 
-      - name: Get Yarn cache directory
-        id: yarn-cache
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-
-      - name: Cache Yarn
+      - name: Cache Yarn + Turbo
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarn-cache.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          path: |
+            .yarn/cache
+            .yarn/unplugged
+            .pnp.cjs
+            .turbo
+          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
 
-      - name: Install dependencies
+      - name: Install
         env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable
+          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+        run: yarn install --immutable --check-cache
 
-      - name: Run backend lint
+      - name: Lint (turbo)
         run: yarn lint
 
-      - name: Run frontend lint
-        run: yarn workspace @rainbot/ui lint
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build TypeScript
-        run: yarn build:ts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Run tests
+      - name: Enable Corepack (Yarn 4.6.0)
+        run: |
+          corepack enable
+          corepack prepare yarn@4.6.0 --activate
+
+      - name: Cache Yarn + Turbo
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/unplugged
+            .pnp.cjs
+            .turbo
+          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
+
+      - name: Install
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+        run: yarn install --immutable --check-cache
+
+      - name: Type check (turbo)
+        run: yarn type-check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack (Yarn 4.6.0)
+        run: |
+          corepack enable
+          corepack prepare yarn@4.6.0 --activate
+
+      - name: Cache Yarn + Turbo
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/unplugged
+            .pnp.cjs
+            .turbo
+          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
+
+      - name: Install
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+        run: yarn install --immutable --check-cache
+
+      - name: Test (turbo)
         run: yarn test
 
-      - name: Build frontend
-        run: yarn workspace @rainbot/ui build
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack (Yarn 4.6.0)
+        run: |
+          corepack enable
+          corepack prepare yarn@4.6.0 --activate
+
+      - name: Cache Yarn + Turbo
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/unplugged
+            .pnp.cjs
+            .turbo
+          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
+
+      - name: Install
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+        run: yarn install --immutable --check-cache
+
+      - name: Build (turbo)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: yarn build
+
+  ci:
+    name: CI (gate)
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, build]
+    steps:
+      - run: echo "All checks passed."

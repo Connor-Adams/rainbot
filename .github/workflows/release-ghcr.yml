@@ -1,0 +1,138 @@
+name: Release Build Images (GHCR)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan changed images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      any: ${{ steps.set-matrix.outputs.any }}
+      tag: ${{ steps.set-matrix.outputs.tag }}
+      owner: ${{ steps.set-matrix.outputs.owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute changed services
+        id: set-matrix
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "owner=${OWNER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+          # Resolve tag ref
+          if git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
+            CURRENT_TAG="${RELEASE_TAG}"
+          else
+            CURRENT_TAG="refs/tags/${RELEASE_TAG}"
+          fi
+
+          # If no previous tag, build nothing (no fallback)
+          if ! PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null); then
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RANGE="${PREV_TAG}..${CURRENT_TAG}"
+          echo "Diff range: ${RANGE}"
+
+          changed() { git diff --name-only "${RANGE}" -- "$1" | grep -q .; }
+
+          SHARED=false
+          if changed "packages/" || changed "ui/" || changed "package.json" || changed "yarn.lock" || changed "turbo.json"; then
+            SHARED=true
+          fi
+
+          # Build up a JSON matrix.include array
+          INC=""
+
+          add() {
+            local service="$1" image="$2" context="$3" dockerfile="$4"
+            if [[ -n "${INC}" ]]; then INC="${INC},"; fi
+            INC="${INC}{\"service\":\"${service}\",\"image\":\"${image}\",\"context\":\"${context}\",\"dockerfile\":\"${dockerfile}\"}"
+          }
+
+          # Adjust these paths if your Dockerfiles differ
+          if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then
+            add "raincloud" "rainbot-raincloud" "apps/raincloud" "apps/raincloud/Dockerfile"
+          fi
+
+          if [[ "${SHARED}" == "true" ]] || changed "apps/rainbot/"; then
+            add "rainbot" "rainbot-rainbot" "apps/rainbot" "apps/rainbot/Dockerfile"
+          fi
+
+          if [[ "${SHARED}" == "true" ]] || changed "apps/pranjeet/"; then
+            add "pranjeet" "rainbot-pranjeet" "apps/pranjeet" "apps/pranjeet/Dockerfile"
+          fi
+
+          if [[ "${SHARED}" == "true" ]] || changed "apps/hungerbot/"; then
+            add "hungerbot" "rainbot-hungerbot" "apps/hungerbot" "apps/hungerbot/Dockerfile"
+          fi
+
+          if [[ -z "${INC}" ]]; then
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix={\"include\":[${INC}]}" >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    name: Build & push changed images
+    needs: [plan]
+    if: ${{ needs.plan.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ needs.plan.outputs.owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}:${{ needs.plan.outputs.tag }}
+            ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}:prod
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.plan.outputs.tag }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

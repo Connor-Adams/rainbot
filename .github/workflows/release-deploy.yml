@@ -28,65 +28,40 @@ jobs:
             CURRENT_TAG="refs/tags/${RELEASE_TAG}"
           fi
 
-          if PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null); then
-            RANGE="${PREV_TAG}..${CURRENT_TAG}"
-            echo "range=${RANGE}" >> "$GITHUB_OUTPUT"
-
-            if git diff --name-only "${RANGE}" -- "apps/raincloud/" | grep -q .; then
-              echo "raincloud=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "raincloud=false" >> "$GITHUB_OUTPUT"
-            fi
-
-            if git diff --name-only "${RANGE}" -- "apps/rainbot/" | grep -q .; then
-              echo "rainbot=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "rainbot=false" >> "$GITHUB_OUTPUT"
-            fi
-
-            if git diff --name-only "${RANGE}" -- "apps/pranjeet/" | grep -q .; then
-              echo "pranjeet=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "pranjeet=false" >> "$GITHUB_OUTPUT"
-            fi
-
-            if git diff --name-only "${RANGE}" -- "apps/hungerbot/" | grep -q .; then
-              echo "hungerbot=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "hungerbot=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "range=${CURRENT_TAG}" >> "$GITHUB_OUTPUT"
-            echo "raincloud=true" >> "$GITHUB_OUTPUT"
-            echo "rainbot=true" >> "$GITHUB_OUTPUT"
-            echo "pranjeet=true" >> "$GITHUB_OUTPUT"
-            echo "hungerbot=true" >> "$GITHUB_OUTPUT"
+          # No previous tag => deploy nothing
+          if ! PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null); then
+            echo "raincloud=false" >> "$GITHUB_OUTPUT"
+            echo "rainbot=false" >> "$GITHUB_OUTPUT"
+            echo "pranjeet=false" >> "$GITHUB_OUTPUT"
+            echo "hungerbot=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          RANGE="${PREV_TAG}..${CURRENT_TAG}"
+          changed() { git diff --name-only "${RANGE}" -- "$1" | grep -q .; }
+
+          SHARED=false
+          if changed "packages/" || changed "ui/" || changed "package.json" || changed "yarn.lock" || changed "turbo.json"; then
+            SHARED=true
+          fi
+
+          echo "raincloud=$([ "$SHARED" = true ] || changed "apps/raincloud/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "rainbot=$([ "$SHARED" = true ] || changed "apps/rainbot/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "pranjeet=$([ "$SHARED" = true ] || changed "apps/pranjeet/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "hungerbot=$([ "$SHARED" = true ] || changed "apps/hungerbot/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Raincloud to Railway
         if: ${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD != '' && steps.detect.outputs.raincloud == 'true' }}
-        run: |
-          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}" -H "Content-Type: application/json" -d '{}'
 
       - name: Deploy Rainbot Worker to Railway
         if: ${{ secrets.RAILWAY_WEBHOOK_RAINBOT != '' && steps.detect.outputs.rainbot == 'true' }}
-        run: |
-          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}" -H "Content-Type: application/json" -d '{}'
 
       - name: Deploy Pranjeet Worker to Railway
         if: ${{ secrets.RAILWAY_WEBHOOK_PRANJEET != '' && steps.detect.outputs.pranjeet == 'true' }}
-        run: |
-          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}" -H "Content-Type: application/json" -d '{}'
 
       - name: Deploy HungerBot Worker to Railway
         if: ${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT != '' && steps.detect.outputs.hungerbot == 'true' }}
-        run: |
-          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}" -H "Content-Type: application/json" -d '{}'

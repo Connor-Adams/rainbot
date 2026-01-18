@@ -1,54 +1,61 @@
-name-template: 'v$NEXT_PATCH_VERSION'
-tag-template: 'v$NEXT_PATCH_VERSION'
-change-template: '    $TITLE @$AUTHOR (#$NUMBER)'
-no-changes-template: '    No changes'
-include-commit-messages: true
-commit-message-template: '    $MESSAGE'
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+version-resolver:
+  major:
+    labels: ["major", "breaking"]
+  minor:
+    labels: ["feature", "enhancement", "feat"]
+  patch:
+    labels: ["fix", "bug"]
+  default: patch
+
+change-template: "    $TITLE @$AUTHOR (#$NUMBER)"
+no-changes-template: "    No changes"
+
 categories:
-  - title: '🧰 Maintenance'
-    labels:
-      - 'chore'
-      - 'deps'
-      - 'dependencies'
-      - 'maintenance'
-  - title: '🚀 What''s Changed'
-    labels:
-      - 'feature'
-      - 'enhancement'
-      - 'feat'
-      - 'fix'
-      - 'bug'
+  - title: "🧰 Maintenance"
+    labels: ["chore", "deps", "dependencies", "maintenance"]
+  - title: "🚀 What's Changed"
+    labels: ["feature", "enhancement", "feat", "fix", "bug"]
   - title: "🧩 Other Changes"
-    labels:
-      - "*"
+    labels: ["*"]
+
 category-template: |
   $TITLE
 
   $CHANGES
+
 template: |
   🚀 What's Changed
 
   $CHANGES
 
-  🐳 Docker Images
+  🚢 Deployment Model (Important)
 
-  Pull the images from GitHub Container Registry:
+  • **Railway services track the `:prod` image tag**
+  • **Only services with code changes in this release receive a new versioned image**
+  • Unchanged services continue running their previously deployed image digest
+
+  🐳 Docker Images (GHCR)
+
+  Pull images manually (if needed):
 
   # Raincloud Orchestrator
-  docker pull ghcr.io/Connor-Adams/rainbot-raincloud:$TAG_NAME
+  ghcr.io/connor-adams/rainbot-raincloud:prod
 
   # Worker Bots
-  docker pull ghcr.io/Connor-Adams/rainbot-rainbot:$TAG_NAME
-  docker pull ghcr.io/Connor-Adams/rainbot-pranjeet:$TAG_NAME
-  docker pull ghcr.io/Connor-Adams/rainbot-hungerbot:$TAG_NAME
+  ghcr.io/connor-adams/rainbot-rainbot:prod
+  ghcr.io/connor-adams/rainbot-pranjeet:prod
+  ghcr.io/connor-adams/rainbot-hungerbot:prod
 
-  📦 Railway Deployment
+  🔖 Versioned Tags
 
-  Update your Railway services to use these image tags:
+  • Version tags (e.g. `v$RESOLVED_VERSION`) are **only published for services that changed**
+  • Do **not** assume every service has a tag for this release
 
-      ghcr.io/Connor-Adams/rainbot-raincloud:$TAG_NAME
-      ghcr.io/Connor-Adams/rainbot-rainbot:$TAG_NAME
-      ghcr.io/Connor-Adams/rainbot-pranjeet:$TAG_NAME
-      ghcr.io/Connor-Adams/rainbot-hungerbot:$TAG_NAME
+  📦 Railway
 
-  Full Changelog: $PREVIOUS_TAG...$TAG_NAME
+  No manual action required. Railway redeploys only affected services via webhook.
+
+  Full Changelog: $PREVIOUS_TAG...v$RESOLVED_VERSION
