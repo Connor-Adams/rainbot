@@ -8,7 +8,7 @@ import { query } from '@rainbot/utils';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '@rainbot/utils';
-import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
+import { MultiBotService, getMultiBotService } from '@rainbot/utils';
 import type { GuildMember } from 'discord.js';
 import rateLimit from 'express-rate-limit';
 
@@ -1009,7 +1009,7 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
   if (multiBot) {
     const statusResults = await Promise.all(guilds.map((guild) => multiBot.getStatus(guild.id)));
     const connections = statusResults
-      .map((status, index) => {
+      .map((status: any, index: number) => {
         if (!status) return null;
         const workers = status.workers;
         return {
@@ -1036,7 +1036,7 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
             : workers,
         };
       })
-      .filter((entry) => entry !== null);
+      .filter((entry: any) => entry !== null);
 
     res.json({
       online: true,

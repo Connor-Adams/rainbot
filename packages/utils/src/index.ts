@@ -15,3 +15,10 @@ export {
 } from './storage';
 export * from './voice/voiceInteractionInstance';
 export * from './voiceManager';
+export * from './multibot/channelResolver';
+export { MultiBotService, getMultiBotService } from './multibot/multiBotService';
+export * from './multibot/playerEmbed';
+export * from './multibot/voiceStateManager';
+export * from './multibot/workerCoordinator';
+export * from './multibot/workerCoordinatorRegistry';
+export * from './components/builders/buttonBuilder';

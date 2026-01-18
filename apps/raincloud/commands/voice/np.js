@@ -2,13 +2,13 @@
  * Now Playing command - Multi-bot architecture version
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
+const { createPlayerMessage } = require('@rainbot/utils');
 const { validateVoiceConnection } = require('../utils/commandHelpers');
 
 // Try to use multi-bot service, fall back to local voiceManager
 async function getPlaybackService() {
   try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    const { MultiBotService } = require('@rainbot/utils');
     if (MultiBotService.isInitialized()) {
       return { type: 'multibot', service: MultiBotService.getInstance() };
     }
@@ -16,7 +16,7 @@ async function getPlaybackService() {
     // Multi-bot service not available
   }
 
-  const voiceManager = require('../../dist/utils/voiceManager');
+  const voiceManager = require('@rainbot/utils');
   return { type: 'local', service: voiceManager };
 }
 

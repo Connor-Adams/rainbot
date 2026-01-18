@@ -2,12 +2,15 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "../../",
     "noImplicitReturns": false,
     "noUnusedParameters": false,
     "noUnusedLocals": false,
     "baseUrl": "./",
-    "paths": {}
+    "paths": {
+      "@rainbot/utils": ["../../packages/utils/src/index.ts"],
+      "@rainbot/utils/*": ["../../packages/utils/src/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

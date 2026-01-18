@@ -1,10 +1,10 @@
-import { createLogger } from '@rainbot/utils';
+import { createLogger } from '../logger';
 import { VoiceStateManager } from './voiceStateManager';
 import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { fetchWorkerHealthChecks } from '../src/rpc/clients';
+import { fetchWorkerHealthChecks } from '@rainbot/rpc';
 
 const log = createLogger('WORKER-COORDINATOR');
 
@@ -152,7 +152,7 @@ export class WorkerCoordinator {
 
   private startHealthPolling(): void {
     const poll = async (): Promise<void> => {
-      const rpcResults = await fetchWorkerHealthChecks().catch((error) => {
+      const rpcResults = await fetchWorkerHealthChecks().catch((error: unknown) => {
         log.warn(`RPC health checks failed: ${getErrorMessage(error)}`);
         return null;
       });

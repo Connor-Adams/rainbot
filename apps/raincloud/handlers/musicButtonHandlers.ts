@@ -6,8 +6,8 @@ import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/protocol';
 import { createLogger } from '@rainbot/utils';
 import * as voiceManager from '@rainbot/utils';
-import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
-import { createPlayerMessage } from '../lib/playerEmbed';
+import { MultiBotService, getMultiBotService } from '@rainbot/utils';
+import { createPlayerMessage } from '@rainbot/utils';
 
 const log = createLogger('MUSIC_BUTTONS');
 

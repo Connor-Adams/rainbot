@@ -5,7 +5,7 @@ const { createLogger } = require('../../dist/utils/logger');
 const listeningHistory = require('../../dist/utils/listeningHistory');
 const stats = require('../../dist/utils/statistics');
 const { handleButtonInteraction, hasButtonHandler } = require('../../dist/handlers/buttonHandler');
-const { parseButtonId } = require('../../dist/components/builders/buttonBuilder');
+const { parseButtonId } = require('@rainbot/utils');
 
 const log = createLogger('BUTTONS');
 

@@ -3,14 +3,14 @@
  * Disconnects all worker bots from voice channel
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils');
 
 const log = createLogger('LEAVE');
 
 // Try to use multi-bot service, fall back to local voiceManager
 async function getPlaybackService() {
   try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    const { MultiBotService } = require('@rainbot/utils');
     if (MultiBotService.isInitialized()) {
       return { type: 'multibot', service: MultiBotService.getInstance() };
     }
@@ -19,7 +19,7 @@ async function getPlaybackService() {
   }
 
   // Fall back to local voiceManager
-  const voiceManager = require('../../dist/utils/voiceManager');
+  const voiceManager = require('@rainbot/utils');
   return { type: 'local', service: voiceManager };
 }
 

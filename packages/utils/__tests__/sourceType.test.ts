@@ -1,4 +1,4 @@
-import { detectSourceType, type TrackForSourceDetection } from '../sourceType';
+import { detectSourceType, TrackForSourceDetection } from '../src/sourceType';
 
 describe('sourceType', () => {
   describe('detectSourceType', () => {

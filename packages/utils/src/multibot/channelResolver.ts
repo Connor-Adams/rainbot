@@ -1,6 +1,6 @@
 import { Client, PermissionFlagsBits } from 'discord.js';
 import { VoiceStateManager } from './voiceStateManager';
-import { createLogger } from '@rainbot/utils';
+import { createLogger } from '../logger';
 
 const log = createLogger('CHANNEL-RESOLVER');
 

@@ -1,9 +1,9 @@
 // util-category: audio
-import { createLogger } from '@utils/logger';
+import { createLogger } from '../../logger';
 import { getClient } from '../../client';
-import { detectSourceType } from '@utils/sourceType';
-import * as stats from '@utils/statistics';
-import * as listeningHistory from '@utils/listeningHistory';
+import { detectSourceType } from '../../sourceType';
+import * as stats from '../../statistics';
+import * as listeningHistory from '../../listeningHistory';
 import type { Track } from '@rainbot/protocol';
 import type { VoiceState } from '@rainbot/protocol';
 import type { VoiceChannel, TextChannel } from 'discord.js';

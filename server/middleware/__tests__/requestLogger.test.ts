@@ -10,7 +10,7 @@ const mockLogger = {
 };
 
 // Mock the logger
-jest.mock('../../../utils/logger', () => ({
+jest.mock('@rainbot/utils', () => ({
   createLogger: jest.fn(() => mockLogger),
 }));
 

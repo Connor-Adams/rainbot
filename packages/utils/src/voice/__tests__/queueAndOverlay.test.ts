@@ -8,8 +8,8 @@
  */
 
 import { AudioPlayerStatus } from '@discordjs/voice';
-import type { VoiceState } from '@rainbot/protocol';
-import type { Track } from '@rainbot/protocol';
+import { VoiceState } from '@rainbot/protocol';
+import { Track } from '@rainbot/protocol';
 
 describe('Queue and Overlay Management', () => {
   describe('Overlay completion behavior', () => {

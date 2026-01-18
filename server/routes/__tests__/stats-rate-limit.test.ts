@@ -2,11 +2,11 @@ import express from 'express';
 import request from 'supertest';
 
 // Mock dependencies
-jest.mock('../../../utils/database', () => ({
+jest.mock('@packages/db', () => ({
   query: jest.fn(async () => ({ rows: [] })),
 }));
 
-jest.mock('../../../utils/statistics', () => ({
+jest.mock('@rainbot/utils', () => ({
   statsEmitter: {
     on: jest.fn(),
     off: jest.fn(),

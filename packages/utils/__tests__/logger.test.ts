@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createLogger } from '../logger';
+import { createLogger } from '../src/logger';
 import winston from 'winston';
 
 // Mock winston to capture log calls

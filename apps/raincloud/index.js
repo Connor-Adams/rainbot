@@ -109,7 +109,7 @@ client.once(Events.ClientReady, async () => {
 
   // Initialize multi-bot service (worker orchestration)
   try {
-    const MultiBotService = require('./dist/lib/multiBotService');
+    const { MultiBotService } = require('@rainbot/utils');
     const redisUrl = config.redisUrl || process.env['REDIS_URL'];
     const multiBot = await MultiBotService.default.initialize(redisUrl);
     multiBot.setDiscordClient(client);

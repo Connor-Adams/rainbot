@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { createLogger } from '@rainbot/utils';
-import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
+import { recordWorkerRegistration } from '@rainbot/utils';
 import * as stats from '@rainbot/utils';
 import type { SourceType } from '@rainbot/utils';
 

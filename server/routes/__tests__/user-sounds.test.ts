@@ -1,7 +1,5 @@
-import { getUserSoundsHandler } from '../stats';
-
 // Mock the database module used by the handler
-jest.mock('../../../utils/database', () => ({
+jest.mock('@/utils/database', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: jest.fn(async (_q: string, _params?: any[]) => {
     return {

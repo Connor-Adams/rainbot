@@ -11,9 +11,9 @@ import { WorkerCoordinator } from './workerCoordinator';
 import { VoiceStateManager } from './voiceStateManager';
 import { ChannelResolver } from './channelResolver';
 import { RedisClient } from '@rainbot/redis-client';
-import { createLogger } from '@rainbot/utils';
+import { createLogger } from '../logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
-import * as voiceManager from '@rainbot/utils';
+import * as voiceManager from '../voiceManager';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');

@@ -1,32 +1,17 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": ".",
     "outDir": "./dist",
-    "rootDir": "./",
-    "baseUrl": "./",
-    "noImplicitReturns": false,
-    "noUnusedParameters": false,
-    "noUnusedLocals": false,
-    "paths": {
-      "@commands/*": ["commands/*"],
-      "@types/*": ["types/*"],
-      "@server/*": ["server/*"],
-      "@handlers/*": ["handlers/*"],
-      "@events/*": ["src/events/*"],
-      "@components/*": ["components/*"],
-      "@lib/*": ["lib/*"]
-    }
+    "baseUrl": "."
   },
   "include": [
-    "commands/**/*.ts",
-    "types/**/*.ts",
-    "types/**/*.d.ts",
+    "src/**/*.ts",
     "server/**/*.ts",
-    "handlers/**/*.ts",
-    "src/events/**/*.ts",
-    "src/rpc/**/*.ts",
     "components/**/*.ts",
-    "lib/**/*.ts"
+    "handlers/**/*.ts",
+    "events/**/*.ts",
+    "types/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 }

@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { Readable } from 'stream';
+import { Readable } from 'stream';
 
 describe('Soundboard Error Handling', () => {
   describe('FFmpeg stdout error handling', () => {

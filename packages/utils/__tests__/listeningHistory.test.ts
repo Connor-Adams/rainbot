@@ -1,5 +1,5 @@
-import { saveHistory, getHistory, clearHistory } from '@utils/listeningHistory';
-import type { Track } from '@utils/listeningHistory';
+import { saveHistory, getHistory, clearHistory } from '../src/listeningHistory';
+import type { Track } from '../src/listeningHistory';
 
 describe('listeningHistory', () => {
   beforeEach(() => {

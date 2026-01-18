@@ -1,5 +1,5 @@
-import { createTRPCClient } from '@rainbot/rpc';
-import type { HungerbotRouter, PranjeetRouter, RainbotRouter } from '@rainbot/rpc';
+import { createTRPCClient } from './client';
+import type { HungerbotRouter, PranjeetRouter, RainbotRouter } from './routers';
 
 const INTERNAL_SECRET = process.env['INTERNAL_RPC_SECRET'] || '';
 

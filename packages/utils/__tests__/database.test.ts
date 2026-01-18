@@ -1,4 +1,4 @@
-import type { QueryResult } from 'pg';
+import { QueryResult } from 'pg';
 
 // Mock the logger
 jest.mock('@utils/logger', () => ({
@@ -47,7 +47,7 @@ describe('database', () => {
     it('returns null when DATABASE_URL is not configured', () => {
       mockLoadConfig.mockReturnValue({ databaseUrl: undefined as unknown as string });
 
-      const { initDatabase } = require('@utils/database');
+      const { initDatabase } = require('@packages/db');
       const pool = initDatabase();
 
       expect(pool).toBeNull();

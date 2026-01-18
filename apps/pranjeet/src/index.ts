@@ -787,17 +787,8 @@ client.once(Events.ClientReady, async () => {
     ttsHandler: async (guildId: string, text: string, userId?: string) => {
       if (!userId) return;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const multiBot = require('./dist/lib/multiBotService') as {
-          getMultiBotService: () => {
-            speakTTS: (
-              guildId: string,
-              text: string,
-              userId: string
-            ) => Promise<{ success: boolean; message?: string }>;
-          };
-        };
-        await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+        const { getMultiBotService } = await import('@rainbot/utils');
+        await getMultiBotService().speakTTS(guildId, text, userId);
       } catch (error) {
         log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
       }

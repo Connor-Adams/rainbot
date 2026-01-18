@@ -1,5 +1,5 @@
 import { Events, VoiceState } from 'discord.js';
-import { VoiceStateManager } from '../../lib/voiceStateManager';
+import { VoiceStateManager } from '@rainbot/utils';
 import { createLogger } from '@rainbot/utils';
 
 const log = createLogger('VOICE-STATE-UPDATE');
