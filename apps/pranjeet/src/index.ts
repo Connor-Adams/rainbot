@@ -299,21 +299,46 @@ async function generateGoogleTTS(text: string, voice?: string): Promise<Buffer> 
 }
 
 /**
- * Resample 24kHz PCM to 48kHz PCM (2x upsampling)
+ * Resample 24kHz mono 16-bit PCM → 48kHz mono 16-bit PCM (2×) using cubic interpolation.
+ * Higher quality than linear; no deps; fast enough for realtime TTS.
  */
-function resample24to48(pcm24k: Buffer): Buffer {
-  const samples24k = pcm24k.length / 2; // 16-bit = 2 bytes per sample
-  const pcm48k = Buffer.alloc(samples24k * 4); // 2x samples, 2 bytes each
+export function resample24to48(pcm24k: Buffer): Buffer {
+  const inSamples = pcm24k.length >> 1;      // int16 mono
+  const outSamples = inSamples << 1;         // 2×
+  const out = Buffer.allocUnsafe(outSamples << 1);
 
-  for (let i = 0; i < samples24k; i++) {
-    const sample = pcm24k.readInt16LE(i * 2);
-    // Write each sample twice for 2x upsampling
-    pcm48k.writeInt16LE(sample, i * 4);
-    pcm48k.writeInt16LE(sample, i * 4 + 2);
+  const read = (i: number) => {
+    i = Math.max(0, Math.min(inSamples - 1, i));
+    return pcm24k.readInt16LE(i << 1);
+  };
+
+  let o = 0;
+
+  for (let i = 0; i < inSamples; i++) {
+    const s0 = read(i - 1);
+    const s1 = read(i);
+    const s2 = read(i + 1);
+    const s3 = read(i + 2);
+
+    // write original (even index)
+    out.writeInt16LE(s1, o);
+    o += 2;
+
+    // interpolate halfway (odd index) with Catmull-Rom cubic
+    const t = 0.5;
+    const a = (-0.5 * s0) + (1.5 * s1) - (1.5 * s2) + (0.5 * s3);
+    const b = (s0) - (2.5 * s1) + (2 * s2) - (0.5 * s3);
+    const c = (-0.5 * s0) + (0.5 * s2);
+    const d = s1;
+
+    const y = Math.round(a * t * t * t + b * t * t + c * t + d);
+    out.writeInt16LE(Math.max(-32768, Math.min(32767, y)), o);
+    o += 2;
   }
 
-  return pcm48k;
+  return out;
 }
+
 
 /**
  * Convert 48kHz mono PCM to 48kHz stereo PCM by duplicating channels.
