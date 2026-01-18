@@ -7,13 +7,9 @@ const defaultAuthOrigin = 'https://raincloud-production.up.railway.app';
 const defaultApiOrigin = `${defaultAuthOrigin}/api`;
 
 export const apiBaseUrl =
-  runtimeConfig['VITE_API_BASE_URL'] ||
-  import.meta.env.VITE_API_BASE_URL ||
-  defaultApiOrigin;
+  runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || defaultApiOrigin;
 export const authBaseUrl =
-  runtimeConfig['VITE_AUTH_BASE_URL'] ||
-  import.meta.env.VITE_AUTH_BASE_URL ||
-  defaultAuthOrigin;
+  runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || defaultAuthOrigin;
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');

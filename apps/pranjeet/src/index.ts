@@ -135,10 +135,45 @@ if (!hasOrchestrator) {
   log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
+function waitForPlaybackEnd(player: AudioPlayer, timeoutMs = 30_000): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      player.off(AudioPlayerStatus.Idle, finish);
+      player.off('error', finish);
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+
+    // If it’s already idle, resolve immediately
+    if (player.state.status === AudioPlayerStatus.Idle) return finish();
+
+    player.on(AudioPlayerStatus.Idle, finish);
+    player.on('error', finish);
+  });
+}
+
+function normalizeSpeakKey(text: string, voice?: string): string {
+  return `${(voice || '').trim().toLowerCase()}::${text.trim().toLowerCase()}`;
+}
+
 interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
+  // NEW: speech queue + bookkeeping
+  speakQueue: Promise<void>;
+  lastSpeakAt: number;
+  lastSpeakKey: string;
 }
 
 const guildStates = new Map<string, GuildState>();
@@ -200,6 +235,11 @@ function getOrCreateGuildState(guildId: string): GuildState {
       connection: null,
       player,
       volume: 0.8,
+
+      // NEW
+      speakQueue: Promise.resolve(),
+      lastSpeakAt: 0,
+      lastSpeakKey: '',
     });
   }
   return guildStates.get(guildId)!;
@@ -225,6 +265,44 @@ async function generateTTS(text: string, voice?: string): Promise<Buffer> {
   throw new Error(`Unsupported TTS provider: ${TTS_PROVIDER}`);
 }
 
+const PCM_48K_FRAME_SAMPLES = 960; // 20ms at 48kHz
+const PCM_S16LE_BYTES_PER_SAMPLE = 2;
+const PCM_48K_STEREO_FRAME_BYTES = PCM_48K_FRAME_SAMPLES * 2 * PCM_S16LE_BYTES_PER_SAMPLE; // 3840
+
+/**
+ * Chunk PCM into fixed-size frames. Pads the final partial frame with zeros (silence).
+ * This is better than truncation for Opus stability and avoids end-clicks.
+ */
+function chunkPcmIntoFrames(pcm: Buffer, frameBytes: number): Buffer[] {
+  const frames: Buffer[] = [];
+  if (pcm.length === 0) return frames;
+
+  let i = 0;
+  for (; i + frameBytes <= pcm.length; i += frameBytes) {
+    frames.push(pcm.subarray(i, i + frameBytes));
+  }
+
+  // Pad trailing partial
+  const remaining = pcm.length - i;
+  if (remaining > 0) {
+    const last = Buffer.alloc(frameBytes); // zero-filled
+    pcm.copy(last, 0, i);
+    frames.push(last);
+  }
+
+  return frames;
+}
+
+function framesToReadable(frames: Buffer[]): Readable {
+  let idx = 0;
+  return new Readable({
+    read() {
+      if (idx >= frames.length) return this.push(null);
+      this.push(frames[idx++]);
+    },
+  });
+}
+
 async function speakInGuild(
   guildId: string,
   text: string,
@@ -236,19 +314,46 @@ async function speakInGuild(
     return { status: 'error', message: 'Not connected to voice channel' };
   }
 
-  const audioBuffer = await generateTTS(text, voice);
-  const stereoBuffer = monoToStereoPcm(audioBuffer);
-  const stream = Readable.from(stereoBuffer);
-  const resource = createAudioResource(stream, {
-    inputType: StreamType.Raw,
-    inlineVolume: true,
-  });
+  const speakKey = normalizeSpeakKey(text, voice);
+  const now = Date.now();
 
-  if (resource.volume) {
-    resource.volume.setVolume(state.volume);
+  // NEW: burst dedupe (prevents double-hit repeats)
+  // If the exact same line arrives within 1.5s, drop it.
+  if (speakKey === state.lastSpeakKey && now - state.lastSpeakAt < 1500) {
+    return { status: 'success', message: 'Dropped duplicate TTS (burst dedupe)' };
   }
+  state.lastSpeakKey = speakKey;
+  state.lastSpeakAt = now;
 
-  state.player.play(resource);
+  // NEW: serialize per guild via promise chain
+  state.speakQueue = state.speakQueue
+    .catch(() => undefined) // keep queue alive even if prior failed
+    .then(async () => {
+      // Generate audio
+      const pcm48kMono = await generateTTS(text, voice);
+      if (!pcm48kMono || pcm48kMono.length === 0) return;
+
+      const pcm48kStereo = monoToStereoPcm(pcm48kMono);
+
+      const frames = chunkPcmIntoFrames(pcm48kStereo, PCM_48K_STEREO_FRAME_BYTES);
+      if (frames.length === 0) return;
+
+      const stream = framesToReadable(frames);
+
+      const resource = createAudioResource(stream, {
+        inputType: StreamType.Raw,
+        inlineVolume: true,
+      });
+
+      if (resource.volume) resource.volume.setVolume(state.volume);
+
+      // Play
+      state.player.play(resource);
+
+      // IMPORTANT: wait until done before next queued speak
+      await waitForPlaybackEnd(state.player, 60_000);
+    });
+
   return { status: 'success', message: 'TTS queued' };
 }
 
@@ -299,20 +404,51 @@ async function generateGoogleTTS(text: string, voice?: string): Promise<Buffer> 
 }
 
 /**
- * Resample 24kHz PCM to 48kHz PCM (2x upsampling)
+ * Resample 24kHz mono 16-bit PCM → 48kHz mono 16-bit PCM (2×) using cubic interpolation.
+ * Safely trims odd bytes to keep int16 alignment.
  */
-function resample24to48(pcm24k: Buffer): Buffer {
-  const samples24k = pcm24k.length / 2; // 16-bit = 2 bytes per sample
-  const pcm48k = Buffer.alloc(samples24k * 4); // 2x samples, 2 bytes each
-
-  for (let i = 0; i < samples24k; i++) {
-    const sample = pcm24k.readInt16LE(i * 2);
-    // Write each sample twice for 2x upsampling
-    pcm48k.writeInt16LE(sample, i * 4);
-    pcm48k.writeInt16LE(sample, i * 4 + 2);
+export function resample24to48(pcm24k: Buffer): Buffer {
+  // Ensure int16 alignment
+  if ((pcm24k.length & 1) === 1) {
+    pcm24k = pcm24k.subarray(0, pcm24k.length - 1);
   }
 
-  return pcm48k;
+  const inSamples = pcm24k.length >> 1; // int16 mono
+  if (inSamples === 0) return Buffer.alloc(0);
+
+  const outSamples = inSamples << 1; // 2×
+  const out = Buffer.allocUnsafe(outSamples << 1);
+
+  const read = (i: number) => {
+    if (i < 0) i = 0;
+    else if (i >= inSamples) i = inSamples - 1;
+    return pcm24k.readInt16LE(i << 1);
+  };
+
+  let o = 0;
+  for (let i = 0; i < inSamples; i++) {
+    const s0 = read(i - 1);
+    const s1 = read(i);
+    const s2 = read(i + 1);
+    const s3 = read(i + 2);
+
+    // Even sample = original
+    out.writeInt16LE(s1, o);
+    o += 2;
+
+    // Odd sample = cubic (Catmull-Rom) at t=0.5
+    const t = 0.5;
+    const a = -0.5 * s0 + 1.5 * s1 - 1.5 * s2 + 0.5 * s3;
+    const b = s0 - 2.5 * s1 + 2 * s2 - 0.5 * s3;
+    const c = -0.5 * s0 + 0.5 * s2;
+    const d = s1;
+
+    const y = Math.round(a * t * t * t + b * t * t + c * t + d);
+    out.writeInt16LE(Math.max(-32768, Math.min(32767, y)), o);
+    o += 2;
+  }
+
+  return out;
 }
 
 /**

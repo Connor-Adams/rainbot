@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as ttsPlayer from './ttsPlayer';
+import prism from 'prism-media';
 
 const execAsync = promisify(exec);
 import type {
@@ -116,6 +117,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
   /**
    * Enable voice interactions for a guild
+   * HARD RULE: Raincloud never does local TTS. No preload, no local synth.
    */
   async enableForGuild(guildId: string): Promise<void> {
     log.info(`Enabling voice interactions for guild ${guildId}`);
@@ -141,13 +143,12 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       state.enabled = true;
     }
 
-    if (this.config.ttsProvider !== 'pranjeet') {
-      // Preload common TTS responses
-      await this.textToSpeech.preloadCommonResponses();
-    }
+    // 🚫 NEVER preload or initialize local TTS in Raincloud.
+    // (Pranjeet handles TTS entirely.)
 
     // Start listening for current channel members if already connected
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { getVoiceConnection } = require('@discordjs/voice');
       const connection = getVoiceConnection(guildId);
       if (connection) {
@@ -213,6 +214,8 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
   /**
    * Start listening to a user in a voice channel
+   * NOTE: Discord receiver.subscribe() yields OPUS frames, NOT PCM.
+   * We decode OPUS -> PCM (s16le, 48kHz, mono) before buffering / saving / STT.
    */
   async startListening(
     userId: string,
@@ -225,9 +228,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     }
 
     const state = this.states.get(guildId);
-    if (!state) {
-      throw new Error(`No voice interaction state for guild ${guildId}`);
-    }
+    if (!state) throw new Error(`No voice interaction state for guild ${guildId}`);
 
     log.info(`Starting to listen to user ${userId} in guild ${guildId}`);
 
@@ -236,7 +237,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       userId,
       guildId,
       channelId: connection.joinConfig.channelId!,
-      username: 'User', // Will be updated when we get user info
+      username: 'User',
       isListening: true,
       audioBuffer: [],
       lastCommandTime: Date.now(),
@@ -249,62 +250,64 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const sessionWithConnection = session as VoiceInteractionSessionWithConnection;
     sessionWithConnection.connection = connection;
 
-    // Set up voice receiver
     const receiver = connection.receiver;
 
-    // Subscribe to user's audio with proper error handling
-    const audioStream = receiver.subscribe(userId, {
+    // IMPORTANT: receiver.subscribe returns an OPUS stream (compressed), not PCM.
+    const opusStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 3000, // 3 seconds of silence ends the stream
+        duration: 3000,
       },
     });
 
-    log.debug(`Subscribed to audio from user ${userId}`);
+    log.debug(`Subscribed to OPUS audio from user ${userId}`);
 
-    // Track when audio actually starts coming in
+    // Decode OPUS -> PCM s16le 48k mono
+    const decoder = new prism.opus.Decoder({
+      rate: 48000,
+      channels: 1,
+      frameSize: 960, // 20ms @ 48k
+    });
+
+    const pcmStream = opusStream.pipe(decoder);
+
     let firstChunkReceived = false;
-
-    // Process audio chunks
     let chunkSequence = 0;
     let lastLogTime = Date.now();
-    let totalBytesReceived = 0;
-    audioStream.on('data', (chunk: Buffer) => {
+    let totalPcmBytesReceived = 0;
+
+    pcmStream.on('data', (pcm: Buffer) => {
       if (!session.isListening) return;
 
       if (!firstChunkReceived) {
-        log.info(`First audio chunk received from user ${userId} (${chunk.length} bytes)`);
+        log.info(`First PCM chunk received from user ${userId} (${pcm.length} bytes)`);
         firstChunkReceived = true;
+
+        // Sanity check: should usually be 1920 bytes (20ms mono @ 48k s16le)
+        if (pcm.length !== 1920) {
+          log.warn(
+            `Unexpected PCM chunk size ${pcm.length} bytes (expected ~1920). Still proceeding.`
+          );
+        }
       }
 
-      totalBytesReceived += chunk.length;
+      totalPcmBytesReceived += pcm.length;
 
-      // Log audio capture with detailed stats
+      // Log stats occasionally (48k mono s16le = 96000 bytes/sec)
       const now = Date.now();
       if (now - lastLogTime > 500) {
-        const durationSoFar = totalBytesReceived / 192000;
+        const durationSoFar = totalPcmBytesReceived / 96000;
         log.debug(
-          `🎤 Hearing audio from user ${userId} - ${session.audioBuffer.length} chunks, ${totalBytesReceived} bytes, ${durationSoFar.toFixed(2)}s`
+          `🎤 Hearing PCM from user ${userId} - ${session.audioBuffer.length} chunks, ${totalPcmBytesReceived} bytes, ${durationSoFar.toFixed(2)}s`
         );
         lastLogTime = now;
-      }
-
-      // Log individual chunk sizes for debugging
-      if (chunk.length <= 10) {
-        // Skip very small chunks - these are Discord silence markers
-        log.debug(`⏭️ Skipping silence packet: ${chunk.length} bytes`);
-        return;
-      }
-
-      if (chunk.length < 100) {
-        log.warn(`⚠️ Very small audio chunk: ${chunk.length} bytes`);
       }
 
       const audioChunk: AudioChunk = {
         userId,
         guildId,
         timestamp: Date.now(),
-        buffer: chunk,
+        buffer: pcm,
         sequence: chunkSequence++,
       };
 
@@ -313,8 +316,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       });
     });
 
-    // Handle stream end (user stopped speaking)
-    audioStream.on('end', async () => {
+    pcmStream.on('end', async () => {
       log.info(
         `🔇 Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
       );
@@ -324,22 +326,23 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
     });
 
-    audioStream.on('error', (error) => {
-      const errorMsg = error.message;
-      log.error(`Audio stream error for user ${userId}: ${errorMsg}`);
+    pcmStream.on('error', (error: Error) => {
+      log.error(`PCM stream error for user ${userId}: ${error.message}`);
+    });
 
-      // Handle decryption errors specifically
+    // Keep OPUS stream error handling too (decrypt/network)
+    opusStream.on('error', (error: Error) => {
+      const errorMsg = error.message;
+      log.error(`OPUS stream error for user ${userId}: ${errorMsg}`);
+
       if (errorMsg.includes('DecryptionFailed') || errorMsg.includes('Failed to decrypt')) {
         log.error('⚠️ Voice decryption error detected!');
-        log.error('💡 This usually means Discord voice encryption is not properly configured.');
         log.error('💡 Try disconnecting and reconnecting the bot to the voice channel.');
 
-        // Try to recover by resubscribing after a delay
         setTimeout(() => {
-          const currentSession = state?.sessions.get(userId);
+          const currentSession = state.sessions.get(userId);
           if (currentSession && currentSession.isListening) {
-            log.info(`Attempting to resubscribe to user ${userId} audio after error...`);
-            // The stream has already failed, so we'll just wait for the next connection
+            log.info(`Attempting to stop listening for user ${userId} after decrypt error...`);
             this.stopListening(userId, guildId).catch((err) => {
               log.error(`Failed to stop listening after error: ${(err as Error).message}`);
             });
@@ -455,9 +458,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     if (audioBuffers.length === 0) return;
 
     // Calculate actual duration from total bytes
-    // Stereo PCM: 16-bit (2 bytes) × 2 channels × 48000 Hz = 192000 bytes per second
+    // 48kHz mono s16le = 48000 samples/sec * 2 bytes = 96000 bytes/sec
     const totalBytes = audioBuffers.reduce((sum: number, buf: Buffer) => sum + buf.length, 0);
-    const totalDuration = totalBytes / 192000;
+    const totalDuration = totalBytes / 96000;
 
     // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)
     if (totalDuration < this.config.minAudioDuration) {
@@ -709,75 +712,36 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
   /**
    * Send a voice response using TTS
+   * HARD RULE: Raincloud MUST NEVER synthesize/play TTS locally.
+   * Always route to Pranjeet. If routing fails, do nothing.
    */
   private async sendVoiceResponse(guildId: string, text: string, userId?: string): Promise<void> {
+    log.info(`🔊 Routing TTS to Pranjeet: "${text}"`);
+
+    if (!userId) {
+      log.warn('No userId available for Pranjeet TTS routing (failing closed)');
+      return;
+    }
+
     try {
-      log.info(`🔊 Preparing TTS response: "${text}"`);
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const multiBot = require('../../lib/multiBotService') as {
+        getMultiBotService: () => {
+          speakTTS: (
+            guildId: string,
+            text: string,
+            userId: string
+          ) => Promise<{ success: boolean; message?: string }>;
+        };
+      };
 
-      if (this.config.ttsProvider === 'pranjeet') {
-        try {
-          const multiBot = require('../../lib/multiBotService') as {
-            getMultiBotService: () => {
-              speakTTS: (
-                guildId: string,
-                text: string,
-                userId: string
-              ) => Promise<{ success: boolean; message?: string }>;
-            };
-          };
-          if (!userId) {
-            log.warn('No userId available for Pranjeet TTS routing');
-            return;
-          }
-          const result = await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
-          if (!result.success) {
-            log.warn(`Pranjeet TTS failed: ${result.message || 'unknown error'}`);
-          }
-          return;
-        } catch (error) {
-          log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
-          return;
-        }
+      const result = await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+
+      if (!result.success) {
+        log.warn(`Pranjeet TTS failed: ${result.message || 'unknown error'} (failing closed)`);
       }
-
-      // Generate TTS audio file
-      log.debug(`🎙️ Synthesizing speech...`);
-      const audioFile = await this.textToSpeech.synthesizeToFile(text);
-      log.debug(`✅ TTS file generated: ${audioFile}`);
-
-      // Get the connection from any active session in this guild
-      const state = this.states.get(guildId);
-      if (!state) {
-        log.warn(`No voice interaction state for guild ${guildId}`);
-        return;
-      }
-
-      // Find a connection from any active session
-      let connection: VoiceConnection | null = null;
-      for (const [, session] of state.sessions) {
-        const sessionWithConnection = session as VoiceInteractionSessionWithConnection;
-        if (sessionWithConnection.connection) {
-          connection = sessionWithConnection.connection;
-          break;
-        }
-      }
-
-      if (!connection) {
-        log.warn(`No voice connection found for TTS playback in guild ${guildId}`);
-        return;
-      }
-
-      // Play via dedicated TTS player (doesn't interfere with music/soundboard)
-      log.debug(`▶️ Playing TTS audio in voice channel...`);
-      await ttsPlayer.playTTSAudio(guildId, connection, audioFile);
-      log.info(`✅ TTS playback completed`);
-
-      // Schedule cleanup
-      setTimeout(() => {
-        this.textToSpeech.cleanupFile(audioFile);
-      }, 5000);
     } catch (error) {
-      log.error(`Failed to send voice response: ${(error as Error).message}`);
+      log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message} (failing closed)`);
     }
   }
 
