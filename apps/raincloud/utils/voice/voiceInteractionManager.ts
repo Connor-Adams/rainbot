@@ -115,51 +115,51 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     return this.voiceManager;
   }
 
-  /**
-   * Enable voice interactions for a guild
-   */
-  async enableForGuild(guildId: string): Promise<void> {
-    log.info(`Enabling voice interactions for guild ${guildId}`);
+/**
+ * Enable voice interactions for a guild
+ * HARD RULE: Raincloud never does local TTS. No preload, no local synth.
+ */
+async enableForGuild(guildId: string): Promise<void> {
+  log.info(`Enabling voice interactions for guild ${guildId}`);
 
-    if (!this.states.has(guildId)) {
-      this.states.set(guildId, {
-        guildId,
-        enabled: true,
-        sessions: new Map(),
-        commandQueue: [],
-        ttsQueue: [],
-        isProcessingCommand: false,
-        isSpeaking: false,
-        statistics: {
-          totalCommands: 0,
-          successfulCommands: 0,
-          failedCommands: 0,
-          averageLatency: 0,
-        },
-      });
-    } else {
-      const state = this.states.get(guildId)!;
-      state.enabled = true;
-    }
-
-    if (this.config.ttsProvider !== 'pranjeet') {
-      // Preload common TTS responses
-      await this.textToSpeech.preloadCommonResponses();
-    }
-
-    // Start listening for current channel members if already connected
-    try {
-      const { getVoiceConnection } = require('@discordjs/voice');
-      const connection = getVoiceConnection(guildId);
-      if (connection) {
-        await this.startListeningForChannelMembers(guildId, connection);
-      }
-    } catch (error) {
-      log.warn(`Failed to start listening for existing members: ${(error as Error).message}`);
-    }
-
-    log.info(`Voice interactions enabled for guild ${guildId}`);
+  if (!this.states.has(guildId)) {
+    this.states.set(guildId, {
+      guildId,
+      enabled: true,
+      sessions: new Map(),
+      commandQueue: [],
+      ttsQueue: [],
+      isProcessingCommand: false,
+      isSpeaking: false,
+      statistics: {
+        totalCommands: 0,
+        successfulCommands: 0,
+        failedCommands: 0,
+        averageLatency: 0,
+      },
+    });
+  } else {
+    const state = this.states.get(guildId)!;
+    state.enabled = true;
   }
+
+  // 🚫 NEVER preload or initialize local TTS in Raincloud.
+  // (Pranjeet handles TTS entirely.)
+
+  // Start listening for current channel members if already connected
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getVoiceConnection } = require('@discordjs/voice');
+    const connection = getVoiceConnection(guildId);
+    if (connection) {
+      await this.startListeningForChannelMembers(guildId, connection);
+    }
+  } catch (error) {
+    log.warn(`Failed to start listening for existing members: ${(error as Error).message}`);
+  }
+
+  log.info(`Voice interactions enabled for guild ${guildId}`);
+}
 
   /**
    * Disable voice interactions for a guild
@@ -710,79 +710,41 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     }
   }
 
-  /**
-   * Send a voice response using TTS
-   */
-  private async sendVoiceResponse(guildId: string, text: string, userId?: string): Promise<void> {
-    try {
-      log.info(`🔊 Preparing TTS response: "${text}"`);
+ /**
+ * Send a voice response using TTS
+ * HARD RULE: Raincloud MUST NEVER synthesize/play TTS locally.
+ * Always route to Pranjeet. If routing fails, do nothing.
+ */
+private async sendVoiceResponse(guildId: string, text: string, userId?: string): Promise<void> {
+  log.info(`🔊 Routing TTS to Pranjeet: "${text}"`);
 
-      if (this.config.ttsProvider === 'pranjeet') {
-        try {
-          const multiBot = require('../../lib/multiBotService') as {
-            getMultiBotService: () => {
-              speakTTS: (
-                guildId: string,
-                text: string,
-                userId: string
-              ) => Promise<{ success: boolean; message?: string }>;
-            };
-          };
-          if (!userId) {
-            log.warn('No userId available for Pranjeet TTS routing');
-            return;
-          }
-          const result = await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
-          if (!result.success) {
-            log.warn(`Pranjeet TTS failed: ${result.message || 'unknown error'}`);
-          }
-          return;
-        } catch (error) {
-          log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
-          return;
-        }
-      }
-
-      // Generate TTS audio file
-      log.debug(`🎙️ Synthesizing speech...`);
-      const audioFile = await this.textToSpeech.synthesizeToFile(text);
-      log.debug(`✅ TTS file generated: ${audioFile}`);
-
-      // Get the connection from any active session in this guild
-      const state = this.states.get(guildId);
-      if (!state) {
-        log.warn(`No voice interaction state for guild ${guildId}`);
-        return;
-      }
-
-      // Find a connection from any active session
-      let connection: VoiceConnection | null = null;
-      for (const [, session] of state.sessions) {
-        const sessionWithConnection = session as VoiceInteractionSessionWithConnection;
-        if (sessionWithConnection.connection) {
-          connection = sessionWithConnection.connection;
-          break;
-        }
-      }
-
-      if (!connection) {
-        log.warn(`No voice connection found for TTS playback in guild ${guildId}`);
-        return;
-      }
-
-      // Play via dedicated TTS player (doesn't interfere with music/soundboard)
-      log.debug(`▶️ Playing TTS audio in voice channel...`);
-      await ttsPlayer.playTTSAudio(guildId, connection, audioFile);
-      log.info(`✅ TTS playback completed`);
-
-      // Schedule cleanup
-      setTimeout(() => {
-        this.textToSpeech.cleanupFile(audioFile);
-      }, 5000);
-    } catch (error) {
-      log.error(`Failed to send voice response: ${(error as Error).message}`);
-    }
+  if (!userId) {
+    log.warn('No userId available for Pranjeet TTS routing (failing closed)');
+    return;
   }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const multiBot = require('../../lib/multiBotService') as {
+      getMultiBotService: () => {
+        speakTTS: (
+          guildId: string,
+          text: string,
+          userId: string
+        ) => Promise<{ success: boolean; message?: string }>;
+      };
+    };
+
+    const result = await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+
+    if (!result.success) {
+      log.warn(`Pranjeet TTS failed: ${result.message || 'unknown error'} (failing closed)`);
+    }
+  } catch (error) {
+    log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message} (failing closed)`);
+  }
+}
+
 
   /**
    * Get interaction state for a guild
