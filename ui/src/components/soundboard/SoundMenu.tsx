@@ -15,11 +15,11 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
     return (
       <div
         ref={ref}
-        className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20 min-w-[150px] overflow-hidden"
+        className="absolute right-0 top-full mt-1 bg-surface-elevated border border-border rounded-lg shadow-xl z-20 min-w-[150px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors"
           onClick={onPreview}
         >
           <span className="w-5">{isPreviewing ? '⏸️' : '▶️'}</span>
@@ -27,7 +27,7 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
         </button>
         
         <button
-          className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors"
           onClick={onEdit}
         >
           <span className="w-5">✏️</span>
@@ -37,7 +37,7 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
         <a
           href={soundsApi.downloadUrl(soundName)}
           download={soundName}
-          className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-gray-700 flex items-center gap-2 transition-colors block"
+          className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors block"
           onClick={(e) => {
             e.stopPropagation()
             onClose()
@@ -47,10 +47,10 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
           <span>Download</span>
         </a>
         
-        <div className="border-t border-gray-700" />
+        <div className="border-t border-border" />
         
         <button
-          className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2 transition-colors"
+          className="w-full px-4 py-2.5 text-left text-sm text-danger-light hover:bg-danger/10 flex items-center gap-2 transition-colors"
           onClick={onDelete}
         >
           <span className="w-5">🗑️</span>

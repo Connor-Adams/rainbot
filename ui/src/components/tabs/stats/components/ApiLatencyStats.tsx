@@ -73,36 +73,36 @@ export default function ApiLatencyStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{overall.total_requests || 0}</div>
-          <div className="text-sm text-gray-400">Total Requests</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-primary-light">{overall.total_requests || 0}</div>
+          <div className="text-sm text-text-secondary">Total Requests</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{overall.avg_latency_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">Avg Latency</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-success-light">{overall.avg_latency_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">Avg Latency</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{overall.p50_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P50</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-secondary-light">{overall.p50_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P50</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">{overall.p95_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P95</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning-light">{overall.p95_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P95</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{overall.p99_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">P99</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning">{overall.p99_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">P99</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-red-400">{overall.max_ms || 0}ms</div>
-          <div className="text-sm text-gray-400">Max</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-danger-light">{overall.max_ms || 0}ms</div>
+          <div className="text-sm text-text-secondary">Max</div>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {endpointData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Avg Latency by Endpoint (ms)</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Avg Latency by Endpoint (ms)</h3>
             <div style={{ width: '100%', height: Math.max(200, endpointData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={endpointData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -117,8 +117,8 @@ export default function ApiLatencyStats() {
         )}
         
         {statusData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Status Codes</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Status Codes</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

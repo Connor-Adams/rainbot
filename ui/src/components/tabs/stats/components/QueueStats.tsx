@@ -19,12 +19,12 @@ export default function QueueStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading queue statistics...</div>
+    return <div className="stats-loading text-center py-12 text-text-secondary">Loading queue statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="stats-error text-center py-12 text-danger-light">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -36,8 +36,8 @@ export default function QueueStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📋</span>
-        <p className="text-sm text-gray-400">No queue data available yet</p>
-        <small className="text-xs text-gray-500">Queue statistics will appear as users add and manage songs</small>
+        <p className="text-sm text-text-secondary">No queue data available yet</p>
+        <small className="text-xs text-text-muted">Queue statistics will appear as users add and manage songs</small>
       </div>
     )
   }
@@ -48,8 +48,8 @@ export default function QueueStats() {
   }))
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-lg text-white mb-4">Queue Operations</h3>
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h3 className="text-lg text-text-primary mb-4">Queue Operations</h3>
       <div style={{ width: '100%', height: Math.max(200, chartData.length * 32) }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ left: 80, right: 20 }}>

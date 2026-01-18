@@ -208,9 +208,9 @@ export default function SoundboardTab() {
   )
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-6">
+    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
           <span className="w-1 h-5 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
           Soundboard
@@ -218,10 +218,10 @@ export default function SoundboardTab() {
             <span className="text-sm text-text-secondary font-normal">({visibleSounds.length})</span>
           )}
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <button
             type="button"
-            className="px-3 py-2 text-xs font-semibold rounded-lg border border-purple-500/40 text-purple-200 hover:bg-purple-500/10 transition-colors"
+            className="px-3 py-2 text-xs font-semibold rounded-lg border border-secondary/40 text-secondary-light hover:bg-secondary/10 transition-colors w-full sm:w-auto"
             onClick={() => {
               if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return
               sweepMutation.mutate({ deleteOriginal: true })
@@ -243,7 +243,7 @@ export default function SoundboardTab() {
       </div>
 
       {/* Sounds Grid */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 max-h-none lg:max-h-[calc(100vh-400px)] overflow-y-auto sm:pr-2">
         {isLoadingSounds ? (
           <div className="col-span-full text-center py-12 text-text-muted">
             <div className="animate-spin text-4xl mb-2">⏳</div>

@@ -28,11 +28,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary:
-        'bg-gradient-to-r from-primary to-primary-dark text-white shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm',
+        'bg-gradient-to-r from-primary to-primary-dark text-text-primary shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm',
       secondary:
         'bg-surface-elevated text-text-primary border border-border hover:bg-surface-hover hover:border-primary hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0',
       danger:
-        'bg-gradient-to-r from-danger to-danger-dark text-white shadow-sm hover:shadow-glow-danger hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm',
+        'bg-gradient-to-r from-danger to-danger-dark text-text-primary shadow-sm hover:shadow-glow-danger hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm',
       ghost:
         'bg-transparent text-text-secondary hover:text-text-primary hover:bg-surface-elevated',
     }
@@ -54,7 +54,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading && (
           <span className="absolute inset-0 flex items-center justify-center">
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="w-4 h-4 border-2 border-text-primary/30 border-t-text-primary rounded-full animate-spin" />
           </span>
         )}
         {icon && <span className="flex-shrink-0">{icon}</span>}

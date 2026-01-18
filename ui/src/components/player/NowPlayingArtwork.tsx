@@ -10,7 +10,7 @@ interface NowPlayingArtworkProps {
  */
 export default function NowPlayingArtwork({ isPlaying }: NowPlayingArtworkProps) {
   return (
-    <div className="relative w-[280px] h-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl bg-surface">
+    <div className="relative w-full max-w-[240px] sm:max-w-[280px] aspect-square flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl bg-surface">
       <div className="artwork-placeholder">
         <svg viewBox="0 0 280 280" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="280" height="280" fill="url(#gradient)" />

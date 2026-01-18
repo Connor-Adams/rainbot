@@ -26,7 +26,7 @@ export default function AdminTab() {
   }
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-6">
+    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-semibold text-text-primary">Admin Tasks</h2>
@@ -53,7 +53,7 @@ export default function AdminTab() {
             {sweepMutation.isPending ? 'Working...' : 'Run Transcode Sweep'}
           </button>
           {sweepMutation.isError && (
-            <div className="mt-3 text-xs text-red-400">
+            <div className="mt-3 text-xs text-danger-light">
               Failed to start sweep.
             </div>
           )}

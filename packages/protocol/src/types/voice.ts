@@ -21,6 +21,9 @@ export interface Track {
   /** Duration in seconds (if known) */
   duration?: number;
 
+  /** Optional artwork thumbnail URL */
+  thumbnail?: string;
+
   /** Canonical classification */
   kind?: TrackKind;
 

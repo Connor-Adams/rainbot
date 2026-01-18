@@ -48,135 +48,144 @@ type StatsTab =
 
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary')
+  const tabClass = (tab: StatsTab) =>
+    [
+      'px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all whitespace-nowrap',
+      activeTab === tab
+        ? 'text-primary border-primary/60 bg-primary/10'
+        : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border',
+    ].join(' ')
 
   return (
-    <section className="panel stats-panel bg-gray-800 rounded-2xl border border-gray-700 p-8">
+    <section className="panel stats-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
       <StatsSSE />
       <div className="stats-header mb-6">
-        <h2 className="text-2xl font-bold text-white mb-4">Statistics Dashboard</h2>
-        <div className="stats-tabs flex gap-2 flex-wrap">
+        <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-4">
+          Statistics Dashboard
+        </h2>
+        <div className="stats-tabs flex gap-2 overflow-x-auto no-scrollbar pb-1">
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'summary' ? 'active' : ''}`}
+            className={tabClass('summary')}
             onClick={() => setActiveTab('summary')}
           >
             Summary
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'commands' ? 'active' : ''}`}
+            className={tabClass('commands')}
             onClick={() => setActiveTab('commands')}
           >
             Commands
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'sounds' ? 'active' : ''}`}
+            className={tabClass('sounds')}
             onClick={() => setActiveTab('sounds')}
           >
             Sounds
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'users' ? 'active' : ''}`}
+            className={tabClass('users')}
             onClick={() => setActiveTab('users')}
           >
             Users
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'guilds' ? 'active' : ''}`}
+            className={tabClass('guilds')}
             onClick={() => setActiveTab('guilds')}
           >
             Guilds
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'queue' ? 'active' : ''}`}
+            className={tabClass('queue')}
             onClick={() => setActiveTab('queue')}
           >
             Queue
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'time' ? 'active' : ''}`}
+            className={tabClass('time')}
             onClick={() => setActiveTab('time')}
           >
             Time Trends
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'history' ? 'active' : ''}`}
+            className={tabClass('history')}
             onClick={() => setActiveTab('history')}
           >
             History
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'sessions' ? 'active' : ''}`}
+            className={tabClass('sessions')}
             onClick={() => setActiveTab('sessions')}
           >
             Sessions
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'performance' ? 'active' : ''}`}
+            className={tabClass('performance')}
             onClick={() => setActiveTab('performance')}
           >
             Performance
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'errors' ? 'active' : ''}`}
+            className={tabClass('errors')}
             onClick={() => setActiveTab('errors')}
           >
             Errors
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'retention' ? 'active' : ''}`}
+            className={tabClass('retention')}
             onClick={() => setActiveTab('retention')}
           >
             Retention
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'search' ? 'active' : ''}`}
+            className={tabClass('search')}
             onClick={() => setActiveTab('search')}
           >
             Search
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'user-sessions' ? 'active' : ''}`}
+            className={tabClass('user-sessions')}
             onClick={() => setActiveTab('user-sessions')}
           >
             User Sessions
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'user-tracks' ? 'active' : ''}`}
+            className={tabClass('user-tracks')}
             onClick={() => setActiveTab('user-tracks')}
           >
             User Tracks
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'engagement' ? 'active' : ''}`}
+            className={tabClass('engagement')}
             onClick={() => setActiveTab('engagement')}
           >
             Engagement
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'interactions' ? 'active' : ''}`}
+            className={tabClass('interactions')}
             onClick={() => setActiveTab('interactions')}
           >
             Interactions
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'playback-states' ? 'active' : ''}`}
+            className={tabClass('playback-states')}
             onClick={() => setActiveTab('playback-states')}
           >
             Playback States
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'web-analytics' ? 'active' : ''}`}
+            className={tabClass('web-analytics')}
             onClick={() => setActiveTab('web-analytics')}
           >
             Web Analytics
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'guild-events' ? 'active' : ''}`}
+            className={tabClass('guild-events')}
             onClick={() => setActiveTab('guild-events')}
           >
             Guild Events
           </button>
           <button
-            className={`stats-tab-btn px-4 py-2 ${activeTab === 'api-latency' ? 'active' : ''}`}
+            className={tabClass('api-latency')}
             onClick={() => setActiveTab('api-latency')}
           >
             API Latency

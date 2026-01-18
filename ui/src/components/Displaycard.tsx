@@ -35,34 +35,20 @@ export default function DisplayCard({ name }: DisplayCardProps) {
     'relative',
     'overflow-hidden',
     'rounded-xl',
-    'bg-gradient-to-br from-surface to-surface-elevated',
+    'bg-surface',
     'border border-border',
     'p-4',
-    'transition-all duration-300',
-    'hover:border-primary',
-    'hover:shadow-md hover:shadow-primary/20',
-    'group',
-  ].join(' ')
-
-  // Background gradient overlay (appears on hover)
-  const backgroundOverlayClasses = [
-    'absolute',
-    'inset-0',
-    'opacity-0',
-    'group-hover:opacity-10',
-    'transition-opacity duration-300',
+    'transition-colors duration-200',
+    'hover:border-border-hover',
   ].join(' ')
 
   // Avatar circle styles
   const avatarClasses = [
     'flex-shrink-0',
-    'w-12 h-12',
+    'w-10 h-10',
     'rounded-full',
     'flex items-center justify-center',
-    'text-white font-bold text-lg',
-    'shadow-lg',
-    'transition-transform duration-300',
-    'group-hover:scale-110',
+    'text-text-primary font-semibold text-base',
   ].join(' ')
 
   // Content container
@@ -78,8 +64,6 @@ export default function DisplayCard({ name }: DisplayCardProps) {
     'font-semibold',
     'text-sm',
     'truncate',
-    'group-hover:text-primary',
-    'transition-colors duration-300',
   ].join(' ')
 
   // Subtitle text styles
@@ -91,31 +75,12 @@ export default function DisplayCard({ name }: DisplayCardProps) {
 
   // Arrow icon styles
   const arrowClasses = [
-    'w-5 h-5',
+    'w-4 h-4',
     'text-text-muted',
-    'group-hover:text-primary',
-    'transition-all duration-300',
-    'group-hover:translate-x-1',
-  ].join(' ')
-
-  // Shine effect overlay (sweeps across on hover)
-  const shineClasses = [
-    'absolute',
-    'inset-0',
-    '-translate-x-full',
-    'group-hover:translate-x-full',
-    'transition-transform duration-700',
-    'bg-gradient-to-r from-transparent via-white/10 to-transparent',
   ].join(' ')
 
   return (
     <div className={cardClasses}>
-      {/* Animated gradient background overlay */}
-      <div
-        className={backgroundOverlayClasses}
-        style={{ background: gradientStyle }}
-      />
-
       {/* Main content container */}
       <div className={contentClasses}>
         {/* Avatar circle with server initial */}
@@ -137,11 +102,8 @@ export default function DisplayCard({ name }: DisplayCardProps) {
         </div>
 
         {/* Arrow indicator icon */}
-        <ChevronRightIcon className={arrowClasses} size={20} />
+        <ChevronRightIcon className={arrowClasses} size={16} />
       </div>
-
-      {/* Shine effect overlay */}
-      <div className={shineClasses} />
     </div>
   )
 }

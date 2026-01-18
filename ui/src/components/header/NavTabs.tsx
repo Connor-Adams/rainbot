@@ -16,18 +16,18 @@ export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
   ]
 
   return (
-    <nav className="flex items-center gap-2 flex-1 justify-center">
+    <nav className="flex items-center gap-2 w-full lg:flex-1 lg:justify-center overflow-x-auto no-scrollbar">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
           className={`
-            px-4 py-2 text-sm font-medium transition-all duration-200
-            border-b-2 mb-[-2px]
+            px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap
+            rounded-full border
             ${
               activeTab === tab.id
-                ? 'text-primary border-primary'
-                : 'text-text-secondary border-transparent hover:text-text-primary'
+                ? 'text-primary border-primary/60 bg-primary/10'
+                : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border'
             }
           `}
         >

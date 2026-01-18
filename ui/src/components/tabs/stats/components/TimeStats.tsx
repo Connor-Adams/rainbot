@@ -20,8 +20,8 @@ export default function TimeStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📈</span>
-        <p className="text-sm text-gray-400">No time trend data available yet</p>
-        <small className="text-xs text-gray-500">Trend data will appear as users interact with the bot</small>
+        <p className="text-sm text-text-secondary">No time trend data available yet</p>
+        <small className="text-xs text-text-muted">Trend data will appear as users interact with the bot</small>
       </div>
     )
   }
@@ -30,11 +30,11 @@ export default function TimeStats() {
   const recentSounds = sounds.slice(-14)
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-      <h3 className="text-xl text-white mb-4">Usage Over Time</h3>
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h3 className="text-xl text-text-primary mb-4">Usage Over Time</h3>
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <h4 className="text-lg text-blue-400 mb-3">Commands by Day</h4>
+          <h4 className="text-lg text-primary-light mb-3">Commands by Day</h4>
           <div className="space-y-2">
             {recentCommands.map((c: TimeDataPoint, idx: number) => {
               const maxVal = Math.max(...recentCommands.map((x: TimeDataPoint) => safeInt(x.command_count)), 1)
@@ -42,18 +42,18 @@ export default function TimeStats() {
               const pct = (val / maxVal) * 100
               return (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-20">{safeDateLabel(c.date)}</span>
-                  <div className="flex-1 bg-gray-700 rounded h-3">
-                    <div className="h-full bg-blue-500 rounded" style={{ width: `${pct}%` }} />
+                  <span className="text-xs text-text-secondary w-20">{safeDateLabel(c.date)}</span>
+                  <div className="flex-1 bg-surface-hover rounded h-3">
+                    <div className="h-full bg-primary rounded" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-xs text-gray-300 w-8 text-right">{val}</span>
+                  <span className="text-xs text-text-secondary w-8 text-right">{val}</span>
                 </div>
               )
             })}
           </div>
         </div>
         <div>
-          <h4 className="text-lg text-purple-400 mb-3">Sounds by Day</h4>
+          <h4 className="text-lg text-secondary-light mb-3">Sounds by Day</h4>
           <div className="space-y-2">
             {recentSounds.map((s: TimeDataPoint, idx: number) => {
               const maxVal = Math.max(...recentSounds.map((x: TimeDataPoint) => safeInt(x.sound_count)), 1)
@@ -61,11 +61,11 @@ export default function TimeStats() {
               const pct = (val / maxVal) * 100
               return (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-20">{safeDateLabel(s.date)}</span>
-                  <div className="flex-1 bg-gray-700 rounded h-3">
-                    <div className="h-full bg-purple-500 rounded" style={{ width: `${pct}%` }} />
+                  <span className="text-xs text-text-secondary w-20">{safeDateLabel(s.date)}</span>
+                  <div className="flex-1 bg-surface-hover rounded h-3">
+                    <div className="h-full bg-secondary rounded" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-xs text-gray-300 w-8 text-right">{val}</span>
+                  <span className="text-xs text-text-secondary w-8 text-right">{val}</span>
                 </div>
               )
             })}
