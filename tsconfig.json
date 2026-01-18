@@ -2,7 +2,9 @@
   "compilerOptions": {
     /* Language and Environment */
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     /* Modules */
@@ -43,27 +45,30 @@
     /* Path Mapping */
     "baseUrl": "./",
     "paths": {
-      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/src/*"],
-      "@commands/*": ["commands/*"],
-      "@utils/*": ["packages/utils/*"],
-      "@types/*": ["types/*"],
-      "@server/*": ["server/*"],
-      "@events/*": ["events/*"],
-      "@components/*": ["components/*"]
+      "@rainbot/protocol": [
+        "packages/protocol/src/index.ts"
+      ],
+      "@rainbot/protocol/*": [
+        "packages/protocol/src/*"
+      ],
+      "@utils/*": [
+        "packages/utils/*"
+      ]
     },
     /* Types */
-    "types": ["node", "jest"]
+    "types": [
+      "node",
+      "jest"
+    ]
   },
   "include": [
-    "commands/**/*.ts",
-    "utils/**/*.ts",
-    "types/**/*.ts",
-    "types/**/*.d.ts",
-    "server/**/*.ts",
-    "events/**/*.ts",
-    "scripts/**/*.ts",
-    "components/**/*.ts"
+    "drizzle.config.ts"
   ],
-  "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "exclude": [
+    "node_modules",
+    "ui",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
 }
