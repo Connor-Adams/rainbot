@@ -1,27 +1,28 @@
-import { useState } from 'react'
-import StatsSummary from './components/StatsSummary'
-import CommandsStats from './components/CommandsStats'
-import SoundsStats from './components/SoundsStats'
-import UsersStats from './components/UsersStats'
-import GuildsStats from './components/GuildsStats'
-import QueueStats from './components/QueueStats'
-import TimeStats from './components/TimeStats'
-import HistoryStats from './components/HistoryStats'
-import SessionsStats from './components/SessionsStats'
-import PerformanceStats from './components/PerformanceStats'
-import ErrorsStats from './components/ErrorsStats'
-import RetentionStats from './components/RetentionStats'
-import StatsSSE from './StatsSSE'
-import SearchStats from './components/SearchStats'
-import UserSessionsStats from './components/UserSessionsStats'
-import UserTracksStats from './components/UserTracksStats'
-import EngagementStats from './components/EngagementStats'
-import InteractionsStats from './components/InteractionsStats'
-import PlaybackStatesStats from './components/PlaybackStatesStats'
-import WebAnalyticsStats from './components/WebAnalyticsStats'
-import GuildEventsStats from './components/GuildEventsStats'
-import ApiLatencyStats from './components/ApiLatencyStats'
-import { StatsErrorBoundary } from '@/components/ErrorBoundary'
+import { useEffect, useState } from 'react';
+import StatsSummary from './components/StatsSummary';
+import CommandsStats from './components/CommandsStats';
+import SoundsStats from './components/SoundsStats';
+import UsersStats from './components/UsersStats';
+import GuildsStats from './components/GuildsStats';
+import QueueStats from './components/QueueStats';
+import TimeStats from './components/TimeStats';
+import HistoryStats from './components/HistoryStats';
+import SessionsStats from './components/SessionsStats';
+import PerformanceStats from './components/PerformanceStats';
+import ErrorsStats from './components/ErrorsStats';
+import RetentionStats from './components/RetentionStats';
+import StatsSSE from './StatsSSE';
+import SearchStats from './components/SearchStats';
+import UserSessionsStats from './components/UserSessionsStats';
+import UserTracksStats from './components/UserTracksStats';
+import EngagementStats from './components/EngagementStats';
+import InteractionsStats from './components/InteractionsStats';
+import PlaybackStatesStats from './components/PlaybackStatesStats';
+import WebAnalyticsStats from './components/WebAnalyticsStats';
+import GuildEventsStats from './components/GuildEventsStats';
+import ApiLatencyStats from './components/ApiLatencyStats';
+import { StatsErrorBoundary } from '@/components/ErrorBoundary';
+import { trackingApi } from '@/lib/api';
 
 type StatsTab =
   | 'summary'
@@ -44,17 +45,24 @@ type StatsTab =
   | 'playback-states'
   | 'web-analytics'
   | 'guild-events'
-  | 'api-latency'
+  | 'api-latency';
 
 export default function StatisticsTab() {
-  const [activeTab, setActiveTab] = useState<StatsTab>('summary')
-  const tabClass = (tab: StatsTab) =>
-    [
-      'px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all whitespace-nowrap',
-      activeTab === tab
-        ? 'text-primary border-primary/60 bg-primary/10'
-        : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border',
-    ].join(' ')
+  const [activeTab, setActiveTab] = useState<StatsTab>('summary');
+  useEffect(() => {
+    const startedAt = Date.now();
+
+    return () => {
+      const durationMs = Date.now() - startedAt;
+      trackingApi
+        .trackEvent({
+          eventType: 'stats_tab_view',
+          eventTarget: activeTab,
+          durationMs,
+        })
+        .catch(() => {});
+    };
+  }, [activeTab]);
 
   return (
     <section className="panel stats-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
@@ -218,5 +226,5 @@ export default function StatisticsTab() {
         </StatsErrorBoundary>
       </div>
     </section>
-  )
+  );
 }

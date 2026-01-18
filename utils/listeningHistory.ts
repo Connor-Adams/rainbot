@@ -42,12 +42,6 @@ export interface ListeningHistoryRow {
   discriminator?: string;
 }
 
-// Map of userId -> { guildId, queue, nowPlaying, timestamp } (for in-memory quick access)
-const userHistory = new Map<string, HistoryEntry>();
-
-// Maximum number of tracks to store in in-memory history
-const MAX_HISTORY_TRACKS = 50;
-
 /**
  * Save listening history for a user
  */
@@ -59,21 +53,11 @@ export function saveHistory(
   currentTrack: Track | null
 ): void {
   if (!userId || !guildId) return;
-
-  // Only save if there's actual content
-  if (!nowPlaying && (!queue || queue.length === 0)) {
+  if (!nowPlaying && (!queue || queue.length === 0) && !currentTrack) {
     return;
   }
 
-  userHistory.set(userId, {
-    guildId,
-    queue: queue ? queue.slice(0, MAX_HISTORY_TRACKS) : [],
-    nowPlaying,
-    currentTrack,
-    timestamp: Date.now(),
-  });
-
-  log.debug(`Saved history for user ${userId} in guild ${guildId}`);
+  log.debug(`Skipping in-memory history for user ${userId} in guild ${guildId}`);
 }
 
 /**
@@ -82,18 +66,7 @@ export function saveHistory(
 export function getHistory(userId: string): HistoryEntry | null {
   if (!userId) return null;
 
-  const history = userHistory.get(userId);
-  if (!history) return null;
-
-  // Check if history is too old (older than 24 hours)
-  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-  if (Date.now() - history.timestamp > maxAge) {
-    userHistory.delete(userId);
-    log.debug(`Deleted expired history for user ${userId}`);
-    return null;
-  }
-
-  return history;
+  return null;
 }
 
 /**
@@ -101,8 +74,7 @@ export function getHistory(userId: string): HistoryEntry | null {
  */
 export function clearHistory(userId: string): void {
   if (!userId) return;
-  userHistory.delete(userId);
-  log.debug(`Cleared in-memory history for user ${userId}`);
+  log.debug(`Skipping in-memory history clear for user ${userId}`);
 }
 
 /**
@@ -144,22 +116,6 @@ export async function trackPlayed(
           : null,
       ]
     );
-
-    // Also update in-memory history for quick access
-    const history = getHistory(userId) || {
-      guildId,
-      queue: [],
-      nowPlaying: null,
-      currentTrack: null,
-      timestamp: Date.now(),
-    };
-
-    history.guildId = guildId;
-    history.nowPlaying = track.title || null;
-    history.currentTrack = track;
-    history.timestamp = Date.now();
-
-    userHistory.set(userId, history);
   } catch (error) {
     const err = error as Error;
     log.error(`Failed to track played track: ${err.message}`);
