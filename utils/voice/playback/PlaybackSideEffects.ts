@@ -1,9 +1,9 @@
 // util-category: audio
-import { createLogger } from '../logger';
-import { getClient } from '../../server/client';
-import { detectSourceType } from '../sourceType';
-import * as stats from '../statistics';
-import * as listeningHistory from '../listeningHistory';
+import { createLogger } from '@utils/logger';
+import { getClient } from '../../../apps/raincloud/server/client';
+import { detectSourceType } from '@utils/sourceType';
+import * as stats from '@utils/statistics';
+import * as listeningHistory from '@utils/listeningHistory';
 import type { Track } from '@rainbot/protocol';
 import type { VoiceState } from '@rainbot/protocol';
 import type { VoiceChannel, TextChannel } from 'discord.js';
@@ -47,11 +47,11 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
   if (track.isSoundboard) return;
 
   const sourceType = detectSourceType(track);
-  const userId = track.userId || state.lastUserId;
-  const username = track.username || state.lastUsername;
-  const discriminator = track.discriminator || state.lastDiscriminator;
+  const userId = track.userId || state.lastUserId || 'unknown';
+  const username = track.username || state.lastUsername || 'unknown';
+  const discriminator = track.discriminator || state.lastDiscriminator || '0000';
 
-  if (!userId) return;
+  if (!userId || userId === 'unknown') return;
 
   stats.trackSound(
     track.title,
@@ -71,15 +71,15 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
       guildId,
       {
         title: track.title,
-        url: track.url,
-        duration: track.duration,
-        isLocal: track.isLocal,
+        url: track.url || '',
+        duration: track.duration || 0,
+        isLocal: track.isLocal || false,
         isSoundboard: false,
         source: track.source || 'discord',
       },
       userId
     )
-    .catch((err) => log.error(`Listening history failed: ${(err as Error).message}`));
+    .catch((err: unknown) => log.error(`Listening history failed: ${(err as Error).message}`));
 
   stats.trackUserListen(
     guildId,
@@ -121,7 +121,7 @@ export function trackPlaybackStateChange(
     to,
     userId || null,
     username || null,
-    state.nowPlaying,
+    state.nowPlaying || null,
     getPlaybackPosition(state),
     'discord'
   );

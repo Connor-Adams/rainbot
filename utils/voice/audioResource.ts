@@ -1,4 +1,3 @@
-// util-category: audio
 import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';

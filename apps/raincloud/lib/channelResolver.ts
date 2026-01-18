@@ -1,6 +1,6 @@
 import { Client, PermissionFlagsBits } from 'discord.js';
 import { VoiceStateManager } from './voiceStateManager';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '@utils/logger';
 
 const log = createLogger('CHANNEL-RESOLVER');
 

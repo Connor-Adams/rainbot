@@ -10,7 +10,7 @@ if (dotenvResult.error) {
 }
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
-const server = require('./dist/server');
+const server = require('./dist/apps/raincloud/server');
 const { loadConfig } = require('./dist/utils/config');
 const { createLogger } = require('./dist/utils/logger');
 
@@ -109,33 +109,13 @@ client.once(Events.ClientReady, async () => {
 
   // Initialize multi-bot service (worker orchestration)
   try {
-    const MultiBotService = require('./dist/lib/multiBotService');
+    const MultiBotService = require('./dist/apps/raincloud/lib/multiBotService');
     const redisUrl = config.redisUrl || process.env['REDIS_URL'];
     const multiBot = await MultiBotService.default.initialize(redisUrl);
     multiBot.setDiscordClient(client);
     log.info('MultiBotService initialized');
   } catch (error) {
     log.warn(`MultiBotService unavailable: ${error.message}`);
-  }
-
-  // Initialize voice interaction manager if configured
-  try {
-    const { initVoiceInteractionManager } = require('./dist/utils/voice/voiceInteractionInstance');
-    const voiceInteractionConfig = {
-      enabled: config.voiceInteractionEnabled || false,
-      sttProvider: config.sttProvider || 'google',
-      ttsProvider: config.ttsProvider || 'google',
-      sttApiKey: config.sttApiKey,
-      ttsApiKey: config.ttsApiKey,
-      language: config.voiceLanguage || 'en-US',
-      voiceName: config.ttsVoiceName,
-    };
-
-    initVoiceInteractionManager(client, voiceInteractionConfig);
-    log.info('Voice interaction system initialized');
-  } catch (error) {
-    const info = formatError(error);
-    log.warn(`Voice interaction not available: ${info.message}`);
   }
 });
 

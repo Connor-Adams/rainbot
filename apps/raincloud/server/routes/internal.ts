@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '@utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
-import * as stats from '../../utils/statistics';
-import type { SourceType } from '../../utils/sourceType';
+import * as stats from '@utils/statistics';
+import type { SourceType } from '@utils/sourceType';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();

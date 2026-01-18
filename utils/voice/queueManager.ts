@@ -1,4 +1,3 @@
-// util-category: audio
 /**
  * Queue Manager - Handles queue operations with mutex locking
  */
@@ -24,6 +23,10 @@ const SAVE_DEBOUNCE_MS = 5000;
  * Schedule a debounced queue snapshot save
  */
 function scheduleSave(guildId: string): void {
+  if (process.env['NODE_ENV'] === 'test') {
+    return;
+  }
+
   // Clear existing timer
   const existing = saveDebounceTimers.get(guildId);
   if (existing) {
@@ -40,6 +43,7 @@ function scheduleSave(guildId: string): void {
       log.debug(`Debounced save failed for ${guildId}: ${(error as Error).message}`);
     }
   }, SAVE_DEBOUNCE_MS);
+  timer.unref?.();
 
   saveDebounceTimers.set(guildId, timer);
 }
@@ -231,15 +235,15 @@ export function getQueue(guildId: string): QueueInfo {
   }
 
   return {
-    nowPlaying: state.nowPlaying,
+    nowPlaying: state.nowPlaying || null,
     queue: state.queue.slice(0, 20),
     totalInQueue: state.queue.length,
     currentTrack: state.currentTrack || null,
     playbackPosition: playbackPosition,
     hasOverlay: !!state.overlayProcess,
     isPaused: state.player.state.status === AudioPlayerStatus.Paused,
-    channelName: state.channelName,
-    autoplay: state.autoplay,
+    channelName: state.channelName || null,
+    autoplay: state.autoplay || false,
   };
 }
 

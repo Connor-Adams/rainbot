@@ -1,6 +1,6 @@
 import { Events, VoiceState } from 'discord.js';
 import { VoiceStateManager } from '../../lib/voiceStateManager';
-import { createLogger } from '../../utils/logger';
+import { createLogger } from '@utils/logger';
 
 const log = createLogger('VOICE-STATE-UPDATE');
 

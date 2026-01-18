@@ -2,7 +2,7 @@
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
-import { createLogger } from '../logger';
+import { createLogger } from '@utils/logger';
 import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('STREAM_RESOLVER');
@@ -36,7 +36,7 @@ function getYtdlpOptions(): Record<string, unknown> {
   };
 
   if (COOKIES_FILE) {
-    options.cookies = COOKIES_FILE;
+    options['cookies'] = COOKIES_FILE;
   }
 
   return options;
@@ -63,7 +63,7 @@ async function getCachedStreamUrl(videoUrl: string): Promise<string> {
 
   if (urlCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = urlCache.keys().next().value;
-    if (oldestKey) urlCache.delete(oldestKey);
+    if (oldestKey !== undefined) urlCache.delete(oldestKey);
   }
 
   urlCache.set(videoUrl, {
@@ -100,7 +100,7 @@ async function fetchStream(url: string): Promise<Readable> {
     const nodeStream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
 
     nodeStream.on('error', (err) => {
-      log.debug(`Readable stream error: ${err.message}`);
+      log.debug(`Readable stream error: ${(err as Error).message}`);
     });
 
     return nodeStream;
@@ -144,5 +144,5 @@ export async function resolveStream(track: Track, seekSeconds = 0): Promise<Read
   }
 
   const streamInfo = await play.stream(track.url, { quality: 2 });
-  return streamInfo.stream;
+  return streamInfo.stream as Readable;
 }

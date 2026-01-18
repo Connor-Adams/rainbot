@@ -1,4 +1,3 @@
-// util-category: audio
 /**
  * Connection Manager - Handles voice connections and state
  */

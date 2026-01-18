@@ -1,6 +1,6 @@
 import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
 import { Readable } from 'stream';
-import { createLogger } from '../logger';
+import { createLogger } from '../../logger';
 
 const log = createLogger('RESOURCE_FACTORY');
 

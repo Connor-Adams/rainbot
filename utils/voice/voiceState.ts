@@ -5,7 +5,7 @@ import * as connectionManager from './connectionManager';
 /**
  * INTERNAL: fetch current state
  */
-function getState(guildId: string): VoiceState | null {
+function getState(guildId: string): VoiceState | undefined {
   return connectionManager.getVoiceState(guildId);
 }
 

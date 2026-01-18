@@ -1,5 +1,5 @@
 // util-category: audio
-import { createLogger } from '../logger';
+import { createLogger } from '../../logger';
 import { resolveStream } from './StreamResolver';
 import { createMusicResource } from './ResourceFactory';
 import type { Track } from '@rainbot/protocol';

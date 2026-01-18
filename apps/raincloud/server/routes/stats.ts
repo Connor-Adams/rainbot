@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
-import { query } from '../../utils/database';
+import { query } from '@utils/database';
 import { requireAuth } from '../middleware/auth';
-import { statsEmitter } from '../../utils/statistics';
+import { statsEmitter } from '@utils/statistics';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
@@ -703,7 +703,7 @@ router.get(
       const startDate = parseValidDate(req.query['startDate'] as string | undefined);
       const endDate = parseValidDate(req.query['endDate'] as string | undefined);
 
-      const listeningHistory = require('../../utils/listeningHistory');
+      const listeningHistory = require('@utils/listeningHistory');
       const history = await listeningHistory.getListeningHistory(
         userId,
         guildId,

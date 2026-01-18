@@ -2,7 +2,7 @@ import type { Client, Guild, GuildMember, Collection } from 'discord.js';
 import { verifyUserRole } from '../roleVerifier';
 
 // Mock the logger
-jest.mock('../../../utils/logger', () => ({
+jest.mock('@utils/logger', () => ({
   createLogger: () => ({
     debug: jest.fn(),
     warn: jest.fn(),

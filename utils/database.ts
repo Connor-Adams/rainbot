@@ -1,4 +1,3 @@
-// util-category: db
 import { Pool, PoolConfig, QueryResult } from 'pg';
 import { createLogger } from './logger';
 import { loadConfig } from './config';
@@ -169,6 +168,15 @@ export async function initializeSchema(): Promise<boolean> {
                 played_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 duration INTEGER,
                 source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api'))
+            )
+        `);
+
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS sound_customizations (
+                sound_name VARCHAR(255) PRIMARY KEY,
+                display_name VARCHAR(255),
+                emoji VARCHAR(32),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
         `);
 

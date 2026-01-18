@@ -1,6 +1,6 @@
 // util-category: audio
 import { AudioPlayerStatus, AudioResource } from '@discordjs/voice';
-import { createLogger } from '../logger';
+import { createLogger } from '@utils/logger';
 import type { VoiceState } from '@rainbot/protocol';
 import type { Track } from '@rainbot/protocol';
 import { resetPlaybackTiming, markPaused, markResumed } from './PlaybackTiming';
@@ -14,7 +14,7 @@ export class PlaybackController {
     }
 
     state.player.play(resource);
-    state.currentResource = track.isSoundboard ? null : resource;
+    state.currentResource = track.isSoundboard ? null : (resource as any);
     state.currentTrack = track;
     state.nowPlaying = track.title;
     state.currentTrackSource = track.isLocal ? null : track.url || null;

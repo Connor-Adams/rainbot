@@ -64,6 +64,7 @@ export interface VoiceInteractionConfig {
     maxCommandsPerMinute: number;
     maxCommandsPerHour: number;
   };
+  ttsHandler?: (guildId: string, text: string, userId?: string) => Promise<void>;
 }
 
 /**

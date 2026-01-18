@@ -97,7 +97,7 @@ describe('queueManager', () => {
 
       expect(result.added).toBe(1);
       expect(mockVoiceState.queue).toHaveLength(2);
-      expect(mockVoiceState.queue[1].title).toBe('New Track');
+      expect(mockVoiceState.queue[1]!.title).toBe('New Track');
     });
 
     it('throws error when bot not in voice channel', async () => {

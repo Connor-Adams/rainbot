@@ -5,10 +5,10 @@ import {
   trackVoiceEvent,
   trackSearch,
   flushAll,
-} from '../statistics';
+} from '@utils/statistics';
 
 // Mock logger
-jest.mock('../logger', () => ({
+jest.mock('@utils/logger', () => ({
   createLogger: () => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -19,7 +19,7 @@ jest.mock('../logger', () => ({
 }));
 
 // Mock database
-jest.mock('../database', () => ({
+jest.mock('@utils/database', () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
@@ -30,53 +30,30 @@ describe('statistics', () => {
 
   describe('trackCommand', () => {
     it('tracks a successful command execution', () => {
-      trackCommand({
-        commandName: 'play',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: 'TestUser',
-        discriminator: '1234',
-        source: 'discord',
-        success: true,
-        errorMessage: null,
-        executionTimeMs: 150,
-        errorType: null,
-      });
+      trackCommand('play', 'user-123', 'guild-456', 'discord', true, null, 'TestUser', '1234', 150);
 
       // Should not throw
       expect(true).toBe(true);
     });
 
     it('tracks a failed command execution', () => {
-      trackCommand({
-        commandName: 'join',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: 'TestUser',
-        discriminator: '1234',
-        source: 'discord',
-        success: false,
-        errorMessage: 'User not in voice channel',
-        executionTimeMs: 50,
-        errorType: 'validation',
-      });
+      trackCommand(
+        'join',
+        'user-123',
+        'guild-456',
+        'discord',
+        false,
+        'User not in voice channel',
+        'TestUser',
+        '1234',
+        50
+      );
 
       expect(true).toBe(true);
     });
 
     it('handles API source', () => {
-      trackCommand({
-        commandName: 'skip',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: null,
-        discriminator: null,
-        source: 'api',
-        success: true,
-        errorMessage: null,
-        executionTimeMs: 75,
-        errorType: null,
-      });
+      trackCommand('skip', 'user-123', 'guild-456', 'api', true, null, null, null, 75);
 
       expect(true).toBe(true);
     });
@@ -84,49 +61,49 @@ describe('statistics', () => {
 
   describe('trackSound', () => {
     it('tracks sound playback', () => {
-      trackSound({
-        soundName: 'airhorn.mp3',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: 'TestUser',
-        discriminator: '1234',
-        sourceType: 'local',
-        isSoundboard: true,
-        duration: 2500,
-        source: 'discord',
-      });
+      trackSound(
+        'airhorn.mp3',
+        'user-123',
+        'guild-456',
+        'local',
+        true,
+        2500,
+        'discord',
+        'TestUser',
+        '1234'
+      );
 
       expect(true).toBe(true);
     });
 
     it('tracks YouTube sound', () => {
-      trackSound({
-        soundName: 'Song Title',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: 'TestUser',
-        discriminator: '1234',
-        sourceType: 'youtube',
-        isSoundboard: false,
-        duration: 180000,
-        source: 'discord',
-      });
+      trackSound(
+        'Song Title',
+        'user-123',
+        'guild-456',
+        'youtube',
+        false,
+        180000,
+        'discord',
+        'TestUser',
+        '1234'
+      );
 
       expect(true).toBe(true);
     });
 
     it('handles null duration', () => {
-      trackSound({
-        soundName: 'unknown.mp3',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        username: 'TestUser',
-        discriminator: null,
-        sourceType: 'local',
-        isSoundboard: true,
-        duration: null,
-        source: 'api',
-      });
+      trackSound(
+        'unknown.mp3',
+        'user-123',
+        'guild-456',
+        'local',
+        true,
+        null,
+        'api',
+        'TestUser',
+        null
+      );
 
       expect(true).toBe(true);
     });
@@ -134,37 +111,19 @@ describe('statistics', () => {
 
   describe('trackQueueOperation', () => {
     it('tracks skip operation', () => {
-      trackQueueOperation({
-        operationType: 'skip',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        source: 'discord',
-        metadata: { position: 1 },
-      });
+      trackQueueOperation('skip', 'user-123', 'guild-456', 'discord', { position: 1 });
 
       expect(true).toBe(true);
     });
 
     it('tracks pause operation', () => {
-      trackQueueOperation({
-        operationType: 'pause',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        source: 'discord',
-        metadata: null,
-      });
+      trackQueueOperation('pause', 'user-123', 'guild-456', 'discord', null);
 
       expect(true).toBe(true);
     });
 
     it('tracks clear operation', () => {
-      trackQueueOperation({
-        operationType: 'clear',
-        userId: 'user-123',
-        guildId: 'guild-456',
-        source: 'api',
-        metadata: { tracksCleared: 5 },
-      });
+      trackQueueOperation('clear', 'user-123', 'guild-456', 'api', { tracksCleared: 5 });
 
       expect(true).toBe(true);
     });
@@ -180,13 +139,7 @@ describe('statistics', () => {
       ];
 
       operations.forEach((op) => {
-        trackQueueOperation({
-          operationType: op,
-          userId: 'user-123',
-          guildId: 'guild-456',
-          source: 'discord',
-          metadata: null,
-        });
+        trackQueueOperation(op, 'user-123', 'guild-456', 'discord', null);
       });
 
       expect(true).toBe(true);
@@ -195,37 +148,19 @@ describe('statistics', () => {
 
   describe('trackVoiceEvent', () => {
     it('tracks bot join event', () => {
-      trackVoiceEvent({
-        eventType: 'join',
-        guildId: 'guild-456',
-        channelId: 'channel-789',
-        channelName: 'General Voice',
-        source: 'discord',
-      });
+      trackVoiceEvent('join', 'guild-456', 'channel-789', 'General Voice', 'discord');
 
       expect(true).toBe(true);
     });
 
     it('tracks bot leave event', () => {
-      trackVoiceEvent({
-        eventType: 'leave',
-        guildId: 'guild-456',
-        channelId: 'channel-789',
-        channelName: 'General Voice',
-        source: 'discord',
-      });
+      trackVoiceEvent('leave', 'guild-456', 'channel-789', 'General Voice', 'discord');
 
       expect(true).toBe(true);
     });
 
     it('handles null channel name', () => {
-      trackVoiceEvent({
-        eventType: 'join',
-        guildId: 'guild-456',
-        channelId: 'channel-789',
-        channelName: null,
-        source: 'api',
-      });
+      trackVoiceEvent('join', 'guild-456', 'channel-789', null, 'api');
 
       expect(true).toBe(true);
     });
@@ -233,76 +168,67 @@ describe('statistics', () => {
 
   describe('trackSearch', () => {
     it('tracks YouTube search with results', () => {
-      trackSearch({
-        userId: 'user-123',
-        guildId: 'guild-456',
-        query: 'never gonna give you up',
-        queryType: 'search',
-        resultsCount: 10,
-        selectedIndex: 0,
-        selectedTitle: 'Rick Astley - Never Gonna Give You Up',
-        source: 'discord',
-      });
+      trackSearch(
+        'user-123',
+        'guild-456',
+        'never gonna give you up',
+        'search',
+        10,
+        0,
+        'Rick Astley - Never Gonna Give You Up',
+        'discord'
+      );
 
       expect(true).toBe(true);
     });
 
     it('tracks URL query', () => {
-      trackSearch({
-        userId: 'user-123',
-        guildId: 'guild-456',
-        query: 'https://youtube.com/watch?v=dQw4w9WgXcQ',
-        queryType: 'url',
-        resultsCount: 1,
-        selectedIndex: null,
-        selectedTitle: 'Rick Roll',
-        source: 'discord',
-      });
+      trackSearch(
+        'user-123',
+        'guild-456',
+        'https://youtube.com/watch?v=dQw4w9WgXcQ',
+        'url',
+        1,
+        null,
+        'Rick Roll',
+        'discord'
+      );
 
       expect(true).toBe(true);
     });
 
     it('tracks failed search', () => {
-      trackSearch({
-        userId: 'user-123',
-        guildId: 'guild-456',
-        query: 'nonexistent song xyz',
-        queryType: 'search',
-        resultsCount: 0,
-        selectedIndex: null,
-        selectedTitle: null,
-        source: 'discord',
-      });
+      trackSearch(
+        'user-123',
+        'guild-456',
+        'nonexistent song xyz',
+        'search',
+        0,
+        null,
+        null,
+        'discord'
+      );
 
       expect(true).toBe(true);
     });
 
     it('tracks playlist query', () => {
-      trackSearch({
-        userId: 'user-123',
-        guildId: 'guild-456',
-        query: 'https://youtube.com/playlist?list=...',
-        queryType: 'playlist',
-        resultsCount: 25,
-        selectedIndex: null,
-        selectedTitle: null,
-        source: 'discord',
-      });
+      trackSearch(
+        'user-123',
+        'guild-456',
+        'https://youtube.com/playlist?list=...',
+        'playlist',
+        25,
+        null,
+        null,
+        'discord'
+      );
 
       expect(true).toBe(true);
     });
 
     it('tracks soundboard query', () => {
-      trackSearch({
-        userId: 'user-123',
-        guildId: 'guild-456',
-        query: 'airhorn',
-        queryType: 'soundboard',
-        resultsCount: 1,
-        selectedIndex: 0,
-        selectedTitle: 'airhorn.mp3',
-        source: 'discord',
-      });
+      trackSearch('user-123', 'guild-456', 'airhorn', 'soundboard', 1, 0, 'airhorn.mp3', 'discord');
 
       expect(true).toBe(true);
     });

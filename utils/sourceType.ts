@@ -1,4 +1,3 @@
-// util-category: audio
 /**
  * Shared utility for detecting track source type
  */
