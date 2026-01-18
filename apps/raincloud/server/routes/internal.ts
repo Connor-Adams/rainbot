@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { createLogger } from '@utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
+import { getMultiBotService } from '../../lib/multiBotService';
 import * as stats from '@utils/statistics';
 import type { SourceType } from '@utils/sourceType';
 
@@ -97,6 +98,119 @@ router.post('/stats/sound', (req: Request, res: Response) => {
   );
 
   res.json({ ok: true });
+});
+
+router.post('/play', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId, source, userId, username } = req.body;
+  if (!guildId || !source || !userId) {
+    res.status(400).json({ error: 'Missing required fields' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const result = await multiBot.playSound(guildId, source, userId, 'voice', username);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/skip', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId, count } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const skipped = await multiBot.skip(guildId, count || 1);
+    res.json({ success: true, skipped });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/pause', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const result = await multiBot.togglePause(guildId);
+    res.json({ success: true, paused: result.paused });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/resume', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    // togglePause handles both pause and resume
+    const result = await multiBot.togglePause(guildId);
+    res.json({ success: true, paused: result.paused });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/stop', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const success = await multiBot.stop(guildId);
+    res.json({ success });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/volume', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId, volume, botType } = req.body;
+  if (!guildId || volume === undefined) {
+    res.status(400).json({ error: 'Missing required fields' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const result = await multiBot.setVolume(guildId, volume, botType || 'rainbot');
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/clear', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const result = await multiBot.clearQueue(guildId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
 });
 
 export default router;

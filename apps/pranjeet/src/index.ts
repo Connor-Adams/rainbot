@@ -17,6 +17,7 @@ import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { createLogger } from '@rainbot/shared';
+import { VoiceInteractionSession, ParsedVoiceCommand, VoiceCommandResult } from '@rainbot/protocol';
 import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
@@ -712,66 +713,98 @@ const client = new Client({
  * and automatically join/leave the same channel
  */
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  // Only care about the orchestrator bot
-  if (newState.member?.id !== ORCHESTRATOR_BOT_ID && oldState.member?.id !== ORCHESTRATOR_BOT_ID) {
+  const userId = newState.member?.id || oldState.member?.id;
+  const guildId = newState.guild?.id || oldState.guild?.id;
+  const user = newState.member?.user || oldState.member?.user;
+
+  if (!userId || !guildId || user?.bot) return;
+
+  // Lazy load voice interaction manager
+  const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
+  const voiceInteractionMgr = getVoiceInteractionManager();
+
+  // Handle orchestrator auto-follow
+  if (userId === ORCHESTRATOR_BOT_ID) {
+    const orchestratorLeft = oldState.channelId && !newState.channelId;
+    const orchestratorJoined = !oldState.channelId && newState.channelId;
+    const orchestratorMoved =
+      oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
+
+    if (orchestratorLeft) {
+      log.info(`Orchestrator left voice in guild ${guildId}, following...`);
+      const state = guildStates.get(guildId);
+      if (state?.connection) {
+        state.connection.destroy();
+        state.connection = null;
+      }
+    } else if (orchestratorJoined || orchestratorMoved) {
+      const channelId = newState.channelId!;
+      log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
+
+      const guild = client.guilds.cache.get(guildId);
+      const channel = guild?.channels.cache.get(channelId);
+      if (!channel || !channel.isVoiceBased()) return;
+
+      const state = getOrCreateGuildState(guildId);
+
+      if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+        state.connection.destroy();
+      }
+
+      const connection = joinVoiceChannel({
+        channelId: channel.id,
+        guildId: guild!.id,
+        adapterCreator: guild!.voiceAdapterCreator as any,
+        selfDeaf: false,
+      });
+
+      connection.subscribe(state.player);
+      state.connection = connection;
+
+      connection.on(VoiceConnectionStatus.Disconnected, async () => {
+        try {
+          await Promise.race([
+            entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+            entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+          ]);
+        } catch {
+          log.warn(`Connection lost in guild ${guildId}`);
+          connection.destroy();
+          state.connection = null;
+        }
+      });
+    }
     return;
   }
 
-  const guildId = newState.guild?.id || oldState.guild?.id;
-  if (!guildId) return;
+  // Handle user listening
+  const state = guildStates.get(guildId);
+  if (!state || !state.connection) return;
 
-  const orchestratorLeft = oldState.channelId && !newState.channelId;
-  const orchestratorJoined = !oldState.channelId && newState.channelId;
-  const orchestratorMoved =
-    oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
+  const botChannelId = state.connection.joinConfig.channelId;
 
-  if (orchestratorLeft) {
-    // Orchestrator left - leave too
-    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
-    const state = guildStates.get(guildId);
-    if (state?.connection) {
-      state.connection.destroy();
-      state.connection = null;
-    }
-  } else if (orchestratorJoined || orchestratorMoved) {
-    // Orchestrator joined/moved - follow
-    const channelId = newState.channelId!;
-    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
-
-    const guild = client.guilds.cache.get(guildId);
-    const channel = guild?.channels.cache.get(channelId);
-    if (!channel || !channel.isVoiceBased()) return;
-
-    const state = getOrCreateGuildState(guildId);
-
-    // Disconnect from old channel if moving
-    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      state.connection.destroy();
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: guild!.id,
-      adapterCreator: guild!.voiceAdapterCreator as any,
-      selfDeaf: false,
-    });
-
-    connection.subscribe(state.player);
-    state.connection = connection;
-
-    // Auto-rejoin on disconnect (network issues only)
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+  // User left the bot's channel
+  if (oldState.channelId === botChannelId && newState.channelId !== botChannelId) {
+    if (voiceInteractionMgr) {
       try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch {
-        log.warn(`Connection lost in guild ${guildId}`);
-        connection.destroy();
-        state.connection = null;
+        await voiceInteractionMgr.stopListening(userId, guildId);
+        log.debug(`Stopped voice listening for user ${userId}`);
+      } catch (error) {
+        log.debug(`Failed to stop voice listening: ${(error as Error).message}`);
       }
-    });
+    }
+  }
+
+  // User joined the bot's channel
+  if (newState.channelId === botChannelId && oldState.channelId !== botChannelId) {
+    if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(guildId)) {
+      try {
+        await voiceInteractionMgr.startListening(userId, guildId, state.connection);
+        log.info(`✅ Started voice listening for user ${user?.tag || userId}`);
+      } catch (error) {
+        log.error(`Failed to start voice listening: ${(error as Error).message}`);
+      }
+    }
   }
 });
 
@@ -788,20 +821,71 @@ client.once(Events.ClientReady, async () => {
     ttsHandler: async (guildId: string, text: string, userId?: string) => {
       if (!userId) return;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const multiBot = require('./dist/lib/multiBotService') as {
-          getMultiBotService: () => {
-            speakTTS: (
-              guildId: string,
-              text: string,
-              userId: string
-            ) => Promise<{ success: boolean; message?: string }>;
-          };
-        };
-        await multiBot.getMultiBotService().speakTTS(guildId, text, userId);
+        await speakInGuild(guildId, text);
       } catch (error) {
-        log.warn(`Failed to route TTS to Pranjeet: ${(error as Error).message}`);
+        log.warn(`Failed to speak TTS locally: ${(error as Error).message}`);
       }
+    },
+    commandHandler: async (
+      session: VoiceInteractionSession,
+      command: ParsedVoiceCommand
+    ): Promise<VoiceCommandResult | null> => {
+      const baseUrl = getOrchestratorBaseUrl();
+      if (!baseUrl || !WORKER_SECRET) {
+        log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
+        return null;
+      }
+
+      // Commands to route to Raincloud
+      const musicCommands = ['play', 'skip', 'pause', 'resume', 'stop', 'volume', 'clear'];
+
+      if (musicCommands.includes(command.type)) {
+        try {
+          const response = await fetch(`${baseUrl}/internal/${command.type}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-worker-secret': WORKER_SECRET,
+            },
+            body: JSON.stringify({
+              guildId: session.guildId,
+              userId: session.userId,
+              username: session.username,
+              source: command.query, // For play
+              count: command.parameter, // For skip
+              volume: command.parameter, // For volume
+            }),
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            log.warn(`Failed to route ${command.type} command: ${response.status} ${text}`);
+            return {
+              success: false,
+              command,
+              response: `I couldn't execute that command. Raincloud said: ${text}`,
+            };
+          }
+
+          const result = (await response.json()) as any;
+          return {
+            success: result.success !== false,
+            command,
+            response: result.message || '',
+          };
+        } catch (error) {
+          log.error(`Error routing ${command.type} command: ${(error as Error).message}`);
+          return {
+            success: false,
+            command,
+            response: 'I encountered an error trying to reach the music service.',
+          };
+        }
+      }
+
+      // Handle other commands (help, unknown) locally by returning null
+      // VoiceInteractionManager will fall back to default logic
+      return null;
     },
   });
 

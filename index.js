@@ -70,25 +70,6 @@ require('./apps/raincloud/handlers/eventHandler')(client);
 client.once(Events.ClientReady, async () => {
   const port = config.dashboardPort;
   await server.start(client, port);
-
-  // Initialize voice interaction manager if configured
-  try {
-    const { initVoiceInteractionManager } = require('./dist/utils/voice/voiceInteractionInstance');
-    const voiceInteractionConfig = {
-      enabled: config.voiceInteractionEnabled || false,
-      sttProvider: config.sttProvider || 'google',
-      ttsProvider: config.ttsProvider || 'google',
-      sttApiKey: config.sttApiKey,
-      ttsApiKey: config.ttsApiKey,
-      language: config.voiceLanguage || 'en-US',
-      voiceName: config.ttsVoiceName,
-    };
-
-    initVoiceInteractionManager(client, voiceInteractionConfig);
-    log.info('Voice interaction system initialized');
-  } catch (error) {
-    log.warn(`Voice interaction not available: ${error.message}`);
-  }
 });
 
 // Validate bot token
