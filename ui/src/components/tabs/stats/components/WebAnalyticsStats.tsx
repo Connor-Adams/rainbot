@@ -58,8 +58,8 @@ export default function WebAnalyticsStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">📊</span>
-        <p className="text-sm text-gray-400">No web analytics data available yet</p>
-        <small className="text-xs text-gray-500">Web analytics will appear as users interact with the dashboard</small>
+        <p className="text-sm text-text-secondary">No web analytics data available yet</p>
+        <small className="text-xs text-text-muted">Web analytics will appear as users interact with the dashboard</small>
       </div>
     )
   }
@@ -80,8 +80,8 @@ export default function WebAnalyticsStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {eventData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Event Types</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Event Types</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -109,8 +109,8 @@ export default function WebAnalyticsStats() {
         )}
         
         {targetData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Top Event Targets</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Top Event Targets</h3>
             <div style={{ width: '100%', height: Math.max(200, targetData.length * 32) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={targetData} layout="vertical" margin={{ left: 100, right: 20 }}>
@@ -126,12 +126,12 @@ export default function WebAnalyticsStats() {
       </div>
 
       {topTargets.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Event Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Event Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">Event Type</th>
                   <th className="pb-2 px-4">Target</th>
                   <th className="pb-2 px-4">Count</th>
@@ -139,7 +139,7 @@ export default function WebAnalyticsStats() {
               </thead>
               <tbody>
                 {topTargets.slice(0, 15).map((target, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{target.event_type}</td>
                     <td className="py-2 px-4 font-mono text-sm">{target.event_target}</td>
                     <td className="py-2 px-4">{target.count}</td>

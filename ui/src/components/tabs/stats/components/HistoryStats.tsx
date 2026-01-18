@@ -36,28 +36,28 @@ export default function HistoryStats() {
 
   return (
     <StatsSection title="Listening History">
-      <div className="history-filters flex gap-3 mb-6">
+      <div className="history-filters flex flex-col sm:flex-row gap-3 mb-6">
         <input
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Start date"
         />
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="End date"
         />
-        <button className="btn btn-secondary px-4 py-2" onClick={handleFilter}>
+        <button className="btn btn-secondary px-4 py-2 w-full sm:w-auto" onClick={handleFilter}>
           Filter
         </button>
       </div>
       <div className="history-list overflow-x-auto">
         {history.length === 0 ? (
-          <p className="empty-state text-gray-500 text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
+          <p className="empty-state text-text-muted text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
             <span className="text-2xl opacity-50">📭</span>
             No listening history found
           </p>
@@ -88,18 +88,18 @@ export default function HistoryStats() {
                 const duration = entry.duration ? formatDurationLong(entry.duration) : '-'
 
                 return (
-                  <tr key={index} className="hover:bg-gray-700/50 transition-colors">
+                  <tr key={index} className="hover:bg-surface-hover/50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {entry.is_soundboard && <span className="text-lg">🔊</span>}
-                        <span className="text-sm text-white">{escapeHtml(entry.track_title)}</span>
+                        <span className="text-sm text-text-primary">{escapeHtml(entry.track_title)}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400">
+                    <td className="px-4 py-3 text-sm text-text-secondary">
                       {sourceIcon} {entry.source_type}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400 font-mono">{duration}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">
+                    <td className="px-4 py-3 text-sm text-text-secondary font-mono">{duration}</td>
+                    <td className="px-4 py-3 text-sm text-text-secondary">
                       {entry.username ? (
                         <span>{entry.username}</span>
                       ) : entry.user_id ? (
@@ -108,7 +108,7 @@ export default function HistoryStats() {
                         <em>Unknown</em>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{playedAt.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-text-secondary">{playedAt.toLocaleString()}</td>
                   </tr>
                 )
               })}
@@ -119,4 +119,3 @@ export default function HistoryStats() {
     </StatsSection>
   )
 }
-

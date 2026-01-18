@@ -122,13 +122,13 @@ export default function PlayerTab() {
         <NowPlayingCard queueData={queueData} guildId={selectedGuildId} />
       )}
 
-      <section className="panel player-panel bg-surface rounded-2xl border border-border p-6">
+      <section className="panel player-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
             <span className="w-1 h-4 bg-gradient-to-b from-primary to-secondary rounded shadow-glow"></span>
             Add to Queue
           </h2>
         <div className="url-player space-y-4">
-          <div className="input-group flex gap-3">
+          <div className="input-group flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={urlInput}
@@ -138,16 +138,16 @@ export default function PlayerTab() {
               placeholder="YouTube, Spotify, SoundCloud, or direct URL..."
             />
           </div>
-          <div className="player-controls flex gap-3">
+          <div className="player-controls flex flex-col sm:flex-row gap-3">
             <button
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
               onClick={handlePlay}
               disabled={playMutation.isPending || !selectedGuildId}
             >
               <span className="btn-icon">▶</span> Add to Queue
             </button>
             <button
-              className="btn btn-danger"
+              className="btn btn-danger w-full sm:w-auto"
               onClick={() => stopMutation.mutate()}
               disabled={stopMutation.isPending || !selectedGuildId}
             >
@@ -210,4 +210,3 @@ export default function PlayerTab() {
     </>
   )
 }
-

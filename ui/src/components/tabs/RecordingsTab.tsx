@@ -107,11 +107,11 @@ export default function RecordingsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-text-primary">Voice Recordings</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Voice Recordings</h2>
         <button
           onClick={loadRecordings}
-          className="px-4 py-2 bg-surface-light text-text-primary rounded-lg hover:bg-surface-lighter transition-colors"
+          className="px-4 py-2 bg-surface-light text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
         >
           Refresh
         </button>
@@ -121,7 +121,7 @@ export default function RecordingsTab() {
         {recordings.map((recording) => (
           <div
             key={recording.name}
-            className="bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-lighter transition-colors"
+            className="bg-surface-light rounded-lg p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-surface-lighter transition-colors"
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -133,23 +133,23 @@ export default function RecordingsTab() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:ml-4">
               <button
                 onClick={() => playRecording(recording.name)}
                 disabled={playing === recording.name}
-                className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
+                className="px-3 py-2 bg-primary text-text-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors w-full sm:w-auto"
               >
                 {playing === recording.name ? 'Playing...' : 'Play'}
               </button>
               <button
                 onClick={() => downloadRecording(recording.name)}
-                className="px-3 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface-lighter transition-colors"
+                className="px-3 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
               >
                 Download
               </button>
               <button
                 onClick={() => deleteRecording(recording.name)}
-                className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                className="px-3 py-2 bg-danger/10 text-danger-light rounded-lg hover:bg-danger/20 transition-colors w-full sm:w-auto"
               >
                 Delete
               </button>

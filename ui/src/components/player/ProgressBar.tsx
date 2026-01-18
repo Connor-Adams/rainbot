@@ -29,7 +29,7 @@ export default function ProgressBar({ currentTime, duration, onClick }: Progress
           style={{ width: `${progressPercentage}%` }}
         />
         <div
-          className="progress-handle absolute top-1/2 left-0 w-4 h-4 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-md cursor-grab active:cursor-grabbing"
+          className="progress-handle absolute top-1/2 left-0 w-4 h-4 bg-text-primary rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-md cursor-grab active:cursor-grabbing"
           style={{ left: `${progressPercentage}%` }}
         />
       </div>

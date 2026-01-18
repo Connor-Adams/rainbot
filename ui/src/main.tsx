@@ -30,6 +30,19 @@ console.info('[UI] Config:', {
   authBaseUrl,
 })
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then(() => {
+        console.info('[UI] Service worker registered')
+      })
+      .catch((error) => {
+        console.error('[UI] Service worker registration failed', error)
+      })
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

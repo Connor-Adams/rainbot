@@ -42,8 +42,8 @@ export default function StatusTab() {
   const guildNameById = new Map(guilds.map((g) => [g.id, g.name]))
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-6">
-      <div className="flex items-center justify-between mb-6">
+    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h2 className="text-lg font-semibold text-text-primary">Service Status</h2>
           <p className="text-sm text-text-secondary">
@@ -53,7 +53,7 @@ export default function StatusTab() {
         </div>
         <button
           onClick={() => refetch()}
-          className="btn btn-secondary"
+          className="btn btn-secondary w-full sm:w-auto"
           disabled={isFetching}
         >
           {isFetching ? 'Refreshing...' : 'Refresh'}

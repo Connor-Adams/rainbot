@@ -23,6 +23,10 @@ const SAVE_DEBOUNCE_MS = 5000;
  * Schedule a debounced queue snapshot save
  */
 function scheduleSave(guildId: string): void {
+  if (process.env['NODE_ENV'] === 'test') {
+    return;
+  }
+
   // Clear existing timer
   const existing = saveDebounceTimers.get(guildId);
   if (existing) {

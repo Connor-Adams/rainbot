@@ -55,7 +55,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
               <summary className="cursor-pointer text-sm text-text-secondary hover:text-text-primary">
                 Error details
               </summary>
-              <pre className="mt-2 max-h-40 overflow-auto text-xs text-red-400">
+              <pre className="mt-2 max-h-40 overflow-auto text-xs text-danger-light">
                 {this.state.error.message}
               </pre>
             </details>

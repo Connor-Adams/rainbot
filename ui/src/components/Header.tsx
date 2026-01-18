@@ -31,17 +31,26 @@ export default function Header({ user, onLogout }: HeaderProps) {
   }
 
   return (
-    <header className="flex items-center px-8 py-5 border-b border-border bg-surface/85 glass-effect sticky top-0 z-header gap-8">
-      <Logo />
+    <header className="flex flex-col lg:flex-row lg:items-center px-4 sm:px-6 lg:px-8 py-4 lg:py-5 border-b border-border bg-surface sticky top-0 z-header gap-4 lg:gap-6">
+      <div className="flex items-center justify-between w-full lg:w-auto">
+        <Logo />
+        <div className="flex items-center gap-3 lg:hidden">
+          <StatusIndicator
+            isOnline={status?.online ?? false}
+            statusText={status?.online ? status.username || 'Online' : 'Offline'}
+          />
+        </div>
+      </div>
       <NavTabs activeTab={activeTab} onTabChange={handleTabChange} />
-      <div className="flex items-center gap-4 flex-shrink-0">
+      <div className="flex items-center flex-wrap gap-3 lg:gap-4 flex-shrink-0">
         {user && <UserInfo user={user} onLogout={onLogout} />}
-        <StatusIndicator
-          isOnline={status?.online ?? false}
-          statusText={status?.online ? status.username || 'Online' : 'Offline'}
-        />
+        <div className="hidden lg:block">
+          <StatusIndicator
+            isOnline={status?.online ?? false}
+            statusText={status?.online ? status.username || 'Online' : 'Offline'}
+          />
+        </div>
       </div>
     </header>
   )
 }
-

@@ -78,10 +78,10 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   return (
     <section className="panel now-playing-card bg-surface rounded-2xl border border-border overflow-hidden">
-      <div className="now-playing-content flex gap-8 p-8 items-center">
+      <div className="now-playing-content flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 items-center lg:items-start">
         <NowPlayingArtwork isPlaying={!isPaused} />
         
-        <div className="now-playing-info flex-1 flex flex-col gap-6 min-w-0">
+        <div className="now-playing-info flex-1 flex flex-col gap-6 min-w-0 w-full">
           <TrackInfo
             title={currentTrack.title}
             source={sourceInfo.text}
@@ -105,4 +105,3 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     </section>
   )
 }
-

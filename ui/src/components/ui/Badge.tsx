@@ -13,11 +13,11 @@ export default function Badge({
   ...props
 }: BadgeProps) {
   const variants = {
-    default: 'bg-gradient-to-r from-primary to-primary-dark text-white shadow-glow',
-    success: 'bg-gradient-to-r from-success to-success-dark text-white shadow-glow-success',
-    danger: 'bg-gradient-to-r from-danger to-danger-dark text-white shadow-glow-danger',
-    warning: 'bg-gradient-to-r from-warning to-warning-dark text-white',
-    info: 'bg-gradient-to-r from-info to-info-dark text-white',
+    default: 'bg-gradient-to-r from-primary to-primary-dark text-text-primary shadow-glow',
+    success: 'bg-gradient-to-r from-success to-success-dark text-text-primary shadow-glow-success',
+    danger: 'bg-gradient-to-r from-danger to-danger-dark text-text-primary shadow-glow-danger',
+    warning: 'bg-gradient-to-r from-warning to-warning-dark text-text-primary',
+    info: 'bg-gradient-to-r from-info to-info-dark text-text-primary',
   }
 
   const sizes = {

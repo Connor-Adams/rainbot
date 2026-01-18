@@ -82,37 +82,37 @@ export default function UserSessionsStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{summary.total_sessions || '0'}</div>
-          <div className="text-sm text-gray-400">Total Sessions</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-primary-light">{summary.total_sessions || '0'}</div>
+          <div className="text-sm text-text-secondary">Total Sessions</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{summary.unique_users || '0'}</div>
-          <div className="text-sm text-gray-400">Unique Users</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-success-light">{summary.unique_users || '0'}</div>
+          <div className="text-sm text-text-secondary">Unique Users</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{formatDuration(safeInt(summary.avg_duration_seconds))}</div>
-          <div className="text-sm text-gray-400">Avg Duration</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-secondary-light">{formatDuration(safeInt(summary.avg_duration_seconds))}</div>
+          <div className="text-sm text-text-secondary">Avg Duration</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{formatDuration(safeInt(summary.total_duration_seconds))}</div>
-          <div className="text-sm text-gray-400">Total Duration</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning">{formatDuration(safeInt(summary.total_duration_seconds))}</div>
+          <div className="text-sm text-text-secondary">Total Duration</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-warning-light">
             {(() => { const avg = parseFloat(summary.avg_tracks_per_session || '0'); return isNaN(avg) ? '0.0' : avg.toFixed(1) })()}
           </div>
-          <div className="text-sm text-gray-400">Avg Tracks/Session</div>
+          <div className="text-sm text-text-secondary">Avg Tracks/Session</div>
         </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-pink-400">{summary.total_tracks_heard || '0'}</div>
-          <div className="text-sm text-gray-400">Total Tracks</div>
+        <div className="bg-surface border border-border rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-accent-light">{summary.total_tracks_heard || '0'}</div>
+          <div className="text-sm text-text-secondary">Total Tracks</div>
         </div>
       </div>
 
       {chartData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Top Listeners (by duration)</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Top Listeners (by duration)</h3>
           <div style={{ width: '100%', height: Math.max(200, chartData.length * 32) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -127,12 +127,12 @@ export default function UserSessionsStats() {
       )}
 
       {topListeners.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl text-white mb-4">Top Listeners Details</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-xl text-text-primary mb-4">Top Listeners Details</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
+                <tr className="text-text-secondary border-b border-border">
                   <th className="pb-2 px-4">User</th>
                   <th className="pb-2 px-4">Sessions</th>
                   <th className="pb-2 px-4">Total Duration</th>
@@ -141,7 +141,7 @@ export default function UserSessionsStats() {
               </thead>
               <tbody>
                 {topListeners.map((listener, idx) => (
-                  <tr key={idx} className="border-b border-gray-700/50 text-gray-300">
+                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
                     <td className="py-2 px-4">{listener.username || listener.user_id}</td>
                     <td className="py-2 px-4">{listener.session_count}</td>
                     <td className="py-2 px-4">{formatDuration(safeInt(listener.total_duration))}</td>

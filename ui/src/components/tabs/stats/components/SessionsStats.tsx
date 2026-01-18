@@ -55,12 +55,12 @@ export default function SessionsStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading session statistics...</div>
+    return <div className="stats-loading text-center py-12 text-text-secondary">Loading session statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="stats-error text-center py-12 text-danger-light">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -91,35 +91,35 @@ export default function SessionsStats() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{summary.total_sessions || 0}</div>
-          <div className="text-sm text-gray-400">Total Sessions</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-success-light">{summary.total_sessions || 0}</div>
+          <div className="text-sm text-text-secondary">Total Sessions</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{formatDuration(safeInt(summary.avg_duration_seconds))}</div>
-          <div className="text-sm text-gray-400">Avg Duration</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-primary-light">{formatDuration(safeInt(summary.avg_duration_seconds))}</div>
+          <div className="text-sm text-text-secondary">Avg Duration</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-purple-400">{formatDuration(safeInt(summary.total_duration_seconds))}</div>
-          <div className="text-sm text-gray-400">Total Time</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-secondary-light">{formatDuration(safeInt(summary.total_duration_seconds))}</div>
+          <div className="text-sm text-text-secondary">Total Time</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">{summary.avg_tracks_per_session || 0}</div>
-          <div className="text-sm text-gray-400">Avg Tracks/Session</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-warning-light">{summary.avg_tracks_per_session || 0}</div>
+          <div className="text-sm text-text-secondary">Avg Tracks/Session</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-orange-400">{summary.total_tracks || 0}</div>
-          <div className="text-sm text-gray-400">Total Tracks</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-warning">{summary.total_tracks || 0}</div>
+          <div className="text-sm text-text-secondary">Total Tracks</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-pink-400">{summary.avg_peak_users || 0}</div>
-          <div className="text-sm text-gray-400">Avg Peak Users</div>
+        <div className="bg-surface-hover rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-accent-light">{summary.avg_peak_users || 0}</div>
+          <div className="text-sm text-text-secondary">Avg Peak Users</div>
         </div>
       </div>
 
       {chartData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Sessions per Day</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Sessions per Day</h3>
           <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ bottom: 60 }}>
@@ -133,12 +133,12 @@ export default function SessionsStats() {
         </div>
       )}
 
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl text-white mb-4">Recent Sessions</h3>
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-xl text-text-primary mb-4">Recent Sessions</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-gray-400 border-b border-gray-700">
+              <tr className="text-text-secondary border-b border-border">
                 <th className="pb-2">Channel</th>
                 <th className="pb-2">Started</th>
                 <th className="pb-2">Duration</th>
@@ -148,7 +148,7 @@ export default function SessionsStats() {
             </thead>
             <tbody>
               {sessions.slice(0, 10).map((session) => (
-                <tr key={session.session_id} className="border-b border-gray-700/50 text-gray-300">
+                <tr key={session.session_id} className="border-b border-border/50 text-text-secondary">
                   <td className="py-2">{session.channel_name || 'Unknown'}</td>
                   <td className="py-2">{safeDateLabel(session.started_at)}</td>
                   <td className="py-2">{formatDuration(session.duration_seconds)}</td>

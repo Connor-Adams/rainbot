@@ -18,10 +18,10 @@ interface TrackInfoProps {
 export default function TrackInfo({ title, source, sourceLink }: TrackInfoProps) {
   return (
     <div className="track-info flex flex-col gap-3">
-      <h2 className="track-title text-3xl font-bold text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">
+      <h2 className="track-title text-2xl sm:text-3xl font-bold text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">
         {title}
       </h2>
-      <p className="track-artist text-lg text-text-secondary font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+      <p className="track-artist text-base sm:text-lg text-text-secondary font-medium overflow-hidden text-ellipsis whitespace-nowrap">
         {source}
       </p>
       {sourceLink && (

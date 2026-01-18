@@ -22,12 +22,12 @@ export default function SoundsStats() {
   })
 
   if (isLoading) {
-    return <div className="stats-loading text-center py-12 text-gray-400">Loading sound statistics...</div>
+    return <div className="stats-loading text-center py-12 text-text-secondary">Loading sound statistics...</div>
   }
 
   if (error) {
     return (
-      <div className="stats-error text-center py-12 text-red-400">
+      <div className="stats-error text-center py-12 text-danger-light">
         Error: {error instanceof Error ? error.message : 'Unknown error'}
       </div>
     )
@@ -41,8 +41,8 @@ export default function SoundsStats() {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
         <span className="text-3xl opacity-50">🔊</span>
-        <p className="text-sm text-gray-400">No sound data available yet</p>
-        <small className="text-xs text-gray-500">Sound statistics will appear as users play sounds</small>
+        <p className="text-sm text-text-secondary">No sound data available yet</p>
+        <small className="text-xs text-text-muted">Sound statistics will appear as users play sounds</small>
       </div>
     )
   }
@@ -68,8 +68,8 @@ export default function SoundsStats() {
   return (
     <div className="space-y-6">
       {barData.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-lg text-white mb-4">Top Sounds</h3>
+        <div className="bg-surface border border-border rounded-xl p-6">
+          <h3 className="text-lg text-text-primary mb-4">Top Sounds</h3>
           <div style={{ width: '100%', height: Math.max(200, barData.length * 32) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -85,8 +85,8 @@ export default function SoundsStats() {
       
       <div className="grid md:grid-cols-2 gap-6">
         {sourceData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Source Type Breakdown</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Source Type Breakdown</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -114,8 +114,8 @@ export default function SoundsStats() {
         )}
         
         {sbData.length > 0 && (
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg text-white mb-4">Soundboard vs Regular</h3>
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <h3 className="text-lg text-text-primary mb-4">Soundboard vs Regular</h3>
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
