@@ -166,12 +166,11 @@ function normalizeSpeakKey(text: string, voice?: string): string {
   return `${(voice || '').trim().toLowerCase()}::${text.trim().toLowerCase()}`;
 }
 
-
 interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
   volume: number;
-    // NEW: speech queue + bookkeeping
+  // NEW: speech queue + bookkeeping
   speakQueue: Promise<void>;
   lastSpeakAt: number;
   lastSpeakKey: string;
@@ -245,7 +244,6 @@ function getOrCreateGuildState(guildId: string): GuildState {
   }
   return guildStates.get(guildId)!;
 }
-
 
 /**
  * Generate TTS audio using configured provider
@@ -358,7 +356,6 @@ async function speakInGuild(
 
   return { status: 'success', message: 'TTS queued' };
 }
-
 
 /**
  * Generate TTS using OpenAI
