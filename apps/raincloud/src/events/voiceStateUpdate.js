@@ -20,23 +20,6 @@ function getVoiceManager() {
   return voiceManager;
 }
 
-// Lazy load voice interaction manager
-let voiceInteractionManager = null;
-function getVoiceInteractionManager() {
-  if (!voiceInteractionManager) {
-    try {
-      const {
-        getVoiceInteractionManager,
-      } = require('../../dist/utils/voice/voiceInteractionInstance');
-      voiceInteractionManager = getVoiceInteractionManager();
-    } catch (error) {
-      log.debug(`Voice interaction manager not available: ${error.message}`);
-      return null;
-    }
-  }
-  return voiceInteractionManager;
-}
-
 module.exports = {
   name: Events.VoiceStateUpdate,
   async execute(oldState, newState) {

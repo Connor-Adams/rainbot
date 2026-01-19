@@ -69,28 +69,7 @@ module.exports = {
         const voiceManager = service;
         await voiceManager.joinChannel(voiceChannel);
 
-        // Start listening to all users already in the channel if voice control is enabled
-        try {
-          const {
-            getVoiceInteractionManager,
-          } = require('../../dist/utils/voice/voiceInteractionInstance');
-          const { getVoiceConnection } = require('@discordjs/voice');
-          const voiceInteractionMgr = getVoiceInteractionManager();
-
-          if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(interaction.guildId)) {
-            const connection = getVoiceConnection(interaction.guildId);
-            if (connection) {
-              const members = voiceChannel.members.filter((m) => !m.user.bot);
-              for (const [userId, memberObj] of members) {
-                await voiceInteractionMgr.startListening(userId, interaction.guildId, connection);
-                log.debug(`Started voice listening for existing user: ${memberObj.user.tag}`);
-              }
-            }
-          }
-        } catch (voiceError) {
-          log.debug(`Voice interaction setup failed (non-critical): ${voiceError.message}`);
-        }
-
+        // Pranjeet will auto-follow raincloud and handle voice listening when enabled
         log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name}`);
         await interaction.reply(
           `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`

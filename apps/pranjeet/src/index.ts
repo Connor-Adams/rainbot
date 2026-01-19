@@ -182,6 +182,47 @@ const guildStates = new Map<string, GuildState>();
 const requestCache = new Map<string, unknown>();
 let queueReady = false;
 let serverStarted = false;
+let redisClient: IORedis | null = null;
+
+/**
+ * Check if voice interaction is enabled for a guild (from Redis)
+ */
+async function isVoiceInteractionEnabled(guildId: string): Promise<boolean> {
+  if (!redisClient || !REDIS_URL) {
+    // Fall back to VoiceInteractionManager if Redis not available
+    const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
+    const voiceInteractionMgr = getVoiceInteractionManager();
+    return voiceInteractionMgr?.isEnabledForGuild(guildId) ?? false;
+  }
+
+  try {
+    const key = `voice:interaction:enabled:${guildId}`;
+    const data = await redisClient.get(key);
+    const enabled = data === '1';
+
+    // Sync with VoiceInteractionManager internal state
+    const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
+    const voiceInteractionMgr = getVoiceInteractionManager();
+    if (voiceInteractionMgr) {
+      const currentlyEnabled = voiceInteractionMgr.isEnabledForGuild(guildId);
+      if (enabled && !currentlyEnabled) {
+        // Redis says enabled but VoiceInteractionManager doesn't - enable it
+        await voiceInteractionMgr.enableForGuild(guildId);
+      } else if (!enabled && currentlyEnabled) {
+        // Redis says disabled but VoiceInteractionManager says enabled - disable it
+        await voiceInteractionMgr.disableForGuild(guildId);
+      }
+    }
+
+    return enabled;
+  } catch (error) {
+    log.warn(`Failed to check voice interaction enabled state: ${(error as Error).message}`);
+    // Fall back to VoiceInteractionManager on error
+    const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
+    const voiceInteractionMgr = getVoiceInteractionManager();
+    return voiceInteractionMgr?.isEnabledForGuild(guildId) ?? false;
+  }
+}
 
 function startServer(): void {
   if (serverStarted) return;
@@ -797,12 +838,16 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   // User joined the bot's channel
   if (newState.channelId === botChannelId && oldState.channelId !== botChannelId) {
-    if (voiceInteractionMgr && voiceInteractionMgr.isEnabledForGuild(guildId)) {
-      try {
-        await voiceInteractionMgr.startListening(userId, guildId, state.connection);
-        log.info(`✅ Started voice listening for user ${user?.tag || userId}`);
-      } catch (error) {
-        log.error(`Failed to start voice listening: ${(error as Error).message}`);
+    if (voiceInteractionMgr) {
+      // Check Redis for enabled state (source of truth)
+      const enabled = await isVoiceInteractionEnabled(guildId);
+      if (enabled) {
+        try {
+          await voiceInteractionMgr.startListening(userId, guildId, state.connection);
+          log.info(`✅ Started voice listening for user ${user?.tag || userId}`);
+        } catch (error) {
+          log.error(`Failed to start voice listening: ${(error as Error).message}`);
+        }
       }
     }
   }
@@ -897,6 +942,7 @@ client.once(Events.ClientReady, async () => {
   if (REDIS_URL) {
     try {
       const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+      redisClient = connection; // Store for voice interaction state checks
       const worker = new Worker(
         'tts',
         async (job) => {
