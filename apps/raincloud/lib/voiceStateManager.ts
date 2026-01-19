@@ -163,4 +163,22 @@ export class VoiceStateManager {
     const data = await this.redis.get(key);
     return data ? parseFloat(data) : 0.5; // Default 50%
   }
+
+  /**
+   * Set voice interaction enabled state for guild
+   */
+  async setVoiceInteractionEnabled(guildId: string, enabled: boolean): Promise<void> {
+    const key = `voice:interaction:enabled:${guildId}`;
+    await this.redis.set(key, enabled ? '1' : '0');
+    log.debug(`Set voice interaction enabled for guild ${guildId}: ${enabled}`);
+  }
+
+  /**
+   * Get voice interaction enabled state for guild
+   */
+  async getVoiceInteractionEnabled(guildId: string): Promise<boolean> {
+    const key = `voice:interaction:enabled:${guildId}`;
+    const data = await this.redis.get(key);
+    return data === '1'; // Default false if not set
+  }
 }

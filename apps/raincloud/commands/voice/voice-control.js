@@ -3,21 +3,17 @@ const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('VOICE_CONTROL_CMD');
 
-// Lazy load voice interaction manager
-let voiceInteractionManager = null;
-function getVoiceInteractionManager() {
-  if (!voiceInteractionManager) {
-    try {
-      const {
-        getVoiceInteractionManager,
-      } = require('../../dist/utils/voice/voiceInteractionInstance');
-      voiceInteractionManager = getVoiceInteractionManager();
-    } catch (error) {
-      log.error(`Failed to load voice interaction manager: ${error.message}`);
-      return null;
+// Lazy load multi-bot service for voice state manager
+function getVoiceStateManager() {
+  try {
+    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    if (MultiBotService.isInitialized()) {
+      return MultiBotService.getInstance().getVoiceStateManager();
     }
+  } catch (error) {
+    log.debug(`MultiBotService not available: ${error.message}`);
   }
-  return voiceInteractionManager;
+  return null;
 }
 
 module.exports = {
@@ -39,11 +35,11 @@ module.exports = {
     const guildId = interaction.guildId;
     const subcommand = interaction.options.getSubcommand();
 
-    const manager = getVoiceInteractionManager();
-    if (!manager) {
+    const voiceStateManager = getVoiceStateManager();
+    if (!voiceStateManager) {
       return interaction.reply({
         content:
-          '❌ Voice interaction system is not available. Please ensure the bot is properly configured.',
+          '❌ Voice interaction system is not available. Please ensure Redis is properly configured.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -53,7 +49,7 @@ module.exports = {
         case 'enable': {
           await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-          await manager.enableForGuild(guildId);
+          await voiceStateManager.setVoiceInteractionEnabled(guildId, true);
 
           log.info(
             `Voice control enabled for guild ${interaction.guild.name} by ${interaction.user.tag}`
@@ -81,7 +77,7 @@ Users in voice channels can now control music with voice commands.
         case 'disable': {
           await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-          await manager.disableForGuild(guildId);
+          await voiceStateManager.setVoiceInteractionEnabled(guildId, false);
 
           log.info(
             `Voice control disabled for guild ${interaction.guild.name} by ${interaction.user.tag}`
@@ -95,27 +91,11 @@ Users in voice channels can now control music with voice commands.
         }
 
         case 'status': {
-          const isEnabled = manager.isEnabledForGuild(guildId);
-          const state = manager.getState(guildId);
-          const stats = state?.statistics;
+          const isEnabled = await voiceStateManager.getVoiceInteractionEnabled(guildId);
 
-          let statusMessage = isEnabled
+          const statusMessage = isEnabled
             ? '✅ **Voice commands are enabled**'
             : '❌ **Voice commands are disabled**';
-
-          if (stats && stats.totalCommands > 0) {
-            const successRate = ((stats.successfulCommands / stats.totalCommands) * 100).toFixed(1);
-
-            statusMessage += `\n\n**Statistics:**
-• Total commands: ${stats.totalCommands}
-• Successful: ${stats.successfulCommands} (${successRate}%)
-• Failed: ${stats.failedCommands}
-• Average latency: ${stats.averageLatency.toFixed(0)}ms`;
-          }
-
-          if (state && state.sessions.size > 0) {
-            statusMessage += `\n\n**Active sessions:** ${state.sessions.size} user(s) currently using voice commands`;
-          }
 
           await interaction.reply({
             content: statusMessage,

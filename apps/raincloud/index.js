@@ -150,14 +150,6 @@ async function gracefulShutdown(signal) {
   // Save final queue snapshots
   await saveAllQueueSnapshots();
 
-  // Cleanup voice interaction manager
-  try {
-    const { cleanupVoiceInteraction } = require('./dist/utils/voice/voiceInteractionInstance');
-    await cleanupVoiceInteraction();
-  } catch (error) {
-    log.warn(`Error cleaning up voice interaction: ${error.message}`);
-  }
-
   // Flush statistics buffers
   const { flushAll } = require('./dist/utils/statistics');
   await flushAll();
