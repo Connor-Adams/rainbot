@@ -11,8 +11,8 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "@rainbot/shared": "workspace:*",
     "@discordjs/voice": "^0.19.0",
+    "@rainbot/shared": "workspace:*",
     "discord.js": "^14.18.0",
     "express": "^5.0.1"
   },

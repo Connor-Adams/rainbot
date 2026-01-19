@@ -2676,6 +2676,7 @@ __metadata:
     "@discordjs/voice": "npm:^0.19.0"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
     "@types/node": "npm:^25.0.3"
@@ -2696,6 +2697,7 @@ __metadata:
     "@google-cloud/text-to-speech": "npm:^5.8.0"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
     "@types/node": "npm:^25.0.3"
@@ -2734,6 +2736,7 @@ __metadata:
     "@rainbot/protocol": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
     "@types/node": "npm:^25.0.3"
@@ -2839,7 +2842,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@rainbot/shared@npm:*, @rainbot/shared@workspace:packages/shared":
+"@rainbot/shared@npm:*, @rainbot/shared@workspace:*, @rainbot/shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@rainbot/shared@workspace:packages/shared"
   dependencies:
@@ -2890,6 +2893,20 @@ __metadata:
     "@types/node": "npm:^25.0.3"
     axios: "npm:^1.6.2"
     express: "npm:^5.2.1"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@rainbot/worker-shared@npm:*, @rainbot/worker-shared@workspace:packages/worker-shared":
+  version: 0.0.0-use.local
+  resolution: "@rainbot/worker-shared@workspace:packages/worker-shared"
+  dependencies:
+    "@discordjs/voice": "npm:^0.19.0"
+    "@rainbot/shared": "workspace:*"
+    "@types/express": "npm:^5.0.0"
+    "@types/node": "npm:^25.0.3"
+    discord.js: "npm:^14.18.0"
+    express: "npm:^5.0.1"
     typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
@@ -6350,7 +6367,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"discord.js@npm:^14.25.1":
+"discord.js@npm:^14.18.0, discord.js@npm:^14.25.1":
   version: 14.25.1
   resolution: "discord.js@npm:14.25.1"
   dependencies:
@@ -7296,7 +7313,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"express@npm:^5.2.1":
+"express@npm:^5.0.1, express@npm:^5.2.1":
   version: 5.2.1
   resolution: "express@npm:5.2.1"
   dependencies:
