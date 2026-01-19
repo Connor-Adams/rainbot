@@ -1,4 +1,4 @@
-import { Client, Events } from 'discord.js';
+import { Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -6,8 +6,6 @@ import {
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
-  VoiceConnection,
-  AudioPlayer,
   StreamType,
 } from '@discordjs/voice';
 import { createContext, hungerbotRouter } from '@rainbot/rpc';
@@ -22,10 +20,7 @@ import {
   setupProcessErrorHandlers,
   logErrorWithStack,
 } from '@rainbot/worker-shared';
-import {
-  getOrchestratorBaseUrl,
-  registerWithOrchestrator,
-} from '@rainbot/worker-shared';
+import { registerWithOrchestrator } from '@rainbot/worker-shared';
 import { reportSoundStat } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
 import { ensureClientReady } from '@rainbot/worker-shared';
@@ -47,9 +42,6 @@ const SOUNDS_DIR = process.env['SOUNDS_DIR'] || './sounds';
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
 const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
 const WORKER_SECRET = process.env['WORKER_SECRET'];
-const WORKER_INSTANCE_ID =
-  process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
-const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 
 const log = createLogger('HUNGERBOT');
 
@@ -251,8 +243,7 @@ function getSoundInputType(sfxId: string): StreamType {
 }
 
 // Express server for worker protocol
-const app = express();
-app.use(express.json());
+const app = createWorkerExpressApp();
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -263,7 +254,7 @@ app.use(
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {
-  if (!ensureClientReady(res)) return;
+  if (!ensureClientReady(client, res)) return;
   const { requestId, guildId, channelId } = req.body;
 
   if (!requestId || !guildId || !channelId) {
@@ -329,7 +320,7 @@ app.post('/join', async (req: Request, res: Response) => {
     requestCache.set(requestId, response);
     res.json(response);
   } catch (error) {
-    logErrorWithStack('Join error', error);
+    logErrorWithStack(log, 'Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }

@@ -1,12 +1,10 @@
-import { Client, Events } from 'discord.js';
+import { Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
-  VoiceConnection,
-  AudioPlayer,
   AudioResource,
 } from '@discordjs/voice';
 import { fetchTracks } from './voice/trackFetcher';
@@ -21,10 +19,8 @@ import { createLogger } from '@rainbot/shared';
 import {
   setupProcessErrorHandlers,
   logErrorWithStack,
-  formatErrorResponse,
 } from '@rainbot/worker-shared';
 import {
-  getOrchestratorBaseUrl,
   registerWithOrchestrator,
 } from '@rainbot/worker-shared';
 import { reportSoundStat } from '@rainbot/worker-shared';
@@ -47,9 +43,6 @@ const TOKEN = process.env['RAINBOT_TOKEN'];
 const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
 const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
 const WORKER_SECRET = process.env['WORKER_SECRET'];
-const WORKER_INSTANCE_ID =
-  process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
-const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 
 const log = createLogger('RAINBOT');
 

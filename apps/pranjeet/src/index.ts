@@ -128,10 +128,6 @@ let redisClient: IORedis | null = null;
 // Will be initialized later with createWorkerDiscordClient()
 let client: ReturnType<typeof createWorkerDiscordClient>;
 
-// Declare client early so it can be used in route handlers
-// Will be initialized later with createWorkerDiscordClient()
-let client: ReturnType<typeof createWorkerDiscordClient>;
-
 /**
  * Check if voice interaction is enabled for a guild (from Redis)
  */
@@ -735,86 +731,86 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-client.once(Events.ClientReady, async () => {
-  log.info(`Ready as ${client.user?.tag}`);
-  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+setupDiscordClientReadyHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID,
+  logger: log,
+  onReady: async () => {
+    // Initialize TTS client
+    await initTTS();
 
-  // Initialize TTS client
-  await initTTS();
-
-  // Initialize Voice Interaction Manager
-  initVoiceInteractionManager(client, {
-    enabled: true,
-    ttsHandler: async (guildId: string, text: string, userId?: string) => {
-      if (!userId) return;
-      try {
-        await speakInGuild(guildId, text);
-      } catch (error) {
-        log.warn(`Failed to speak TTS locally: ${(error as Error).message}`);
-      }
-    },
-    commandHandler: async (
-      session: VoiceInteractionSession,
-      command: ParsedVoiceCommand
-    ): Promise<VoiceCommandResult | null> => {
-      const baseUrl = getOrchestratorBaseUrl();
-      if (!baseUrl || !WORKER_SECRET) {
-        log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
-        return null;
-      }
-
-      // Commands to route to Raincloud
-      const musicCommands = ['play', 'skip', 'pause', 'resume', 'stop', 'volume', 'clear'];
-
-      if (musicCommands.includes(command.type)) {
+    // Initialize Voice Interaction Manager
+    initVoiceInteractionManager(client, {
+      enabled: true,
+      ttsHandler: async (guildId: string, text: string, userId?: string) => {
+        if (!userId) return;
         try {
-          const response = await fetch(`${baseUrl}/internal/${command.type}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-worker-secret': WORKER_SECRET,
-            },
-            body: JSON.stringify({
-              guildId: session.guildId,
-              userId: session.userId,
-              username: session.username,
-              source: command.query, // For play
-              count: command.parameter, // For skip
-              volume: command.parameter, // For volume
-            }),
-          });
+          await speakInGuild(guildId, text);
+        } catch (error) {
+          log.warn(`Failed to speak TTS locally: ${(error as Error).message}`);
+        }
+      },
+      commandHandler: async (
+        session: VoiceInteractionSession,
+        command: ParsedVoiceCommand
+      ): Promise<VoiceCommandResult | null> => {
+        const baseUrl = getOrchestratorBaseUrl();
+        if (!baseUrl || !WORKER_SECRET) {
+          log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
+          return null;
+        }
 
-          if (!response.ok) {
-            const text = await response.text();
-            log.warn(`Failed to route ${command.type} command: ${response.status} ${text}`);
+        // Commands to route to Raincloud
+        const musicCommands = ['play', 'skip', 'pause', 'resume', 'stop', 'volume', 'clear'];
+
+        if (musicCommands.includes(command.type)) {
+          try {
+            const response = await fetch(`${baseUrl}/internal/${command.type}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-worker-secret': WORKER_SECRET,
+              },
+              body: JSON.stringify({
+                guildId: session.guildId,
+                userId: session.userId,
+                username: session.username,
+                source: command.query, // For play
+                count: command.parameter, // For skip
+                volume: command.parameter, // For volume
+              }),
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              log.warn(`Failed to route ${command.type} command: ${response.status} ${text}`);
+              return {
+                success: false,
+                command,
+                response: `I couldn't execute that command. Raincloud said: ${text}`,
+              };
+            }
+
+            const result = (await response.json()) as any;
+            return {
+              success: result.success !== false,
+              command,
+              response: result.message || '',
+            };
+          } catch (error) {
+            log.error(`Error routing ${command.type} command: ${(error as Error).message}`);
             return {
               success: false,
               command,
-              response: `I couldn't execute that command. Raincloud said: ${text}`,
+              response: 'I encountered an error trying to reach the music service.',
             };
           }
-
-          const result = (await response.json()) as any;
-          return {
-            success: result.success !== false,
-            command,
-            response: result.message || '',
-          };
-        } catch (error) {
-          log.error(`Error routing ${command.type} command: ${(error as Error).message}`);
-          return {
-            success: false,
-            command,
-            response: 'I encountered an error trying to reach the music service.',
-          };
         }
-      }
 
-      // Handle other commands (help, unknown) locally by returning null
-      // VoiceInteractionManager will fall back to default logic
-      return null;
-    },
-  });
+        // Handle other commands (help, unknown) locally by returning null
+        // VoiceInteractionManager will fall back to default logic
+        return null;
+      },
+    });
 
     // Start HTTP server
     startServer();
