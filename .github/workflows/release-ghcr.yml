@@ -65,26 +65,26 @@ jobs:
           INC=""
 
           add() {
-            local service="$1" image="$2" context="$3" dockerfile="$4"
+            local service="$1" image="$2" app_path="$3"
             if [[ -n "${INC}" ]]; then INC="${INC},"; fi
-            INC="${INC}{\"service\":\"${service}\",\"image\":\"${image}\",\"context\":\"${context}\",\"dockerfile\":\"${dockerfile}\"}"
+            INC="${INC}{\"service\":\"${service}\",\"image\":\"${image}\",\"app_path\":\"${app_path}\"}"
           }
 
-          # Adjust these paths if your Dockerfiles differ
+          # Adjust these paths to point to app directories with railway.json
           if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then
-            add "raincloud" "rainbot-raincloud" "apps/raincloud" "apps/raincloud/Dockerfile"
+            add "raincloud" "rainbot-raincloud" "apps/raincloud"
           fi
 
           if [[ "${SHARED}" == "true" ]] || changed "apps/rainbot/"; then
-            add "rainbot" "rainbot-rainbot" "apps/rainbot" "apps/rainbot/Dockerfile"
+            add "rainbot" "rainbot-rainbot" "apps/rainbot"
           fi
 
           if [[ "${SHARED}" == "true" ]] || changed "apps/pranjeet/"; then
-            add "pranjeet" "rainbot-pranjeet" "apps/pranjeet" "apps/pranjeet/Dockerfile"
+            add "pranjeet" "rainbot-pranjeet" "apps/pranjeet"
           fi
 
           if [[ "${SHARED}" == "true" ]] || changed "apps/hungerbot/"; then
-            add "hungerbot" "rainbot-hungerbot" "apps/hungerbot" "apps/hungerbot/Dockerfile"
+            add "hungerbot" "rainbot-hungerbot" "apps/hungerbot"
           fi
 
           if [[ -z "${INC}" ]]; then
@@ -114,6 +114,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Install Railpack
+        run: |
+          curl -sSL https://railpack.com/install.sh | sh
+          railpack --version
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -121,18 +126,26 @@ jobs:
           username: ${{ needs.plan.outputs.owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
-          tags: |
-            ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}:${{ needs.plan.outputs.tag }}
-            ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}:prod
-          labels: |
-            org.opencontainers.image.source=${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ needs.plan.outputs.tag }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      - name: Build image with Railpack
+        run: |
+          IMAGE_TAG=${{ needs.plan.outputs.tag }}
+          IMAGE_NAME="ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}"
+          
+          # Build image with railpack using the primary tag
+          # Note: railpack will read railway.json from the app_path directory
+          railpack build ${{ matrix.app_path }} \
+            --name "${IMAGE_NAME}:${IMAGE_TAG}"
+
+      - name: Tag images
+        run: |
+          IMAGE_TAG=${{ needs.plan.outputs.tag }}
+          IMAGE_NAME="ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}"
+          
+          # Create additional prod tag
+          docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_NAME}:prod"
+
+      - name: Push images
+        run: |
+          IMAGE_NAME="ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}"
+          docker push "${IMAGE_NAME}:${{ needs.plan.outputs.tag }}"
+          docker push "${IMAGE_NAME}:prod"
