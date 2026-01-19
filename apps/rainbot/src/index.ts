@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Client, Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -15,9 +15,32 @@ import type { Track } from '@rainbot/protocol';
 import { TrackKind } from '@rainbot/protocol';
 import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { Mutex } from 'async-mutex';
 import { createLogger } from '@rainbot/shared';
+import {
+  setupProcessErrorHandlers,
+  logErrorWithStack,
+  formatErrorResponse,
+} from '@rainbot/worker-shared';
+import {
+  getOrchestratorBaseUrl,
+  registerWithOrchestrator,
+} from '@rainbot/worker-shared';
+import { reportSoundStat } from '@rainbot/worker-shared';
+import { createWorkerExpressApp } from '@rainbot/worker-shared';
+import { ensureClientReady } from '@rainbot/worker-shared';
+import { RequestCache } from '@rainbot/worker-shared';
+import {
+  createWorkerDiscordClient,
+  setupDiscordClientErrorHandler,
+  setupDiscordClientReadyHandler,
+  loginDiscordClient,
+} from '@rainbot/worker-shared';
+import {
+  setupAutoFollowVoiceStateHandler,
+  type GuildState,
+} from '@rainbot/worker-shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['RAINBOT_PORT'] || '3001', 10);
 const TOKEN = process.env['RAINBOT_TOKEN'];
@@ -33,128 +56,8 @@ const log = createLogger('RAINBOT');
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
-function formatError(err: unknown): { message: string; stack?: string } {
-  if (err instanceof Error) {
-    return { message: err.message, stack: err.stack };
-  }
-  return { message: String(err) };
-}
-
-function logErrorWithStack(message: string, err: unknown): void {
-  const info = formatError(err);
-  log.error(`${message}: ${info.message}`);
-  if (info.stack) {
-    log.debug(info.stack);
-  }
-}
-
-function logWarnWithStack(message: string, err: unknown): void {
-  const info = formatError(err);
-  log.warn(`${message}: ${info.message}`);
-  if (info.stack) {
-    log.debug(info.stack);
-  }
-}
-
-function getOrchestratorBaseUrl(): string | null {
-  if (!RAINCLOUD_URL) return null;
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
-}
-
-async function registerWithOrchestrator(): Promise<void> {
-  if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
-    return;
-  }
-
-  const baseUrl = getOrchestratorBaseUrl();
-  if (!baseUrl) {
-    log.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
-    return;
-  }
-  try {
-    const response = await fetch(`${baseUrl}/internal/workers/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': WORKER_SECRET,
-      },
-      body: JSON.stringify({
-        botType: 'rainbot',
-        instanceId: WORKER_INSTANCE_ID,
-        startedAt: new Date().toISOString(),
-        version: WORKER_VERSION,
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      log.warn(`Worker registration failed: ${response.status} ${text}`);
-    } else {
-      log.info('Worker registered with orchestrator');
-    }
-  } catch (error) {
-    const info = formatError(error);
-    const err = error as { cause?: unknown };
-    const cause =
-      err.cause && typeof err.cause === 'object' && 'message' in err.cause
-        ? (err.cause as { message?: string }).message
-        : err.cause
-          ? String(err.cause)
-          : 'n/a';
-    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
-    if (info.stack) {
-      log.debug(info.stack);
-    }
-  }
-}
-
-async function reportSoundStat(payload: {
-  soundName: string;
-  userId: string;
-  guildId: string;
-  sourceType?: string;
-  isSoundboard?: boolean;
-  duration?: number | null;
-  source?: string;
-  username?: string | null;
-  discriminator?: string | null;
-}): Promise<void> {
-  if (!WORKER_SECRET) return;
-  const baseUrl = getOrchestratorBaseUrl();
-  if (!baseUrl) return;
-
-  try {
-    const response = await fetch(`${baseUrl}/internal/stats/sound`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': WORKER_SECRET,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      log.warn(`Stats report failed: ${response.status} ${text}`);
-    }
-  } catch (error) {
-    logWarnWithStack('Stats report failed', error);
-  }
-}
-
-process.on('unhandledRejection', (reason) => {
-  logErrorWithStack('Unhandled promise rejection', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  logErrorWithStack('Uncaught exception', error);
-  process.exitCode = 1;
-});
+// Setup process error handlers
+setupProcessErrorHandlers(log);
 
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
@@ -173,25 +76,27 @@ if (!hasOrchestrator) {
   log.error('ORCHESTRATOR_BOT_ID environment variable is required for auto-follow');
 }
 
-interface GuildState {
-  connection: VoiceConnection | null;
-  player: AudioPlayer;
+interface RainbotGuildState extends GuildState {
   queue: Track[];
   currentTrack: Track | null;
   currentResource: AudioResource | null;
   lastPlayedTrack: Track | null;
-  volume: number;
   nowPlaying: string | null;
   playbackStartTime: number | null;
   pauseStartTime: number | null;
   totalPausedTime: number;
   autoplay: boolean;
+  volume: number;
 }
 
-const guildStates = new Map<string, GuildState>();
-const requestCache = new Map<string, unknown>();
+const guildStates = new Map<string, RainbotGuildState>();
+const requestCache = new RequestCache();
 const mutex = new Mutex();
 let serverStarted = false;
+
+// Declare client early so it can be used in route handlers
+// Will be initialized later with createWorkerDiscordClient()
+let client: ReturnType<typeof createWorkerDiscordClient>;
 
 function startServer(): void {
   if (serverStarted) return;
@@ -201,15 +106,7 @@ function startServer(): void {
   });
 }
 
-function ensureClientReady(res: Response): boolean {
-  if (!client.isReady()) {
-    res.status(503).json({ status: 'error', message: 'Bot not ready' });
-    return false;
-  }
-  return true;
-}
-
-function getOrCreateGuildState(guildId: string): GuildState {
+function getOrCreateGuildState(guildId: string): RainbotGuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
 
@@ -252,26 +149,26 @@ function getOrCreateGuildState(guildId: string): GuildState {
   return guildStates.get(guildId)!;
 }
 
-function resetPlaybackTiming(state: GuildState) {
+function resetPlaybackTiming(state: RainbotGuildState) {
   state.playbackStartTime = Date.now();
   state.pauseStartTime = null;
   state.totalPausedTime = 0;
 }
 
-function markPaused(state: GuildState) {
+function markPaused(state: RainbotGuildState) {
   if (!state.pauseStartTime) {
     state.pauseStartTime = Date.now();
   }
 }
 
-function markResumed(state: GuildState) {
+function markResumed(state: RainbotGuildState) {
   if (state.pauseStartTime) {
     state.totalPausedTime += Date.now() - state.pauseStartTime;
     state.pauseStartTime = null;
   }
 }
 
-function getPlaybackPosition(state: GuildState): number {
+function getPlaybackPosition(state: RainbotGuildState): number {
   if (!state.playbackStartTime || !state.currentTrack) {
     return 0;
   }
@@ -321,28 +218,30 @@ async function playNext(guildId: string): Promise<void> {
     state.player.play(resource);
     log.info(`Playing: ${track.title} in guild ${guildId}`);
     if (track.userId) {
-      void reportSoundStat({
-        soundName: track.title,
-        userId: track.userId,
-        guildId,
-        sourceType: track.sourceType || 'other',
-        isSoundboard: false,
-        duration: track.duration ?? null,
-        source: 'discord',
-        username: track.username || null,
-        discriminator: track.discriminator || null,
-      });
+      void reportSoundStat(
+        {
+          soundName: track.title,
+          userId: track.userId,
+          guildId,
+          sourceType: track.sourceType || 'other',
+          isSoundboard: false,
+          duration: track.duration ?? null,
+          source: 'discord',
+          username: track.username || null,
+          discriminator: track.discriminator || null,
+        },
+        { logger: log }
+      );
     }
   } catch (error) {
-    logErrorWithStack('Error playing track', error);
+    logErrorWithStack(log, 'Error playing track', error);
     // Skip to next track on error
     playNext(guildId);
   }
 }
 
 // Express server for worker protocol
-const app = express();
-app.use(express.json());
+const app = createWorkerExpressApp();
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -353,7 +252,7 @@ app.use(
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {
-  if (!ensureClientReady(res)) return;
+  if (!ensureClientReady(client, res)) return;
   const { requestId, guildId, channelId } = req.body;
 
   if (!requestId || !guildId || !channelId) {
@@ -375,7 +274,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       res.status(404).json(response);
       return;
     }
@@ -384,7 +282,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       res.status(404).json(response);
       return;
     }
@@ -394,7 +291,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       res.json(response);
       return;
     }
@@ -427,10 +323,9 @@ app.post('/join', async (req: Request, res: Response) => {
 
     const response = { status: 'joined', channelId };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    logErrorWithStack('Join error', error);
+    logErrorWithStack(log, 'Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -458,7 +353,6 @@ app.post('/leave', async (req: Request, res: Response) => {
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
     return;
   }
@@ -470,7 +364,6 @@ app.post('/leave', async (req: Request, res: Response) => {
 
   const response = { status: 'left' };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -509,7 +402,6 @@ app.post('/volume', async (req: Request, res: Response) => {
 
   const response = { status: 'success', volume: state.volume };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -588,7 +480,6 @@ app.post('/enqueue', async (req: Request, res: Response) => {
       message: `Added ${tracks.length} track(s) to queue`,
     };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
     res.status(500).json({
@@ -620,7 +511,6 @@ app.post('/skip', async (req: Request, res: Response) => {
   if (!state) {
     const response = { status: 'error', message: 'Not connected' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     return res.json(response);
   }
 
@@ -644,7 +534,6 @@ app.post('/skip', async (req: Request, res: Response) => {
 
   const response = { status: 'success', skipped };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -683,7 +572,6 @@ app.post('/pause', async (req: Request, res: Response) => {
 
   const response = { status: 'success', paused };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -720,7 +608,6 @@ app.post('/stop', async (req: Request, res: Response) => {
 
   const response = { status: 'success' };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -751,7 +638,6 @@ app.post('/clear', async (req: Request, res: Response) => {
 
   const response = { status: 'success', cleared };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -806,7 +692,6 @@ app.post('/replay', async (req: Request, res: Response) => {
   if (!state || !state.lastPlayedTrack) {
     const response = { status: 'error', message: 'No track to replay' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     return res.json(response);
   }
 
@@ -816,7 +701,6 @@ app.post('/replay', async (req: Request, res: Response) => {
 
   const response = { status: 'success', track: track.title };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -844,7 +728,6 @@ app.post('/autoplay', async (req: Request, res: Response) => {
     message: 'Autoplay is disabled in the rainbot worker',
   };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -864,98 +747,54 @@ app.get('/health/ready', (req: Request, res: Response) => {
   });
 });
 
-// Discord client
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+// Discord client - initialize here (declared earlier for use in routes)
+client = createWorkerDiscordClient();
+setupDiscordClientErrorHandler(client, log);
+
+// Setup auto-follow voice state handler
+setupAutoFollowVoiceStateHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
+  guildStates: guildStates as unknown as Map<string, GuildState>,
+  getOrCreateGuildState: (guildId: string) => getOrCreateGuildState(guildId) as unknown as GuildState,
+  logger: log,
 });
 
-/**
- * Auto-follow: Watch for orchestrator (Raincloud) joining/leaving voice channels
- * and automatically join/leave the same channel
- */
+// Extend voice state handler for rainbot-specific cleanup
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  // Only care about the orchestrator bot
-  if (newState.member?.id !== ORCHESTRATOR_BOT_ID && oldState.member?.id !== ORCHESTRATOR_BOT_ID) {
-    return;
-  }
+  // Check if this is orchestrator auto-follow (handled by setupAutoFollowVoiceStateHandler)
+  if (newState.member?.id === ORCHESTRATOR_BOT_ID || oldState.member?.id === ORCHESTRATOR_BOT_ID) {
+    const guildId = newState.guild?.id || oldState.guild?.id;
+    if (!guildId) return;
 
-  const guildId = newState.guild?.id || oldState.guild?.id;
-  if (!guildId) return;
-
-  const orchestratorLeft = oldState.channelId && !newState.channelId;
-  const orchestratorJoined = !oldState.channelId && newState.channelId;
-  const orchestratorMoved =
-    oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
-
-  if (orchestratorLeft) {
-    // Orchestrator left - leave too
-    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
-    const state = guildStates.get(guildId);
-    if (state?.connection) {
-      state.connection.destroy();
-      state.connection = null;
-      state.queue = [];
-      state.currentTrack = null;
-    }
-  } else if (orchestratorJoined || orchestratorMoved) {
-    // Orchestrator joined/moved - follow
-    const channelId = newState.channelId!;
-    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
-
-    const guild = client.guilds.cache.get(guildId);
-    const channel = guild?.channels.cache.get(channelId);
-    if (!channel || !channel.isVoiceBased()) return;
-
-    const state = getOrCreateGuildState(guildId);
-
-    // Disconnect from old channel if moving
-    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      state.connection.destroy();
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: guild!.id,
-      adapterCreator: guild!.voiceAdapterCreator as any,
-      selfDeaf: false,
-    });
-
-    connection.subscribe(state.player);
-    state.connection = connection;
-
-    // Auto-rejoin on disconnect (network issues only)
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch {
-        log.warn(`Connection lost in guild ${guildId}`);
-        connection.destroy();
-        state.connection = null;
+    const orchestratorLeft = oldState.channelId && !newState.channelId;
+    if (orchestratorLeft) {
+      // Additional rainbot-specific cleanup
+      const state = guildStates.get(guildId);
+      if (state) {
+        state.queue = [];
+        state.currentTrack = null;
       }
-    });
+    }
   }
 });
 
-client.once(Events.ClientReady, () => {
-  log.info(`Ready as ${client.user?.tag}`);
-  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+setupDiscordClientReadyHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID,
+  logger: log,
+  onReady: () => {
+    // Start HTTP server
+    startServer();
 
-  // Start HTTP server
-  startServer();
-
-  void registerWithOrchestrator();
+    void registerWithOrchestrator({
+      botType: 'rainbot',
+      logger: log,
+    });
+  },
 });
 
-client.on('error', (error) => {
-  logErrorWithStack('Client error', error);
+void loginDiscordClient(client, TOKEN, {
+  logger: log,
+  onDegraded: () => {
+    startServer();
+  },
 });
-
-if (hasToken) {
-  client.login(TOKEN);
-} else {
-  log.warn('Bot token missing; running in degraded mode (HTTP only)');
-  startServer();
-}

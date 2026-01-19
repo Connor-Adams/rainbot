@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Client, Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -12,12 +12,34 @@ import {
 } from '@discordjs/voice';
 import { createContext, hungerbotRouter } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '@rainbot/shared';
+import {
+  setupProcessErrorHandlers,
+  logErrorWithStack,
+} from '@rainbot/worker-shared';
+import {
+  getOrchestratorBaseUrl,
+  registerWithOrchestrator,
+} from '@rainbot/worker-shared';
+import { reportSoundStat } from '@rainbot/worker-shared';
+import { createWorkerExpressApp } from '@rainbot/worker-shared';
+import { ensureClientReady } from '@rainbot/worker-shared';
+import { RequestCache } from '@rainbot/worker-shared';
+import {
+  createWorkerDiscordClient,
+  setupDiscordClientErrorHandler,
+  setupDiscordClientReadyHandler,
+  loginDiscordClient,
+} from '@rainbot/worker-shared';
+import {
+  setupAutoFollowVoiceStateHandler,
+  type GuildState,
+} from '@rainbot/worker-shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['HUNGERBOT_PORT'] || '3003', 10);
 const TOKEN = process.env['HUNGERBOT_TOKEN'];
@@ -49,121 +71,8 @@ const S3_REGION = process.env['AWS_DEFAULT_REGION'] || process.env['STORAGE_REGI
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
-function formatError(err: unknown): { message: string; stack?: string } {
-  if (err instanceof Error) {
-    return { message: err.message, stack: err.stack };
-  }
-  return { message: String(err) };
-}
-
-function logErrorWithStack(message: string, err: unknown): void {
-  const info = formatError(err);
-  log.error(`${message}: ${info.message}`);
-  if (info.stack) {
-    log.debug(info.stack);
-  }
-}
-
-function getOrchestratorBaseUrl(): string | null {
-  if (!RAINCLOUD_URL) return null;
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
-}
-
-async function registerWithOrchestrator(): Promise<void> {
-  if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
-    return;
-  }
-
-  const baseUrl = getOrchestratorBaseUrl();
-  if (!baseUrl) {
-    log.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
-    return;
-  }
-  try {
-    const response = await fetch(`${baseUrl}/internal/workers/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': WORKER_SECRET,
-      },
-      body: JSON.stringify({
-        botType: 'hungerbot',
-        instanceId: WORKER_INSTANCE_ID,
-        startedAt: new Date().toISOString(),
-        version: WORKER_VERSION,
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      log.warn(`Worker registration failed: ${response.status} ${text}`);
-    } else {
-      log.info('Worker registered with orchestrator');
-    }
-  } catch (error) {
-    const info = formatError(error);
-    const err = error as { cause?: unknown };
-    const cause =
-      err.cause && typeof err.cause === 'object' && 'message' in err.cause
-        ? (err.cause as { message?: string }).message
-        : err.cause
-          ? String(err.cause)
-          : 'n/a';
-    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
-    if (info.stack) {
-      log.debug(info.stack);
-    }
-  }
-}
-
-async function reportSoundStat(payload: {
-  soundName: string;
-  userId: string;
-  guildId: string;
-  sourceType?: string;
-  isSoundboard?: boolean;
-  duration?: number | null;
-  source?: string;
-  username?: string | null;
-  discriminator?: string | null;
-}): Promise<void> {
-  if (!WORKER_SECRET) return;
-  const baseUrl = getOrchestratorBaseUrl();
-  if (!baseUrl) return;
-
-  try {
-    const response = await fetch(`${baseUrl}/internal/stats/sound`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': WORKER_SECRET,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      log.warn(`Stats report failed: ${response.status} ${text}`);
-    }
-  } catch (error) {
-    const info = formatError(error);
-    log.warn(`Stats report failed: ${info.message}`);
-  }
-}
-
-process.on('unhandledRejection', (reason) => {
-  logErrorWithStack('Unhandled promise rejection', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  logErrorWithStack('Uncaught exception', error);
-  process.exitCode = 1;
-});
+// Setup process error handlers
+setupProcessErrorHandlers(log);
 
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
@@ -199,15 +108,17 @@ if (S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY && S3_ENDPOINT) {
   log.info(`S3 not configured, using local storage: ${SOUNDS_DIR}`);
 }
 
-interface GuildState {
-  connection: VoiceConnection | null;
-  player: AudioPlayer;
+interface HungerbotGuildState extends GuildState {
   volume: number;
 }
 
-const guildStates = new Map<string, GuildState>();
-const requestCache = new Map<string, unknown>();
+const guildStates = new Map<string, HungerbotGuildState>();
+const requestCache = new RequestCache();
 let serverStarted = false;
+
+// Declare client early so it can be used in route handlers
+// Will be initialized later with createWorkerDiscordClient()
+let client: ReturnType<typeof createWorkerDiscordClient>;
 
 function startServer(): void {
   if (serverStarted) return;
@@ -215,14 +126,6 @@ function startServer(): void {
   app.listen(PORT, () => {
     log.info(`Worker server listening on port ${PORT}`);
   });
-}
-
-function ensureClientReady(res: Response): boolean {
-  if (!client.isReady()) {
-    res.status(503).json({ status: 'error', message: 'Bot not ready' });
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -254,7 +157,7 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
         } catch (error) {
           const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
           if (err.name !== 'NoSuchKey' && err.$metadata?.httpStatusCode !== 404) {
-            logErrorWithStack(`S3 fetch failed for ${oggFilename}`, error);
+            logErrorWithStack(log, `S3 fetch failed for ${oggFilename}`, error);
           }
         }
       }
@@ -275,7 +178,7 @@ async function getSoundStream(sfxId: string): Promise<Readable> {
 
       throw new Error('Invalid response body from S3');
     } catch (error) {
-      logErrorWithStack(`S3 fetch failed for ${filename}`, error);
+      logErrorWithStack(log, `S3 fetch failed for ${filename}`, error);
       // Fall through to local storage
     }
   }
@@ -316,11 +219,11 @@ function getOggVariant(filename: string): string {
   return filename.slice(0, -ext.length) + '.ogg';
 }
 
-function getOrCreateGuildState(guildId: string): GuildState {
+function getOrCreateGuildState(guildId: string): HungerbotGuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
     player.on('error', (error) => {
-      logErrorWithStack(`Player error in guild ${guildId}`, error);
+      logErrorWithStack(log, `Player error in guild ${guildId}`, error);
     });
 
     guildStates.set(guildId, {
@@ -380,7 +283,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(404).json(response);
     }
 
@@ -388,7 +290,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(404).json(response);
     }
 
@@ -397,7 +298,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.json(response);
     }
 
@@ -427,7 +327,6 @@ app.post('/join', async (req: Request, res: Response) => {
 
     const response = { status: 'joined', channelId };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
     logErrorWithStack('Join error', error);
@@ -456,7 +355,6 @@ app.post('/leave', async (req: Request, res: Response) => {
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     return res.json(response);
   }
 
@@ -466,7 +364,6 @@ app.post('/leave', async (req: Request, res: Response) => {
 
   const response = { status: 'left' };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -498,7 +395,6 @@ app.post('/volume', async (req: Request, res: Response) => {
 
   const response = { status: 'success', volume };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -549,7 +445,6 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     if (!state.connection) {
       const response = { status: 'error', message: 'Not connected to voice channel' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(400).json(response);
     }
 
@@ -575,22 +470,24 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     log.debug(`Soundboard play issued status=${state.player.state.status}`);
 
     log.info(`Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
-    void reportSoundStat({
-      soundName: sfxId,
-      userId,
-      guildId,
-      sourceType: 'local',
-      isSoundboard: true,
-      duration: null,
-      source: 'discord',
-    });
+    void reportSoundStat(
+      {
+        soundName: sfxId,
+        userId,
+        guildId,
+        sourceType: 'local',
+        isSoundboard: true,
+        duration: null,
+        source: 'discord',
+      },
+      { logger: log }
+    );
 
     const response = { status: 'success', message: 'Sound playing' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    logErrorWithStack('Play sound error', error);
+    logErrorWithStack(log, 'Play sound error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -631,98 +528,53 @@ app.get('/health/ready', (req: Request, res: Response) => {
   });
 });
 
-// Discord client
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+// Discord client - initialize here (declared earlier for use in routes)
+client = createWorkerDiscordClient();
+setupDiscordClientErrorHandler(client, log);
+
+// Setup auto-follow voice state handler
+setupAutoFollowVoiceStateHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
+  guildStates: guildStates as unknown as Map<string, GuildState>,
+  getOrCreateGuildState: (guildId: string) => getOrCreateGuildState(guildId) as unknown as GuildState,
+  logger: log,
 });
 
-/**
- * Auto-follow: Watch for orchestrator (Raincloud) joining/leaving voice channels
- * and automatically join/leave the same channel
- */
+// Extend voice state handler for hungerbot-specific cleanup (stop player on leave)
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  // Only care about the orchestrator bot
-  if (newState.member?.id !== ORCHESTRATOR_BOT_ID && oldState.member?.id !== ORCHESTRATOR_BOT_ID) {
-    return;
-  }
+  // Check if this is orchestrator auto-follow (handled by setupAutoFollowVoiceStateHandler)
+  if (newState.member?.id === ORCHESTRATOR_BOT_ID || oldState.member?.id === ORCHESTRATOR_BOT_ID) {
+    const guildId = newState.guild?.id || oldState.guild?.id;
+    if (!guildId) return;
 
-  const guildId = newState.guild?.id || oldState.guild?.id;
-  if (!guildId) return;
-
-  const orchestratorLeft = oldState.channelId && !newState.channelId;
-  const orchestratorJoined = !oldState.channelId && newState.channelId;
-  const orchestratorMoved =
-    oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
-
-  if (orchestratorLeft) {
-    // Orchestrator left - leave too
-    log.info(`Orchestrator left voice in guild ${guildId}, following...`);
-    const state = guildStates.get(guildId);
-    if (state?.connection) {
-      state.connection.destroy();
-      state.connection = null;
-      state.player.stop(true);
-    }
-  } else if (orchestratorJoined || orchestratorMoved) {
-    // Orchestrator joined/moved - follow
-    const channelId = newState.channelId!;
-    log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
-
-    const guild = client.guilds.cache.get(guildId);
-    const channel = guild?.channels.cache.get(channelId);
-    if (!channel || !channel.isVoiceBased()) return;
-
-    const state = getOrCreateGuildState(guildId);
-
-    // Disconnect from old channel if moving
-    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      state.connection.destroy();
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: guild!.id,
-      adapterCreator: guild!.voiceAdapterCreator as any,
-      selfDeaf: false,
-    });
-
-    state.connection = connection;
-
-    connection.subscribe(state.player);
-
-    // Auto-rejoin on disconnect (network issues only)
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch {
-        log.warn(`Connection lost in guild ${guildId}`);
-        connection.destroy();
-        state.connection = null;
+    const orchestratorLeft = oldState.channelId && !newState.channelId;
+    if (orchestratorLeft) {
+      // Additional hungerbot-specific cleanup
+      const state = guildStates.get(guildId);
+      if (state?.connection) {
+        state.player.stop(true);
       }
-    });
+    }
   }
 });
 
-client.once(Events.ClientReady, () => {
-  log.info(`Ready as ${client.user?.tag}`);
-  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+setupDiscordClientReadyHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID,
+  logger: log,
+  onReady: () => {
+    // Start HTTP server
+    startServer();
 
-  // Start HTTP server
-  startServer();
-
-  void registerWithOrchestrator();
+    void registerWithOrchestrator({
+      botType: 'hungerbot',
+      logger: log,
+    });
+  },
 });
 
-client.on('error', (error) => {
-  logErrorWithStack('Client error', error);
+void loginDiscordClient(client, TOKEN, {
+  logger: log,
+  onDegraded: () => {
+    startServer();
+  },
 });
-
-if (hasToken) {
-  client.login(TOKEN);
-} else {
-  log.warn('Bot token missing; running in degraded mode (HTTP only)');
-  startServer();
-}
