@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Client, Events } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -12,13 +12,34 @@ import {
 } from '@discordjs/voice';
 import { createContext, pranjeetRouter } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { createLogger } from '@rainbot/shared';
 import { VoiceInteractionSession, ParsedVoiceCommand, VoiceCommandResult } from '@rainbot/protocol';
 import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
+import {
+  setupProcessErrorHandlers,
+  logErrorWithStack,
+} from '@rainbot/worker-shared';
+import {
+  getOrchestratorBaseUrl,
+  registerWithOrchestrator,
+} from '@rainbot/worker-shared';
+import { createWorkerExpressApp } from '@rainbot/worker-shared';
+import { ensureClientReady } from '@rainbot/worker-shared';
+import { RequestCache } from '@rainbot/worker-shared';
+import {
+  createWorkerDiscordClient,
+  setupDiscordClientErrorHandler,
+  setupDiscordClientReadyHandler,
+  loginDiscordClient,
+} from '@rainbot/worker-shared';
+import {
+  setupAutoFollowVoiceStateHandler,
+  type GuildState,
+} from '@rainbot/worker-shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
@@ -38,87 +59,8 @@ const log = createLogger('PRANJEET');
 const hasToken = !!TOKEN;
 const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 
-function formatError(err: unknown): { message: string; stack?: string } {
-  if (err instanceof Error) {
-    return { message: err.message, stack: err.stack };
-  }
-  return { message: String(err) };
-}
-
-function logErrorWithStack(message: string, err: unknown): void {
-  const info = formatError(err);
-  log.error(`${message}: ${info.message}`);
-  if (info.stack) {
-    log.debug(info.stack);
-  }
-}
-
-function getOrchestratorBaseUrl(): string | null {
-  if (!RAINCLOUD_URL) return null;
-  const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
-}
-
-async function registerWithOrchestrator(): Promise<void> {
-  if (!RAINCLOUD_URL || !WORKER_SECRET) {
-    log.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
-    return;
-  }
-
-  const baseUrl = getOrchestratorBaseUrl();
-  if (!baseUrl) {
-    console.warn('[PRANJEET] Worker registration skipped (invalid RAINCLOUD_URL)');
-    return;
-  }
-  try {
-    const response = await fetch(`${baseUrl}/internal/workers/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': WORKER_SECRET,
-      },
-      body: JSON.stringify({
-        botType: 'pranjeet',
-        instanceId: WORKER_INSTANCE_ID,
-        startedAt: new Date().toISOString(),
-        version: WORKER_VERSION,
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      log.warn(`Worker registration failed: ${response.status} ${text}`);
-    } else {
-      log.info('Worker registered with orchestrator');
-    }
-  } catch (error) {
-    const info = formatError(error);
-    const err = error as { cause?: unknown };
-    const cause =
-      err.cause && typeof err.cause === 'object' && 'message' in err.cause
-        ? (err.cause as { message?: string }).message
-        : err.cause
-          ? String(err.cause)
-          : 'n/a';
-    log.warn(`Worker registration error: ${info.message}; cause=${cause}`);
-    if (info.stack) {
-      log.debug(info.stack);
-    }
-  }
-}
-
-process.on('unhandledRejection', (reason) => {
-  logErrorWithStack('Unhandled promise rejection', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  logErrorWithStack('Uncaught exception', error);
-  process.exitCode = 1;
-});
+// Setup process error handlers
+setupProcessErrorHandlers(log);
 
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(
@@ -168,21 +110,23 @@ function normalizeSpeakKey(text: string, voice?: string): string {
   return `${(voice || '').trim().toLowerCase()}::${text.trim().toLowerCase()}`;
 }
 
-interface GuildState {
-  connection: VoiceConnection | null;
-  player: AudioPlayer;
+interface PranjeetGuildState extends GuildState {
   volume: number;
-  // NEW: speech queue + bookkeeping
+  // Speech queue + bookkeeping
   speakQueue: Promise<void>;
   lastSpeakAt: number;
   lastSpeakKey: string;
 }
 
-const guildStates = new Map<string, GuildState>();
-const requestCache = new Map<string, unknown>();
+const guildStates = new Map<string, PranjeetGuildState>();
+const requestCache = new RequestCache();
 let queueReady = false;
 let serverStarted = false;
 let redisClient: IORedis | null = null;
+
+// Declare client early so it can be used in route handlers
+// Will be initialized later with createWorkerDiscordClient()
+let client: ReturnType<typeof createWorkerDiscordClient>;
 
 /**
  * Check if voice interaction is enabled for a guild (from Redis)
@@ -232,14 +176,6 @@ function startServer(): void {
   });
 }
 
-function ensureClientReady(res: Response): boolean {
-  if (!client.isReady()) {
-    res.status(503).json({ status: 'error', message: 'Bot not ready' });
-    return false;
-  }
-  return true;
-}
-
 // TTS Provider interface
 let ttsClient: any = null;
 
@@ -251,7 +187,7 @@ async function initTTS(): Promise<void> {
       ttsClient = new OpenAI({ apiKey: TTS_API_KEY });
       log.info('OpenAI TTS client initialized');
     } catch (error) {
-      logErrorWithStack('Failed to initialize OpenAI TTS', error);
+      logErrorWithStack(log, 'Failed to initialize OpenAI TTS', error);
     }
   } else if (TTS_PROVIDER === 'google' && TTS_API_KEY) {
     try {
@@ -259,19 +195,19 @@ async function initTTS(): Promise<void> {
       ttsClient = new textToSpeech.TextToSpeechClient({ apiKey: TTS_API_KEY });
       log.info('Google TTS client initialized');
     } catch (error) {
-      logErrorWithStack('Failed to initialize Google TTS', error);
+      logErrorWithStack(log, 'Failed to initialize Google TTS', error);
     }
   } else {
     log.warn('No TTS API key configured - TTS will not work');
   }
 }
 
-function getOrCreateGuildState(guildId: string): GuildState {
+function getOrCreateGuildState(guildId: string): PranjeetGuildState {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer();
 
     player.on('error', (error) => {
-      logErrorWithStack(`Player error in guild ${guildId}`, error);
+      logErrorWithStack(log, `Player error in guild ${guildId}`, error);
     });
 
     guildStates.set(guildId, {
@@ -514,8 +450,7 @@ function monoToStereoPcm(pcmMono: Buffer): Buffer {
 }
 
 // Express server for worker protocol
-const app = express();
-app.use(express.json());
+const app = createWorkerExpressApp();
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -526,7 +461,7 @@ app.use(
 
 // Join voice channel
 app.post('/join', async (req: Request, res: Response) => {
-  if (!ensureClientReady(res)) return;
+  if (!ensureClientReady(client, res)) return;
   const { requestId, guildId, channelId } = req.body;
 
   if (!requestId || !guildId || !channelId) {
@@ -546,7 +481,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(404).json(response);
     }
 
@@ -554,7 +488,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(404).json(response);
     }
 
@@ -563,7 +496,6 @@ app.post('/join', async (req: Request, res: Response) => {
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.json(response);
     }
 
@@ -593,10 +525,9 @@ app.post('/join', async (req: Request, res: Response) => {
 
     const response = { status: 'joined', channelId };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    logErrorWithStack('Join error', error);
+    logErrorWithStack(log, 'Join error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -622,7 +553,6 @@ app.post('/leave', async (req: Request, res: Response) => {
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     return res.json(response);
   }
 
@@ -631,7 +561,6 @@ app.post('/leave', async (req: Request, res: Response) => {
 
   const response = { status: 'left' };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -663,7 +592,6 @@ app.post('/volume', async (req: Request, res: Response) => {
 
   const response = { status: 'success', volume };
   requestCache.set(requestId, response);
-  setTimeout(() => requestCache.delete(requestId), 60000);
   res.json(response);
 });
 
@@ -711,17 +639,15 @@ app.post('/speak', async (req: Request, res: Response) => {
     const response = await speakInGuild(guildId, text, voice);
     if (response.status === 'error') {
       requestCache.set(requestId, response);
-      setTimeout(() => requestCache.delete(requestId), 60000);
       return res.status(400).json(response);
     }
 
     log.info(`Speaking in guild ${guildId}: ${text}`);
 
     requestCache.set(requestId, response);
-    setTimeout(() => requestCache.delete(requestId), 60000);
     res.json(response);
   } catch (error) {
-    logErrorWithStack('Speak error', error);
+    logErrorWithStack(log, 'Speak error', error);
     const response = { status: 'error', message: (error as Error).message };
     res.status(500).json(response);
   }
@@ -744,15 +670,18 @@ app.get('/health/ready', (req: Request, res: Response) => {
   });
 });
 
-// Discord client
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+// Discord client - initialize here (declared earlier for use in routes)
+client = createWorkerDiscordClient();
+
+// Setup auto-follow voice state handler (basic handler)
+setupAutoFollowVoiceStateHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
+  guildStates: guildStates as unknown as Map<string, GuildState>,
+  getOrCreateGuildState: (guildId: string) => getOrCreateGuildState(guildId) as unknown as GuildState,
+  logger: log,
 });
 
-/**
- * Auto-follow: Watch for orchestrator (Raincloud) joining/leaving voice channels
- * and automatically join/leave the same channel
- */
+// Extend voice state handler for pranjeet-specific voice interaction logic
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   const userId = newState.member?.id || oldState.member?.id;
   const guildId = newState.guild?.id || oldState.guild?.id;
@@ -760,63 +689,12 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 
   if (!userId || !guildId || user?.bot) return;
 
+  // Skip orchestrator events (handled by setupAutoFollowVoiceStateHandler)
+  if (userId === ORCHESTRATOR_BOT_ID) return;
+
   // Lazy load voice interaction manager
   const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
   const voiceInteractionMgr = getVoiceInteractionManager();
-
-  // Handle orchestrator auto-follow
-  if (userId === ORCHESTRATOR_BOT_ID) {
-    const orchestratorLeft = oldState.channelId && !newState.channelId;
-    const orchestratorJoined = !oldState.channelId && newState.channelId;
-    const orchestratorMoved =
-      oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
-
-    if (orchestratorLeft) {
-      log.info(`Orchestrator left voice in guild ${guildId}, following...`);
-      const state = guildStates.get(guildId);
-      if (state?.connection) {
-        state.connection.destroy();
-        state.connection = null;
-      }
-    } else if (orchestratorJoined || orchestratorMoved) {
-      const channelId = newState.channelId!;
-      log.info(`Orchestrator joined channel ${channelId} in guild ${guildId}, following...`);
-
-      const guild = client.guilds.cache.get(guildId);
-      const channel = guild?.channels.cache.get(channelId);
-      if (!channel || !channel.isVoiceBased()) return;
-
-      const state = getOrCreateGuildState(guildId);
-
-      if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-        state.connection.destroy();
-      }
-
-      const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: guild!.id,
-        adapterCreator: guild!.voiceAdapterCreator as any,
-        selfDeaf: false,
-      });
-
-      connection.subscribe(state.player);
-      state.connection = connection;
-
-      connection.on(VoiceConnectionStatus.Disconnected, async () => {
-        try {
-          await Promise.race([
-            entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-            entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-          ]);
-        } catch {
-          log.warn(`Connection lost in guild ${guildId}`);
-          connection.destroy();
-          state.connection = null;
-        }
-      });
-    }
-    return;
-  }
 
   // Handle user listening
   const state = guildStates.get(guildId);
@@ -853,136 +731,136 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   }
 });
 
-client.once(Events.ClientReady, async () => {
-  log.info(`Ready as ${client.user?.tag}`);
-  log.info(`Auto-follow enabled for orchestrator: ${ORCHESTRATOR_BOT_ID}`);
+setupDiscordClientReadyHandler(client, {
+  orchestratorBotId: ORCHESTRATOR_BOT_ID,
+  logger: log,
+  onReady: async () => {
+    // Initialize TTS client
+    await initTTS();
 
-  // Initialize TTS client
-  await initTTS();
-
-  // Initialize Voice Interaction Manager
-  initVoiceInteractionManager(client, {
-    enabled: true,
-    ttsHandler: async (guildId: string, text: string, userId?: string) => {
-      if (!userId) return;
-      try {
-        await speakInGuild(guildId, text);
-      } catch (error) {
-        log.warn(`Failed to speak TTS locally: ${(error as Error).message}`);
-      }
-    },
-    commandHandler: async (
-      session: VoiceInteractionSession,
-      command: ParsedVoiceCommand
-    ): Promise<VoiceCommandResult | null> => {
-      const baseUrl = getOrchestratorBaseUrl();
-      if (!baseUrl || !WORKER_SECRET) {
-        log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
-        return null;
-      }
-
-      // Commands to route to Raincloud
-      const musicCommands = ['play', 'skip', 'pause', 'resume', 'stop', 'volume', 'clear'];
-
-      if (musicCommands.includes(command.type)) {
+    // Initialize Voice Interaction Manager
+    initVoiceInteractionManager(client, {
+      enabled: true,
+      ttsHandler: async (guildId: string, text: string, userId?: string) => {
+        if (!userId) return;
         try {
-          const response = await fetch(`${baseUrl}/internal/${command.type}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-worker-secret': WORKER_SECRET,
-            },
-            body: JSON.stringify({
-              guildId: session.guildId,
-              userId: session.userId,
-              username: session.username,
-              source: command.query, // For play
-              count: command.parameter, // For skip
-              volume: command.parameter, // For volume
-            }),
-          });
+          await speakInGuild(guildId, text);
+        } catch (error) {
+          log.warn(`Failed to speak TTS locally: ${(error as Error).message}`);
+        }
+      },
+      commandHandler: async (
+        session: VoiceInteractionSession,
+        command: ParsedVoiceCommand
+      ): Promise<VoiceCommandResult | null> => {
+        const baseUrl = getOrchestratorBaseUrl();
+        if (!baseUrl || !WORKER_SECRET) {
+          log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
+          return null;
+        }
 
-          if (!response.ok) {
-            const text = await response.text();
-            log.warn(`Failed to route ${command.type} command: ${response.status} ${text}`);
+        // Commands to route to Raincloud
+        const musicCommands = ['play', 'skip', 'pause', 'resume', 'stop', 'volume', 'clear'];
+
+        if (musicCommands.includes(command.type)) {
+          try {
+            const response = await fetch(`${baseUrl}/internal/${command.type}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-worker-secret': WORKER_SECRET,
+              },
+              body: JSON.stringify({
+                guildId: session.guildId,
+                userId: session.userId,
+                username: session.username,
+                source: command.query, // For play
+                count: command.parameter, // For skip
+                volume: command.parameter, // For volume
+              }),
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              log.warn(`Failed to route ${command.type} command: ${response.status} ${text}`);
+              return {
+                success: false,
+                command,
+                response: `I couldn't execute that command. Raincloud said: ${text}`,
+              };
+            }
+
+            const result = (await response.json()) as any;
+            return {
+              success: result.success !== false,
+              command,
+              response: result.message || '',
+            };
+          } catch (error) {
+            log.error(`Error routing ${command.type} command: ${(error as Error).message}`);
             return {
               success: false,
               command,
-              response: `I couldn't execute that command. Raincloud said: ${text}`,
+              response: 'I encountered an error trying to reach the music service.',
             };
           }
-
-          const result = (await response.json()) as any;
-          return {
-            success: result.success !== false,
-            command,
-            response: result.message || '',
-          };
-        } catch (error) {
-          log.error(`Error routing ${command.type} command: ${(error as Error).message}`);
-          return {
-            success: false,
-            command,
-            response: 'I encountered an error trying to reach the music service.',
-          };
         }
+
+        // Handle other commands (help, unknown) locally by returning null
+        // VoiceInteractionManager will fall back to default logic
+        return null;
+      },
+    });
+
+    // Start HTTP server
+    startServer();
+
+    await registerWithOrchestrator({
+      botType: 'pranjeet',
+      logger: log,
+    });
+
+    if (REDIS_URL) {
+      try {
+        const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+        redisClient = connection; // Store for voice interaction state checks
+        const worker = new Worker(
+          'tts',
+          async (job) => {
+            if (!hasToken || !client.isReady()) {
+              throw new Error('Bot not ready');
+            }
+            const { guildId, text, voice } = job.data as {
+              guildId: string;
+              text: string;
+              voice?: string;
+            };
+            const result = await speakInGuild(guildId, text, voice);
+            if (result.status === 'error') {
+              throw new Error(result.message);
+            }
+            return { status: 'success' };
+          },
+          { connection, concurrency: 1 }
+        );
+
+        worker.on('failed', (job, err) => {
+          log.error(`TTS job failed ${job?.id}: ${err.message}`);
+        });
+
+        queueReady = true;
+        log.info('TTS queue worker started');
+      } catch (error) {
+        logErrorWithStack(log, 'Failed to start TTS queue worker', error);
+        queueReady = false;
       }
-
-      // Handle other commands (help, unknown) locally by returning null
-      // VoiceInteractionManager will fall back to default logic
-      return null;
-    },
-  });
-
-  // Start HTTP server
-  startServer();
-
-  await registerWithOrchestrator();
-
-  if (REDIS_URL) {
-    try {
-      const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
-      redisClient = connection; // Store for voice interaction state checks
-      const worker = new Worker(
-        'tts',
-        async (job) => {
-          if (!hasToken || !client.isReady()) {
-            throw new Error('Bot not ready');
-          }
-          const { guildId, text, voice } = job.data as {
-            guildId: string;
-            text: string;
-            voice?: string;
-          };
-          const result = await speakInGuild(guildId, text, voice);
-          if (result.status === 'error') {
-            throw new Error(result.message);
-          }
-          return { status: 'success' };
-        },
-        { connection, concurrency: 1 }
-      );
-
-      worker.on('failed', (job, err) => {
-        log.error(`TTS job failed ${job?.id}: ${err.message}`);
-      });
-
-      queueReady = true;
-      log.info('TTS queue worker started');
-    } catch (error) {
-      logErrorWithStack('Failed to start TTS queue worker', error);
-      queueReady = false;
     }
-  }
+  },
 });
 
-client.on('error', (error) => {
-  logErrorWithStack('Client error', error);
+void loginDiscordClient(client, TOKEN, {
+  logger: log,
+  onDegraded: () => {
+    startServer();
+  },
 });
-
-if (hasToken) {
-  client.login(TOKEN);
-} else {
-  log.warn('Bot token missing; running in degraded mode (HTTP only)');
-  startServer();
-}
