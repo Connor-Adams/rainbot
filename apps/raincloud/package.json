@@ -34,7 +34,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.1",
-    "inversify": "^7.10.8",
+    "inversify": "^7.11.0",
     "ioredis": "^5.4.1",
     "libsodium-wrappers": "^0.7.15",
     "multer": "^2.0.2",
