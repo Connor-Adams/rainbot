@@ -16,10 +16,7 @@ import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '@rainbot/shared';
-import {
-  setupProcessErrorHandlers,
-  logErrorWithStack,
-} from '@rainbot/worker-shared';
+import { setupProcessErrorHandlers, logErrorWithStack } from '@rainbot/worker-shared';
 import { registerWithOrchestrator } from '@rainbot/worker-shared';
 import { reportSoundStat } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
@@ -31,10 +28,7 @@ import {
   setupDiscordClientReadyHandler,
   loginDiscordClient,
 } from '@rainbot/worker-shared';
-import {
-  setupAutoFollowVoiceStateHandler,
-  type GuildState,
-} from '@rainbot/worker-shared';
+import { setupAutoFollowVoiceStateHandler, type GuildState } from '@rainbot/worker-shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['HUNGERBOT_PORT'] || '3003', 10);
 const TOKEN = process.env['HUNGERBOT_TOKEN'];
@@ -527,7 +521,8 @@ setupDiscordClientErrorHandler(client, log);
 setupAutoFollowVoiceStateHandler(client, {
   orchestratorBotId: ORCHESTRATOR_BOT_ID!,
   guildStates: guildStates as unknown as Map<string, GuildState>,
-  getOrCreateGuildState: (guildId: string) => getOrCreateGuildState(guildId) as unknown as GuildState,
+  getOrCreateGuildState: (guildId: string) =>
+    getOrCreateGuildState(guildId) as unknown as GuildState,
   logger: log,
 });
 

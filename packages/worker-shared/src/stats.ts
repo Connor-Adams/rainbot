@@ -27,7 +27,7 @@ export async function reportSoundStat(
 ): Promise<void> {
   const workerSecret = options?.workerSecret || process.env['WORKER_SECRET'];
   if (!workerSecret) return;
-  
+
   const baseUrl = getOrchestratorBaseUrl(options?.raincloudUrl);
   if (!baseUrl) return;
 

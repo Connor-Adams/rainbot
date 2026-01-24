@@ -29,7 +29,9 @@ export interface RegisterWithOrchestratorOptions {
 /**
  * Register this worker with the orchestrator
  */
-export async function registerWithOrchestrator(options: RegisterWithOrchestratorOptions): Promise<void> {
+export async function registerWithOrchestrator(
+  options: RegisterWithOrchestratorOptions
+): Promise<void> {
   const {
     botType,
     raincloudUrl,
@@ -42,7 +44,7 @@ export async function registerWithOrchestrator(options: RegisterWithOrchestrator
   } = options;
 
   const RAINCLOUD_URL = raincloudUrl || process.env['RAINCLOUD_URL'];
-  
+
   if (!RAINCLOUD_URL || !workerSecret) {
     logger.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
     return;
@@ -53,7 +55,7 @@ export async function registerWithOrchestrator(options: RegisterWithOrchestrator
     logger.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
     return;
   }
-  
+
   try {
     const response = await fetch(`${baseUrl}/internal/workers/register`, {
       method: 'POST',

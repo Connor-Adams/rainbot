@@ -24,11 +24,13 @@ export interface AutoFollowOptions {
 /**
  * Setup auto-follow voice state handler to follow the orchestrator bot
  */
-export function setupAutoFollowVoiceStateHandler(
-  client: Client,
-  options: AutoFollowOptions
-): void {
-  const { orchestratorBotId, guildStates, getOrCreateGuildState, logger = createLogger('VOICE-STATE') } = options;
+export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFollowOptions): void {
+  const {
+    orchestratorBotId,
+    guildStates,
+    getOrCreateGuildState,
+    logger = createLogger('VOICE-STATE'),
+  } = options;
 
   client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
     // Only care about the orchestrator bot
