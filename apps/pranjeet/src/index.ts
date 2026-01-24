@@ -19,14 +19,8 @@ import IORedis from 'ioredis';
 import { createLogger } from '@rainbot/shared';
 import { VoiceInteractionSession, ParsedVoiceCommand, VoiceCommandResult } from '@rainbot/protocol';
 import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
-import {
-  setupProcessErrorHandlers,
-  logErrorWithStack,
-} from '@rainbot/worker-shared';
-import {
-  getOrchestratorBaseUrl,
-  registerWithOrchestrator,
-} from '@rainbot/worker-shared';
+import { setupProcessErrorHandlers, logErrorWithStack } from '@rainbot/worker-shared';
+import { getOrchestratorBaseUrl, registerWithOrchestrator } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
 import { ensureClientReady } from '@rainbot/worker-shared';
 import { RequestCache } from '@rainbot/worker-shared';
@@ -36,10 +30,7 @@ import {
   setupDiscordClientReadyHandler,
   loginDiscordClient,
 } from '@rainbot/worker-shared';
-import {
-  setupAutoFollowVoiceStateHandler,
-  type GuildState,
-} from '@rainbot/worker-shared';
+import { setupAutoFollowVoiceStateHandler, type GuildState } from '@rainbot/worker-shared';
 
 const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 const TOKEN = process.env['PRANJEET_TOKEN'];
@@ -677,7 +668,8 @@ client = createWorkerDiscordClient();
 setupAutoFollowVoiceStateHandler(client, {
   orchestratorBotId: ORCHESTRATOR_BOT_ID!,
   guildStates: guildStates as unknown as Map<string, GuildState>,
-  getOrCreateGuildState: (guildId: string) => getOrCreateGuildState(guildId) as unknown as GuildState,
+  getOrCreateGuildState: (guildId: string) =>
+    getOrCreateGuildState(guildId) as unknown as GuildState,
   logger: log,
 });
 
