@@ -4,9 +4,9 @@ const {
   entersState,
   VoiceConnectionStatus,
 } = require('@discordjs/voice');
-const { getVoiceInteractionManager } = require('./voiceInteractionInstance');
-const { checkVoicePermissions } = require('./commandHelpers');
-const { createLogger } = require('../logger');
+const { getVoiceInteractionManager } = require('../../dist/utils/voice/voiceInteractionInstance');
+const { checkVoicePermissions } = require('../utils/commandHelpers');
+const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('VOICE_SESSION');
 

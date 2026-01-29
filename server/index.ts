@@ -8,7 +8,7 @@ import type { Client } from 'discord.js';
 import { createLogger } from '../utils/logger';
 import requestLogger from './middleware/requestLogger';
 import { apiErrorHandler } from './middleware/errorHandler';
-import { setClient, getClient } from './client';
+import { setClient } from './client';
 import { getServerConfig, initServerConfig } from './config';
 import type { AppConfig } from '@rainbot/protocol';
 
@@ -30,6 +30,9 @@ try {
 export async function createServer(): Promise<Application> {
   const app = express();
   const config: AppConfig = initServerConfig();
+  const dashboardOrigin =
+    process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'] || process.env['APP_URL'];
+  const enableCors = !!dashboardOrigin;
 
   // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
   // This enables correct handling of X-Forwarded-* headers
@@ -42,19 +45,44 @@ export async function createServer(): Promise<Application> {
   // Request logging
   app.use(requestLogger);
 
+  if (enableCors) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (origin && origin === dashboardOrigin) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Vary', 'Origin');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        res.header(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN'
+        );
+      }
+
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+
+      return next();
+    });
+  }
+
   // Session configuration
   // Prefer Redis for persistent sessions across deployments
   // IMPORTANT: Session secret must be consistent across deployments for sessions to persist
   const sessionSecret = config.sessionSecret;
-  if (!sessionSecret || sessionSecret === 'change-this-secret-in-production') {
-    log.error('⚠️  WARNING: SESSION_SECRET not set or using default value!');
-    log.error(
-      '⚠️  Sessions will NOT persist across deployments without a consistent SESSION_SECRET.'
-    );
-    log.error('⚠️  Set SESSION_SECRET environment variable to a secure random string.');
-    log.error('⚠️  Generate one with: openssl rand -hex 32');
+  const isProd = process.env['NODE_ENV'] === 'production';
+  const hasInvalidSecret = !sessionSecret || sessionSecret === 'change-this-secret-in-production';
+  if (hasInvalidSecret) {
+    log.error('WARNING: SESSION_SECRET not set or using default value!');
+    log.error('Sessions will NOT persist across deployments without a consistent SESSION_SECRET.');
+    log.error('Set SESSION_SECRET environment variable to a secure random string.');
+    log.error('Generate one with: openssl rand -hex 32');
+    if (isRailway || isProd) {
+      throw new Error('SESSION_SECRET must be set in production/Railway environments.');
+    }
   } else {
-    log.info('✓ SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
+    log.info('SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
   }
 
   let sessionStore: session.Store | undefined;
@@ -80,16 +108,16 @@ export async function createServer(): Promise<Application> {
     }
 
     log.info(
-      '✓ Constructed Redis URL from Railway environment variables (REDISHOST, REDISPORT, etc.)'
+      'Constructed Redis URL from Railway environment variables (REDISHOST, REDISPORT, etc.)'
     );
   }
 
   // Check if Redis is available
   if (!RedisStore || !redis) {
-    log.warn('⚠️  Redis libraries not available - install redis package for persistent sessions');
+    log.warn('WARN: Redis libraries not available - install redis package for persistent sessions');
   } else if (!redisUrl) {
     log.warn(
-      '⚠️  Redis URL not configured - set REDIS_URL or Railway will auto-set it when Redis service is added'
+      'WARN: Redis URL not configured - set REDIS_URL or Railway will auto-set it when Redis service is added'
     );
   }
 
@@ -137,7 +165,7 @@ export async function createServer(): Promise<Application> {
           ttl: 7 * 24 * 60 * 60, // 7 days
         });
 
-        log.info('✓ Using Redis for session storage (sessions will persist across deployments)');
+        log.info('Using Redis for session storage (sessions will persist across deployments)');
       } catch (connectError) {
         const err = connectError as Error;
         log.warn(`Failed to connect to Redis: ${err.message}, falling back to memory store`);
@@ -161,8 +189,8 @@ export async function createServer(): Promise<Application> {
   // For production, use Redis for persistent sessions
   if (!sessionStore) {
     if (isRailway || process.env['NODE_ENV'] === 'production') {
-      log.warn('⚠️  Using memory store for sessions (sessions will NOT persist across restarts)');
-      log.warn('⚠️  For persistent sessions, configure REDIS_URL environment variable');
+      log.warn('WARN: Using memory store for sessions (sessions will NOT persist across restarts)');
+      log.warn('WARN: For persistent sessions, configure REDIS_URL environment variable');
       // Use default memory store (no store specified)
       sessionStore = undefined;
     } else {
@@ -172,7 +200,7 @@ export async function createServer(): Promise<Application> {
           path: config.sessionStorePath,
           ttl: 7 * 24 * 60 * 60, // 7 days
         });
-        log.info(`✓ Using file store for sessions at ${config.sessionStorePath}`);
+        log.info(`Using file store for sessions at ${config.sessionStorePath}`);
       } catch (error) {
         const err = error as Error;
         log.warn(`Failed to create file store: ${err.message}, using memory store`);
@@ -182,7 +210,8 @@ export async function createServer(): Promise<Application> {
   }
 
   // Determine cookie security based on environment
-  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway;
+  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway || enableCors;
+  const sameSitePolicy: 'lax' | 'none' = enableCors ? 'none' : 'lax';
 
   app.use(
     session({
@@ -195,7 +224,7 @@ export async function createServer(): Promise<Application> {
         httpOnly: true,
         secure: useSecureCookies, // Secure cookies on Railway/production
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: 'lax', // Allows cookies to be sent on top-level navigations
+        sameSite: sameSitePolicy, // Cross-origin UI needs SameSite=None
         // Don't set domain - let browser handle it (works better across subdomains)
       },
       rolling: true, // Reset expiration on activity (extends session on each request)
@@ -289,4 +318,4 @@ export async function start(client: Client, port = 3000): Promise<Application> {
   return app;
 }
 
-export { getClient };
+export { getClient } from './client';

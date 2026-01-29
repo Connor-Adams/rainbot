@@ -4,7 +4,8 @@ import { requireAuth } from '../../middleware/auth';
 import { statsEmitter } from '../../../utils/statistics';
 import rateLimit from 'express-rate-limit';
 import { asyncHandler, statsErrorHandler } from '../../middleware/errorHandler';
-import { parseFilters, parseLimit, ValidationError } from '../../utils/validators';
+import { parseFilters, parseLimit, ValidationError } from './validators';
+import * as listeningHistory from '../../../utils/listeningHistory';
 import { StatsService } from './statsService';
 
 const router = express.Router();
@@ -153,7 +154,6 @@ router.get(
     const limit = parseLimit(req.query.limit as string);
     const filters = parseFilters(req.query);
 
-    const listeningHistory = require('../../utils/listeningHistory');
     const history = await listeningHistory.getListeningHistory(
       userId,
       guildId,

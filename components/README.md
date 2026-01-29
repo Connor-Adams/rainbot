@@ -22,7 +22,7 @@ components/
 Create interactive music player controls:
 
 ```typescript
-import { createMusicControlRow, createBasicControlButtons } from './components';
+import { createMusicControlRow, createBasicControlButtons } from '@components/index';
 
 // Using the full state-based approach
 const row = createMusicControlRow({
@@ -42,7 +42,7 @@ const row = createBasicControlButtons(isPaused, hasQueue);
 Add pagination controls to queue displays:
 
 ```typescript
-import { createPaginationRow, calculatePaginationState } from './components';
+import { createPaginationRow, calculatePaginationState } from '@components/index';
 
 const state = calculatePaginationState(totalItems, itemsPerPage, currentPage);
 const row = createPaginationRow(state, guildId);
@@ -53,7 +53,7 @@ const row = createPaginationRow(state, guildId);
 Create confirmation dialogs for destructive actions:
 
 ```typescript
-import { createConfirmationRow, getConfirmationMessage } from './components';
+import { createConfirmationRow, getConfirmationMessage } from '@components/index';
 
 const row = createConfirmationRow('clear_queue', guildId, userId);
 const message = getConfirmationMessage('clear_queue');
@@ -64,7 +64,7 @@ const message = getConfirmationMessage('clear_queue');
 Create custom buttons with metadata:
 
 ```typescript
-import { createButtonId, parseButtonId, createDangerButton } from './components';
+import { createButtonId, parseButtonId, createDangerButton } from '@components/index';
 
 // Create a button ID with metadata
 const customId = createButtonId('action', {

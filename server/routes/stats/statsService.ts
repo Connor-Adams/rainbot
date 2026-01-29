@@ -1,5 +1,5 @@
-import { query } from '../utils/database';
-import { QueryBuilder, WhereFilters } from '../utils/queryBuilder';
+import { query } from '../../../utils/database';
+import { QueryBuilder, WhereFilters } from './queryBuilder';
 
 function getSharedFilters(filters: WhereFilters): WhereFilters {
   return {
@@ -400,7 +400,7 @@ export class StatsService {
 
   async getPerformanceStats(filters: WhereFilters) {
     const builder = new QueryBuilder();
-    builder.addCondition('execution_time_ms', 'IS NOT NULL' as any);
+    builder.addRawCondition('execution_time_ms IS NOT NULL');
 
     if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
     if (filters.commandName) builder.addCondition('command_name', filters.commandName);
@@ -446,6 +446,440 @@ export class StatsService {
         sample_count: '0',
       },
       byCommand: byCommandResult?.rows || [],
+    };
+  }
+
+  async getSessionStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.source) builder.addCondition('source', filters.source);
+    builder.addDateRange('started_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const sessionsQuery = `
+      SELECT guild_id,
+             channel_id,
+             channel_name,
+             COUNT(*) as session_count,
+             ROUND(AVG(duration_seconds)::numeric, 2) as avg_duration_seconds,
+             SUM(duration_seconds) as total_duration_seconds,
+             MAX(started_at) as last_started
+      FROM voice_sessions
+      ${whereClause}
+      GROUP BY guild_id, channel_id, channel_name
+      ORDER BY session_count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(sessionsQuery, params);
+    return { sessions: result?.rows || [] };
+  }
+
+  async getRetentionStats(guildId?: string) {
+    const clauses: string[] = [];
+    const params: string[] = [];
+    if (guildId) {
+      clauses.push(`guild_id = $${params.length + 1}`);
+      params.push(guildId);
+    }
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    const result = await query(
+      `SELECT user_id,
+              MIN(joined_at) as first_seen,
+              MAX(left_at) as last_seen,
+              COUNT(*) as session_count
+       FROM user_voice_sessions
+       ${whereClause}
+       GROUP BY user_id`,
+      params
+    );
+
+    const rows = result?.rows || [];
+    const now = Date.now();
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const returningUsers = rows.filter((row: any) => Number(row.session_count) > 1).length;
+    const newUsersLast7Days = rows.filter((row: any) => {
+      const firstSeen = row.first_seen ? new Date(row.first_seen) : null;
+      return firstSeen ? firstSeen >= sevenDaysAgo : false;
+    }).length;
+    const activeUsersLast30Days = rows.filter((row: any) => {
+      const lastSeen = row.last_seen ? new Date(row.last_seen) : null;
+      return lastSeen ? lastSeen >= thirtyDaysAgo : false;
+    }).length;
+
+    return {
+      totalUsers: rows.length,
+      returningUsers,
+      newUsersLast7Days,
+      activeUsersLast30Days,
+    };
+  }
+
+  async getSearchStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    if (filters.source) builder.addCondition('source', filters.source);
+    builder.addDateRange('searched_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT query,
+             query_type,
+             COUNT(*) as count,
+             ROUND(AVG(results_count)::numeric, 2) as avg_results,
+             SUM(CASE WHEN selected_index IS NOT NULL THEN 1 ELSE 0 END) as selections
+      FROM search_stats
+      ${whereClause}
+      GROUP BY query, query_type
+      ORDER BY count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { queries: result?.rows || [] };
+  }
+
+  async getUserSessionStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    builder.addDateRange('joined_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT user_id,
+             guild_id,
+             MAX(username) as username,
+             MAX(discriminator) as discriminator,
+             COUNT(*) as session_count,
+             ROUND(AVG(duration_seconds)::numeric, 2) as avg_duration_seconds,
+             SUM(duration_seconds) as total_duration_seconds,
+             MAX(left_at) as last_seen
+      FROM user_voice_sessions
+      ${whereClause}
+      GROUP BY user_id, guild_id
+      ORDER BY session_count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { users: result?.rows || [] };
+  }
+
+  async getUserTrackStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    if (filters.sourceType) builder.addCondition('source_type', filters.sourceType);
+    builder.addDateRange('listened_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT user_id,
+             guild_id,
+             COUNT(*) as listen_count,
+             ROUND(AVG(duration)::numeric, 2) as avg_duration,
+             SUM(duration) as total_duration,
+             MAX(listened_at) as last_listened_at
+      FROM user_track_listens
+      ${whereClause}
+      GROUP BY user_id, guild_id
+      ORDER BY listen_count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { users: result?.rows || [] };
+  }
+
+  async getUserDetails(userId: string, guildId?: string) {
+    const baseParams: string[] = [userId];
+    const guildClause = guildId ? ` AND guild_id = $2` : '';
+
+    const [profileResult, commandsResult, soundsResult, sessionsResult, listensResult] =
+      await Promise.all([
+        query(
+          `SELECT user_id, username, discriminator
+           FROM user_profiles
+           WHERE user_id = $1`,
+          baseParams
+        ),
+        query(
+          `SELECT COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE success = true) as success_count,
+                  COUNT(*) FILTER (WHERE success = false) as error_count,
+                  MAX(executed_at) as last_executed_at
+           FROM command_stats
+           WHERE user_id = $1${guildClause}`,
+          guildId ? [userId, guildId] : baseParams
+        ),
+        query(
+          `SELECT COUNT(*) as total,
+                  MAX(played_at) as last_played_at
+           FROM sound_stats
+           WHERE user_id = $1${guildClause}`,
+          guildId ? [userId, guildId] : baseParams
+        ),
+        query(
+          `SELECT COUNT(*) as session_count,
+                  SUM(duration_seconds) as total_duration_seconds,
+                  MAX(left_at) as last_left_at
+           FROM user_voice_sessions
+           WHERE user_id = $1${guildClause}`,
+          guildId ? [userId, guildId] : baseParams
+        ),
+        query(
+          `SELECT COUNT(*) as listen_count,
+                  SUM(duration) as total_listen_duration,
+                  MAX(listened_at) as last_listened_at
+           FROM user_track_listens
+           WHERE user_id = $1${guildClause}`,
+          guildId ? [userId, guildId] : baseParams
+        ),
+      ]);
+
+    const profile = profileResult?.rows?.[0] || {
+      user_id: userId,
+      username: null,
+      discriminator: null,
+    };
+    const commandRow = commandsResult?.rows?.[0] || {};
+    const soundRow = soundsResult?.rows?.[0] || {};
+    const sessionRow = sessionsResult?.rows?.[0] || {};
+    const listenRow = listensResult?.rows?.[0] || {};
+
+    const lastActiveCandidates = [
+      commandRow.last_executed_at,
+      soundRow.last_played_at,
+      sessionRow.last_left_at,
+      listenRow.last_listened_at,
+    ]
+      .filter(Boolean)
+      .map((value: string) => new Date(value).getTime());
+
+    const lastActive =
+      lastActiveCandidates.length > 0
+        ? new Date(Math.max(...lastActiveCandidates)).toISOString()
+        : null;
+
+    return {
+      userId,
+      username: profile.username,
+      discriminator: profile.discriminator,
+      commands: {
+        total: Number(commandRow.total || 0),
+        successCount: Number(commandRow.success_count || 0),
+        errorCount: Number(commandRow.error_count || 0),
+        lastExecutedAt: commandRow.last_executed_at || null,
+      },
+      sounds: {
+        total: Number(soundRow.total || 0),
+        lastPlayedAt: soundRow.last_played_at || null,
+      },
+      sessions: {
+        count: Number(sessionRow.session_count || 0),
+        totalDurationSeconds: Number(sessionRow.total_duration_seconds || 0),
+        lastLeftAt: sessionRow.last_left_at || null,
+      },
+      listens: {
+        count: Number(listenRow.listen_count || 0),
+        totalDurationSeconds: Number(listenRow.total_listen_duration || 0),
+        lastListenedAt: listenRow.last_listened_at || null,
+      },
+      lastActive,
+    };
+  }
+
+  async getEngagementStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.sourceType) builder.addCondition('source_type', filters.sourceType);
+    builder.addDateRange('started_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT track_title,
+             source_type,
+             COUNT(*) as play_count,
+             COUNT(*) FILTER (WHERE was_completed = true) as completed_count,
+             COUNT(*) FILTER (WHERE was_skipped = true) as skipped_count,
+             ROUND(AVG(played_seconds)::numeric, 2) as avg_played_seconds,
+             ROUND(AVG(duration_seconds)::numeric, 2) as avg_duration_seconds
+      FROM track_engagement
+      ${whereClause}
+      GROUP BY track_title, source_type
+      ORDER BY play_count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { tracks: result?.rows || [] };
+  }
+
+  async getInteractionStats(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    if (filters.interactionType) builder.addCondition('interaction_type', filters.interactionType);
+    builder.addDateRange('created_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT interaction_type,
+             COUNT(*) as count,
+             COUNT(*) FILTER (WHERE success = true) as success_count,
+             ROUND(AVG(response_time_ms)::numeric, 2) as avg_response_ms
+      FROM interaction_events
+      ${whereClause}
+      GROUP BY interaction_type
+      ORDER BY count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { interactions: result?.rows || [] };
+  }
+
+  async getPlaybackStateStats(filters: WhereFilters) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.stateType) builder.addCondition('state_type', filters.stateType);
+    if (filters.source) builder.addCondition('source', filters.source);
+    builder.addDateRange('created_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+
+    const q = `
+      SELECT state_type,
+             source,
+             COUNT(*) as count
+      FROM playback_state_changes
+      ${whereClause}
+      GROUP BY state_type, source
+      ORDER BY count DESC
+    `;
+
+    const result = await query(q, params);
+    return { states: result?.rows || [] };
+  }
+
+  async getWebAnalytics(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    if (filters.eventType) builder.addCondition('event_type', filters.eventType);
+    builder.addDateRange('created_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT event_type,
+             event_target,
+             COUNT(*) as count,
+             ROUND(AVG(duration_ms)::numeric, 2) as avg_duration_ms
+      FROM web_events
+      ${whereClause}
+      GROUP BY event_type, event_target
+      ORDER BY count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { events: result?.rows || [] };
+  }
+
+  async getGuildEvents(filters: WhereFilters, limit: number) {
+    const builder = new QueryBuilder();
+    if (filters.guildId) builder.addCondition('guild_id', filters.guildId);
+    if (filters.eventType) builder.addCondition('event_type', filters.eventType);
+    builder.addDateRange('created_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+    const nextIndex = builder.getNextParamIndex();
+    params.push(limit as any);
+
+    const q = `
+      SELECT event_type,
+             COUNT(*) as count,
+             MAX(created_at) as last_event
+      FROM guild_events
+      ${whereClause}
+      GROUP BY event_type
+      ORDER BY count DESC
+      LIMIT $${nextIndex}
+    `;
+
+    const result = await query(q, params);
+    return { events: result?.rows || [] };
+  }
+
+  async getApiLatencyStats(filters: WhereFilters) {
+    const builder = new QueryBuilder();
+    if (filters.endpoint) builder.addCondition('endpoint', filters.endpoint);
+    if (filters.userId) builder.addCondition('user_id', filters.userId);
+    builder.addDateRange('created_at', filters.startDate, filters.endDate);
+
+    const { whereClause, params } = builder.build();
+
+    const [overallResult, byEndpointResult] = await Promise.all([
+      query(
+        `SELECT
+           ROUND(AVG(response_time_ms)::numeric, 2) as avg_ms,
+           ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p95_ms,
+           ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)::numeric, 2) as p99_ms,
+           MAX(response_time_ms) as max_ms,
+           MIN(response_time_ms) as min_ms,
+           COUNT(*) as sample_count
+         FROM api_latency ${whereClause}`,
+        params
+      ),
+      query(
+        `SELECT endpoint,
+                method,
+                COUNT(*) as count,
+                ROUND(AVG(response_time_ms)::numeric, 2) as avg_ms
+         FROM api_latency ${whereClause}
+         GROUP BY endpoint, method
+         ORDER BY avg_ms DESC
+         LIMIT 50`,
+        params
+      ),
+    ]);
+
+    return {
+      overall: overallResult?.rows?.[0] || {
+        avg_ms: '0',
+        p95_ms: '0',
+        p99_ms: '0',
+        min_ms: '0',
+        max_ms: '0',
+        sample_count: '0',
+      },
+      byEndpoint: byEndpointResult?.rows || [],
     };
   }
 }

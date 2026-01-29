@@ -311,6 +311,31 @@ const bufferMap: Record<BufferType, unknown[]> = {
   apiLatency: apiLatencyBuffer,
 };
 
+const MAX_BUFFER_SIZE = BATCH_SIZE * 20;
+const dropLogState = new Map<BufferType, { count: number; lastLogMs: number }>();
+
+function enqueueStatEvent<T>(type: BufferType, event: T): void {
+  const buffer = bufferMap[type] as T[] | undefined;
+  if (!buffer) return;
+
+  if (buffer.length >= MAX_BUFFER_SIZE) {
+    buffer.shift();
+    const state = dropLogState.get(type) ?? { count: 0, lastLogMs: 0 };
+    state.count += 1;
+
+    const now = Date.now();
+    if (now - state.lastLogMs > 60_000) {
+      log.warn(`Stats buffer "${type}" full; dropped ${state.count} oldest events`);
+      state.count = 0;
+      state.lastLogMs = now;
+    }
+
+    dropLogState.set(type, state);
+  }
+
+  buffer.push(event);
+}
+
 // Active voice sessions for tracking duration
 const activeSessions = new Map<string, VoiceSessionEvent>();
 
@@ -615,7 +640,7 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
       const values = engagementEvents
         .map(
           (_, i) =>
-            `($${i * 17 + 1}, $${i * 17 + 2}, $${i * 17 + 3}, $${i * 17 + 4}, $${i * 17 + 5}, $${i * 17 + 6}, $${i * 17 + 7}, $${i * 17 + 8}, $${i * 17 + 9}, $${i * 17 + 10}, $${i * 17 + 11}, $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}, $${i * 17 + 17})`
+            `($${i * 18 + 1}, $${i * 18 + 2}, $${i * 18 + 3}, $${i * 18 + 4}, $${i * 18 + 5}, $${i * 18 + 6}, $${i * 18 + 7}, $${i * 18 + 8}, $${i * 18 + 9}, $${i * 18 + 10}, $${i * 18 + 11}, $${i * 18 + 12}, $${i * 18 + 13}, $${i * 18 + 14}, $${i * 18 + 15}, $${i * 18 + 16}, $${i * 18 + 17}, $${i * 18 + 18})`
         )
         .join(', ');
 
@@ -637,10 +662,11 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
         e.queued_by,
         e.skipped_by,
         e.listeners_at_start,
+        e.listeners_at_end,
       ]);
 
       await query(
-        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start) VALUES ${values}`,
+        `INSERT INTO track_engagement (engagement_id, track_title, track_url, guild_id, channel_id, source_type, started_at, ended_at, duration_seconds, played_seconds, was_skipped, skipped_at_seconds, was_completed, skip_reason, queued_by, skipped_by, listeners_at_start, listeners_at_end) VALUES ${values}`,
         params
       );
     } else if (table === 'interaction_events') {
@@ -789,7 +815,7 @@ async function insertBatch(type: BufferType, table: string, events: unknown[]): 
     log.error(`Failed to insert ${type} batch: ${err.message}`);
     // Put events back in buffer to retry later (but limit buffer size)
     const buffer = bufferMap[type] as unknown[];
-    if (buffer && buffer.length < BATCH_SIZE * 10) {
+    if (buffer && buffer.length < MAX_BUFFER_SIZE) {
       buffer.unshift(...events);
     }
   }
@@ -859,7 +885,7 @@ export function trackCommand(
   }
 
   try {
-    commandBuffer.push({
+    enqueueStatEvent('commands', {
       command_name: commandName,
       user_id: userId,
       guild_id: guildId,
@@ -905,7 +931,7 @@ export function trackSound(
   }
 
   try {
-    soundBuffer.push({
+    enqueueStatEvent('sounds', {
       sound_name: soundName,
       user_id: userId,
       guild_id: guildId,
@@ -946,7 +972,7 @@ export function trackQueueOperation(
   }
 
   try {
-    queueBuffer.push({
+    enqueueStatEvent('queue', {
       operation_type: operationType as OperationType,
       user_id: userId,
       guild_id: guildId,
@@ -983,7 +1009,7 @@ export function trackVoiceEvent(
   }
 
   try {
-    voiceBuffer.push({
+    enqueueStatEvent('voice', {
       event_type: eventType as VoiceEventType,
       guild_id: guildId,
       channel_id: channelId,
@@ -1023,7 +1049,7 @@ export function trackSearch(
   }
 
   try {
-    searchBuffer.push({
+    enqueueStatEvent('search', {
       user_id: userId,
       guild_id: guildId,
       query: queryText,
@@ -1243,7 +1269,7 @@ export async function endUserSession(
   const durationSeconds = Math.floor((leftAt.getTime() - session.joinedAt.getTime()) / 1000);
 
   // Add to buffer for batch processing
-  userSessionBuffer.push({
+  enqueueStatEvent('userSessions', {
     session_id: session.sessionId,
     bot_session_id: session.botSessionId,
     user_id: session.userId,
@@ -1294,7 +1320,7 @@ export function trackUserListen(
     session.trackTitles.push(trackTitle);
 
     // Add to buffer for batch processing
-    userTrackListenBuffer.push({
+    enqueueStatEvent('userTrackListens', {
       user_session_id: session.sessionId,
       user_id: session.userId,
       guild_id: guildId,
@@ -1448,7 +1474,7 @@ export function endTrackEngagement(
 
   const listenersAtEnd = getActiveUserCount(guildId, engagement.channelId);
 
-  trackEngagementBuffer.push({
+  enqueueStatEvent('trackEngagement', {
     engagement_id: engagement.engagementId,
     track_title: engagement.trackTitle,
     track_url: engagement.trackUrl,
@@ -1504,7 +1530,7 @@ export function trackInteraction(
   errorMessage: string | null = null,
   metadata: Record<string, unknown> | null = null
 ): void {
-  interactionEventBuffer.push({
+  enqueueStatEvent('interactionEvents', {
     interaction_type: interactionType,
     interaction_id: interactionId,
     custom_id: customId,
@@ -1542,7 +1568,7 @@ export function trackPlaybackStateChange(
   trackPositionSeconds: number | null = null,
   source: 'discord' | 'api' = 'discord'
 ): void {
-  playbackStateChangeBuffer.push({
+  enqueueStatEvent('playbackStateChanges', {
     guild_id: guildId,
     channel_id: channelId,
     state_type: stateType,
@@ -1576,7 +1602,7 @@ export function trackWebEvent(
   durationMs: number | null = null,
   webSessionId: string | null = null
 ): void {
-  webEventBuffer.push({
+  enqueueStatEvent('webEvents', {
     web_session_id: webSessionId,
     user_id: userId,
     event_type: eventType,
@@ -1606,7 +1632,7 @@ export function trackGuildEvent(
   userId: string | null = null,
   metadata: Record<string, unknown> | null = null
 ): void {
-  guildEventBuffer.push({
+  enqueueStatEvent('guildEvents', {
     event_type: eventType,
     guild_id: guildId,
     guild_name: guildName,
@@ -1636,7 +1662,7 @@ export function trackApiLatency(
   requestSizeBytes: number | null = null,
   responseSizeBytes: number | null = null
 ): void {
-  apiLatencyBuffer.push({
+  enqueueStatEvent('apiLatency', {
     endpoint,
     method,
     response_time_ms: responseTimeMs,

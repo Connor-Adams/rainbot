@@ -35,6 +35,11 @@ export class QueryBuilder {
     return this;
   }
 
+  addRawCondition(condition: string): this {
+    this.conditions.push(condition);
+    return this;
+  }
+
   addDateRange(column: string, start?: Date | null, end?: Date | null): this {
     if (start) {
       this.conditions.push(`${column} >= $${this.paramIndex++}`);

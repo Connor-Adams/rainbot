@@ -43,10 +43,6 @@ export interface PauseResult {
   nowPlaying: string | null;
 }
 
-export interface StopResult {
-  stopped: boolean;
-}
-
 export interface JoinParams {
   guildId: string;
   channelId: string;
@@ -54,12 +50,6 @@ export interface JoinParams {
 }
 
 export interface JoinResult {
-  success: boolean;
-  channelName?: string;
-  error?: string;
-}
-
-export interface LeaveResult {
   success: boolean;
   channelName?: string;
   error?: string;

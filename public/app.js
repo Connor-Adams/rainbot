@@ -69,10 +69,16 @@ function showToast(message, type = 'success') {
     warning: '⚠',
   };
 
-  toast.innerHTML = `
-        <span class="toast-icon text-xl flex-shrink-0">${icons[type] || icons.success}</span>
-        <span class="toast-message text-sm flex-1">${message}</span>
-    `;
+  const icon = document.createElement('span');
+  icon.className = 'toast-icon text-xl flex-shrink-0';
+  icon.textContent = icons[type] || icons.success;
+
+  const msg = document.createElement('span');
+  msg.className = 'toast-message text-sm flex-1';
+  msg.textContent = message;
+
+  toast.appendChild(icon);
+  toast.appendChild(msg);
   toastContainer.appendChild(toast);
 
   // Animate in
@@ -301,7 +307,7 @@ function renderSounds(filter = '') {
   soundsGrid.innerHTML = filtered
     .map(
       (sound) => `
-        <div class="sound-card bg-gray-900 border border-gray-700 rounded-lg p-4 flex flex-col gap-3 transition-all hover:border-blue-500 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 hover:bg-gray-800" data-name="${sound.name}">
+        <div class="sound-card bg-gray-900 border border-gray-700 rounded-lg p-4 flex flex-col gap-3 transition-all hover:border-blue-500 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 hover:bg-gray-800" data-name="${encodeURIComponent(sound.name)}">
             <div class="sound-icon text-3xl text-center">🎵</div>
             <div class="sound-info flex flex-col gap-1 flex-1">
                 <div class="sound-name text-sm font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis text-center" title="${escapeHtml(sound.name)}">${escapeHtml(sound.name)}</div>
@@ -322,7 +328,7 @@ function renderSounds(filter = '') {
   soundsGrid.querySelectorAll('.play-sound-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const card = e.target.closest('.sound-card');
-      const name = card.dataset.name;
+      const name = decodeURIComponent(card.dataset.name || '');
       playSound(name, e);
     });
   });
@@ -330,7 +336,7 @@ function renderSounds(filter = '') {
   soundsGrid.querySelectorAll('.delete-sound-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const card = e.target.closest('.sound-card');
-      const name = card.dataset.name;
+      const name = decodeURIComponent(card.dataset.name || '');
       deleteSound(name);
     });
   });

@@ -1,11 +1,13 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import * as voiceManager from '../../../utils/voiceManager';
 import { getClient } from '../../client';
+import { requireAuth } from '../../middleware/auth';
+import { requireGuildMember } from './shared';
 
 const router = express.Router();
 
 // GET /api/status - Get bot status
-router.get('/status', (_req: Request, res: Response): void => {
+router.get('/status', requireAuth, (_req: Request, res: Response): void => {
   const client = getClient();
 
   if (!client || !client.isReady()) {
@@ -35,28 +37,37 @@ router.get('/status', (_req: Request, res: Response): void => {
 });
 
 // GET /api/guilds/:id/channels - Get voice channels for a guild
-router.get('/guilds/:id/channels', (req: Request, res: Response): void => {
-  const client = getClient();
+router.get(
+  '/guilds/:id/channels',
+  requireAuth,
+  (req: Request, _res: Response, next: NextFunction) => {
+    req.params['guildId'] = req.params['id'] ?? '';
+    next();
+  },
+  requireGuildMember,
+  (req: Request, res: Response): void => {
+    const client = getClient();
 
-  if (!client || !client.isReady()) {
-    res.status(503).json({ error: 'Bot not ready' });
-    return;
+    if (!client || !client.isReady()) {
+      res.status(503).json({ error: 'Bot not ready' });
+      return;
+    }
+
+    const guild = client.guilds.cache.get(req.params['id']!);
+    if (!guild) {
+      res.status(404).json({ error: 'Guild not found' });
+      return;
+    }
+
+    const voiceChannels = guild.channels.cache
+      .filter((channel) => channel.type === 2) // 2 = GuildVoice
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+      }));
+
+    res.json(voiceChannels);
   }
-
-  const guild = client.guilds.cache.get(req.params['id']!);
-  if (!guild) {
-    res.status(404).json({ error: 'Guild not found' });
-    return;
-  }
-
-  const voiceChannels = guild.channels.cache
-    .filter((channel) => channel.type === 2) // 2 = GuildVoice
-    .map((channel) => ({
-      id: channel.id,
-      name: channel.name,
-    }));
-
-  res.json(voiceChannels);
-});
+);
 
 export default router;

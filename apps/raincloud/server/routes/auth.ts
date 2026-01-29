@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import express, { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { Strategy as OAuth2Strategy } from 'passport-oauth2';
@@ -190,18 +191,25 @@ function getBaseUrl(req: Request): string {
     return `https://${config.railwayPublicDomain}`;
   }
   // Local development
-  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
-  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
-  return `${protocol}://${host}`;
+  if (process.env['NODE_ENV'] !== 'production') {
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
+    return `${protocol}://${host}`;
+  }
+
+  // Production fallback avoids host-header injection
+  return 'http://localhost:3000';
 }
 
 // Initiate OAuth flow
-router.get('/discord', (req: Request, res: Response) => {
+router.get('/discord', (req: Request, res: Response, next: NextFunction) => {
   if (!oauthConfigured) {
     res.status(503).json({ error: 'OAuth not configured' });
     return;
   }
-  return passport.authenticate('discord')(req, res);
+  const session = req.session as { oauthState?: string };
+  session.oauthState = crypto.randomBytes(16).toString('hex');
+  return passport.authenticate('discord', { state: session.oauthState })(req, res, next);
 });
 
 // OAuth callback
@@ -212,6 +220,21 @@ router.get(
       res.status(503).json({ error: 'OAuth not configured' });
       return;
     }
+    const session = req.session as { oauthState?: string };
+    const state = req.query['state'];
+    if (!session?.oauthState || typeof state !== 'string' || state !== session.oauthState) {
+      log.warn('OAuth callback state mismatch', {
+        hasSessionState: !!session?.oauthState,
+        receivedState: typeof state === 'string' ? state : undefined,
+      });
+      if (session) {
+        delete session.oauthState;
+      }
+      const errorParam = encodeURIComponent('Invalid OAuth state');
+      res.redirect(`/auth/error?error=${errorParam}`);
+      return;
+    }
+    delete session.oauthState;
     log.info('OAuth callback received', { query: req.query, sessionId: req.sessionID });
     next();
   },
@@ -299,6 +322,8 @@ router.get('/me', (req: AuthenticatedRequest, res: Response): void => {
   }
 
   const user = req.user as DiscordUser;
+  const discriminatorNumber = Number(user.discriminator);
+  const avatarFallbackIndex = Number.isFinite(discriminatorNumber) ? discriminatorNumber % 5 : 0;
   res.json({
     id: user.id,
     username: user.username,
@@ -306,7 +331,7 @@ router.get('/me', (req: AuthenticatedRequest, res: Response): void => {
     avatar: user.avatar,
     avatarUrl: user.avatar
       ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
-      : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discriminator) % 5}.png`,
+      : `https://cdn.discordapp.com/embed/avatars/${avatarFallbackIndex}.png`,
   });
 });
 
@@ -409,9 +434,19 @@ router.get('/check', async (req: AuthenticatedRequest, res: Response): Promise<v
 });
 
 // Error page with detailed error info
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 router.get('/error', (req: Request, res: Response): void => {
-  const errorMessage = (req.query['error'] as string) || 'Unknown error occurred';
-  const errorDetails = (req.query['details'] as string) || '';
+  const errorMessageRaw = (req.query['error'] as string) || 'Unknown error occurred';
+  const errorDetailsRaw = (req.query['details'] as string) || '';
+  const errorMessage = escapeHtml(errorMessageRaw);
+  const errorDetails = escapeHtml(errorDetailsRaw);
 
   log.warn(`OAuth error page accessed: ${errorMessage}`, {
     details: errorDetails,
@@ -475,6 +510,11 @@ router.get('/error', (req: Request, res: Response): void => {
 
 // Debug endpoint to check auth status
 router.get('/debug', (req: AuthenticatedRequest, res: Response) => {
+  if (process.env['NODE_ENV'] === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
   res.json({
     authenticated: req.isAuthenticated ? req.isAuthenticated() : false,
     user: req.user || null,

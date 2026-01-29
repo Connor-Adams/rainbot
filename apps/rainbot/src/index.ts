@@ -221,12 +221,31 @@ async function playNext(guildId: string): Promise<void> {
   } catch (error) {
     logErrorWithStack(log, 'Error playing track', error);
     // Skip to next track on error
-    playNext(guildId);
+    await playNext(guildId);
   }
 }
 
 // Express server for worker protocol
 const app = createWorkerExpressApp();
+app.use((req: Request, res: Response, next) => {
+  if (req.path.startsWith('/health')) {
+    next();
+    return;
+  }
+
+  if (!WORKER_SECRET) {
+    res.status(503).json({ error: 'Worker secret not configured' });
+    return;
+  }
+
+  const providedSecret = req.header('x-worker-secret');
+  if (providedSecret !== WORKER_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  next();
+});
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -248,9 +267,10 @@ app.post('/join', async (req: Request, res: Response) => {
     return;
   }
 
+  const cacheKey = `join:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    res.json(requestCache.get(cacheKey));
     return;
   }
 
@@ -258,7 +278,7 @@ app.post('/join', async (req: Request, res: Response) => {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.status(404).json(response);
       return;
     }
@@ -266,7 +286,7 @@ app.post('/join', async (req: Request, res: Response) => {
     const channel = guild.channels.cache.get(channelId);
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.status(404).json(response);
       return;
     }
@@ -275,7 +295,7 @@ app.post('/join', async (req: Request, res: Response) => {
 
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.json(response);
       return;
     }
@@ -307,7 +327,7 @@ app.post('/join', async (req: Request, res: Response) => {
     });
 
     const response = { status: 'joined', channelId };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     logErrorWithStack(log, 'Join error', error);
@@ -328,16 +348,17 @@ app.post('/leave', async (req: Request, res: Response) => {
     return;
   }
 
+  const cacheKey = `leave:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    res.json(requestCache.get(cacheKey));
     return;
   }
 
   const state = guildStates.get(guildId);
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
     return;
   }
@@ -348,7 +369,7 @@ app.post('/leave', async (req: Request, res: Response) => {
   state.currentTrack = null;
 
   const response = { status: 'left' };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -374,9 +395,10 @@ app.post('/volume', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `volume:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = getOrCreateGuildState(guildId);
@@ -386,7 +408,7 @@ app.post('/volume', async (req: Request, res: Response) => {
   }
 
   const response = { status: 'success', volume: state.volume };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -431,9 +453,10 @@ app.post('/enqueue', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `enqueue:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const release = await mutex.acquire();
@@ -464,7 +487,7 @@ app.post('/enqueue', async (req: Request, res: Response) => {
       position: state.queue.length - tracks.length + 1,
       message: `Added ${tracks.length} track(s) to queue`,
     };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     res.status(500).json({
@@ -487,15 +510,16 @@ app.post('/skip', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `skip:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
   if (!state) {
     const response = { status: 'error', message: 'Not connected' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     return res.json(response);
   }
 
@@ -518,7 +542,7 @@ app.post('/skip', async (req: Request, res: Response) => {
   state.player.stop();
 
   const response = { status: 'success', skipped };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -533,9 +557,10 @@ app.post('/pause', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `pause:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -556,7 +581,7 @@ app.post('/pause', async (req: Request, res: Response) => {
   }
 
   const response = { status: 'success', paused };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -571,9 +596,10 @@ app.post('/stop', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `stop:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -592,7 +618,7 @@ app.post('/stop', async (req: Request, res: Response) => {
   state.totalPausedTime = 0;
 
   const response = { status: 'success' };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -607,9 +633,10 @@ app.post('/clear', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `clear:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -622,7 +649,7 @@ app.post('/clear', async (req: Request, res: Response) => {
   state.queue = [];
 
   const response = { status: 'success', cleared };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -669,14 +696,15 @@ app.post('/replay', async (req: Request, res: Response) => {
     });
   }
 
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  const cacheKey = `replay:${requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
   if (!state || !state.lastPlayedTrack) {
     const response = { status: 'error', message: 'No track to replay' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     return res.json(response);
   }
 
@@ -685,7 +713,7 @@ app.post('/replay', async (req: Request, res: Response) => {
   state.player.stop();
 
   const response = { status: 'success', track: track.title };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -700,8 +728,9 @@ app.post('/autoplay', async (req: Request, res: Response) => {
     });
   }
 
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  const cacheKey = `autoplay:${requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = getOrCreateGuildState(guildId);
@@ -712,7 +741,7 @@ app.post('/autoplay', async (req: Request, res: Response) => {
     enabled: false,
     message: 'Autoplay is disabled in the rainbot worker',
   };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -737,13 +766,17 @@ client = createWorkerDiscordClient();
 setupDiscordClientErrorHandler(client, log);
 
 // Setup auto-follow voice state handler
-setupAutoFollowVoiceStateHandler(client, {
-  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
-  guildStates: guildStates as unknown as Map<string, GuildState>,
-  getOrCreateGuildState: (guildId: string) =>
-    getOrCreateGuildState(guildId) as unknown as GuildState,
-  logger: log,
-});
+if (ORCHESTRATOR_BOT_ID) {
+  setupAutoFollowVoiceStateHandler(client, {
+    orchestratorBotId: ORCHESTRATOR_BOT_ID,
+    guildStates: guildStates as unknown as Map<string, GuildState>,
+    getOrCreateGuildState: (guildId: string) =>
+      getOrCreateGuildState(guildId) as unknown as GuildState,
+    logger: log,
+  });
+} else {
+  log.warn('ORCHESTRATOR_BOT_ID not set; auto-follow voice state handler disabled');
+}
 
 // Extend voice state handler for rainbot-specific cleanup
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {

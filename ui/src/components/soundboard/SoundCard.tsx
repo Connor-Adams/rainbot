@@ -1,5 +1,5 @@
 import type { Sound } from '@/types'
-import { escapeHtml, formatSize } from '@/lib/utils'
+import { formatSize } from '@/lib/utils'
 import type { SoundCustomization } from '@/hooks/useSoundCustomization'
 import { MenuIcon } from '@/components/icons'
 
@@ -73,9 +73,9 @@ export function SoundCard({
       <div className="text-center w-full">
         <div
           className="text-sm font-medium text-text-primary whitespace-nowrap overflow-hidden text-ellipsis"
-          title={escapeHtml(sound.name)}
+          title={sound.name}
         >
-          {escapeHtml(displayName)}
+          {displayName}
         </div>
         <div className="text-xs text-text-muted font-mono mt-1">{formatSize(sound.size)}</div>
       </div>

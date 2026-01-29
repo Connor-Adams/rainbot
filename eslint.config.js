@@ -71,7 +71,7 @@ module.exports = [
     files: ['**/*.{js,ts,jsx,tsx}'],
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             'types/*',
@@ -82,18 +82,10 @@ module.exports = [
             '**/utils/*',
             'components/*',
             '**/components/*',
+            'apps/raincloud/events/*',
+            'events/*',
+            'handlers/*',
           ],
-        },
-      ],
-    },
-  },
-  {
-    files: ['**/*.{js,ts,jsx,tsx}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: ['apps/raincloud/events/*', 'events/*', 'handlers/*'],
         },
       ],
     },

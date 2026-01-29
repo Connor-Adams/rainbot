@@ -586,4 +586,4 @@ For zero-downtime updates:
 - **Documentation**: See `docs/` directory
 - **Issues**: https://github.com/Connor-Adams/rainbot/issues
 - **Architecture**: See `docs/MULTIBOT_ARCHITECTURE.md`
-- **Integration**: See `docs/INTEGRATION_GUIDE.md`
+- **Integration**: See `VOICE_INTERACTION_GUIDE.md`

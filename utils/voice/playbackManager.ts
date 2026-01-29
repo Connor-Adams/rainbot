@@ -15,7 +15,7 @@ import { getVoiceState } from './connectionManager';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { detectSourceType } from '../sourceType';
-import { getClient } from '../../apps/raincloud/server/client';
+import { getDiscordClient } from './discordClient';
 import type { Track } from '@rainbot/protocol';
 import type { VoiceState } from '@rainbot/protocol';
 import type { TextChannel, VoiceChannel } from 'discord.js';
@@ -52,7 +52,7 @@ function getYtdlpOptions(): Record<string, unknown> {
  */
 async function sendNowPlayingUpdate(guildId: string, track: Track): Promise<void> {
   try {
-    const client = getClient();
+    const client = getDiscordClient();
     if (!client) return;
 
     const state = getVoiceState(guildId);
@@ -75,7 +75,7 @@ async function sendNowPlayingUpdate(guildId: string, track: Track): Promise<void
       durationStr = ` (${minutes}:${seconds.toString().padStart(2, '0')})`;
     }
 
-    await channel.send(`🎵 Now playing: **${track.title}**${durationStr}`);
+    await channel.send(`Now playing: **${track.title}**${durationStr}`);
   } catch (error) {
     const err = error as Error;
     log.debug(`Failed to send now playing update: ${err.message}`);
@@ -721,7 +721,7 @@ export async function playSoundboardOverlay(
     });
   }
 
-  playSoundImmediate(guildId, resource, `🔊 ${soundName}`);
+  playSoundImmediate(guildId, resource, `Sound: ${soundName}`);
 
   return {
     overlaid: false,

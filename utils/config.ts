@@ -210,10 +210,10 @@ export function loadConfig(): AppConfig {
   }
 
   if (envVarsUsed.length > 0) {
-    log.info(`✓ Using environment variables: ${envVarsUsed.join(', ')}`);
+    log.info(`Using environment variables: ${envVarsUsed.join(', ')}`);
   }
   if (missingVars.length > 0) {
-    log.error(`✗ Missing configuration: ${missingVars.join(', ')}`);
+    log.error(`Missing configuration: ${missingVars.join(', ')}`);
   }
 
   // Validate required config

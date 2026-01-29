@@ -122,17 +122,20 @@ module.exports = {
           embeds: [embed],
           components: [row],
         });
-      } catch (error) {
+      } catch (_error) {
         // Can't DM user (DMs disabled), send to voice channel instead
-        const channel = newState.guild.channels.cache.get(channelId);
-        if (channel) {
-          await channel.send({
+        const fallbackChannel =
+          newState.guild.systemChannel ||
+          newState.guild.channels.cache.find((c) => c.isTextBased && c.isTextBased());
+        if (fallbackChannel && fallbackChannel.isTextBased()) {
+          await fallbackChannel.send({
             content: `${newState.member}`,
             embeds: [embed],
             components: [row],
           });
+        } else {
+          log.warn('No text channel available for resume prompt fallback');
         }
-        throw new Error(error);
       }
     } catch (error) {
       log.error(`Failed to send resume prompt: ${error.message}`);

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { playbackApi } from '@/lib/api'
 import type { QueueData } from '@/types'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player'
 
 interface NowPlayingCardProps {
@@ -17,6 +17,8 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     title: queueData.nowPlaying || 'No track playing',
     duration: 0,
   }
+  const trackKey = `${currentTrack.title}-${currentTrack.url || ''}-${currentTrack.duration || 0}`
+  const trackKeyRef = useRef(trackKey)
 
   const pauseMutation = useMutation({
     mutationFn: () => playbackApi.pause(guildId),
@@ -38,18 +40,23 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   // Simulate progress (would need real-time updates from API)
   useEffect(() => {
-    if (!isPaused && currentTrack.duration) {
-      const interval = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= (currentTrack.duration || 0)) {
-            return prev
-          }
-          return prev + 1
-        })
-      }, 1000)
-      return () => clearInterval(interval)
-    }
-  }, [isPaused, currentTrack.duration])
+    const interval = setInterval(() => {
+      setCurrentTime((prev) => {
+        if (trackKeyRef.current !== trackKey) {
+          trackKeyRef.current = trackKey
+          return 0
+        }
+        if (isPaused || !currentTrack.duration) {
+          return prev
+        }
+        if (prev >= (currentTrack.duration || 0)) {
+          return prev
+        }
+        return prev + 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isPaused, currentTrack.duration, trackKey])
 
   const getSourceInfo = () => {
     if (currentTrack.isLocal) {

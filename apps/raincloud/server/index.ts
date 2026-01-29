@@ -85,15 +85,18 @@ export async function createServer(): Promise<Application> {
   // Prefer Redis for persistent sessions across deployments
   // IMPORTANT: Session secret must be consistent across deployments for sessions to persist
   const sessionSecret = config.sessionSecret;
-  if (!sessionSecret || sessionSecret === 'change-this-secret-in-production') {
-    log.error('⚠️  WARNING: SESSION_SECRET not set or using default value!');
-    log.error(
-      '⚠️  Sessions will NOT persist across deployments without a consistent SESSION_SECRET.'
-    );
-    log.error('⚠️  Set SESSION_SECRET environment variable to a secure random string.');
-    log.error('⚠️  Generate one with: openssl rand -hex 32');
+  const isProd = process.env['NODE_ENV'] === 'production';
+  const hasInvalidSecret = !sessionSecret || sessionSecret === 'change-this-secret-in-production';
+  if (hasInvalidSecret) {
+    log.error('WARNING: SESSION_SECRET not set or using default value!');
+    log.error('Sessions will NOT persist across deployments without a consistent SESSION_SECRET.');
+    log.error('Set SESSION_SECRET environment variable to a secure random string.');
+    log.error('Generate one with: openssl rand -hex 32');
+    if (isRailway || isProd) {
+      throw new Error('SESSION_SECRET must be set in production/Railway environments.');
+    }
   } else {
-    log.info('✓ SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
+    log.info('SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
   }
 
   let sessionStore: session.Store | undefined;

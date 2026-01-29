@@ -1,6 +1,6 @@
 // util-category: audio
 import { createLogger } from '@utils/logger';
-import { getClient } from '../../../apps/raincloud/server/client';
+import { getDiscordClient } from '../discordClient';
 import { detectSourceType } from '@utils/sourceType';
 import * as stats from '@utils/statistics';
 import * as listeningHistory from '@utils/listeningHistory';
@@ -17,7 +17,7 @@ export async function sendNowPlaying(
   track: Track
 ): Promise<void> {
   try {
-    const client = getClient();
+    const client = getDiscordClient();
     if (!client) return;
 
     const guild = client.guilds.cache.get(guildId);

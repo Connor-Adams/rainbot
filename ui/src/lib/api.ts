@@ -3,8 +3,13 @@ import axios from 'axios';
 const runtimeConfig =
   (globalThis as { __RAINBOT_CONFIG__?: Record<string, string> }).__RAINBOT_CONFIG__ || {};
 
-const defaultAuthOrigin = 'https://raincloud-production.up.railway.app';
-const defaultApiOrigin = `${defaultAuthOrigin}/api`;
+const defaultOrigin =
+  typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost:3000';
+const defaultAuthOrigin = defaultOrigin;
+const defaultApiOrigin = `${defaultOrigin}/api`;
+const debugEnabled = import.meta.env.DEV || runtimeConfig['VITE_DEBUG_LOGS'] === 'true';
 
 export const apiBaseUrl =
   runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || defaultApiOrigin;
@@ -44,40 +49,42 @@ const authApiClient = axios.create({
 });
 
 // Add request interceptor to log cookie info
-authApiClient.interceptors.request.use(
-  (config) => {
-    console.log('[Auth API] Request:', {
-      url: config.url,
-      method: config.method,
-      withCredentials: config.withCredentials,
-      cookies: document.cookie ? 'present' : 'missing',
-    });
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+if (debugEnabled) {
+  authApiClient.interceptors.request.use(
+    (config) => {
+      console.log('[Auth API] Request:', {
+        url: config.url,
+        method: config.method,
+        withCredentials: config.withCredentials,
+        cookies: document.cookie ? 'present' : 'missing',
+      });
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
-// Add response interceptor for debugging
-authApiClient.interceptors.response.use(
-  (response) => {
-    console.log('[Auth API] Response:', {
-      url: response.config.url,
-      status: response.status,
-      hasCookies: document.cookie ? 'yes' : 'no',
-    });
-    return response;
-  },
-  (error) => {
-    console.error('[Auth API] Request failed:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-    });
-    return Promise.reject(error);
-  }
-);
+  // Add response interceptor for debugging
+  authApiClient.interceptors.response.use(
+    (response) => {
+      console.log('[Auth API] Response:', {
+        url: response.config.url,
+        status: response.status,
+        hasCookies: document.cookie ? 'yes' : 'no',
+      });
+      return response;
+    },
+    (error) => {
+      console.error('[Auth API] Request failed:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+      return Promise.reject(error);
+    }
+  );
+}
 
 // Auth API
 export const authApi = {

@@ -238,6 +238,25 @@ function getSoundInputType(sfxId: string): StreamType {
 
 // Express server for worker protocol
 const app = createWorkerExpressApp();
+app.use((req: Request, res: Response, next) => {
+  if (req.path.startsWith('/health')) {
+    next();
+    return;
+  }
+
+  if (!WORKER_SECRET) {
+    res.status(503).json({ error: 'Worker secret not configured' });
+    return;
+  }
+
+  const providedSecret = req.header('x-worker-secret');
+  if (providedSecret !== WORKER_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  next();
+});
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -258,23 +277,24 @@ app.post('/join', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `join:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       return res.status(404).json(response);
     }
 
     const channel = guild.channels.cache.get(channelId);
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       return res.status(404).json(response);
     }
 
@@ -282,7 +302,7 @@ app.post('/join', async (req: Request, res: Response) => {
 
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       return res.json(response);
     }
 
@@ -311,7 +331,7 @@ app.post('/join', async (req: Request, res: Response) => {
     });
 
     const response = { status: 'joined', channelId };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     logErrorWithStack(log, 'Join error', error);
@@ -331,15 +351,16 @@ app.post('/leave', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `leave:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     return res.json(response);
   }
 
@@ -348,7 +369,7 @@ app.post('/leave', async (req: Request, res: Response) => {
   state.player.stop();
 
   const response = { status: 'left' };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -370,16 +391,17 @@ app.post('/volume', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `volume:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = getOrCreateGuildState(guildId);
   state.volume = volume;
 
   const response = { status: 'success', volume };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -419,9 +441,10 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `play-sound:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   try {
@@ -429,7 +452,7 @@ app.post('/play-sound', async (req: Request, res: Response) => {
 
     if (!state.connection) {
       const response = { status: 'error', message: 'Not connected to voice channel' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       return res.status(400).json(response);
     }
 
@@ -469,7 +492,7 @@ app.post('/play-sound', async (req: Request, res: Response) => {
     );
 
     const response = { status: 'success', message: 'Sound playing' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     logErrorWithStack(log, 'Play sound error', error);
@@ -518,13 +541,17 @@ client = createWorkerDiscordClient();
 setupDiscordClientErrorHandler(client, log);
 
 // Setup auto-follow voice state handler
-setupAutoFollowVoiceStateHandler(client, {
-  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
-  guildStates: guildStates as unknown as Map<string, GuildState>,
-  getOrCreateGuildState: (guildId: string) =>
-    getOrCreateGuildState(guildId) as unknown as GuildState,
-  logger: log,
-});
+if (ORCHESTRATOR_BOT_ID) {
+  setupAutoFollowVoiceStateHandler(client, {
+    orchestratorBotId: ORCHESTRATOR_BOT_ID,
+    guildStates: guildStates as unknown as Map<string, GuildState>,
+    getOrCreateGuildState: (guildId: string) =>
+      getOrCreateGuildState(guildId) as unknown as GuildState,
+    logger: log,
+  });
+} else {
+  log.warn('ORCHESTRATOR_BOT_ID not set; auto-follow voice state handler disabled');
+}
 
 // Extend voice state handler for hungerbot-specific cleanup (stop player on leave)
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {

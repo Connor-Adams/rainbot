@@ -25,12 +25,16 @@ const uploadRateLimiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
 });
 
+const MAX_UPLOAD_FILES = 10;
+const MAX_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB across all files
+
 // Configure multer for file uploads
 // Always use memory storage - files are uploaded to S3
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max
+    files: MAX_UPLOAD_FILES,
   },
   fileFilter: (_req, file, cb) => {
     const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
@@ -45,6 +49,7 @@ const upload = multer({
 // GET /api/sounds - List all sounds
 router.get(
   '/sounds',
+  requireAuth,
   asyncHandler(async (_req, res: Response) => {
     const sounds = await voiceManager.listSounds();
     res.json(sounds);
@@ -54,6 +59,7 @@ router.get(
 // GET /api/recordings - List all voice recordings
 router.get(
   '/recordings',
+  requireAuth,
   asyncHandler(async (req, res: Response) => {
     const userId = req.query['userId'] as string | undefined;
     const recordings = await storage.listRecordings(userId);
@@ -64,6 +70,7 @@ router.get(
 // GET /api/sounds/:name/download - Download a sound file
 router.get(
   '/sounds/:name/download',
+  requireAuth,
   asyncHandler(async (req, res: Response) => {
     try {
       const filename = req.params.name;
@@ -90,10 +97,10 @@ router.get(
   asyncHandler(async (req, res: Response) => {
     try {
       const filename = req.params['name'];
-      const stream = await storage.getSoundStream(filename!);
+      const { stream, filename: resolvedName } = await storage.getSoundStreamWithName(filename!);
 
       // Get the appropriate audio content type based on file extension
-      const ext = filename!.split('.').pop()?.toLowerCase();
+      const ext = resolvedName.split('.').pop()?.toLowerCase();
       const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
 
       // Set headers for inline playback
@@ -112,11 +119,15 @@ router.post(
   '/sounds',
   uploadRateLimiter,
   requireAuth,
-  upload.array('sound', 50),
+  upload.array('sound', MAX_UPLOAD_FILES),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const files = req.files as Express.Multer.File[] | undefined;
     if (!files || files.length === 0) {
       throw new HttpError(400, 'No files uploaded');
+    }
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      throw new HttpError(413, 'Total upload size exceeds 200MB');
     }
 
     const results: Array<{ name: string; originalName: string; size: number }> = [];

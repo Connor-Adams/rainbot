@@ -249,7 +249,7 @@ module.exports = {
         }
 
         case 'skip': {
-          const _skipped = voiceManager.skip(guildId, 1, interaction.user.id);
+          const _skipped = await voiceManager.skip(guildId, 1, interaction.user.id);
           // Small delay to let next track start
           await new Promise((r) => setTimeout(r, 500));
           const queueInfo = voiceManager.getQueue(guildId);

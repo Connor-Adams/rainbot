@@ -189,6 +189,23 @@ export async function initializeSchema(): Promise<boolean> {
             )
         `);
 
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS listening_history (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(20) NOT NULL,
+                guild_id VARCHAR(20) NOT NULL,
+                track_title VARCHAR(500) NOT NULL,
+                track_url TEXT,
+                source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('local', 'youtube', 'spotify', 'soundcloud', 'other')),
+                is_soundboard BOOLEAN NOT NULL DEFAULT FALSE,
+                duration INTEGER,
+                played_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                source VARCHAR(10) NOT NULL CHECK (source IN ('discord', 'api')),
+                queued_by VARCHAR(20),
+                metadata JSONB
+            )
+        `);
+
     log.debug('Creating guild_queue_snapshots table...');
     await pool.query(`
             CREATE TABLE IF NOT EXISTS guild_queue_snapshots (
@@ -602,6 +619,15 @@ export async function initializeSchema(): Promise<boolean> {
 
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_guild_id ON listening_history(guild_id)`
+    );
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_listening_history_played_at ON listening_history(played_at)`
     );
 
     // New composite indexes for better query performance

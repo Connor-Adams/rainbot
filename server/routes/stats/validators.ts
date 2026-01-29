@@ -21,7 +21,8 @@ export function parseLimit(
   defaultLimit = 25,
   maxLimit = 100
 ): number {
-  const limit = parseInt(limitStr || String(defaultLimit));
+  const parsed = parseInt(limitStr || '', 10);
+  const limit = Number.isFinite(parsed) ? parsed : defaultLimit;
   return Math.min(Math.max(1, limit), maxLimit);
 }
 

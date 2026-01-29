@@ -141,7 +141,7 @@ const options: swaggerJsdoc.Options = {
         sessionAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'connect.sid',
+          name: 'rainbot.sid',
           description: 'Session cookie from Discord OAuth',
         },
       },

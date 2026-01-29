@@ -44,7 +44,7 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   maxAudioDuration: 10, // 10 seconds max
   minAudioDuration: 0.1, // 0.1 second min (Whisper's absolute minimum)
   confidenceThreshold: 0.6,
-  recordAudio: true, // Always record audio to soundboard for debugging
+  recordAudio: false, // Default to opt-in recording
   rateLimit: {
     maxCommandsPerMinute: 10,
     maxCommandsPerHour: 60,
@@ -212,7 +212,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       if (!session.isListening) return;
 
       if (!firstChunkReceived) {
-        log.info(`🎙️ First audio chunk received from user ${userId} (${chunk.length} bytes)`);
+        log.info(`First audio chunk received from user ${userId} (${chunk.length} bytes)`);
         firstChunkReceived = true;
       }
 
@@ -223,7 +223,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       if (now - lastLogTime > 500) {
         const durationSoFar = totalBytesReceived / 192000;
         log.debug(
-          `🎤 Hearing audio from user ${userId} - ${session.audioBuffer.length} chunks, ${totalBytesReceived} bytes, ${durationSoFar.toFixed(2)}s`
+          `Hearing audio from user ${userId} - ${session.audioBuffer.length} chunks, ${totalBytesReceived} bytes, ${durationSoFar.toFixed(2)}s`
         );
         lastLogTime = now;
       }
@@ -236,7 +236,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
 
       if (chunk.length < 100) {
-        log.warn(`⚠️ Very small audio chunk: ${chunk.length} bytes`);
+        log.warn(`Very small audio chunk: ${chunk.length} bytes`);
       }
 
       const audioChunk: AudioChunk = {
@@ -255,7 +255,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     // Handle stream end (user stopped speaking)
     audioStream.on('end', async () => {
       log.info(
-        `🔇 Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
+        `Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
       );
 
       if (session.audioBuffer.length > 0) {
@@ -269,9 +269,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       // Handle decryption errors specifically
       if (errorMsg.includes('DecryptionFailed') || errorMsg.includes('Failed to decrypt')) {
-        log.error('⚠️ Voice decryption error detected!');
-        log.error('💡 This usually means Discord voice encryption is not properly configured.');
-        log.error('💡 Try disconnecting and reconnecting the bot to the voice channel.');
+        log.error('Voice decryption error detected!');
+        log.error('This usually means Discord voice encryption is not properly configured.');
+        log.error('Try disconnecting and reconnecting the bot to the voice channel.');
 
         // Try to recover by resubscribing after a delay
         setTimeout(() => {
@@ -330,7 +330,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       await storage.uploadSound(bufferToAsyncIterable(wavBuffer), filename);
 
-      log.info(`💾 Recording saved to soundboard: ${filename} (${wavBuffer.length} bytes WAV)`);
+      log.info(`Recording saved to soundboard: ${filename} (${wavBuffer.length} bytes WAV)`);
       log.info(`   Original PCM: ${audioBuffer.length} bytes`);
       log.info(`   Play with: /play ${filename}`);
     } catch (error) {
@@ -401,13 +401,13 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     // Check minimum duration (note: this is before mono conversion, so ~0.5s will become ~0.25s of mono)
     if (totalDuration < this.config.minAudioDuration) {
       log.warn(
-        `❌ Audio too short (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) - Discord VAD may not be detecting your voice. Check Discord input sensitivity!`
+        `Audio too short (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) - Discord VAD may not be detecting your voice. Check Discord input sensitivity!`
       );
       return;
     }
 
     log.info(
-      `📊 Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) from user ${session.userId}`
+      `Processing ${audioBuffers.length} audio chunks (${totalDuration.toFixed(3)}s / ${totalBytes} bytes) from user ${session.userId}`
     );
 
     // Optionally record audio for debugging
@@ -417,18 +417,18 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     try {
       // Convert audio to text
-      log.info(`🔄 Transcribing audio...`);
+      log.info('Transcribing audio...');
       const result = await this.speechRecognition.processDiscordAudio(audioBuffers);
 
       if (!result.text || result.text.trim().length === 0) {
-        log.warn('❌ No speech detected in audio');
+        log.warn('No speech detected in audio');
         return;
       }
 
-      log.info(`✅ Transcribed: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`);
+      log.info(`Transcribed: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`);
 
       // Parse command
-      log.debug(`🔍 Parsing voice command: "${result.text}"`);
+      log.debug(`Parsing voice command: "${result.text}"`);
       const command = parseVoiceCommand(result.text);
 
       // Validate command
@@ -493,7 +493,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     try {
       state.isProcessingCommand = true;
 
-      log.info(`⚡ Executing voice command: ${command.type} (query: ${command.query || 'N/A'})`);
+      log.info(`Executing voice command: ${command.type} (query: ${command.query || 'N/A'})`);
 
       // Use custom command handler if provided
       if (this.config.commandHandler) {
@@ -515,7 +515,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
             (currentAvg * (totalCommands - 1) + latency) / totalCommands;
 
           log.info(
-            `✅ Custom command handler ${result.success ? 'succeeded' : 'failed'} in ${latency}ms`
+            `Custom command handler ${result.success ? 'succeeded' : 'failed'} in ${latency}ms`
           );
 
           // Send voice response if provided
@@ -607,6 +607,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
         case 'volume':
           try {
+            if (command.parameter === undefined) {
+              throw new Error('Volume not specified');
+            }
+
             let volume = command.parameter as number;
 
             // Handle relative volume changes
@@ -681,12 +685,12 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
    */
   private async sendVoiceResponse(guildId: string, text: string): Promise<void> {
     try {
-      log.info(`🔊 Preparing TTS response: "${text}"`);
+      log.info(`Preparing TTS response: "${text}"`);
 
       // Generate TTS audio file
-      log.debug(`🎙️ Synthesizing speech...`);
+      log.debug('Synthesizing speech...');
       const audioFile = await this.textToSpeech.synthesizeToFile(text);
-      log.debug(`✅ TTS file generated: ${audioFile}`);
+      log.debug(`TTS file generated: ${audioFile}`);
 
       // Get the connection from any active session in this guild
       const state = this.states.get(guildId);
@@ -712,7 +716,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Play via dedicated TTS player (doesn't interfere with music/soundboard)
       log.debug(`▶️ Playing TTS audio in voice channel...`);
       await ttsPlayer.playTTSAudio(guildId, connection, audioFile);
-      log.info(`✅ TTS playback completed`);
+      log.info('TTS playback completed');
 
       // Schedule cleanup
       setTimeout(() => {
