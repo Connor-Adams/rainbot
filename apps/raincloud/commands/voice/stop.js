@@ -28,7 +28,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -38,10 +38,10 @@ module.exports = {
 
       if (stopped) {
         log.info(`Stopped by ${interaction.user.tag}`);
-        await interaction.reply('â¹ï¸ Stopped playback and cleared the queue.');
+        await interaction.reply('⏹️ Stopped playback and cleared the queue.');
       } else {
         await interaction.reply({
-          content: 'âŒ Nothing is playing. Use `/play` to start playback.',
+          content: '❌ Nothing is playing. Use `/play` to start playback.',
           flags: MessageFlags.Ephemeral,
         });
       }

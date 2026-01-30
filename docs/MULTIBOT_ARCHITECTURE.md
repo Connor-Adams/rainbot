@@ -114,6 +114,23 @@ Commands and status go over **tRPC** (mount at `/trpc`). Only **HTTP** endpoints
 
 Raincloud calls workers via tRPC clients (`@rainbot/rpc`); workers implement routers with `createRainbotRouter`, `createPranjeetRouter`, `createHungerbotRouter` from `@rainbot/rpc`.
 
+### Worker communication checklist
+
+For orchestrator ↔ workers to work, these must be set:
+
+**Raincloud (orchestrator) → workers (tRPC)**
+
+- `RAINBOT_URL`, `PRANJEET_URL`, `HUNGERBOT_URL` – reachable from Raincloud (e.g. `http://localhost:3001`, or Railway internal `http://rainbot.railway.internal:8080`).
+- `WORKER_SECRET` (or `INTERNAL_RPC_SECRET`) – same value on Raincloud and every worker; sent as `x-internal-secret` on tRPC calls.
+
+**Workers → Raincloud (HTTP)**
+
+- `RAINCLOUD_URL` – orchestrator base URL so workers can call `/internal/workers/register` and `/internal/stats/sound`. Required for registration and stats reporting.
+- `WORKER_SECRET` – sent as `x-worker-secret` on those internal requests.
+- `ORCHESTRATOR_BOT_ID` (or `RAINCLOUD_BOT_ID`) – Discord ID of the Raincloud bot; used by workers for auto-follow (join/leave when orchestrator joins/leaves voice).
+
+Without `RAINCLOUD_URL` + `WORKER_SECRET`, workers start but do not register with the orchestrator and stats reporting fails. Without `ORCHESTRATOR_BOT_ID`, workers do not auto-join/leave with the orchestrator.
+
 ### Request idempotency
 
 All mutating requests include a `requestId` field. Workers cache responses for 60 seconds to prevent duplicate execution on retries.

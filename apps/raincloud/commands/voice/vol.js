@@ -35,7 +35,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -58,7 +58,7 @@ module.exports = {
         });
       } else {
         await interaction.reply({
-          content: `âŒ Failed to set volume: ${result.message}`,
+          content: `❌ Failed to set volume: ${result.message}`,
           flags: MessageFlags.Ephemeral,
         });
       }

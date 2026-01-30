@@ -29,7 +29,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -38,7 +38,7 @@ module.exports = {
       const result = await service.toggleAutoplay(guildId, enabledOption);
 
       if (result.success) {
-        const emoji = result.enabled ? 'ðŸ”' : 'â¹ï¸';
+        const emoji = result.enabled ? 'ðŸ”' : '⏹️';
         const statusText = result.enabled ? 'enabled' : 'disabled';
 
         log.info(`Autoplay ${statusText} by ${user} in ${interaction.guild.name}`);
@@ -48,14 +48,14 @@ module.exports = {
         });
       } else {
         await interaction.reply({
-          content: `âŒ Failed to toggle autoplay: ${result.message}`,
+          content: `❌ Failed to toggle autoplay: ${result.message}`,
           flags: MessageFlags.Ephemeral,
         });
       }
     } catch (error) {
       log.error(`Failed to toggle autoplay: ${error.message}`);
       await interaction.reply({
-        content: `âŒ Failed to toggle autoplay: ${error.message}`,
+        content: `❌ Failed to toggle autoplay: ${error.message}`,
         flags: MessageFlags.Ephemeral,
       });
     }

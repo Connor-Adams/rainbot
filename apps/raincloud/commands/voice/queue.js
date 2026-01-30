@@ -39,7 +39,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -96,7 +96,7 @@ module.exports = {
       if (hasOverlay) {
         description += '\n\nðŸ”Š *Soundboard overlay active*';
       } else if (isPaused) {
-        description += '\n\nâ¸ï¸ *Paused*';
+        description += '\n\n⏸️ *Paused*';
       }
 
       const thumbnail = getYouTubeThumbnail(currentTrack.url);
@@ -146,7 +146,7 @@ module.exports = {
     if (hasOverlay) {
       footerText += ' â€¢ ðŸ”Š Overlay Active';
     } else if (isPaused) {
-      footerText += ' â€¢ â¸ï¸ Paused';
+      footerText += ' â€¢ ⏸️ Paused';
     }
 
     embed.setFooter({ text: footerText });
