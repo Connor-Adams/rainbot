@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Play command - Multi-bot architecture version
- * Routes music playback through the Rainbot worker
+ * Soundboard choices (from autocomplete) → HungerBot. Music/URLs → Rainbot.
  */
 const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
@@ -50,6 +50,13 @@ module.exports = {
       if (!result.success) {
         return interaction.editReply({
           content: `âŒ ${result.message || 'Failed to play'}`,
+        });
+      }
+
+      if (result.playedAsSoundboard) {
+        log.info(`Soundboard: "${source}" in ${interaction.guild.name}`);
+        return interaction.editReply({
+          content: `🔊 Playing soundboard`,
         });
       }
 

@@ -29,7 +29,7 @@ const log = createLogger('PLAYBACK');
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 
 /**
- * Get common yt-dlp options including cookies if configured
+ * Get common yt-dlp options. extractor-args prefer YouTube clients that work without PO token.
  */
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
@@ -37,6 +37,7 @@ function getYtdlpOptions(): Record<string, unknown> {
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
+    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
 
   if (COOKIES_FILE) {

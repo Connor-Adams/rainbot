@@ -1,12 +1,14 @@
-import { Button } from '@/components/ui';
 import { DiscordIcon } from '@/components/icons';
 import { buildAuthUrl } from '@/lib/api';
 
-export default function LoginPage() {
-  const handleLogin = () => {
-    window.location.href = buildAuthUrl('/auth/discord');
-  };
+const discordAuthUrl = buildAuthUrl('/auth/discord');
 
+const linkButtonStyles =
+  'inline-flex items-center justify-center gap-2 w-full max-w-xs px-6 py-3 text-lg font-medium rounded-lg transition-all duration-200 ' +
+  'bg-gradient-to-r from-primary to-primary-dark text-text-primary shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0 ' +
+  'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background';
+
+export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen p-6 sm:p-8 animate-fade-in">
       <div className="flex flex-col items-center gap-6 sm:gap-8 max-w-md w-full text-center">
@@ -19,15 +21,10 @@ export default function LoginPage() {
           Connect to Discord to access the music bot dashboard
         </p>
 
-        <Button
-          onClick={handleLogin}
-          variant="primary"
-          size="lg"
-          icon={<DiscordIcon size={20} />}
-          className="w-full max-w-xs"
-        >
+        <a href={discordAuthUrl} className={linkButtonStyles} aria-label="Login with Discord">
+          <DiscordIcon size={20} />
           Login with Discord
-        </Button>
+        </a>
 
         <p className="text-xs sm:text-sm text-text-muted">
           Secure authentication via Discord OAuth2

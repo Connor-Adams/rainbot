@@ -567,8 +567,9 @@ router.post(
       }
 
       res.json({
-        message: 'Playing',
+        message: result.playedAsSoundboard ? 'Playing soundboard' : 'Playing',
         position: result.position ?? null,
+        playedAsSoundboard: result.playedAsSoundboard ?? false,
       });
     } catch (error) {
       const err = error as Error;
