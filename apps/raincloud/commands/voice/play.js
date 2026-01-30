@@ -49,7 +49,7 @@ module.exports = {
 
       if (!result.success) {
         return interaction.editReply({
-          content: `âŒ ${result.message || 'Failed to play'}`,
+          content: `❌ ${result.message || 'Failed to play'}`,
         });
       }
 
@@ -62,12 +62,12 @@ module.exports = {
 
       log.info(`Enqueued: "${source}" at position ${result.position} in ${interaction.guild.name}`);
       await interaction.editReply({
-        content: `ðŸŽµ Added to queue at position **${result.position}**`,
+        content: `🎵 Added to queue at position **${result.position}**`,
       });
     } catch (error) {
       log.error(`Failed to play "${source}": ${error.message}`);
       await interaction.editReply({
-        content: `âŒ Failed to play "${source}": ${error.message}`,
+        content: `❌ Failed to play "${source}": ${error.message}`,
       });
     }
   },

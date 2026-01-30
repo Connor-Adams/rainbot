@@ -26,6 +26,8 @@ export function loadCommands(): RESTPostAPIChatInputApplicationCommandsJSONBody[
     const folderPath = path.join(commandsPath, folder);
 
     if (!fs.statSync(folderPath).isDirectory()) continue;
+    // Skip utils/ - it contains commandHelpers and other modules, not Discord commands
+    if (folder === 'utils') continue;
 
     const commandFiles = fs.readdirSync(folderPath).filter((file) => file.endsWith('.js'));
 

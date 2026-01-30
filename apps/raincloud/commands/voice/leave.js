@@ -26,7 +26,7 @@ module.exports = {
     if (!status || !status.connected) {
       return interaction.reply({
         content:
-          "âŒ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+          "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -40,12 +40,12 @@ module.exports = {
       log.error(`Error leaving voice channel: ${error.message}`);
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({
-          content: `âŒ Failed to leave the voice channel: ${error.message}`,
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
           flags: MessageFlags.Ephemeral,
         });
       } else {
         await interaction.reply({
-          content: `âŒ Failed to leave the voice channel: ${error.message}`,
+          content: `❌ Failed to leave the voice channel: ${error.message}`,
           flags: MessageFlags.Ephemeral,
         });
       }

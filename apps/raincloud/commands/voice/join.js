@@ -23,7 +23,7 @@ module.exports = {
 
     if (!voiceChannel) {
       return interaction.reply({
-        content: 'âŒ You need to be in a voice channel first! Join a voice channel and try again.',
+        content: '❌ You need to be in a voice channel first! Join a voice channel and try again.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -43,7 +43,7 @@ module.exports = {
 
         if (!result.success) {
           return interaction.editReply({
-            content: `âŒ ${result.message || 'Failed to join voice channel'}`,
+            content: `❌ ${result.message || 'Failed to join voice channel'}`,
           });
         }
 
