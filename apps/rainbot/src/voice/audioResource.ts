@@ -10,12 +10,18 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 const log = createLogger('RAINBOT-AUDIO');
 
+/**
+ * yt-dlp options for YouTube. Uses extractor-args to prefer clients that
+ * work without PO token; cookies help when fetch is used.
+ */
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
+    // Prefer clients that often work without PO token (reduces 403 when using get_url + fetch)
+    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
 
   if (COOKIES_FILE) {
@@ -165,20 +171,22 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     `stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
   );
   if (ytMatch) {
+    // Prefer yt-dlp pipe for YouTube: avoids 403 from direct URL fetch (YouTube often blocks server fetches).
+    // Pipe streams via subprocess stdout; no second HTTP fetch, so no 403.
+    try {
+      const pipeResource = createTrackResource(track);
+      if (pipeResource) return pipeResource;
+    } catch (error) {
+      const err = error as Error;
+      log.warn(`stream yt-dlp pipe failed: ${err.message}`);
+    }
+
     try {
       const asyncResource = await createTrackResourceAsync(track);
       if (asyncResource) return asyncResource;
     } catch (error) {
       const err = error as Error;
       log.warn(`stream async failed: ${err.message}`);
-    }
-
-    try {
-      const fallback = createTrackResource(track);
-      if (fallback) return fallback;
-    } catch (error) {
-      const err = error as Error;
-      log.warn(`stream yt-dlp pipe failed: ${err.message}`);
     }
 
     log.debug(`stream play-dl fallback title="${track.title}" url="${track.url}"`);

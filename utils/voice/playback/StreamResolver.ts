@@ -33,6 +33,7 @@ function getYtdlpOptions(): Record<string, unknown> {
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
+    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
 
   if (COOKIES_FILE) {

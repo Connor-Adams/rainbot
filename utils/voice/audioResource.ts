@@ -15,7 +15,8 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 
 /**
- * Get common yt-dlp options including cookies if configured
+ * Get common yt-dlp options. Uses extractor-args to prefer YouTube clients
+ * that work without PO token; cookies help when fetch is used.
  */
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
@@ -23,6 +24,7 @@ function getYtdlpOptions(): Record<string, unknown> {
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
+    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
 
   if (COOKIES_FILE) {

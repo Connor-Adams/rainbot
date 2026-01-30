@@ -7,6 +7,7 @@
  * This replaces direct voiceManager usage for multi-bot architecture.
  */
 
+import path from 'path';
 import { WorkerCoordinator } from './workerCoordinator';
 import { VoiceStateManager } from './voiceStateManager';
 import { ChannelResolver } from './channelResolver';
@@ -14,11 +15,35 @@ import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '@utils/logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
 import * as voiceManager from '@utils/voiceManager';
+import * as storage from '@utils/storage';
 import type { BotType } from '@rainbot/types/core';
 import type { MediaState, QueueState, PlaybackState } from '@rainbot/types/media';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
+
+/**
+ * If source is not a URL, check if it exists as a soundboard sound (S3/local).
+ * Returns the resolved sound filename if found, otherwise null.
+ */
+async function resolveSoundboardSource(source: string): Promise<string | null> {
+  if (source.startsWith('http://') || source.startsWith('https://')) {
+    return null;
+  }
+  try {
+    if (await storage.soundExists(source)) {
+      return source;
+    }
+    const ext = path.extname(source);
+    if (!ext) {
+      if (await storage.soundExists(`${source}.ogg`)) return `${source}.ogg`;
+      if (await storage.soundExists(`${source}.mp3`)) return `${source}.mp3`;
+    }
+  } catch {
+    // Storage unavailable or error - treat as not soundboard
+  }
+  return null;
+}
 
 function buildPlaybackState(playing: boolean | undefined, volume?: number): PlaybackState {
   return {
@@ -33,6 +58,8 @@ export interface PlayResult {
   position?: number;
   error?: string;
   queue?: QueueState;
+  /** True when the request was routed to HungerBot (soundboard) */
+  playedAsSoundboard?: boolean;
 }
 
 export type VoiceStatus = MediaState;
@@ -197,7 +224,22 @@ export class MultiBotService {
         };
       }
 
-      // Ensure Rainbot is connected
+      // If source is a soundboard sound (e.g. from /play autocomplete), route to HungerBot
+      const soundboardName = await resolveSoundboardSource(source);
+      if (soundboardName) {
+        log.info(`Soundboard detected: "${soundboardName}" → HungerBot`);
+        await this.coordinator.ensureWorkerConnected('hungerbot', guildId, channelResult.channelId);
+        const result = await this.coordinator.playSound(guildId, userId, soundboardName);
+        return {
+          success: result.success,
+          message: result.message,
+          position: 0,
+          error: result.success ? undefined : result.message,
+          playedAsSoundboard: true,
+        };
+      }
+
+      // Music: ensure Rainbot is connected and enqueue
       const connectResult = await this.coordinator.ensureWorkerConnected(
         'rainbot',
         guildId,
@@ -212,7 +254,6 @@ export class MultiBotService {
         };
       }
 
-      // Enqueue track via Rainbot
       const result = await this.coordinator.enqueueTrack(guildId, source, userId, username);
 
       return {
