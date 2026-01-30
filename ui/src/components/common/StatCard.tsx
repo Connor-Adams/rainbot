@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface StatCardProps {
-  value: string | number
-  label: string
-  icon?: ReactNode
-  className?: string
+  value: string | number;
+  label: string;
+  icon?: ReactNode;
+  className?: string;
 }
 
 export default function StatCard({ value, label, icon, className = '' }: StatCardProps) {
@@ -18,5 +18,5 @@ export default function StatCard({ value, label, icon, className = '' }: StatCar
       </div>
       <div className="stat-label text-xs text-text-secondary uppercase tracking-wider">{label}</div>
     </div>
-  )
+  );
 }

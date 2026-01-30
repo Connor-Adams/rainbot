@@ -1,28 +1,18 @@
 import { VoiceStateManager } from '@lib/voiceStateManager';
+import { WorkerCoordinator } from '@lib/workerCoordinator';
 
-jest.mock('axios', () => {
-  const create = jest.fn((config: { baseURL: string; headers: Record<string, string> }) => ({
-    defaults: { baseURL: config.baseURL, headers: config.headers },
-    get: jest.fn().mockResolvedValue({ data: { connected: false } }),
-    post: jest.fn().mockResolvedValue({ data: { status: 'success' } }),
-  }));
+jest.mock('../../src/rpc/clients', () => ({
+  fetchWorkerHealthChecks: jest.fn().mockResolvedValue({
+    rainbot: { status: 'fulfilled' as const, value: { ok: true, service: 'rainbot' } },
+    pranjeet: { status: 'fulfilled' as const, value: { ok: true, service: 'pranjeet' } },
+    hungerbot: { status: 'fulfilled' as const, value: { ok: true, service: 'hungerbot' } },
+  }),
+  rainbotClient: {},
+  pranjeetClient: {},
+  hungerbotClient: {},
+}));
 
-  return {
-    __esModule: true,
-    default: { create },
-    create,
-  };
-});
-
-function buildCoordinator(): {
-  coordinator: import('@lib/workerCoordinator').WorkerCoordinator;
-  axiosModule: { create: jest.Mock };
-} {
-  jest.resetModules();
-  const axiosModule = require('axios') as { create: jest.Mock };
-
-  const { WorkerCoordinator } =
-    require('@lib/workerCoordinator') as typeof import('@lib/workerCoordinator');
+function buildCoordinator(): import('@lib/workerCoordinator').WorkerCoordinator {
   const coordinatorProto = WorkerCoordinator.prototype as unknown as {
     startHealthPolling: () => void;
   };
@@ -31,53 +21,18 @@ function buildCoordinator(): {
   const voiceStateManager = new VoiceStateManager(
     {} as unknown as import('@rainbot/redis-client').RedisClient
   );
-  return {
-    coordinator: new WorkerCoordinator(voiceStateManager),
-    axiosModule,
-  };
+  return new WorkerCoordinator(voiceStateManager);
 }
 
 describe('WorkerCoordinator smoke', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    process.env = { ...originalEnv };
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    process.env = originalEnv;
-  });
-
-  it('adds worker secret header for internal worker calls', () => {
-    process.env.WORKER_SECRET = 'test-secret';
-    process.env.RAINBOT_URL = 'rainbot.internal';
-    process.env.PRANJEET_URL = 'pranjeet.internal';
-    process.env.HUNGERBOT_URL = 'hungerbot.internal';
-
-    const { axiosModule } = buildCoordinator();
-
-    expect(axiosModule.create).toHaveBeenCalled();
-    for (const [config] of axiosModule.create.mock.calls) {
-      expect(config.headers['x-worker-secret']).toBe('test-secret');
+  it('constructs and initializes circuit and health for all bot types', () => {
+    const coordinator = buildCoordinator();
+    const circuit = (coordinator as unknown as { circuit: Map<string, unknown> }).circuit;
+    const health = (coordinator as unknown as { health: Map<string, unknown> }).health;
+    const botTypes = ['rainbot', 'pranjeet', 'hungerbot'];
+    for (const botType of botTypes) {
+      expect(circuit.has(botType)).toBe(true);
+      expect(health.has(botType)).toBe(true);
     }
-  });
-
-  it('does not append ports for internal railway domains', () => {
-    delete process.env.RAILWAY_ENVIRONMENT;
-    delete process.env.RAILWAY_PUBLIC_DOMAIN;
-    process.env.RAINBOT_URL = 'rainbot.internal';
-    process.env.PRANJEET_URL = 'pranjeet.internal';
-    process.env.HUNGERBOT_URL = 'hungerbot.internal';
-
-    const { axiosModule } = buildCoordinator();
-
-    const baseUrls = axiosModule.create.mock.calls.map(([config]) => config.baseURL);
-    expect(baseUrls).toContain('http://rainbot.internal');
-    expect(baseUrls).toContain('http://pranjeet.internal');
-    expect(baseUrls).toContain('http://hungerbot.internal');
-    baseUrls.forEach((url) => {
-      expect(url).not.toMatch(/:8080/);
-    });
   });
 });

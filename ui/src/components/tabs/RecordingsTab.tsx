@@ -1,98 +1,92 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useToast } from '../../hooks/useToast'
-import { buildApiUrl } from '@/lib/api'
+import { useState, useEffect, useCallback } from 'react';
+import { useToast } from '../../hooks/useToast';
+import { buildApiUrl } from '@/lib/api';
 
 interface Recording {
-  name: string
-  size: number
-  createdAt: string
+  name: string;
+  size: number;
+  createdAt: string;
 }
 
 export default function RecordingsTab() {
-  const [recordings, setRecordings] = useState<Recording[]>([])
-  const [loading, setLoading] = useState(true)
-  const [playing, setPlaying] = useState<string | null>(null)
-  const { showToast } = useToast()
+  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const loadRecordings = useCallback(async () => {
     try {
-      setLoading(true)
-      const response = await fetch(buildApiUrl('/recordings'))
-      if (!response.ok) throw new Error('Failed to load recordings')
-      const data = await response.json()
-      setRecordings(data)
+      setLoading(true);
+      const response = await fetch(buildApiUrl('/recordings'));
+      if (!response.ok) throw new Error('Failed to load recordings');
+      const data = await response.json();
+      setRecordings(data);
     } catch (error) {
-      showToast((error as Error).message, 'error')
+      showToast((error as Error).message, 'error');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [showToast])
+  }, [showToast]);
 
   useEffect(() => {
-    loadRecordings()
-  }, [loadRecordings])
+    loadRecordings();
+  }, [loadRecordings]);
 
   const playRecording = async (name: string) => {
     try {
-      setPlaying(name)
+      setPlaying(name);
       const response = await fetch(buildApiUrl('/play'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sound: `records/${name}` }),
-      })
+      });
 
-      if (!response.ok) throw new Error('Failed to play recording')
-      showToast('Playing recording', 'success')
+      if (!response.ok) throw new Error('Failed to play recording');
+      showToast('Playing recording', 'success');
     } catch (error) {
-      showToast((error as Error).message, 'error')
+      showToast((error as Error).message, 'error');
     } finally {
-      setPlaying(null)
+      setPlaying(null);
     }
-  }
+  };
 
   const downloadRecording = (name: string) => {
-    window.open(
-      buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}/download`),
-      '_blank'
-    )
-  }
+    window.open(buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}/download`), '_blank');
+  };
 
   const deleteRecording = async (name: string) => {
-    if (!confirm(`Delete recording "${name}"?`)) return
+    if (!confirm(`Delete recording "${name}"?`)) return;
 
     try {
-      const response = await fetch(
-        buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}`),
-        {
-          method: 'DELETE',
-        }
-      )
+      const response = await fetch(buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}`), {
+        method: 'DELETE',
+      });
 
-      if (!response.ok) throw new Error('Failed to delete recording')
-      showToast('Recording deleted', 'success')
-      loadRecordings()
+      if (!response.ok) throw new Error('Failed to delete recording');
+      showToast('Recording deleted', 'success');
+      loadRecordings();
     } catch (error) {
-      showToast((error as Error).message, 'error')
+      showToast((error as Error).message, 'error');
     }
-  }
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleString()
-  }
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-text-secondary">Loading recordings...</div>
       </div>
-    )
+    );
   }
 
   if (recordings.length === 0) {
@@ -102,7 +96,7 @@ export default function RecordingsTab() {
         <div className="text-lg">No voice recordings yet</div>
         <div className="text-sm mt-2">Enable voice commands and speak to create recordings</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -158,5 +152,5 @@ export default function RecordingsTab() {
         ))}
       </div>
     </div>
-  )
+  );
 }

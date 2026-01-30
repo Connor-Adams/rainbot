@@ -24,10 +24,10 @@
     "build:pranjeet": "yarn workspace @rainbot/pranjeet-worker build",
     "build:hungerbot": "yarn workspace @rainbot/hungerbot-worker build",
     "start": "turbo run start",
-    "lint": "turbo run lint",
-    "lint:fix": "eslint . --ext .js,.ts --fix",
-    "format": "prettier --write \"**/*.{js,ts,json,md}\"",
-    "format:check": "prettier --check \"**/*.{js,ts,json,md}\"",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
+    "format": "turbo run prettier",
+    "format:check": "turbo run prettier:check",
     "type-check": "turbo run type-check",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -72,9 +72,9 @@
     "openai": "^4.104.0"
   },
   "lint-staged": {
-    "*.{js,ts}": [
-      "eslint --fix",
-      "prettier --write"
+    "*.{js,ts,jsx,tsx}": [
+      "prettier --write",
+      "eslint --fix"
     ],
     "*.{json,md}": [
       "prettier --write"

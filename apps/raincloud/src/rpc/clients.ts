@@ -1,5 +1,6 @@
 import { createTRPCClient } from '@rainbot/rpc';
 import type { HungerbotRouter, PranjeetRouter, RainbotRouter } from '@rainbot/rpc';
+import type { StatusResponse } from '@rainbot/worker-protocol';
 
 const INTERNAL_SECRET = process.env['INTERNAL_RPC_SECRET'] || '';
 
@@ -10,10 +11,7 @@ function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   return withScheme.replace(/\/$/, '');
 }
 
-const RAINBOT_URL = normalizeRpcBaseUrl(
-  process.env['RAINBOT_URL'] || '',
-  'http://localhost:3001'
-);
+const RAINBOT_URL = normalizeRpcBaseUrl(process.env['RAINBOT_URL'] || '', 'http://localhost:3001');
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
   'http://localhost:3002'
@@ -54,4 +52,21 @@ export async function fetchWorkerHealthChecks(): Promise<{
     pranjeet,
     hungerbot,
   };
+}
+
+export type WorkerBotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+
+export async function fetchWorkerState(
+  botType: WorkerBotType,
+  guildId?: string
+): Promise<StatusResponse> {
+  const input = guildId !== undefined ? { guildId } : undefined;
+  switch (botType) {
+    case 'rainbot':
+      return rainbotClient.getState.query(input);
+    case 'pranjeet':
+      return pranjeetClient.getState.query(input);
+    case 'hungerbot':
+      return hungerbotClient.getState.query(input);
+  }
 }

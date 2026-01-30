@@ -1,25 +1,28 @@
-import { useState, useCallback, type ReactNode } from 'react'
-import Toast from '@/components/Toast'
+import { useState, useCallback, type ReactNode } from 'react';
+import Toast from '@/components/Toast';
 
 interface ToastData {
-  id: number
-  message: string
-  type: 'success' | 'error' | 'warning'
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'warning';
 }
 
-let toastId = 0
+let toastId = 0;
 
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastData[]>([])
+  const [toasts, setToasts] = useState<ToastData[]>([]);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-    const id = toastId++
-    setToasts((prev) => [...prev, { id, message, type }])
-  }, [])
+  const showToast = useCallback(
+    (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+      const id = toastId++;
+      setToasts((prev) => [...prev, { id, message, type }]);
+    },
+    []
+  );
 
   const removeToast = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id))
-  }, [])
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
 
   const ToastContainer = (): ReactNode => (
     <div className="toast-container fixed bottom-6 right-6 flex flex-col gap-3 z-1000">
@@ -32,8 +35,7 @@ export function useToast() {
         />
       ))}
     </div>
-  )
+  );
 
-  return { showToast, ToastContainer }
+  return { showToast, ToastContainer };
 }
-

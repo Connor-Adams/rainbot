@@ -1,8 +1,6 @@
 interface NavTabsProps {
-  activeTab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'
-  onTabChange: (
-    tab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'
-  ) => void
+  activeTab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin';
+  onTabChange: (tab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin') => void;
 }
 
 export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
@@ -13,7 +11,7 @@ export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
     { id: 'stats' as const, label: 'Statistics' },
     { id: 'status' as const, label: 'Status' },
     { id: 'admin' as const, label: 'Admin' },
-  ]
+  ];
 
   return (
     <nav className="flex items-center gap-2 w-full lg:flex-1 lg:justify-center overflow-x-auto no-scrollbar">
@@ -35,5 +33,5 @@ export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
         </button>
       ))}
     </nav>
-  )
+  );
 }

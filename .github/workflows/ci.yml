@@ -4,14 +4,14 @@ on:
   push:
     branches: [main, master, develop, dev]
   pull_request:
-    branches: ["**"]
+    branches: ['**']
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "22.12.0"
+  NODE_VERSION: '22.12.0'
   TURBO_CACHE_DIR: .turbo
 
   # Optional (Turbo Remote Cache). Put these in GitHub Secrets.
@@ -49,11 +49,11 @@ jobs:
 
       - name: Install
         env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: yarn install --immutable --check-cache
 
-      - name: Lint (turbo)
-        run: yarn lint
+      - name: Formatting Check (Turbo - Prettier)
+        run: yarn format:check
 
   typecheck:
     name: Type check
@@ -85,7 +85,7 @@ jobs:
 
       - name: Install
         env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: yarn install --immutable --check-cache
 
       - name: Type check (turbo)
@@ -121,7 +121,7 @@ jobs:
 
       - name: Install
         env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: yarn install --immutable --check-cache
 
       - name: Test (turbo)
@@ -157,7 +157,7 @@ jobs:
 
       - name: Install
         env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: "true"
+          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: yarn install --immutable --check-cache
 
       - name: Build (turbo)

@@ -10,7 +10,10 @@
       "dependsOn": ["^build:ts"],
       "outputs": ["dist/**"]
     },
-    "lint": {
+    "prettier": {
+      "outputs": []
+    },
+    "prettier:check": {
       "outputs": []
     },
     "type-check": {

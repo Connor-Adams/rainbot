@@ -3,6 +3,7 @@
  */
 
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
+import type { ButtonMetadata } from '@rainbot/types/buttons';
 import {
   createSuccessButton,
   createDangerButton,
@@ -28,12 +29,11 @@ export function createConfirmButton(
   guildId?: string,
   userId?: string
 ): ButtonBuilder {
-  const metadata: Record<string, string | number> = { action };
-  if (guildId) metadata['guildId'] = guildId;
-  if (userId) metadata['userId'] = userId;
+  const metadata: ButtonMetadata = { action };
+  if (guildId) metadata.guildId = guildId;
+  if (userId) metadata.userId = userId;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const customId = createButtonId('confirm', metadata as any);
+  const customId = createButtonId('confirm', metadata);
   return createSuccessButton(customId, 'Confirm', '✅');
 }
 
@@ -45,12 +45,11 @@ export function createCancelButton(
   guildId?: string,
   userId?: string
 ): ButtonBuilder {
-  const metadata: Record<string, string | number> = { action };
-  if (guildId) metadata['guildId'] = guildId;
-  if (userId) metadata['userId'] = userId;
+  const metadata: ButtonMetadata = { action };
+  if (guildId) metadata.guildId = guildId;
+  if (userId) metadata.userId = userId;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const customId = createButtonId('cancel', metadata as any);
+  const customId = createButtonId('cancel', metadata);
   return createDangerButton(customId, 'Cancel', '❌');
 }
 
@@ -76,22 +75,20 @@ export function createYesNoRow(
   guildId?: string,
   userId?: string
 ): ActionRowBuilder<ButtonBuilder> {
-  const yesMetadata: Record<string, string | number> = { action, response: 'yes' };
-  const noMetadata: Record<string, string | number> = { action, response: 'no' };
+  const yesMetadata: ButtonMetadata = { action, response: 'yes' };
+  const noMetadata: ButtonMetadata = { action, response: 'no' };
 
   if (guildId) {
-    yesMetadata['guildId'] = guildId;
-    noMetadata['guildId'] = guildId;
+    yesMetadata.guildId = guildId;
+    noMetadata.guildId = guildId;
   }
   if (userId) {
-    yesMetadata['userId'] = userId;
-    noMetadata['userId'] = userId;
+    yesMetadata.userId = userId;
+    noMetadata.userId = userId;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const yesId = createButtonId('yes', yesMetadata as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const noId = createButtonId('no', noMetadata as any);
+  const yesId = createButtonId('yes', yesMetadata);
+  const noId = createButtonId('no', noMetadata);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     createSuccessButton(yesId, 'Yes', '✅'),
@@ -107,22 +104,20 @@ export function createDestructiveConfirmationRow(
   guildId?: string,
   userId?: string
 ): ActionRowBuilder<ButtonBuilder> {
-  const confirmMetadata: Record<string, string | number> = { action };
-  const cancelMetadata: Record<string, string | number> = { action };
+  const confirmMetadata: ButtonMetadata = { action };
+  const cancelMetadata: ButtonMetadata = { action };
 
   if (guildId) {
-    confirmMetadata['guildId'] = guildId;
-    cancelMetadata['guildId'] = guildId;
+    confirmMetadata.guildId = guildId;
+    cancelMetadata.guildId = guildId;
   }
   if (userId) {
-    confirmMetadata['userId'] = userId;
-    cancelMetadata['userId'] = userId;
+    confirmMetadata.userId = userId;
+    cancelMetadata.userId = userId;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const confirmId = createButtonId('confirm_destructive', confirmMetadata as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cancelId = createButtonId('cancel', cancelMetadata as any);
+  const confirmId = createButtonId('confirm_destructive', confirmMetadata);
+  const cancelId = createButtonId('cancel', cancelMetadata);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     createDangerButton(confirmId, 'Yes, Proceed', '⚠️'),

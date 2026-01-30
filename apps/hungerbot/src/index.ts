@@ -8,7 +8,20 @@ import {
   entersState,
   StreamType,
 } from '@discordjs/voice';
-import { createContext, hungerbotRouter } from '@rainbot/rpc';
+import { createContext, createHungerbotRouter } from '@rainbot/rpc';
+import type {
+  JoinRequest,
+  JoinResponse,
+  LeaveRequest,
+  LeaveResponse,
+  VolumeRequest,
+  VolumeResponse,
+  StatusResponse,
+  PlaySoundRequest,
+  PlaySoundResponse,
+  CleanupUserRequest,
+  CleanupUserResponse,
+} from '@rainbot/worker-protocol';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { Request, Response } from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
@@ -20,9 +33,7 @@ import { setupProcessErrorHandlers, logErrorWithStack } from '@rainbot/worker-sh
 import { registerWithOrchestrator } from '@rainbot/worker-shared';
 import { reportSoundStat } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
-import { ensureClientReady } from '@rainbot/worker-shared';
 import { RequestCache } from '@rainbot/worker-shared';
-import type { MediaState, PlaybackState } from '@rainbot/types/media';
 import {
   createWorkerDiscordClient,
   setupDiscordClientErrorHandler,
@@ -222,22 +233,25 @@ function getOrCreateGuildState(guildId: string): HungerbotGuildState {
   return guildStates.get(guildId)!;
 }
 
-function buildPlaybackState(state: HungerbotGuildState | null): PlaybackState {
-  if (!state) {
-    return { status: 'idle' };
+function getStateForRpc(input?: { guildId?: string }): StatusResponse {
+  const guildId = input?.guildId;
+  if (guildId) {
+    const state = guildStates.get(guildId);
+    if (!state) {
+      return { connected: false, playing: false };
+    }
+    const connected =
+      !!state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed;
+    const playing = state.player.state.status === AudioPlayerStatus.Playing;
+    const channelId = state.connection?.joinConfig?.channelId;
+    return {
+      connected,
+      playing,
+      channelId: channelId ?? undefined,
+      volume: state.volume,
+    };
   }
-
-  let status: PlaybackState['status'] = 'idle';
-  if (state.player.state.status === AudioPlayerStatus.Paused) {
-    status = 'paused';
-  } else if (state.player.state.status === AudioPlayerStatus.Playing) {
-    status = 'playing';
-  }
-
-  return {
-    status,
-    volume: state.volume,
-  };
+  return { connected: false, playing: false };
 }
 
 function normalizeSoundName(sfxId: string): string {
@@ -254,6 +268,168 @@ function getSoundInputType(sfxId: string): StreamType {
   }
   return StreamType.Arbitrary;
 }
+
+async function handleJoin(input: JoinRequest): Promise<JoinResponse> {
+  if (!client?.isReady?.()) {
+    return { status: 'error', message: 'Worker not ready' };
+  }
+  const cacheKey = `join:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as JoinResponse;
+  }
+  try {
+    const guild = client.guilds.cache.get(input.guildId);
+    if (!guild) {
+      const response: JoinResponse = { status: 'error', message: 'Guild not found' };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const channel = guild.channels.cache.get(input.channelId);
+    if (!channel || !channel.isVoiceBased()) {
+      const response: JoinResponse = { status: 'error', message: 'Voice channel not found' };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const state = getOrCreateGuildState(input.guildId);
+    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      const response: JoinResponse = { status: 'already_connected', channelId: input.channelId };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator as any,
+      selfDeaf: false,
+    });
+    state.connection = connection;
+    connection.subscribe(state.player);
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch (_error) {
+        log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
+        connection.destroy();
+        state.connection = null;
+      }
+    });
+    const response: JoinResponse = { status: 'joined', channelId: input.channelId };
+    requestCache.set(cacheKey, response);
+    return response;
+  } catch (error) {
+    logErrorWithStack(log, 'Join error', error);
+    const response: JoinResponse = { status: 'error', message: (error as Error).message };
+    return response;
+  }
+}
+
+async function handleLeave(input: LeaveRequest): Promise<LeaveResponse> {
+  const cacheKey = `leave:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as LeaveResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state || !state.connection) {
+    const response: LeaveResponse = { status: 'not_connected' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  state.connection.destroy();
+  state.connection = null;
+  state.player.stop();
+  const response: LeaveResponse = { status: 'left' };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleVolume(input: VolumeRequest): Promise<VolumeResponse> {
+  if (input.volume < 0 || input.volume > 1) {
+    return { status: 'error', message: 'Volume must be between 0 and 1' };
+  }
+  const cacheKey = `volume:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as VolumeResponse;
+  }
+  const state = getOrCreateGuildState(input.guildId);
+  state.volume = input.volume;
+  const response: VolumeResponse = { status: 'success', volume: input.volume };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handlePlaySound(input: PlaySoundRequest): Promise<PlaySoundResponse> {
+  const cacheKey = `play-sound:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as PlaySoundResponse;
+  }
+  try {
+    const state = getOrCreateGuildState(input.guildId);
+    if (!state.connection) {
+      const response: PlaySoundResponse = {
+        status: 'error',
+        message: 'Not connected to voice channel',
+      };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const inputType = getSoundInputType(input.sfxId);
+    const soundStream = await getSoundStream(input.sfxId);
+    const resource = createAudioResource(soundStream, {
+      inputType,
+      inlineVolume: true,
+    });
+    const effectiveVolume = input.volume !== undefined ? input.volume : state.volume;
+    if (resource.volume) {
+      resource.volume.setVolume(effectiveVolume);
+    }
+    log.debug(
+      `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+    );
+    state.player.stop(true);
+    state.player.play(resource);
+    log.debug(`Soundboard play issued status=${state.player.state.status}`);
+    log.info(`Playing sound ${input.sfxId} for user ${input.userId} in guild ${input.guildId}`);
+    void reportSoundStat(
+      {
+        soundName: input.sfxId,
+        userId: input.userId,
+        guildId: input.guildId,
+        sourceType: 'local',
+        isSoundboard: true,
+        duration: null,
+        source: 'discord',
+      },
+      { logger: log }
+    );
+    const response: PlaySoundResponse = { status: 'success', message: 'Sound playing' };
+    requestCache.set(cacheKey, response);
+    return response;
+  } catch (error) {
+    logErrorWithStack(log, 'Play sound error', error);
+    const response: PlaySoundResponse = { status: 'error', message: (error as Error).message };
+    return response;
+  }
+}
+
+async function handleCleanupUser(input: CleanupUserRequest): Promise<CleanupUserResponse> {
+  const state = guildStates.get(input.guildId);
+  if (state) {
+    state.player.stop(true);
+  }
+  return { status: 'success' };
+}
+
+const hungerbotRouter = createHungerbotRouter({
+  getState: getStateForRpc,
+  join: handleJoin,
+  leave: handleLeave,
+  volume: handleVolume,
+  playSound: handlePlaySound,
+  cleanupUser: handleCleanupUser,
+});
 
 // Express server for worker protocol
 const app = createWorkerExpressApp();
@@ -283,258 +459,6 @@ app.use(
     createContext,
   })
 );
-
-// Join voice channel
-app.post('/join', async (req: Request, res: Response) => {
-  if (!ensureClientReady(client, res)) return;
-  const { requestId, guildId, channelId } = req.body;
-
-  if (!requestId || !guildId || !channelId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `join:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  try {
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) {
-      const response = { status: 'error', message: 'Guild not found' };
-      requestCache.set(cacheKey, response);
-      return res.status(404).json(response);
-    }
-
-    const channel = guild.channels.cache.get(channelId);
-    if (!channel || !channel.isVoiceBased()) {
-      const response = { status: 'error', message: 'Voice channel not found' };
-      requestCache.set(cacheKey, response);
-      return res.status(404).json(response);
-    }
-
-    const state = getOrCreateGuildState(guildId);
-
-    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      const response = { status: 'already_connected', channelId };
-      requestCache.set(cacheKey, response);
-      return res.json(response);
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: guild.id,
-      adapterCreator: guild.voiceAdapterCreator as any,
-      selfDeaf: false,
-    });
-
-    state.connection = connection;
-    connection.subscribe(state.player);
-
-    // Auto-rejoin on disconnect
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch (_error) {
-        log.warn(`Connection lost in guild ${guildId}, attempting rejoin...`);
-        connection.destroy();
-        state.connection = null;
-      }
-    });
-
-    const response = { status: 'joined', channelId };
-    requestCache.set(cacheKey, response);
-    res.json(response);
-  } catch (error) {
-    logErrorWithStack(log, 'Join error', error);
-    const response = { status: 'error', message: (error as Error).message };
-    res.status(500).json(response);
-  }
-});
-
-// Leave voice channel
-app.post('/leave', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `leave:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state || !state.connection) {
-    const response = { status: 'not_connected' };
-    requestCache.set(cacheKey, response);
-    return res.json(response);
-  }
-
-  state.connection.destroy();
-  state.connection = null;
-  state.player.stop();
-
-  const response = { status: 'left' };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Set volume
-app.post('/volume', async (req: Request, res: Response) => {
-  const { requestId, guildId, volume } = req.body;
-
-  if (!requestId || !guildId || volume === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  if (volume < 0 || volume > 1) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Volume must be between 0 and 1',
-    });
-  }
-
-  const cacheKey = `volume:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = getOrCreateGuildState(guildId);
-  state.volume = volume;
-
-  const response = { status: 'success', volume };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Get status
-app.get('/status', (req: Request, res: Response) => {
-  const guildId = req.query['guildId'] as string;
-
-  if (!guildId) {
-    return res.status(400).json({ error: 'Missing guildId parameter' });
-  }
-
-  const state = guildStates.get(guildId);
-  const playback = buildPlaybackState(state ?? null);
-  const payload: MediaState = {
-    guildId,
-    channelId: state?.connection?.joinConfig.channelId ?? null,
-    connected: state?.connection !== null,
-    kind: 'sfx',
-    playback,
-    queue: { queue: [] },
-  };
-
-  res.json(payload);
-});
-
-// Play sound effect
-app.post('/play-sound', async (req: Request, res: Response) => {
-  const { requestId, guildId, userId, sfxId, volume } = req.body;
-
-  if (!requestId || !guildId || !userId || !sfxId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `play-sound:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  try {
-    const state = getOrCreateGuildState(guildId);
-
-    if (!state.connection) {
-      const response = { status: 'error', message: 'Not connected to voice channel' };
-      requestCache.set(cacheKey, response);
-      return res.status(400).json(response);
-    }
-
-    const inputType = getSoundInputType(sfxId);
-    const soundStream = await getSoundStream(sfxId);
-    const resource = createAudioResource(soundStream, {
-      inputType,
-      inlineVolume: true,
-    });
-
-    const effectiveVolume = volume !== undefined ? volume : state.volume;
-    if (resource.volume) {
-      resource.volume.setVolume(effectiveVolume);
-    }
-
-    log.debug(
-      `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
-    );
-
-    // Play immediately (interrupt any current sound)
-    state.player.stop(true);
-    state.player.play(resource);
-    log.debug(`Soundboard play issued status=${state.player.state.status}`);
-
-    log.info(`Playing sound ${sfxId} for user ${userId} in guild ${guildId}`);
-    void reportSoundStat(
-      {
-        soundName: sfxId,
-        userId,
-        guildId,
-        sourceType: 'local',
-        isSoundboard: true,
-        duration: null,
-        source: 'discord',
-      },
-      { logger: log }
-    );
-
-    const response = { status: 'success', message: 'Sound playing' };
-    requestCache.set(cacheKey, response);
-    res.json(response);
-  } catch (error) {
-    logErrorWithStack(log, 'Play sound error', error);
-    const response = { status: 'error', message: (error as Error).message };
-    res.status(500).json(response);
-  }
-});
-
-// Cleanup user's player
-app.post('/cleanup-user', async (req: Request, res: Response) => {
-  const { guildId, userId } = req.body;
-
-  if (!guildId || !userId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const state = guildStates.get(guildId);
-  if (state) {
-    state.player.stop(true);
-  }
-
-  res.json({ status: 'success' });
-});
 
 // Health checks
 app.get('/health/live', (req: Request, res: Response) => {

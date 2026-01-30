@@ -27,7 +27,7 @@ The system consists of 4 Discord bots working together:
 - Serves the web dashboard API
 - Tracks voice state (current channel, last used channel)
 - Manages active sessions
-- Coordinates worker bots via REST API
+- Coordinates worker bots via tRPC (commands and status) and HTTP (health only)
 
 **Rainbot (Music Worker)**
 
@@ -82,37 +82,43 @@ When a user requests playback:
 
 ## Worker Protocol
 
-All workers expose a REST API with the following endpoints:
+Commands and status go over **tRPC** (mount at `/trpc`). Only **HTTP** endpoints are the health probes.
 
-### Common Endpoints
+### HTTP (health only)
 
-- `POST /join` - Join a voice channel
-- `POST /leave` - Leave voice channel
-- `POST /volume` - Set volume (0.0 - 1.0)
-- `GET /status` - Get connection status
 - `GET /health/live` - Liveness probe
 - `GET /health/ready` - Readiness probe
 
-### Bot-Specific Endpoints
+### tRPC procedures
+
+**Common (all workers)**
+
+- `health` (query) - Service health
+- `getState` (query) - Connection/playback status for a guild
+- `join` (mutation) - Join voice channel
+- `leave` (mutation) - Leave voice channel
+- `volume` (mutation) - Set volume (0.0 - 1.0)
 
 **Rainbot**
 
-- `POST /enqueue` - Add track to queue
+- `enqueue`, `skip`, `pause`, `stop`, `clear`, `getQueue`, `autoplay`, `replay`
 
 **Pranjeet**
 
-- `POST /speak` - Speak TTS
+- `speak` - Speak TTS
 
 **HungerBot**
 
-- `POST /play-sound` - Play sound effect
-- `POST /cleanup-user` - Clean up user's player
+- `playSound` - Play sound effect
+- `cleanupUser` - Clean up user's player
 
-### Request Idempotency
+Raincloud calls workers via tRPC clients (`@rainbot/rpc`); workers implement routers with `createRainbotRouter`, `createPranjeetRouter`, `createHungerbotRouter` from `@rainbot/rpc`.
+
+### Request idempotency
 
 All mutating requests include a `requestId` field. Workers cache responses for 60 seconds to prevent duplicate execution on retries.
 
-Example:
+Example (join):
 
 ```json
 {

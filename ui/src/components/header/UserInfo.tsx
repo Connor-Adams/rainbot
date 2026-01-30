@@ -1,9 +1,9 @@
-import type { User } from '@/types'
-import { Button } from '@/components/ui'
+import type { User } from '@/types';
+import { Button } from '@/components/ui';
 
 interface UserInfoProps {
-  user: User
-  onLogout: () => void
+  user: User;
+  onLogout: () => void;
 }
 
 export default function UserInfo({ user, onLogout }: UserInfoProps) {
@@ -22,5 +22,5 @@ export default function UserInfo({ user, onLogout }: UserInfoProps) {
         Logout
       </Button>
     </div>
-  )
+  );
 }

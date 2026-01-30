@@ -1,45 +1,49 @@
-import { useQuery } from '@tanstack/react-query'
-import { botApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query';
+import { botApi } from '@/lib/api';
 
 type WorkerStatus = {
-  connected?: boolean
-  playing?: boolean
-  queueLength?: number
-  activePlayers?: number
-  volume?: number
-}
+  connected?: boolean;
+  playing?: boolean;
+  queueLength?: number;
+  activePlayers?: number;
+  volume?: number;
+};
 
 type ConnectionStatus = {
-  guildId?: string
-  channelId?: string | null
-  channelName?: string | null
-  isPlaying?: boolean
-  volume?: number
+  guildId?: string;
+  channelId?: string | null;
+  channelName?: string | null;
+  isPlaying?: boolean;
+  volume?: number;
   workers?: {
-    rainbot?: WorkerStatus
-    pranjeet?: WorkerStatus
-    hungerbot?: WorkerStatus
-  }
-}
+    rainbot?: WorkerStatus;
+    pranjeet?: WorkerStatus;
+    hungerbot?: WorkerStatus;
+  };
+};
 
 type StatusResponse = {
-  online?: boolean
-  username?: string
-  discriminator?: string
-  guilds?: Array<{ id: string; name: string; memberCount: number }>
-  connections?: ConnectionStatus[]
-}
+  online?: boolean;
+  username?: string;
+  discriminator?: string;
+  guilds?: Array<{ id: string; name: string; memberCount: number }>;
+  connections?: ConnectionStatus[];
+};
 
 export default function StatusTab() {
-  const { data: status, refetch, isFetching } = useQuery<StatusResponse>({
+  const {
+    data: status,
+    refetch,
+    isFetching,
+  } = useQuery<StatusResponse>({
     queryKey: ['bot-status'],
     queryFn: () => botApi.getStatus().then((res) => res.data),
     refetchInterval: 5000,
-  })
+  });
 
-  const connections = status?.connections ?? []
-  const guilds = status?.guilds ?? []
-  const guildNameById = new Map(guilds.map((g) => [g.id, g.name]))
+  const connections = status?.connections ?? [];
+  const guilds = status?.guilds ?? [];
+  const guildNameById = new Map(guilds.map((g) => [g.id, g.name]));
 
   return (
     <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
@@ -62,15 +66,13 @@ export default function StatusTab() {
 
       <div className="space-y-4">
         {connections.length === 0 && (
-          <div className="text-sm text-text-secondary">
-            No active voice sessions yet.
-          </div>
+          <div className="text-sm text-text-secondary">No active voice sessions yet.</div>
         )}
         {connections.map((connection) => {
           const guildName = connection.guildId
             ? guildNameById.get(connection.guildId) || connection.guildId
-            : 'Unknown Guild'
-          const workers = connection.workers || {}
+            : 'Unknown Guild';
+          const workers = connection.workers || {};
           return (
             <div
               key={`${connection.guildId || 'unknown'}-${connection.channelId || 'none'}`}
@@ -127,9 +129,9 @@ export default function StatusTab() {
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </section>
-  )
+  );
 }

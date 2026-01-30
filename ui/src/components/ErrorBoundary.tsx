@@ -1,15 +1,15 @@
-import React, { Component } from 'react'
-import type { ReactNode } from 'react'
+import React, { Component } from 'react';
+import type { ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
-  children: ReactNode
-  fallback?: ReactNode
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 interface ErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
+  hasError: boolean;
+  error: Error | null;
 }
 
 /**
@@ -18,27 +18,27 @@ interface ErrorBoundaryState {
  */
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
-    super(props)
-    this.state = { hasError: false, error: null }
+    super(props);
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('[ErrorBoundary] Caught error:', error, errorInfo)
-    this.props.onError?.(error, errorInfo)
+    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    this.props.onError?.(error, errorInfo);
   }
 
   handleRetry = (): void => {
-    this.setState({ hasError: false, error: null })
-  }
+    this.setState({ hasError: false, error: null });
+  };
 
   render(): ReactNode {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback
+        return this.props.fallback;
       }
 
       return (
@@ -48,7 +48,8 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
           </div>
           <h3 className="text-xl font-semibold text-text-primary">Something went wrong</h3>
           <p className="max-w-md text-sm text-text-secondary">
-            An error occurred while loading this content. This might be due to missing data or a temporary issue.
+            An error occurred while loading this content. This might be due to missing data or a
+            temporary issue.
           </p>
           {this.state.error && (
             <details className="w-full max-w-md rounded-lg border border-border bg-surface-input p-3 text-left">
@@ -60,17 +61,14 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
               </pre>
             </details>
           )}
-          <button
-            onClick={this.handleRetry}
-            className="btn btn-primary"
-          >
+          <button onClick={this.handleRetry} className="btn btn-primary">
             Try Again
           </button>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
@@ -88,7 +86,8 @@ export function StatsErrorBoundary({ children }: { children: ReactNode }) {
           </div>
           <h3 className="text-xl font-semibold text-text-primary">Statistics Unavailable</h3>
           <p className="max-w-md text-sm text-text-secondary">
-            Unable to load statistics. This could be because there's no data yet, or a temporary server issue.
+            Unable to load statistics. This could be because there's no data yet, or a temporary
+            server issue.
           </p>
           <p className="text-xs text-text-muted">Try refreshing the page or check back later.</p>
         </div>
@@ -96,5 +95,5 @@ export function StatsErrorBoundary({ children }: { children: ReactNode }) {
     >
       {children}
     </ErrorBoundary>
-  )
+  );
 }

@@ -1,32 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 
 interface ToastProps {
-  message: string
-  type?: 'success' | 'error' | 'warning'
-  onClose: () => void
+  message: string;
+  type?: 'success' | 'error' | 'warning';
+  onClose: () => void;
 }
 
 export default function Toast({ message, type = 'success', onClose }: ToastProps) {
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     // Use requestAnimationFrame to avoid synchronous setState in effect
     requestAnimationFrame(() => {
-      setIsVisible(true)
-    })
-    
+      setIsVisible(true);
+    });
+
     const timer = setTimeout(() => {
-      setIsVisible(false)
-      setTimeout(onClose, 400)
-    }, 4000)
-    return () => clearTimeout(timer)
-  }, [onClose])
+      setIsVisible(false);
+      setTimeout(onClose, 400);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
   const icons = {
     success: '✓',
     error: '✕',
     warning: '⚠',
-  }
+  };
 
   return (
     <div
@@ -40,6 +40,5 @@ export default function Toast({ message, type = 'success', onClose }: ToastProps
       <span className="toast-icon text-xl flex-shrink-0">{icons[type]}</span>
       <span className="toast-message text-sm flex-1">{message}</span>
     </div>
-  )
+  );
 }
-

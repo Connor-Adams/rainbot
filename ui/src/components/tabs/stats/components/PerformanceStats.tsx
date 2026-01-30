@@ -1,36 +1,29 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
-import { EmptyState } from '@/components/common'
-import { safeInt } from '@/lib/chartSafety'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
+import { useQuery } from '@tanstack/react-query';
+import { statsApi } from '@/lib/api';
+import { EmptyState } from '@/components/common';
+import { safeInt } from '@/lib/chartSafety';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PerformanceOverall {
-  avg_ms: string
-  p50_ms: string
-  p95_ms: string
-  p99_ms: string
-  max_ms: string
-  min_ms: string
-  sample_count: string
+  avg_ms: string;
+  p50_ms: string;
+  p95_ms: string;
+  p99_ms: string;
+  max_ms: string;
+  min_ms: string;
+  sample_count: string;
 }
 
 interface CommandPerf {
-  command_name: string
-  avg_ms: string
-  p95_ms: string
-  execution_count: string
+  command_name: string;
+  avg_ms: string;
+  p95_ms: string;
+  execution_count: string;
 }
 
 interface PerformanceData {
-  overall: PerformanceOverall
-  byCommand: CommandPerf[]
+  overall: PerformanceOverall;
+  byCommand: CommandPerf[];
 }
 
 export default function PerformanceStats() {
@@ -38,22 +31,37 @@ export default function PerformanceStats() {
     queryKey: ['stats', 'performance'],
     queryFn: () => statsApi.performance().then((r) => r.data),
     refetchInterval: 30000,
-  })
+  });
 
-  if (isLoading) return <div className="stats-loading text-center py-12">Loading performance...</div>
-  if (error) return <div className="stats-error text-center py-12">Error loading performance</div>
+  if (isLoading)
+    return <div className="stats-loading text-center py-12">Loading performance...</div>;
+  if (error) return <div className="stats-error text-center py-12">Error loading performance</div>;
 
   if (!data) {
-    return <EmptyState icon="⏱️" message="No performance data available yet" submessage="Performance statistics will appear here as commands are executed" />
+    return (
+      <EmptyState
+        icon="⏱️"
+        message="No performance data available yet"
+        submessage="Performance statistics will appear here as commands are executed"
+      />
+    );
   }
 
-  const overall = data.overall || { avg_ms: '0', p50_ms: '0', p95_ms: '0', p99_ms: '0', max_ms: '0', min_ms: '0', sample_count: '0' }
-  const byCommand = Array.isArray(data.byCommand) ? data.byCommand : []
+  const overall = data.overall || {
+    avg_ms: '0',
+    p50_ms: '0',
+    p95_ms: '0',
+    p99_ms: '0',
+    max_ms: '0',
+    min_ms: '0',
+    sample_count: '0',
+  };
+  const byCommand = Array.isArray(data.byCommand) ? data.byCommand : [];
 
   const commandData = byCommand.slice(0, 10).map((c) => ({
     name: c.command_name || 'Unknown',
     value: safeInt(c.avg_ms),
-  }))
+  }));
 
   return (
     <div className="space-y-6">
@@ -95,8 +103,19 @@ export default function PerformanceStats() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={commandData} layout="vertical" margin={{ left: 80, right: 20 }}>
                 <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={75} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fill: '#9ca3af', fontSize: 12 }}
+                  width={75}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #374151',
+                    borderRadius: 8,
+                  }}
+                />
                 <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -132,5 +151,5 @@ export default function PerformanceStats() {
         </div>
       )}
     </div>
-  )
+  );
 }

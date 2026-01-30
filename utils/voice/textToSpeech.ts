@@ -1,9 +1,9 @@
 // util-category: audio
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Text-to-Speech Module - Convert text responses to audio
  * Supports multiple TTS providers: Google Cloud TTS, AWS Polly, Azure
- */ import { createLogger } from '../logger';
+ */
+import { createLogger } from '../logger';
 import type {
   TextToSpeechRequest,
   TextToSpeechResult,
@@ -27,6 +27,8 @@ interface TTSProvider {
  * Requires @google-cloud/text-to-speech package
  */
 class GoogleTTSProvider implements TTSProvider {
+  /** @google-cloud/text-to-speech client (optional dep, no types at build time) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private client: any;
   private defaultVoice: string;
 

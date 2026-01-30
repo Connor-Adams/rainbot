@@ -1,11 +1,11 @@
 interface NowPlayingArtworkProps {
-  isPlaying: boolean
+  isPlaying: boolean;
 }
 
 /**
  * Display artwork placeholder with animated equalizer bars.
  * Shows a gradient background with a play symbol and animated bars when playing.
- * 
+ *
  * @param isPlaying - Whether audio is currently playing (shows equalizer animation)
  */
 export default function NowPlayingArtwork({ isPlaying }: NowPlayingArtworkProps) {
@@ -34,5 +34,5 @@ export default function NowPlayingArtwork({ isPlaying }: NowPlayingArtworkProps)
         </div>
       )}
     </div>
-  )
+  );
 }

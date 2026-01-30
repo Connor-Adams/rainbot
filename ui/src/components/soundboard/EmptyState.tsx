@@ -1,6 +1,6 @@
 interface EmptyStateProps {
-  hasSearch: boolean
-  searchQuery?: string
+  hasSearch: boolean;
+  searchQuery?: string;
 }
 
 export function EmptyState({ hasSearch, searchQuery }: EmptyStateProps) {
@@ -23,5 +23,5 @@ export function EmptyState({ hasSearch, searchQuery }: EmptyStateProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,62 +1,60 @@
-import { useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function StatsSSE() {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
 
   useEffect(() => {
-    let es: EventSource | null = null
-    let reconnect = 1000
+    let es: EventSource | null = null;
+    let reconnect = 1000;
 
     const connect = () => {
       try {
-        es = new EventSource('/api/stats/stream')
+        es = new EventSource('/api/stats/stream');
       } catch {
-        es = null
+        es = null;
       }
 
-      if (!es) return
+      if (!es) return;
 
       es.addEventListener('stats-update', (e: MessageEvent) => {
         try {
-          JSON.parse(e.data)
+          JSON.parse(e.data);
           // Invalidate all stats queries when any batch is inserted
-          qc.invalidateQueries({ queryKey: ['stats'] })
+          qc.invalidateQueries({ queryKey: ['stats'] });
         } catch {
-          qc.invalidateQueries({ queryKey: ['stats'] })
+          qc.invalidateQueries({ queryKey: ['stats'] });
         }
-      })
+      });
 
       es.addEventListener('stats-flushed', () => {
-        qc.invalidateQueries({ queryKey: ['stats'] })
-      })
+        qc.invalidateQueries({ queryKey: ['stats'] });
+      });
 
       es.onopen = () => {
-        reconnect = 1000
-      }
+        reconnect = 1000;
+      };
 
       es.onerror = () => {
         // attempt reconnect with backoff
         if (es) {
-          es.close()
-          es = null
+          es.close();
+          es = null;
         }
-        setTimeout(connect, reconnect)
-        reconnect = Math.min(30000, reconnect * 2)
-      }
-    }
+        setTimeout(connect, reconnect);
+        reconnect = Math.min(30000, reconnect * 2);
+      };
+    };
 
-    connect()
+    connect();
 
     return () => {
       if (es) {
-        es.close()
-        es = null
+        es.close();
+        es = null;
       }
-    }
-    // only mount once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    };
+  }, [qc]);
 
-  return null
+  return null;
 }

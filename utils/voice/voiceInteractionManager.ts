@@ -1,5 +1,4 @@
 // util-category: audio
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Voice Interaction Manager - Orchestrates voice command processing
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
@@ -33,6 +32,26 @@ import { Mutex } from 'async-mutex';
 
 const log = createLogger('VOICE_INTERACTION');
 
+/** Minimal type for lazy-loaded voice manager (avoids circular dependency) */
+interface VoiceManagerLazy {
+  playSound: (
+    guildId: string,
+    query: string,
+    userId: string,
+    source: string,
+    username: string,
+    discriminator: string
+  ) => Promise<{ tracks: Array<{ title?: string }> }>;
+  skipTrack: (guildId: string, count: number) => Promise<void>;
+  pausePlayback: (guildId: string) => Promise<void>;
+  resumePlayback: (guildId: string) => Promise<void>;
+  stopPlayback: (guildId: string) => Promise<void>;
+  getQueue: (guildId: string) => { queue: unknown[] };
+  getVoiceState?: (guildId: string) => { volume?: number } | undefined;
+  setVolume: (guildId: string, volume: number) => Promise<void>;
+  clearQueue: (guildId: string) => Promise<number>;
+}
+
 /**
  * Default configuration for voice interactions
  */
@@ -59,13 +78,13 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private states: Map<string, VoiceInteractionState>;
   private speechRecognition: SpeechRecognitionManager;
   private textToSpeech: TextToSpeechManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private voiceManager: any; // Lazy loaded to avoid circular dependency
+  private voiceManager: VoiceManagerLazy | null;
   private commandMutex: Mutex;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
+    this.voiceManager = null;
     this.commandMutex = new Mutex();
 
     // Initialize STT and TTS
@@ -78,14 +97,12 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   /**
    * Lazy load voice manager to avoid circular dependency
    */
-  private getVoiceManager() {
+  private getVoiceManager(): VoiceManagerLazy {
     if (!this.voiceManager) {
-      // Use relative import to avoid hard-coded dist path
       try {
-        this.voiceManager = require('../voiceManager');
+        this.voiceManager = require('../voiceManager') as VoiceManagerLazy;
       } catch (_error) {
-        // Fallback to dist path for compatibility
-        this.voiceManager = require('../../dist/utils/voiceManager');
+        this.voiceManager = require('../../dist/utils/voiceManager') as VoiceManagerLazy;
       }
     }
     return this.voiceManager;

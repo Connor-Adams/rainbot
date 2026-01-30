@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+﻿const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('VOICE_CONTROL_CMD');
@@ -6,7 +6,7 @@ const log = createLogger('VOICE_CONTROL_CMD');
 // Lazy load multi-bot service for voice state manager
 function getVoiceStateManager() {
   try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
+    const { MultiBotService } = require('../../dist/apps/raincloud/lib/multiBotService');
     if (MultiBotService.isInitialized()) {
       return MultiBotService.getInstance().getVoiceStateManager();
     }
@@ -39,7 +39,7 @@ module.exports = {
     if (!voiceStateManager) {
       return interaction.reply({
         content:
-          '❌ Voice interaction system is not available. Please ensure Redis is properly configured.',
+          'âŒ Voice interaction system is not available. Please ensure Redis is properly configured.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -56,13 +56,13 @@ module.exports = {
           );
 
           await interaction.editReply({
-            content: `✅ **Voice commands enabled!**
+            content: `âœ… **Voice commands enabled!**
 
 Users in voice channels can now control music with voice commands.
 
 **How to use:**
-• Join a voice channel with the bot
-• Simply speak commands like:
+â€¢ Join a voice channel with the bot
+â€¢ Simply speak commands like:
   - "Play [song name] by [artist]"
   - "Skip" or "Skip 2"
   - "Pause" / "Resume"
@@ -85,7 +85,7 @@ Users in voice channels can now control music with voice commands.
 
           await interaction.editReply({
             content:
-              '✅ Voice commands have been disabled. Users can still use slash commands to control music.',
+              'âœ… Voice commands have been disabled. Users can still use slash commands to control music.',
           });
           break;
         }
@@ -94,8 +94,8 @@ Users in voice channels can now control music with voice commands.
           const isEnabled = await voiceStateManager.getVoiceInteractionEnabled(guildId);
 
           const statusMessage = isEnabled
-            ? '✅ **Voice commands are enabled**'
-            : '❌ **Voice commands are disabled**';
+            ? 'âœ… **Voice commands are enabled**'
+            : 'âŒ **Voice commands are disabled**';
 
           await interaction.reply({
             content: statusMessage,
@@ -106,13 +106,13 @@ Users in voice channels can now control music with voice commands.
 
         default:
           await interaction.reply({
-            content: '❌ Unknown subcommand.',
+            content: 'âŒ Unknown subcommand.',
             flags: MessageFlags.Ephemeral,
           });
       }
     } catch (error) {
       log.error(`Error executing voice-control command: ${error.message}`);
-      const errorMessage = `❌ Failed to ${subcommand} voice commands: ${error.message}`;
+      const errorMessage = `âŒ Failed to ${subcommand} voice commands: ${error.message}`;
 
       if (interaction.deferred) {
         await interaction.editReply({ content: errorMessage });

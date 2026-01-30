@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../tailwind.config.js";
 
 @layer base {
@@ -11,7 +11,7 @@
 
   body {
     @apply font-sans bg-background text-text-primary min-h-screen;
-    background-image: 
+    background-image:
       radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 50%, rgba(236, 72, 153, 0.08) 0%, transparent 70%),
@@ -44,7 +44,7 @@
   .gradient-text {
     @apply bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent;
   }
-  
+
   .glass-effect {
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);

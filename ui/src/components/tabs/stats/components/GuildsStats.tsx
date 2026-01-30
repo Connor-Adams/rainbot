@@ -1,18 +1,18 @@
-import type { GuildStat } from '@/types'
-import { escapeHtml } from '@/lib/utils'
-import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
-import { useStatsQuery } from '@/hooks/useStatsQuery'
-import { statsApi } from '@/lib/api'
+import type { GuildStat } from '@/types';
+import { escapeHtml } from '@/lib/utils';
+import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
+import { statsApi } from '@/lib/api';
 
 export default function GuildsStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'guilds'],
     queryFn: () => statsApi.guilds(),
-  })
+  });
 
-  if (isLoading) return <StatsLoading message="Loading guild statistics..." />
-  if (error) return <StatsError error={error} />
-  if (!data) return null
+  if (isLoading) return <StatsLoading message="Loading guild statistics..." />;
+  if (error) return <StatsError error={error} />;
+  if (!data) return null;
 
   const columns = [
     {
@@ -49,8 +49,8 @@ export default function GuildsStats() {
       id: 'total',
       header: 'Total',
       render: (guild: GuildStat) => {
-        const total = parseInt(guild.command_count || '0') + parseInt(guild.sound_count || '0')
-        return <span className="font-mono">{total.toLocaleString()}</span>
+        const total = parseInt(guild.command_count || '0') + parseInt(guild.sound_count || '0');
+        return <span className="font-mono">{total.toLocaleString()}</span>;
       },
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
@@ -61,7 +61,7 @@ export default function GuildsStats() {
         guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never',
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
-  ]
+  ];
 
   return (
     <StatsSection title="Top Guilds">
@@ -72,6 +72,5 @@ export default function GuildsStats() {
         getRowKey={(guild: GuildStat) => guild.guild_id}
       />
     </StatsSection>
-  )
+  );
 }
-

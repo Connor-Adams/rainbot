@@ -1,16 +1,16 @@
-import { ExternalLinkIcon } from '@/components/icons'
+import { ExternalLinkIcon } from '@/components/icons';
 
 interface TrackInfoProps {
-  title: string
-  source: string
-  sourceLink?: string | null
+  title: string;
+  source: string;
+  sourceLink?: string | null;
 }
 
 /**
  * Display track title, source platform, and external link.
  * Shows the currently playing track information with optional link to source platform.
  * Handles overflow gracefully with text ellipsis.
- * 
+ *
  * @param title - Track title or name
  * @param source - Source platform name (e.g., "YouTube", "Spotify", "Local Sound")
  * @param sourceLink - Optional URL to open track in source platform
@@ -36,5 +36,5 @@ export default function TrackInfo({ title, source, sourceLink }: TrackInfoProps)
         </a>
       )}
     </div>
-  )
+  );
 }

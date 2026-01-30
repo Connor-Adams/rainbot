@@ -17,6 +17,8 @@
   "scripts": {
     "build": "tsc",
     "build:ts": "tsc",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "jest --passWithNoTests"
   },

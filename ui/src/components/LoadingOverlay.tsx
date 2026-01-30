@@ -4,6 +4,5 @@ export default function LoadingOverlay() {
       <div className="loading-spinner w-12 h-12 border-4 border-surface-elevated border-t-primary rounded-full animate-spin"></div>
       <p className="text-text-secondary text-sm">Checking authentication...</p>
     </div>
-  )
+  );
 }
-

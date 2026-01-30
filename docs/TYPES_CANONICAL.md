@@ -15,7 +15,7 @@ Purpose: centralize shared playback/media state types so all apps and workers us
 - Mapped protocol voice types to the canonical media model (`MediaItem`, `QueueState`, `MediaState`).
 - Updated Raincloud `MultiBotService` queue/status types to use canonical media types.
 - Repointed type-only imports from `@rainbot/protocol` to `@types`.
-- Updated worker `/status` endpoints (rainbot/pranjeet/hungerbot) to return canonical `MediaState`.
+- Worker status is now via tRPC `getState` (rainbot/pranjeet/hungerbot); only `/health/*` remains HTTP. Workers return canonical `MediaState` from `getState`.
 - Updated rainbot `/queue` endpoint to return canonical `QueueState`.
 - Updated `WorkerCoordinator` and `MultiBotService` to consume the canonical media model from workers.
 

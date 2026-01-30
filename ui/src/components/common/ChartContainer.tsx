@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface ChartContainerProps {
-  title: string
-  children: ReactNode
-  maxHeight?: string
-  className?: string
+  title: string;
+  children: ReactNode;
+  maxHeight?: string;
+  className?: string;
 }
 
 export default function ChartContainer({
@@ -20,5 +20,5 @@ export default function ChartContainer({
       <h3 className="text-lg sm:text-xl text-text-primary mb-4">{title}</h3>
       <div style={{ maxHeight }}>{children}</div>
     </div>
-  )
+  );
 }

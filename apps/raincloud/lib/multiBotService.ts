@@ -114,6 +114,7 @@ export class MultiBotService {
       await this.voiceStateManager.setActiveSession(guildId, channelId);
 
       try {
+        // Orchestrator join is optional; workers handle playback.
         await voiceManager.joinChannel(channel);
         log.info(`Orchestrator joined channel ${channel.name}`);
       } catch (error) {

@@ -1,4 +1,5 @@
-// Using tsx to run TypeScript files directly
+// Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
+// so path aliases (dist/, apps/raincloud/) resolve correctly.
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
@@ -122,18 +123,27 @@ try {
   process.exit(1);
 }
 
-// Start Express server once bot is ready
+// HTTP server starts immediately so the dashboard is reachable even if Discord never becomes ready
+const port = config.dashboardPort || 3000;
+const host = process.env['HOST'] || '0.0.0.0';
+server
+  .createServer()
+  .then((app) => {
+    app.listen(port, host, () => {
+      const url = config.railwayPublicDomain
+        ? `https://${config.railwayPublicDomain}`
+        : `http://${host}:${port}`;
+      log.info(`Dashboard running at ${url}`);
+    });
+  })
+  .catch((error) => {
+    log.error('Failed to start server', formatError(error));
+  });
+
+// When Discord is ready, attach client and init worker orchestration
 client.once(Events.ClientReady, async () => {
   log.info(`Discord client ready as ${client.user?.tag}`);
-  const port = config.dashboardPort;
-  try {
-    await server.start(client, port);
-    log.info(`Server started on port ${port}`);
-  } catch (error) {
-    log.error('Server failed to start', formatError(error));
-  }
-
-  // Initialize multi-bot service (worker orchestration)
+  server.setClient(client);
   try {
     const MultiBotService = require('./dist/apps/raincloud/lib/multiBotService');
     const redisUrl = config.redisUrl || process.env['REDIS_URL'];
@@ -145,23 +155,19 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// Validate bot token
+client.on('error', (err) => {
+  log.error('Discord client error', formatError(err));
+});
+
+// Validate bot token and login
 if (!config.token) {
   log.error('Error: Discord bot token not found. Set DISCORD_BOT_TOKEN environment variable');
-  log.warn('Starting in degraded mode (no Discord connection)');
-  const port = config.dashboardPort || 3000;
-  server
-    .createServer()
-    .then((app) => {
-      app.listen(port, () => {
-        log.info(`Dashboard running in degraded mode at http://0.0.0.0:${port}`);
-      });
-    })
-    .catch((error) => {
-      log.error('Failed to start server in degraded mode', formatError(error));
-    });
+  log.warn('Running in degraded mode (dashboard only, no Discord connection)');
 } else {
-  client.login(config.token);
+  log.info('Attempting Discord login...');
+  client.login(config.token).catch((err) => {
+    log.error('Discord login failed', formatError(err));
+  });
 }
 
 // Graceful shutdown - save queue snapshots and flush statistics

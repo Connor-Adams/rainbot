@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface StatsSectionProps {
-  title?: string
-  children: ReactNode
-  className?: string
+  title?: string;
+  children: ReactNode;
+  className?: string;
 }
 
 export default function StatsSection({ title, children, className = '' }: StatsSectionProps) {
@@ -14,5 +14,5 @@ export default function StatsSection({ title, children, className = '' }: StatsS
       {title && <h3 className="text-lg sm:text-xl text-text-primary mb-4">{title}</h3>}
       {children}
     </div>
-  )
+  );
 }

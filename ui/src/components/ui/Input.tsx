@@ -1,8 +1,8 @@
-import type { InputHTMLAttributes } from 'react'
-import { forwardRef } from 'react'
+import type { InputHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  error?: string
+  error?: string;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -27,10 +27,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         />
         {error && <p className="mt-1 text-sm text-danger">{error}</p>}
       </div>
-    )
+    );
   }
-)
+);
 
-Input.displayName = 'Input'
+Input.displayName = 'Input';
 
-export default Input
+export default Input;

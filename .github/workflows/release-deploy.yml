@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Force deploy (bypass CI + diff gating)"
+        description: 'Force deploy (bypass CI + diff gating)'
         required: false
         default: false
         type: boolean

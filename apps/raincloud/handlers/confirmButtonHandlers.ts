@@ -5,7 +5,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
-import * as voiceManager from '@utils/voiceManager';
+import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 
 const log = createLogger('CONFIRM_BUTTONS');
 
@@ -26,6 +26,15 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
   }
 
   try {
+    const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+    if (!multiBot) {
+      await interaction.update({
+        content: '❌ Worker services are not ready.',
+        components: [],
+      });
+      return { success: false, error: 'Workers unavailable' };
+    }
+
     switch (action) {
       case 'clear_queue': {
         if (!guildId) {
@@ -36,7 +45,7 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
           return { success: false, error: 'No guild ID' };
         }
 
-        const status = voiceManager.getStatus(guildId);
+        const status = await multiBot.getStatus(guildId);
         if (!status) {
           await interaction.update({
             content: "❌ I'm not in a voice channel anymore!",
@@ -45,8 +54,16 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
           return { success: false, error: 'Bot not in voice channel' };
         }
 
-        const cleared = await voiceManager.clearQueue(guildId);
-        const nowPlaying = voiceManager.getQueue(guildId).nowPlaying?.title ?? null;
+        const result = await multiBot.clearQueue(guildId);
+        if (!result.success) {
+          await interaction.update({
+            content: `❌ Failed to clear queue: ${result.message || 'Unknown error'}`,
+            components: [],
+          });
+          return { success: false, error: result.message || 'Failed to clear queue' };
+        }
+        const cleared = result.cleared ?? 0;
+        const nowPlaying = status.queue?.nowPlaying?.title ?? null;
         const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 
         await interaction.update({
@@ -67,7 +84,7 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
           return { success: false, error: 'No guild ID' };
         }
 
-        voiceManager.stopSound(guildId);
+        await multiBot.stop(guildId);
 
         await interaction.update({
           content: '⏹️ Playback stopped and queue cleared.',
@@ -87,21 +104,13 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
           return { success: false, error: 'No guild ID' };
         }
 
-        const left = voiceManager.leaveChannel(guildId);
-        if (left) {
-          await interaction.update({
-            content: '👋 Left the voice channel.',
-            components: [],
-          });
-          log.info(`Left channel via confirmation by ${interaction.user.tag}`);
-          return { success: true };
-        } else {
-          await interaction.update({
-            content: "❌ I'm not in a voice channel.",
-            components: [],
-          });
-          return { success: false, error: 'Not in channel' };
-        }
+        await multiBot.leaveChannel(guildId);
+        await interaction.update({
+          content: '👋 Left the voice channel.',
+          components: [],
+        });
+        log.info(`Left channel via confirmation by ${interaction.user.tag}`);
+        return { success: true };
       }
 
       default:

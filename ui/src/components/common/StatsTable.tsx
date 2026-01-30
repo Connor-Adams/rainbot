@@ -1,19 +1,19 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface Column<T = Record<string, unknown>> {
-  header: string
-  key?: string
-  render?: (row: T) => ReactNode
-  className?: string
-  id?: string // Unique identifier for the column
+  header: string;
+  key?: string;
+  render?: (row: T) => ReactNode;
+  className?: string;
+  id?: string; // Unique identifier for the column
 }
 
 interface StatsTableProps<T = Record<string, unknown>> {
-  columns: Column<T>[]
-  data: T[]
-  emptyMessage?: string
-  className?: string
-  getRowKey?: (row: T, index: number) => string | number // Function to extract unique key from row
+  columns: Column<T>[];
+  data: T[];
+  emptyMessage?: string;
+  className?: string;
+  getRowKey?: (row: T, index: number) => string | number; // Function to extract unique key from row
 }
 
 export default function StatsTable<T = Record<string, unknown>>({
@@ -29,7 +29,7 @@ export default function StatsTable<T = Record<string, unknown>>({
         <span className="text-2xl opacity-50">📭</span>
         {emptyMessage}
       </p>
-    )
+    );
   }
 
   return (
@@ -67,5 +67,5 @@ export default function StatsTable<T = Record<string, unknown>>({
         </tbody>
       </table>
     </div>
-  )
+  );
 }

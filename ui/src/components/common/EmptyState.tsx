@@ -1,7 +1,7 @@
 interface EmptyStateProps {
-  icon: string
-  message: string
-  submessage?: string
+  icon: string;
+  message: string;
+  submessage?: string;
 }
 
 export default function EmptyState({ icon, message, submessage }: EmptyStateProps) {
@@ -11,5 +11,5 @@ export default function EmptyState({ icon, message, submessage }: EmptyStateProp
       <p className="text-sm text-text-muted">{message}</p>
       {submessage && <small className="text-xs text-text-disabled mt-2 block">{submessage}</small>}
     </div>
-  )
+  );
 }

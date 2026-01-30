@@ -3,9 +3,10 @@
  */
 
 import { MessageFlags } from 'discord.js';
+import type { APIEmbed } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
+import type { MediaItem } from '@rainbot/types/media';
 import { createLogger } from '@utils/logger';
-import * as voiceManager from '@utils/voiceManager';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createPlayerMessage } from '@utils/playerEmbed';
 
@@ -26,7 +27,15 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -36,13 +45,9 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const result = multiBot
-      ? await multiBot.togglePause(guildId)
-      : voiceManager.togglePause(guildId);
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
-    const mediaState = multiBot
-      ? await multiBot.getStatus(guildId)
-      : voiceManager.getStatus(guildId);
+    const result = await multiBot.togglePause(guildId);
+    const queueState = await multiBot.getQueue(guildId);
+    const mediaState = await multiBot.getStatus(guildId);
     const updatedMedia =
       mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
@@ -82,7 +87,15 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -92,19 +105,13 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    if (multiBot) {
-      await multiBot.skip(guildId, 1);
-    } else {
-      await voiceManager.skip(guildId, 1, interaction.user.id);
-    }
+    await multiBot.skip(guildId, 1);
 
     // Small delay to let next track start
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
-    const mediaState = multiBot
-      ? await multiBot.getStatus(guildId)
-      : voiceManager.getStatus(guildId);
+    const queueState = await multiBot.getQueue(guildId);
+    const mediaState = await multiBot.getStatus(guildId);
     const updatedMedia =
       mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
@@ -145,7 +152,15 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -155,11 +170,7 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    if (multiBot) {
-      await multiBot.stop(guildId);
-    } else {
-      voiceManager.stopSound(guildId);
-    }
+    await multiBot.stop(guildId);
 
     await interaction.update({
       embeds: [
@@ -205,7 +216,15 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -215,7 +234,7 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
+    const queueState = await multiBot.getQueue(guildId);
     const nowPlaying = queueState.nowPlaying?.title ?? null;
     const currentTrack = queueState.nowPlaying ?? null;
     const queue = queueState.queue ?? [];
@@ -232,8 +251,7 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
       return `${minutes}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const embed: any = {
+    const embed: APIEmbed = {
       color: 0x6366f1,
       title: '📋 Queue',
       timestamp: new Date().toISOString(),
@@ -255,12 +273,11 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
     if (queue.length > 0) {
       const queueList = queue
         .slice(0, 10)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((t: any, i: number) => {
+        .map((t: MediaItem, i: number) => {
           const num = (i + 1).toString().padStart(2, '0');
           const durationSeconds = t.duration ?? (t.durationMs ? t.durationMs / 1000 : null);
           const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
-          return `\`${num}\` ${t.title}${duration}`;
+          return `\`${num}\` ${t.title ?? 'Unknown'}${duration}`;
         })
         .join('\n');
 

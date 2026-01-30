@@ -1,27 +1,27 @@
-import { useState } from 'react'
-import StatsSummary from './components/StatsSummary'
-import CommandsStats from './components/CommandsStats'
-import SoundsStats from './components/SoundsStats'
-import UsersStats from './components/UsersStats'
-import GuildsStats from './components/GuildsStats'
-import QueueStats from './components/QueueStats'
-import TimeStats from './components/TimeStats'
-import HistoryStats from './components/HistoryStats'
-import SessionsStats from './components/SessionsStats'
-import PerformanceStats from './components/PerformanceStats'
-import ErrorsStats from './components/ErrorsStats'
-import RetentionStats from './components/RetentionStats'
-import StatsSSE from './StatsSSE'
-import SearchStats from './components/SearchStats'
-import UserSessionsStats from './components/UserSessionsStats'
-import UserTracksStats from './components/UserTracksStats'
-import EngagementStats from './components/EngagementStats'
-import InteractionsStats from './components/InteractionsStats'
-import PlaybackStatesStats from './components/PlaybackStatesStats'
-import WebAnalyticsStats from './components/WebAnalyticsStats'
-import GuildEventsStats from './components/GuildEventsStats'
-import ApiLatencyStats from './components/ApiLatencyStats'
-import { StatsErrorBoundary } from '@/components/ErrorBoundary'
+import { useState } from 'react';
+import StatsSummary from './components/StatsSummary';
+import CommandsStats from './components/CommandsStats';
+import SoundsStats from './components/SoundsStats';
+import UsersStats from './components/UsersStats';
+import GuildsStats from './components/GuildsStats';
+import QueueStats from './components/QueueStats';
+import TimeStats from './components/TimeStats';
+import HistoryStats from './components/HistoryStats';
+import SessionsStats from './components/SessionsStats';
+import PerformanceStats from './components/PerformanceStats';
+import ErrorsStats from './components/ErrorsStats';
+import RetentionStats from './components/RetentionStats';
+import StatsSSE from './StatsSSE';
+import SearchStats from './components/SearchStats';
+import UserSessionsStats from './components/UserSessionsStats';
+import UserTracksStats from './components/UserTracksStats';
+import EngagementStats from './components/EngagementStats';
+import InteractionsStats from './components/InteractionsStats';
+import PlaybackStatesStats from './components/PlaybackStatesStats';
+import WebAnalyticsStats from './components/WebAnalyticsStats';
+import GuildEventsStats from './components/GuildEventsStats';
+import ApiLatencyStats from './components/ApiLatencyStats';
+import { StatsErrorBoundary } from '@/components/ErrorBoundary';
 
 type StatsTab =
   | 'summary'
@@ -44,17 +44,17 @@ type StatsTab =
   | 'playback-states'
   | 'web-analytics'
   | 'guild-events'
-  | 'api-latency'
+  | 'api-latency';
 
 export default function StatisticsTab() {
-  const [activeTab, setActiveTab] = useState<StatsTab>('summary')
+  const [activeTab, setActiveTab] = useState<StatsTab>('summary');
   const tabClass = (tab: StatsTab) =>
     [
       'px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all whitespace-nowrap',
       activeTab === tab
         ? 'text-primary border-primary/60 bg-primary/10'
         : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border',
-    ].join(' ')
+    ].join(' ');
 
   return (
     <section className="panel stats-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
@@ -64,82 +64,43 @@ export default function StatisticsTab() {
           Statistics Dashboard
         </h2>
         <div className="stats-tabs flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          <button
-            className={tabClass('summary')}
-            onClick={() => setActiveTab('summary')}
-          >
+          <button className={tabClass('summary')} onClick={() => setActiveTab('summary')}>
             Summary
           </button>
-          <button
-            className={tabClass('commands')}
-            onClick={() => setActiveTab('commands')}
-          >
+          <button className={tabClass('commands')} onClick={() => setActiveTab('commands')}>
             Commands
           </button>
-          <button
-            className={tabClass('sounds')}
-            onClick={() => setActiveTab('sounds')}
-          >
+          <button className={tabClass('sounds')} onClick={() => setActiveTab('sounds')}>
             Sounds
           </button>
-          <button
-            className={tabClass('users')}
-            onClick={() => setActiveTab('users')}
-          >
+          <button className={tabClass('users')} onClick={() => setActiveTab('users')}>
             Users
           </button>
-          <button
-            className={tabClass('guilds')}
-            onClick={() => setActiveTab('guilds')}
-          >
+          <button className={tabClass('guilds')} onClick={() => setActiveTab('guilds')}>
             Guilds
           </button>
-          <button
-            className={tabClass('queue')}
-            onClick={() => setActiveTab('queue')}
-          >
+          <button className={tabClass('queue')} onClick={() => setActiveTab('queue')}>
             Queue
           </button>
-          <button
-            className={tabClass('time')}
-            onClick={() => setActiveTab('time')}
-          >
+          <button className={tabClass('time')} onClick={() => setActiveTab('time')}>
             Time Trends
           </button>
-          <button
-            className={tabClass('history')}
-            onClick={() => setActiveTab('history')}
-          >
+          <button className={tabClass('history')} onClick={() => setActiveTab('history')}>
             History
           </button>
-          <button
-            className={tabClass('sessions')}
-            onClick={() => setActiveTab('sessions')}
-          >
+          <button className={tabClass('sessions')} onClick={() => setActiveTab('sessions')}>
             Sessions
           </button>
-          <button
-            className={tabClass('performance')}
-            onClick={() => setActiveTab('performance')}
-          >
+          <button className={tabClass('performance')} onClick={() => setActiveTab('performance')}>
             Performance
           </button>
-          <button
-            className={tabClass('errors')}
-            onClick={() => setActiveTab('errors')}
-          >
+          <button className={tabClass('errors')} onClick={() => setActiveTab('errors')}>
             Errors
           </button>
-          <button
-            className={tabClass('retention')}
-            onClick={() => setActiveTab('retention')}
-          >
+          <button className={tabClass('retention')} onClick={() => setActiveTab('retention')}>
             Retention
           </button>
-          <button
-            className={tabClass('search')}
-            onClick={() => setActiveTab('search')}
-          >
+          <button className={tabClass('search')} onClick={() => setActiveTab('search')}>
             Search
           </button>
           <button
@@ -148,22 +109,13 @@ export default function StatisticsTab() {
           >
             User Sessions
           </button>
-          <button
-            className={tabClass('user-tracks')}
-            onClick={() => setActiveTab('user-tracks')}
-          >
+          <button className={tabClass('user-tracks')} onClick={() => setActiveTab('user-tracks')}>
             User Tracks
           </button>
-          <button
-            className={tabClass('engagement')}
-            onClick={() => setActiveTab('engagement')}
-          >
+          <button className={tabClass('engagement')} onClick={() => setActiveTab('engagement')}>
             Engagement
           </button>
-          <button
-            className={tabClass('interactions')}
-            onClick={() => setActiveTab('interactions')}
-          >
+          <button className={tabClass('interactions')} onClick={() => setActiveTab('interactions')}>
             Interactions
           </button>
           <button
@@ -178,16 +130,10 @@ export default function StatisticsTab() {
           >
             Web Analytics
           </button>
-          <button
-            className={tabClass('guild-events')}
-            onClick={() => setActiveTab('guild-events')}
-          >
+          <button className={tabClass('guild-events')} onClick={() => setActiveTab('guild-events')}>
             Guild Events
           </button>
-          <button
-            className={tabClass('api-latency')}
-            onClick={() => setActiveTab('api-latency')}
-          >
+          <button className={tabClass('api-latency')} onClick={() => setActiveTab('api-latency')}>
             API Latency
           </button>
         </div>
@@ -218,5 +164,5 @@ export default function StatisticsTab() {
         </StatsErrorBoundary>
       </div>
     </section>
-  )
+  );
 }

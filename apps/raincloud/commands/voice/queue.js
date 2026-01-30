@@ -1,30 +1,16 @@
-/**
+﻿/**
  * Queue command - Multi-bot architecture version
  */
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const {
-  validateVoiceConnection,
   formatDuration,
   getYouTubeThumbnail,
+  getMultiBotService,
+  createWorkerUnavailableResponse,
 } = require('../utils/commandHelpers');
 const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('QUEUE_CMD');
-
-// Try to use multi-bot service, fall back to local voiceManager
-async function getPlaybackService() {
-  try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
-    if (MultiBotService.isInitialized()) {
-      return { type: 'multibot', service: MultiBotService.getInstance() };
-    }
-  } catch {
-    // Multi-bot service not available
-  }
-
-  const voiceManager = require('../../dist/utils/voiceManager');
-  return { type: 'local', service: voiceManager };
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -42,32 +28,25 @@ module.exports = {
     const guildId = interaction.guildId;
     const requestedPage = interaction.options.getInteger('page') || 1;
     const pageIndex = requestedPage - 1; // Convert to 0-indexed
-    const { type, service } = await getPlaybackService();
+    const service = await getMultiBotService();
+    if (!service) {
+      return interaction.reply(createWorkerUnavailableResponse());
+    }
 
     let queueState;
     let mediaState;
 
-    if (type === 'multibot') {
-      const status = await service.getStatus(guildId);
-      if (!status || !status.connected) {
-        return interaction.reply({
-          content: "❌ I'm not in a voice channel! Use `/join` first.",
-          flags: require('discord.js').MessageFlags.Ephemeral,
-        });
-      }
-
-      mediaState = status;
-      const queueInfo = await service.getQueueInfo(guildId);
-      queueState = queueInfo.success ? queueInfo.queue : { queue: [] };
-    } else {
-      const voiceManager = service;
-      const connectionCheck = validateVoiceConnection(interaction, voiceManager);
-      if (!connectionCheck.isValid) {
-        return interaction.reply(connectionCheck.error);
-      }
-      mediaState = voiceManager.getStatus(guildId);
-      queueState = voiceManager.getQueue(guildId);
+    const status = await service.getStatus(guildId);
+    if (!status || !status.connected) {
+      return interaction.reply({
+        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        flags: MessageFlags.Ephemeral,
+      });
     }
+
+    mediaState = status;
+    const queueInfo = await service.getQueueInfo(guildId);
+    queueState = queueInfo.success ? queueInfo.queue : { queue: [] };
     const nowPlaying = queueState?.nowPlaying?.title ?? null;
     const currentTrack = queueState?.nowPlaying ?? null;
     const queue = queueState?.queue ?? [];
@@ -93,7 +72,10 @@ module.exports = {
       embedColor = 0xf59e0b; // Orange when paused
     }
 
-    const embed = new EmbedBuilder().setTitle('🎵 Music Queue').setColor(embedColor).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setTitle('ðŸŽµ Music Queue')
+      .setColor(embedColor)
+      .setTimestamp();
 
     // Now Playing section with playback position
     if (nowPlaying && currentTrack) {
@@ -107,14 +89,14 @@ module.exports = {
         const totalTime = formatDuration(trackDurationSeconds);
         description += `\n\`${currentTime} / ${totalTime}\``;
       } else if (trackDurationSeconds) {
-        description += ` • \`${formatDuration(trackDurationSeconds)}\``;
+        description += ` â€¢ \`${formatDuration(trackDurationSeconds)}\``;
       }
 
       // Add state indicators
       if (hasOverlay) {
-        description += '\n\n🔊 *Soundboard overlay active*';
+        description += '\n\nðŸ”Š *Soundboard overlay active*';
       } else if (isPaused) {
-        description += '\n\n⏸️ *Paused*';
+        description += '\n\nâ¸ï¸ *Paused*';
       }
 
       const thumbnail = getYouTubeThumbnail(currentTrack.url);
@@ -144,13 +126,13 @@ module.exports = {
       const pageInfo = totalPages > 1 ? ` (Page ${safePage + 1}/${totalPages})` : '';
 
       embed.addFields({
-        name: `📋 Up Next — ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}${pageInfo}`,
+        name: `ðŸ“‹ Up Next â€” ${totalInQueue} track${totalInQueue === 1 ? '' : 's'}${pageInfo}`,
         value: queueList || '*No tracks on this page*',
         inline: false,
       });
     } else {
       embed.addFields({
-        name: '📋 Queue',
+        name: 'ðŸ“‹ Queue',
         value: '*Queue is empty*\n\nUse `/play` to add tracks!',
         inline: false,
       });
@@ -159,12 +141,12 @@ module.exports = {
     // Build footer with state info
     let footerText = `Total: ${totalInQueue} track${totalInQueue === 1 ? '' : 's'} in queue`;
     if (channelName) {
-      footerText += ` • ${channelName}`;
+      footerText += ` â€¢ ${channelName}`;
     }
     if (hasOverlay) {
-      footerText += ' • 🔊 Overlay Active';
+      footerText += ' â€¢ ðŸ”Š Overlay Active';
     } else if (isPaused) {
-      footerText += ' • ⏸️ Paused';
+      footerText += ' â€¢ â¸ï¸ Paused';
     }
 
     embed.setFooter({ text: footerText });

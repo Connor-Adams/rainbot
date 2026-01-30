@@ -10,8 +10,26 @@ import {
 import { fetchTracks } from './voice/trackFetcher';
 import { createTrackResourceForAny } from './voice/audioResource';
 import type { Track } from '@rainbot/types/voice';
-import type { MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
-import { rainbotRouter, createContext } from '@rainbot/rpc';
+import type { PlaybackState, QueueState } from '@rainbot/types/media';
+import { createRainbotRouter, createContext } from '@rainbot/rpc';
+import type {
+  JoinRequest,
+  JoinResponse,
+  LeaveRequest,
+  LeaveResponse,
+  VolumeRequest,
+  VolumeResponse,
+  StatusResponse,
+  EnqueueTrackRequest,
+  EnqueueTrackResponse,
+  SkipResponse,
+  PauseResponse,
+  StopResponse,
+  ClearResponse,
+  QueueResponse,
+  AutoplayResponse,
+  ReplayResponse,
+} from '@rainbot/worker-protocol';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { Request, Response } from 'express';
 import { Mutex } from 'async-mutex';
@@ -20,7 +38,6 @@ import { setupProcessErrorHandlers, logErrorWithStack } from '@rainbot/worker-sh
 import { registerWithOrchestrator } from '@rainbot/worker-shared';
 import { reportSoundStat } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
-import { ensureClientReady } from '@rainbot/worker-shared';
 import { RequestCache } from '@rainbot/worker-shared';
 import {
   createWorkerDiscordClient,
@@ -90,6 +107,329 @@ function startServer(): void {
     log.info(`Worker server listening on port ${PORT}`);
   });
 }
+
+function getStateForRpc(input?: { guildId?: string }): StatusResponse {
+  const guildId = input?.guildId;
+  if (guildId) {
+    const state = guildStates.get(guildId);
+    if (!state) {
+      return { connected: false, playing: false };
+    }
+    const connected =
+      !!state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed;
+    const playing = state.player.state.status === AudioPlayerStatus.Playing;
+    const channelId = state.connection?.joinConfig?.channelId;
+    return {
+      connected,
+      playing,
+      channelId: channelId ?? undefined,
+      queueLength: state.queue.length,
+      volume: state.volume / 100,
+    };
+  }
+  return { connected: false, playing: false };
+}
+
+async function handleJoin(input: JoinRequest): Promise<JoinResponse> {
+  if (!client?.isReady?.()) {
+    return { status: 'error', message: 'Worker not ready' };
+  }
+  const cacheKey = `join:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as JoinResponse;
+  }
+  try {
+    const guild = client.guilds.cache.get(input.guildId);
+    if (!guild) {
+      const response: JoinResponse = { status: 'error', message: 'Guild not found' };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const channel = guild.channels.cache.get(input.channelId);
+    if (!channel || !channel.isVoiceBased()) {
+      const response: JoinResponse = { status: 'error', message: 'Voice channel not found' };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const state = getOrCreateGuildState(input.guildId);
+    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      const response: JoinResponse = { status: 'already_connected', channelId: input.channelId };
+      requestCache.set(cacheKey, response);
+      return response;
+    }
+    const connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator as any,
+      selfDeaf: false,
+    });
+    connection.subscribe(state.player);
+    state.connection = connection;
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch (_error) {
+        log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
+        connection.destroy();
+        state.connection = null;
+      }
+    });
+    const response: JoinResponse = { status: 'joined', channelId: input.channelId };
+    requestCache.set(cacheKey, response);
+    return response;
+  } catch (error) {
+    logErrorWithStack(log, 'Join error', error);
+    const response: JoinResponse = { status: 'error', message: (error as Error).message };
+    return response;
+  }
+}
+
+async function handleLeave(input: LeaveRequest): Promise<LeaveResponse> {
+  const cacheKey = `leave:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as LeaveResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state || !state.connection) {
+    const response: LeaveResponse = { status: 'not_connected' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  state.connection.destroy();
+  state.connection = null;
+  state.queue = [];
+  state.currentTrack = null;
+  const response: LeaveResponse = { status: 'left' };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleVolume(input: VolumeRequest): Promise<VolumeResponse> {
+  let normalizedVolume =
+    input.volume >= 0 && input.volume <= 1
+      ? Math.round(input.volume * 100)
+      : Math.round(input.volume);
+  if (normalizedVolume < 0 || normalizedVolume > 100) {
+    return { status: 'error', message: 'Volume must be between 0 and 100' };
+  }
+  const cacheKey = `volume:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as VolumeResponse;
+  }
+  const state = getOrCreateGuildState(input.guildId);
+  state.volume = normalizedVolume;
+  if (state.currentResource?.volume) {
+    state.currentResource.volume.setVolume(state.volume / 100);
+  }
+  const response: VolumeResponse = { status: 'success', volume: state.volume / 100 };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleEnqueue(input: EnqueueTrackRequest): Promise<EnqueueTrackResponse> {
+  const cacheKey = `enqueue:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as EnqueueTrackResponse;
+  }
+  const release = await mutex.acquire();
+  try {
+    const state = getOrCreateGuildState(input.guildId);
+    const fetchedTracks = await fetchTracks(input.url, input.guildId);
+    if (!fetchedTracks.length) {
+      throw new Error('No tracks found for the requested source');
+    }
+    const tracks = fetchedTracks.map((track) => ({
+      ...track,
+      kind: 'music' as const,
+      userId: input.requestedBy,
+      username: input.requestedByUsername || undefined,
+    }));
+    state.queue.push(...tracks);
+    if (state.player.state.status === AudioPlayerStatus.Idle && state.connection) {
+      playNext(input.guildId);
+    }
+    const response: EnqueueTrackResponse = {
+      status: 'success',
+      position: state.queue.length - tracks.length + 1,
+      message: `Added ${tracks.length} track(s) to queue`,
+    };
+    requestCache.set(cacheKey, response);
+    return response;
+  } catch (error) {
+    return { status: 'error', message: (error as Error).message };
+  } finally {
+    release();
+  }
+}
+
+async function handleSkip(input: {
+  requestId: string;
+  guildId: string;
+  count?: number;
+}): Promise<SkipResponse> {
+  const count = input.count ?? 1;
+  const cacheKey = `skip:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as SkipResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    const response: SkipResponse = { status: 'error', message: 'Not connected' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  const skipped: string[] = [];
+  if (state.currentTrack) {
+    skipped.push(state.currentTrack.title ?? 'Unknown');
+  }
+  for (let i = 1; i < count && state.queue.length > 0; i++) {
+    const removed = state.queue.shift();
+    if (removed) skipped.push(removed.title ?? 'Unknown');
+  }
+  state.player.stop();
+  const response: SkipResponse = { status: 'success', skipped };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handlePause(input: { requestId: string; guildId: string }): Promise<PauseResponse> {
+  const cacheKey = `pause:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as PauseResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    return { status: 'error', message: 'Not connected' };
+  }
+  let paused: boolean;
+  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    state.player.unpause();
+    markResumed(state);
+    paused = false;
+  } else {
+    state.player.pause();
+    markPaused(state);
+    paused = true;
+  }
+  const response: PauseResponse = { status: 'success', paused };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleStop(input: { requestId: string; guildId: string }): Promise<StopResponse> {
+  const cacheKey = `stop:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as StopResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    return { status: 'error', message: 'Not connected' };
+  }
+  state.player.stop();
+  state.queue = [];
+  state.currentTrack = null;
+  state.currentResource = null;
+  state.nowPlaying = null;
+  state.playbackStartTime = null;
+  state.pauseStartTime = null;
+  state.totalPausedTime = 0;
+  const response: StopResponse = { status: 'success' };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleClear(input: { requestId: string; guildId: string }): Promise<ClearResponse> {
+  const cacheKey = `clear:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as ClearResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    return { status: 'error', message: 'Not connected' };
+  }
+  const cleared = state.queue.length;
+  state.queue = [];
+  const response: ClearResponse = { status: 'success', cleared };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleGetQueue(input: { guildId: string }): Promise<QueueResponse> {
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    return { queue: [] };
+  }
+  const playback = buildPlaybackState(state);
+  const q = buildQueueState(state, playback);
+  return {
+    queue: (q.queue ?? []) as QueueResponse['queue'],
+    nowPlaying: q.nowPlaying as QueueResponse['nowPlaying'],
+    isPaused: q.isPaused,
+    isAutoplay: q.isAutoplay,
+  };
+}
+
+async function handleAutoplay(input: {
+  requestId: string;
+  guildId: string;
+  enabled?: boolean | null;
+}): Promise<AutoplayResponse> {
+  const cacheKey = `autoplay:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as AutoplayResponse;
+  }
+  const state = getOrCreateGuildState(input.guildId);
+  state.autoplay = false;
+  const response: AutoplayResponse = {
+    status: 'success',
+    enabled: false,
+    message: 'Autoplay is disabled in the rainbot worker',
+  };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+async function handleReplay(input: {
+  requestId: string;
+  guildId: string;
+}): Promise<ReplayResponse> {
+  const cacheKey = `replay:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as ReplayResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state || !state.lastPlayedTrack) {
+    const response: ReplayResponse = { status: 'error', message: 'No track to replay' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  const track = { ...state.lastPlayedTrack };
+  state.queue.unshift(track);
+  if (state.player.state.status === AudioPlayerStatus.Idle && state.connection) {
+    playNext(input.guildId);
+  }
+  const response: ReplayResponse = { status: 'success', track: track.title };
+  requestCache.set(cacheKey, response);
+  return response;
+}
+
+const rainbotRouter = createRainbotRouter({
+  getState: getStateForRpc,
+  join: handleJoin,
+  leave: handleLeave,
+  volume: handleVolume,
+  enqueue: handleEnqueue,
+  skip: handleSkip,
+  pause: handlePause,
+  stop: handleStop,
+  clear: handleClear,
+  getQueue: handleGetQueue,
+  autoplay: handleAutoplay,
+  replay: handleReplay,
+});
 
 function getOrCreateGuildState(guildId: string): RainbotGuildState {
   if (!guildStates.has(guildId)) {
@@ -291,476 +631,6 @@ app.use(
     createContext,
   })
 );
-
-// Join voice channel
-app.post('/join', async (req: Request, res: Response) => {
-  if (!ensureClientReady(client, res)) return;
-  const { requestId, guildId, channelId } = req.body;
-
-  if (!requestId || !guildId || !channelId) {
-    res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-    return;
-  }
-
-  const cacheKey = `join:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    res.json(requestCache.get(cacheKey));
-    return;
-  }
-
-  try {
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) {
-      const response = { status: 'error', message: 'Guild not found' };
-      requestCache.set(cacheKey, response);
-      res.status(404).json(response);
-      return;
-    }
-
-    const channel = guild.channels.cache.get(channelId);
-    if (!channel || !channel.isVoiceBased()) {
-      const response = { status: 'error', message: 'Voice channel not found' };
-      requestCache.set(cacheKey, response);
-      res.status(404).json(response);
-      return;
-    }
-
-    const state = getOrCreateGuildState(guildId);
-
-    if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      const response = { status: 'already_connected', channelId };
-      requestCache.set(cacheKey, response);
-      res.json(response);
-      return;
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: guild.id,
-      adapterCreator: guild.voiceAdapterCreator as any,
-      selfDeaf: false,
-    });
-
-    connection.subscribe(state.player);
-    state.connection = connection;
-
-    // Auto-rejoin on disconnect (network issues only)
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-        // Connection recovered
-      } catch (_error) {
-        // Connection destroyed, attempt rejoin
-        log.warn(`Connection lost in guild ${guildId}, attempting rejoin...`);
-        connection.destroy();
-        state.connection = null;
-      }
-    });
-
-    const response = { status: 'joined', channelId };
-    requestCache.set(cacheKey, response);
-    res.json(response);
-  } catch (error) {
-    logErrorWithStack(log, 'Join error', error);
-    const response = { status: 'error', message: (error as Error).message };
-    res.status(500).json(response);
-  }
-});
-
-// Leave voice channel
-app.post('/leave', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-    return;
-  }
-
-  const cacheKey = `leave:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    res.json(requestCache.get(cacheKey));
-    return;
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state || !state.connection) {
-    const response = { status: 'not_connected' };
-    requestCache.set(cacheKey, response);
-    res.json(response);
-    return;
-  }
-
-  state.connection.destroy();
-  state.connection = null;
-  state.queue = [];
-  state.currentTrack = null;
-
-  const response = { status: 'left' };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Set volume
-app.post('/volume', async (req: Request, res: Response) => {
-  const { requestId, guildId, volume } = req.body;
-
-  if (!requestId || !guildId || volume === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  let normalizedVolume = volume;
-  if (normalizedVolume >= 0 && normalizedVolume <= 1) {
-    normalizedVolume = Math.round(normalizedVolume * 100);
-  }
-  if (normalizedVolume < 0 || normalizedVolume > 100) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Volume must be between 0 and 100',
-    });
-  }
-
-  const cacheKey = `volume:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = getOrCreateGuildState(guildId);
-  state.volume = normalizedVolume;
-  if (state.currentResource?.volume) {
-    state.currentResource.volume.setVolume(state.volume / 100);
-  }
-
-  const response = { status: 'success', volume: state.volume };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Get status
-app.get('/status', (req: Request, res: Response) => {
-  const guildId = req.query['guildId'] as string;
-
-  if (!guildId) {
-    return res.status(400).json({ error: 'Missing guildId parameter' });
-  }
-
-  const state = guildStates.get(guildId);
-  const playback = buildPlaybackState(state ?? null);
-  const queue = buildQueueState(state ?? null, playback);
-
-  const payload: MediaState = {
-    guildId,
-    channelId: state?.connection?.joinConfig.channelId ?? null,
-    connected: state?.connection !== null,
-    kind: 'music',
-    playback,
-    queue,
-  };
-
-  res.json(payload);
-});
-
-// Enqueue track
-app.post('/enqueue', async (req: Request, res: Response) => {
-  const { requestId, guildId, url, requestedBy, requestedByUsername } = req.body;
-
-  if (!requestId || !guildId || !url) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `enqueue:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const release = await mutex.acquire();
-  try {
-    const state = getOrCreateGuildState(guildId);
-
-    const fetchedTracks = await fetchTracks(url, guildId);
-    if (!fetchedTracks.length) {
-      throw new Error('No tracks found for the requested source');
-    }
-
-    const tracks = fetchedTracks.map((track) => ({
-      ...track,
-      kind: 'music' as const,
-      userId: requestedBy,
-      username: requestedByUsername || undefined,
-    }));
-
-    state.queue.push(...tracks);
-
-    // Start playing if not already
-    if (state.player.state.status === AudioPlayerStatus.Idle && state.connection) {
-      playNext(guildId);
-    }
-
-    const response = {
-      status: 'success',
-      position: state.queue.length - tracks.length + 1,
-      message: `Added ${tracks.length} track(s) to queue`,
-    };
-    requestCache.set(cacheKey, response);
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: (error as Error).message,
-    });
-  } finally {
-    release();
-  }
-});
-
-// Skip current track(s)
-app.post('/skip', async (req: Request, res: Response) => {
-  const { requestId, guildId, count = 1 } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `skip:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state) {
-    const response = { status: 'error', message: 'Not connected' };
-    requestCache.set(cacheKey, response);
-    return res.json(response);
-  }
-
-  const skipped: string[] = [];
-
-  // Skip current track
-  if (state.currentTrack) {
-    skipped.push(state.currentTrack.title ?? 'Unknown');
-  }
-
-  // Remove additional tracks from queue if count > 1
-  for (let i = 1; i < count && state.queue.length > 0; i++) {
-    const removed = state.queue.shift();
-    if (removed) {
-      skipped.push(removed.title ?? 'Unknown');
-    }
-  }
-
-  // Stop current playback (will trigger Idle event and play next)
-  state.player.stop();
-
-  const response = { status: 'success', skipped };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Pause/resume playback
-app.post('/pause', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `pause:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state) {
-    const response = { status: 'error', message: 'Not connected' };
-    return res.json(response);
-  }
-
-  let paused: boolean;
-  if (state.player.state.status === AudioPlayerStatus.Paused) {
-    state.player.unpause();
-    markResumed(state);
-    paused = false;
-  } else {
-    state.player.pause();
-    markPaused(state);
-    paused = true;
-  }
-
-  const response = { status: 'success', paused };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Stop playback and clear queue
-app.post('/stop', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `stop:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state) {
-    const response = { status: 'error', message: 'Not connected' };
-    return res.json(response);
-  }
-
-  state.player.stop();
-  state.queue = [];
-  state.currentTrack = null;
-  state.currentResource = null;
-  state.nowPlaying = null;
-  state.playbackStartTime = null;
-  state.pauseStartTime = null;
-  state.totalPausedTime = 0;
-
-  const response = { status: 'success' };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Clear queue (keep current track playing)
-app.post('/clear', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `clear:${requestId}`;
-  // Idempotency check
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state) {
-    const response = { status: 'error', message: 'Not connected' };
-    return res.json(response);
-  }
-
-  const cleared = state.queue.length;
-  state.queue = [];
-
-  const response = { status: 'success', cleared };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Get queue info
-app.get('/queue', (req: Request, res: Response) => {
-  const guildId = req.query['guildId'] as string;
-
-  if (!guildId) {
-    return res.status(400).json({ error: 'Missing guildId parameter' });
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state) {
-    return res.json({ queue: [] });
-  }
-
-  const playback = buildPlaybackState(state);
-  res.json(buildQueueState(state, playback));
-});
-
-// Replay last played track
-app.post('/replay', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `replay:${requestId}`;
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = guildStates.get(guildId);
-  if (!state || !state.lastPlayedTrack) {
-    const response = { status: 'error', message: 'No track to replay' };
-    requestCache.set(cacheKey, response);
-    return res.json(response);
-  }
-
-  const track = { ...state.lastPlayedTrack };
-  state.queue.unshift(track);
-  state.player.stop();
-
-  const response = { status: 'success', track: track.title };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
-
-// Autoplay toggle (disabled for now)
-app.post('/autoplay', async (req: Request, res: Response) => {
-  const { requestId, guildId } = req.body;
-
-  if (!requestId || !guildId) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Missing required fields',
-    });
-  }
-
-  const cacheKey = `autoplay:${requestId}`;
-  if (requestCache.has(cacheKey)) {
-    return res.json(requestCache.get(cacheKey));
-  }
-
-  const state = getOrCreateGuildState(guildId);
-  state.autoplay = false;
-
-  const response = {
-    status: 'success',
-    enabled: false,
-    message: 'Autoplay is disabled in the rainbot worker',
-  };
-  requestCache.set(cacheKey, response);
-  res.json(response);
-});
 
 // Health checks
 app.get('/health/live', (req: Request, res: Response) => {

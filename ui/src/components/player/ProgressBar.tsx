@@ -1,22 +1,22 @@
-import { formatDuration } from '@/lib/utils'
+import { formatDuration } from '@/lib/utils';
 
 interface ProgressBarProps {
-  currentTime: number
-  duration: number
-  onClick?: () => void
+  currentTime: number;
+  duration: number;
+  onClick?: () => void;
 }
 
 /**
  * Progress bar showing current playback position.
  * Displays a visual progress indicator with elapsed/total time labels.
  * Shows draggable handle on hover for seeking (when implemented).
- * 
+ *
  * @param currentTime - Current playback position in seconds
  * @param duration - Total track duration in seconds
  * @param onClick - Optional click handler for seeking functionality
  */
 export default function ProgressBar({ currentTime, duration, onClick }: ProgressBarProps) {
-  const progressPercentage = duration && duration > 0 ? (currentTime / duration) * 100 : 0
+  const progressPercentage = duration && duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className="progress-container flex flex-col gap-3">
@@ -38,5 +38,5 @@ export default function ProgressBar({ currentTime, duration, onClick }: Progress
         <span>{formatDuration(duration)}</span>
       </div>
     </div>
-  )
+  );
 }

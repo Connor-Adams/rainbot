@@ -7,13 +7,16 @@
   "scripts": {
     "build": "tsc",
     "build:ts": "tsc",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
     "@rainbot/worker-protocol": "*",
     "@trpc/client": "^10.45.2",
-    "@trpc/server": "^10.45.2"
+    "@trpc/server": "^10.45.2",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

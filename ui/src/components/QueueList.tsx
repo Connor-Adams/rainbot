@@ -1,50 +1,50 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { botApi } from '@/lib/api'
-import { useGuildStore } from '@/stores/guildStore'
-import type { Track } from '@/types'
-import { useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui'
-import EmptyState from '@/components/common/EmptyState'
-import QueueItem from '@/components/queue/QueueItem'
-import { TrashIcon } from '@/components/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { botApi } from '@/lib/api';
+import { useGuildStore } from '@/stores/guildStore';
+import type { Track } from '@/types';
+import { useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import EmptyState from '@/components/common/EmptyState';
+import QueueItem from '@/components/queue/QueueItem';
+import { TrashIcon } from '@/components/icons';
 
 export default function QueueList() {
-  const { selectedGuildId } = useGuildStore()
-  const queryClient = useQueryClient()
-  const [isClearing, setIsClearing] = useState(false)
+  const { selectedGuildId } = useGuildStore();
+  const queryClient = useQueryClient();
+  const [isClearing, setIsClearing] = useState(false);
 
   const { data: queueData } = useQuery({
     queryKey: ['queue', selectedGuildId],
     queryFn: () => botApi.getQueue(selectedGuildId!).then((res) => res.data),
     enabled: !!selectedGuildId,
     refetchInterval: 5000,
-  })
+  });
 
   const removeMutation = useMutation({
     mutationFn: (index: number) => botApi.removeFromQueue(selectedGuildId!, index),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] })
+      queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
     },
-  })
+  });
 
   const clearMutation = useMutation({
     mutationFn: () => botApi.clearQueue(selectedGuildId!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] })
-      setIsClearing(false)
+      queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
+      setIsClearing(false);
     },
-  })
+  });
 
   const handleClear = () => {
     if (window.confirm('Clear the entire queue?')) {
-      setIsClearing(true)
-      clearMutation.mutate()
+      setIsClearing(true);
+      clearMutation.mutate();
     }
-  }
+  };
 
-  const queue = queueData?.queue || []
-  const totalInQueue = queueData?.totalInQueue || 0
-  const hasQueue = queue.length > 0 || queueData?.nowPlaying
+  const queue = queueData?.queue || [];
+  const totalInQueue = queueData?.totalInQueue || 0;
+  const hasQueue = queue.length > 0 || queueData?.nowPlaying;
 
   if (!selectedGuildId) {
     return (
@@ -56,7 +56,7 @@ export default function QueueList() {
           <EmptyState icon="🎵" message="Select a server to view queue" />
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -114,6 +114,5 @@ export default function QueueList() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
-
