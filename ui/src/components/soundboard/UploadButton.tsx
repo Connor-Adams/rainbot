@@ -1,25 +1,25 @@
-import { useRef } from 'react'
+import { useRef } from 'react';
 
 interface UploadButtonProps {
-  onUpload: (files: File[]) => void
-  isUploading: boolean
-  disabled?: boolean
+  onUpload: (files: File[]) => void;
+  isUploading: boolean;
+  disabled?: boolean;
 }
 
 export function UploadButton({ onUpload, isUploading, disabled }: UploadButtonProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
+    const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      onUpload(files)
-      e.target.value = '' // Reset input
+      onUpload(files);
+      e.target.value = ''; // Reset input
     }
-  }
+  };
 
   return (
     <>
@@ -51,5 +51,5 @@ export function UploadButton({ onUpload, isUploading, disabled }: UploadButtonPr
         )}
       </button>
     </>
-  )
+  );
 }

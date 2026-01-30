@@ -1,6 +1,6 @@
 interface StatusIndicatorProps {
-  isOnline: boolean
-  statusText: string
+  isOnline: boolean;
+  statusText: string;
 }
 
 export default function StatusIndicator({ isOnline, statusText }: StatusIndicatorProps) {
@@ -16,5 +16,5 @@ export default function StatusIndicator({ isOnline, statusText }: StatusIndicato
         {statusText}
       </span>
     </div>
-  )
+  );
 }

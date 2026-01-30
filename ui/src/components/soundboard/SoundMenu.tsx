@@ -1,13 +1,13 @@
-import { forwardRef } from 'react'
-import { soundsApi } from '@/lib/api'
+import { forwardRef } from 'react';
+import { soundsApi } from '@/lib/api';
 
 interface SoundMenuProps {
-  soundName: string
-  isPreviewing: boolean
-  onPreview: () => void
-  onEdit: () => void
-  onDelete: () => void
-  onClose: () => void
+  soundName: string;
+  isPreviewing: boolean;
+  onPreview: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onClose: () => void;
 }
 
 export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
@@ -25,7 +25,7 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
           <span className="w-5">{isPreviewing ? '⏸️' : '▶️'}</span>
           <span>{isPreviewing ? 'Stop' : 'Preview'}</span>
         </button>
-        
+
         <button
           className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors"
           onClick={onEdit}
@@ -33,22 +33,22 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
           <span className="w-5">✏️</span>
           <span>Customize</span>
         </button>
-        
+
         <a
           href={soundsApi.downloadUrl(soundName)}
           download={soundName}
           className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface-hover flex items-center gap-2 transition-colors block"
           onClick={(e) => {
-            e.stopPropagation()
-            onClose()
+            e.stopPropagation();
+            onClose();
           }}
         >
           <span className="w-5">⬇️</span>
           <span>Download</span>
         </a>
-        
+
         <div className="border-t border-border" />
-        
+
         <button
           className="w-full px-4 py-2.5 text-left text-sm text-danger-light hover:bg-danger/10 flex items-center gap-2 transition-colors"
           onClick={onDelete}
@@ -57,8 +57,8 @@ export const SoundMenu = forwardRef<HTMLDivElement, SoundMenuProps>(
           <span>Delete</span>
         </button>
       </div>
-    )
+    );
   }
-)
+);
 
-SoundMenu.displayName = 'SoundMenu'
+SoundMenu.displayName = 'SoundMenu';

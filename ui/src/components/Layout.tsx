@@ -1,16 +1,16 @@
-import type { ReactNode } from 'react'
-import Header from './Header'
-import Sidebar from './Sidebar'
-import { useAuthStore } from '../stores/authStore'
-import { useToast } from '../hooks/useToast'
+import type { ReactNode } from 'react';
+import Header from './Header';
+import Sidebar from './Sidebar';
+import { useAuthStore } from '../stores/authStore';
+import { useToast } from '../hooks/useToast';
 
 interface LayoutProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, logout } = useAuthStore()
-  const { ToastContainer } = useToast()
+  const { user, logout } = useAuthStore();
+  const { ToastContainer } = useToast();
 
   return (
     <div className="app flex flex-col min-h-screen">
@@ -21,5 +21,5 @@ export default function Layout({ children }: LayoutProps) {
       </main>
       <ToastContainer />
     </div>
-  )
+  );
 }

@@ -1,10 +1,10 @@
-import { forwardRef } from 'react'
-import { SearchIcon, XIcon } from '@/components/icons'
+import { forwardRef } from 'react';
+import { SearchIcon, XIcon } from '@/components/icons';
 
 interface SearchBarProps {
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
 }
 
 export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
@@ -33,8 +33,8 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
           </button>
         )}
       </div>
-    )
+    );
   }
-)
+);
 
-SearchBar.displayName = 'SearchBar'
+SearchBar.displayName = 'SearchBar';

@@ -4,5 +4,5 @@ export default function Logo() {
       <span className="text-3xl">🌧️</span>
       <h1 className="text-2xl font-bold gradient-text">Rainbot</h1>
     </div>
-  )
+  );
 }

@@ -1,19 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
-import { botApi } from '@/lib/api'
-import type { Connection } from '@/types'
-import { escapeHtml } from '@/lib/utils'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
-import EmptyState from '@/components/common/EmptyState'
-import ListItem from '@/components/common/ListItem'
+import { useQuery } from '@tanstack/react-query';
+import { botApi } from '@/lib/api';
+import type { Connection } from '@/types';
+import { escapeHtml } from '@/lib/utils';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
+import EmptyState from '@/components/common/EmptyState';
+import ListItem from '@/components/common/ListItem';
 
 export default function ConnectionsList() {
   const { data: status } = useQuery({
     queryKey: ['bot-status'],
     queryFn: () => botApi.getStatus().then((res) => res.data),
     refetchInterval: 5000,
-  })
+  });
 
-  const connections = status?.connections || []
+  const connections = status?.connections || [];
 
   return (
     <Card>
@@ -47,6 +47,5 @@ export default function ConnectionsList() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
-

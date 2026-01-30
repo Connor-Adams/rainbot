@@ -1,9 +1,9 @@
-import type { CommandStat } from '@/types'
-import { escapeHtml } from '@/lib/utils'
-import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common'
-import { useStatsQuery } from '@/hooks/useStatsQuery'
-import { statsApi } from '@/lib/api'
-import { safeInt } from '@/lib/chartSafety'
+import type { CommandStat } from '@/types';
+import { escapeHtml } from '@/lib/utils';
+import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
+import { statsApi } from '@/lib/api';
+import { safeInt } from '@/lib/chartSafety';
 import {
   BarChart,
   Bar,
@@ -14,20 +14,20 @@ import {
   PieChart,
   Pie,
   Cell,
-} from 'recharts'
+} from 'recharts';
 
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'commands'],
     queryFn: () => statsApi.commands(),
-  })
+  });
 
-  if (isLoading) return <StatsLoading message="Loading command statistics..." />
-  if (error) return <StatsError error={error} />
-  
+  if (isLoading) return <StatsLoading message="Loading command statistics..." />;
+  if (error) return <StatsError error={error} />;
+
   // Safe data access with defaults
-  const commands = Array.isArray(data?.commands) ? data.commands : []
-  
+  const commands = Array.isArray(data?.commands) ? data.commands : [];
+
   if (!data || commands.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
@@ -37,22 +37,25 @@ export default function CommandsStats() {
           Command statistics will appear as users interact with the bot
         </small>
       </div>
-    )
+    );
   }
 
-  const totalCount = safeInt(data.total)
-  const successCount = commands.reduce((sum: number, c: CommandStat) => sum + safeInt(c.success_count), 0)
-  const errorCount = Math.max(0, totalCount - successCount)
+  const totalCount = safeInt(data.total);
+  const successCount = commands.reduce(
+    (sum: number, c: CommandStat) => sum + safeInt(c.success_count),
+    0
+  );
+  const errorCount = Math.max(0, totalCount - successCount);
 
   const barChartData = commands.slice(0, 10).map((c: CommandStat) => ({
     name: c.command_name || 'Unknown',
     value: safeInt(c.count),
-  }))
+  }));
 
   const doughnutData = [
     { name: 'Success', value: successCount, color: 'rgb(34, 197, 94)' },
     { name: 'Errors', value: errorCount, color: 'rgb(239, 68, 68)' },
-  ].filter(d => d.value > 0)
+  ].filter((d) => d.value > 0);
 
   const columns = [
     {
@@ -89,15 +92,15 @@ export default function CommandsStats() {
       id: 'success_rate',
       header: 'Success Rate',
       render: (cmd: CommandStat) => {
-        const sc = safeInt(cmd.success_count)
-        const ec = safeInt(cmd.error_count)
-        const total = sc + ec
-        const rate = total > 0 ? ((sc / total) * 100).toFixed(1) : '0'
-        return <span className="font-mono">{rate}%</span>
+        const sc = safeInt(cmd.success_count);
+        const ec = safeInt(cmd.error_count);
+        const total = sc + ec;
+        const rate = total > 0 ? ((sc / total) * 100).toFixed(1) : '0';
+        return <span className="font-mono">{rate}%</span>;
       },
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
-  ]
+  ];
 
   return (
     <div className="space-y-6">
@@ -109,8 +112,19 @@ export default function CommandsStats() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barChartData} layout="vertical" margin={{ left: 80, right: 20 }}>
                   <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={75} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    width={75}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
+                      border: '1px solid #374151',
+                      borderRadius: 8,
+                    }}
+                  />
                   <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -132,14 +146,22 @@ export default function CommandsStats() {
                     innerRadius={50}
                     outerRadius={80}
                     paddingAngle={2}
-                    label={({ name, percent }: { name: string; percent: number }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, percent }: { name: string; percent: number }) =>
+                      `${name} (${(percent * 100).toFixed(0)}%)`
+                    }
                     labelLine={{ stroke: '#6b7280' }}
                   >
                     {doughnutData.map((entry, index) => (
                       <Cell key={index} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
+                      border: '1px solid #374151',
+                      borderRadius: 8,
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -155,5 +177,5 @@ export default function CommandsStats() {
         />
       </StatsSection>
     </div>
-  )
+  );
 }

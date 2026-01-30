@@ -1,38 +1,38 @@
-import { useQuery } from '@tanstack/react-query'
-import { statsApi } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query';
+import { statsApi } from '@/lib/api';
 
 type PlaybackState = {
-  state_type: string
-  count: string
-}
+  state_type: string;
+  count: string;
+};
 
 type VolumeDistributionEntry = {
-  volume_level: number
-  count: string
-}
+  volume_level: number;
+  count: string;
+};
 
 type PausePatternByHourEntry = {
-  hour: string
-  pauses: string
-  resumes: string
-}
+  hour: string;
+  pauses: string;
+  resumes: string;
+};
 
 type PlaybackStatesResponse = {
-  stateTypes: PlaybackState[]
-  volumeDistribution: VolumeDistributionEntry[]
-  pausePatternByHour: PausePatternByHourEntry[]
-}
+  stateTypes: PlaybackState[];
+  volumeDistribution: VolumeDistributionEntry[];
+  pausePatternByHour: PausePatternByHourEntry[];
+};
 
 export default function PlaybackStatesStats() {
   const { data, isLoading, error } = useQuery<PlaybackStatesResponse>({
     queryKey: ['stats', 'playback-states'],
     queryFn: () => statsApi.playbackStates().then((r) => r.data),
     refetchInterval: 10000,
-  })
+  });
 
-  if (isLoading) return <div className="py-12 text-center">Loading…</div>
-  if (error) return <div className="py-12 text-center text-danger-light">Error</div>
-  if (!data) return null
+  if (isLoading) return <div className="py-12 text-center">Loading…</div>;
+  if (error) return <div className="py-12 text-center text-danger-light">Error</div>;
+  if (!data) return null;
 
   return (
     <div className="space-y-8">
@@ -41,12 +41,11 @@ export default function PlaybackStatesStats() {
         <h3 className="text-text-primary text-lg mb-4">Playback State Changes</h3>
 
         {(data.stateTypes || []).map((playbackState: PlaybackState) => {
-          const playbackStateCount = Number(playbackState.count)
+          const playbackStateCount = Number(playbackState.count);
           const maxPlaybackStateCount = Math.max(
             ...(data.stateTypes || []).map((stateEntry: PlaybackState) => Number(stateEntry.count))
-          )
-          const playbackStateBarWidth =
-            (playbackStateCount / maxPlaybackStateCount) * 100
+          );
+          const playbackStateBarWidth = (playbackStateCount / maxPlaybackStateCount) * 100;
 
           return (
             <div key={playbackState.state_type} className="mb-3">
@@ -62,7 +61,7 @@ export default function PlaybackStatesStats() {
                 />
               </div>
             </div>
-          )
+          );
         })}
       </div>
 
@@ -71,14 +70,13 @@ export default function PlaybackStatesStats() {
         <h3 className="text-text-primary text-lg mb-4">Volume Levels</h3>
 
         {(data.volumeDistribution || []).map((volumeEntry: VolumeDistributionEntry) => {
-          const volumeLevelCount = Number(volumeEntry.count)
+          const volumeLevelCount = Number(volumeEntry.count);
           const maxVolumeLevelCount = Math.max(
-            ...(data.volumeDistribution || []).map(
-              (volumeLevelEntry: VolumeDistributionEntry) => Number(volumeLevelEntry.count)
+            ...(data.volumeDistribution || []).map((volumeLevelEntry: VolumeDistributionEntry) =>
+              Number(volumeLevelEntry.count)
             )
-          )
-          const volumeLevelBarWidth =
-            (volumeLevelCount / maxVolumeLevelCount) * 100
+          );
+          const volumeLevelBarWidth = (volumeLevelCount / maxVolumeLevelCount) * 100;
 
           return (
             <div key={volumeEntry.volume_level} className="mb-3">
@@ -94,7 +92,7 @@ export default function PlaybackStatesStats() {
                 />
               </div>
             </div>
-          )
+          );
         })}
       </div>
 
@@ -102,46 +100,34 @@ export default function PlaybackStatesStats() {
       <div className="bg-surface border border-border rounded-xl p-6">
         <h3 className="text-text-primary text-lg mb-4">Pauses & Resumes by Hour</h3>
 
-        {(data.pausePatternByHour || []).map(
-          (hourlyPauseResumeStats: PausePatternByHourEntry) => {
-            const pauseCount = Number(hourlyPauseResumeStats.pauses)
-            const resumeCount = Number(hourlyPauseResumeStats.resumes)
-            const totalPauseResumeCount = pauseCount + resumeCount
+        {(data.pausePatternByHour || []).map((hourlyPauseResumeStats: PausePatternByHourEntry) => {
+          const pauseCount = Number(hourlyPauseResumeStats.pauses);
+          const resumeCount = Number(hourlyPauseResumeStats.resumes);
+          const totalPauseResumeCount = pauseCount + resumeCount;
 
-            const pauseBarWidth =
-              totalPauseResumeCount === 0
-                ? 0
-                : (pauseCount / totalPauseResumeCount) * 100
+          const pauseBarWidth =
+            totalPauseResumeCount === 0 ? 0 : (pauseCount / totalPauseResumeCount) * 100;
 
-            const resumeBarWidth =
-              totalPauseResumeCount === 0
-                ? 0
-                : (resumeCount / totalPauseResumeCount) * 100
+          const resumeBarWidth =
+            totalPauseResumeCount === 0 ? 0 : (resumeCount / totalPauseResumeCount) * 100;
 
-            return (
-              <div key={hourlyPauseResumeStats.hour} className="mb-4">
-                <div className="flex justify-between text-sm text-text-secondary mb-1">
-                  <span>{hourlyPauseResumeStats.hour}:00</span>
-                  <span>
-                    ⏸ {pauseCount} / ▶ {resumeCount}
-                  </span>
-                </div>
-
-                <div className="w-full h-3 bg-surface-hover rounded flex overflow-hidden">
-                  <div
-                    className="h-3 bg-danger-light"
-                    style={{ width: `${pauseBarWidth}%` }}
-                  />
-                  <div
-                    className="h-3 bg-primary-light"
-                    style={{ width: `${resumeBarWidth}%` }}
-                  />
-                </div>
+          return (
+            <div key={hourlyPauseResumeStats.hour} className="mb-4">
+              <div className="flex justify-between text-sm text-text-secondary mb-1">
+                <span>{hourlyPauseResumeStats.hour}:00</span>
+                <span>
+                  ⏸ {pauseCount} / ▶ {resumeCount}
+                </span>
               </div>
-            )
-          }
-        )}
+
+              <div className="w-full h-3 bg-surface-hover rounded flex overflow-hidden">
+                <div className="h-3 bg-danger-light" style={{ width: `${pauseBarWidth}%` }} />
+                <div className="h-3 bg-primary-light" style={{ width: `${resumeBarWidth}%` }} />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
-  )
+  );
 }

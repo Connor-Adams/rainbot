@@ -1,21 +1,22 @@
-import type { StatsSummary as StatsSummaryType } from '@/types'
-import { StatsLoading, StatsError, StatCard } from '@/components/common'
-import { useStatsQuery } from '@/hooks/useStatsQuery'
-import { statsApi } from '@/lib/api'
+import type { StatsSummary as StatsSummaryType } from '@/types';
+import { StatsLoading, StatsError, StatCard } from '@/components/common';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
+import { statsApi } from '@/lib/api';
 
 export default function StatsSummary() {
   const { data, isLoading, error } = useStatsQuery<StatsSummaryType>({
     queryKey: ['stats', 'summary'],
     queryFn: () => statsApi.summary(),
-  })
+  });
 
-  if (isLoading) return <StatsLoading />
-  if (error) return <StatsError error={error} message="Error loading statistics" />
-  if (!data) return null
+  if (isLoading) return <StatsLoading />;
+  if (error) return <StatsError error={error} message="Error loading statistics" />;
+  if (!data) return null;
 
-  const successRate = typeof data.successRate === 'number' && !isNaN(data.successRate)
-    ? data.successRate.toFixed(1)
-    : '0.0'
+  const successRate =
+    typeof data.successRate === 'number' && !isNaN(data.successRate)
+      ? data.successRate.toFixed(1)
+      : '0.0';
 
   return (
     <div className="stats-summary space-y-6">
@@ -27,6 +28,5 @@ export default function StatsSummary() {
         <StatCard value={`${successRate}%`} label="Success Rate" />
       </div>
     </div>
-  )
+  );
 }
-

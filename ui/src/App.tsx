@@ -1,15 +1,15 @@
-import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from './stores/authStore'
-import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import LoadingOverlay from './components/LoadingOverlay'
+import { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './stores/authStore';
+import Layout from './components/Layout';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import LoadingOverlay from './components/LoadingOverlay';
 
-const debugEnabled = import.meta.env.DEV
+const debugEnabled = import.meta.env.DEV;
 
 function App() {
-  const { checkAuth, isLoading, isAuthenticated } = useAuthStore()
+  const { checkAuth, isLoading, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
     // Check auth on mount
@@ -19,31 +19,31 @@ function App() {
       // If we just came from OAuth (check URL params or referrer), wait a bit
       const urlParams = new URLSearchParams(window.location.search);
       const fromOAuth = document.referrer.includes('/auth/discord') || urlParams.has('code');
-      
+
       if (fromOAuth) {
         if (debugEnabled) {
           console.log('[App] Detected OAuth redirect, waiting for session cookie...');
         }
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms for cookie
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms for cookie
       }
-      
+
       if (debugEnabled) console.log('[App] Checking auth...');
       const authenticated = await checkAuth();
       if (debugEnabled) console.log('[App] Auth check result:', authenticated);
-      
+
       // If still not authenticated after OAuth redirect, retry once
       if (!authenticated && fromOAuth) {
         if (debugEnabled) console.log('[App] Retrying auth check after OAuth...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         await checkAuth();
       }
     };
-    
+
     checkAuthWithDelay();
-  }, [checkAuth])
+  }, [checkAuth]);
 
   if (isLoading) {
-    return <LoadingOverlay />
+    return <LoadingOverlay />;
   }
 
   return (
@@ -62,7 +62,7 @@ function App() {
         }
       />
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;

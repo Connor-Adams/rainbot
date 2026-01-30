@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface ListItemProps {
-  icon: string
-  title: string
-  subtitle?: string | ReactNode
-  badge?: ReactNode
-  className?: string
+  icon: string;
+  title: string;
+  subtitle?: string | ReactNode;
+  badge?: ReactNode;
+  className?: string;
 }
 
 export default function ListItem({ icon, title, subtitle, badge, className = '' }: ListItemProps) {
@@ -25,12 +25,10 @@ export default function ListItem({ icon, title, subtitle, badge, className = '' 
           {title}
         </div>
         {subtitle && (
-          <div className="text-xs text-text-muted flex items-center gap-2">
-            {subtitle}
-          </div>
+          <div className="text-xs text-text-muted flex items-center gap-2">{subtitle}</div>
         )}
       </div>
       {badge && <div className="flex-shrink-0">{badge}</div>}
     </div>
-  )
+  );
 }

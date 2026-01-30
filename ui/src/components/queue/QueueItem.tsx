@@ -1,24 +1,24 @@
-import type { Track } from '@/types'
-import { escapeHtml, formatDuration } from '@/lib/utils'
-import { Button, Badge } from '@/components/ui'
-import { XIcon } from '@/components/icons'
+import type { Track } from '@/types';
+import { escapeHtml, formatDuration } from '@/lib/utils';
+import { Button, Badge } from '@/components/ui';
+import { XIcon } from '@/components/icons';
 
 interface QueueItemProps {
-  track: Track
-  index: number
-  onRemove: (index: number) => void
+  track: Track;
+  index: number;
+  onRemove: (index: number) => void;
 }
 
 function getTrackSource(track: Track) {
-  if (track.isLocal) return { icon: '📁', text: 'Local' }
-  if (track.spotifyUrl || track.spotifyId) return { icon: '🎵', text: 'Spotify' }
-  if (track.url?.includes('youtube')) return { icon: '▶️', text: 'YouTube' }
-  if (track.url?.includes('soundcloud')) return { icon: '🎧', text: 'SoundCloud' }
-  return { icon: '🎵', text: 'Stream' }
+  if (track.isLocal) return { icon: '📁', text: 'Local' };
+  if (track.spotifyUrl || track.spotifyId) return { icon: '🎵', text: 'Spotify' };
+  if (track.url?.includes('youtube')) return { icon: '▶️', text: 'YouTube' };
+  if (track.url?.includes('soundcloud')) return { icon: '🎧', text: 'SoundCloud' };
+  return { icon: '🎵', text: 'Stream' };
 }
 
 export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
-  const source = getTrackSource(track)
+  const source = getTrackSource(track);
 
   return (
     <div
@@ -61,5 +61,5 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         <span className="sr-only">Remove {escapeHtml(track.title)} from queue</span>
       </Button>
     </div>
-  )
+  );
 }

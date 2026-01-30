@@ -1,7 +1,7 @@
-import ServerSelector from './ServerSelector'
-import ConnectionsList from './ConnectionsList'
-import ServersList from './ServersList'
-import QueueList from './QueueList'
+import ServerSelector from './ServerSelector';
+import ConnectionsList from './ConnectionsList';
+import ServersList from './ServersList';
+import QueueList from './QueueList';
 
 export default function Sidebar() {
   return (
@@ -11,5 +11,5 @@ export default function Sidebar() {
       <ServersList />
       <QueueList />
     </aside>
-  )
+  );
 }

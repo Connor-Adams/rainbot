@@ -1,29 +1,29 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { soundsApi } from '@/lib/api'
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { soundsApi } from '@/lib/api';
 
 type SweepResult = {
-  converted: number
-  deleted: number
-  skipped: number
-}
+  converted: number;
+  deleted: number;
+  skipped: number;
+};
 
 export default function AdminTab() {
-  const queryClient = useQueryClient()
-  const [lastResult, setLastResult] = useState<SweepResult | null>(null)
+  const queryClient = useQueryClient();
+  const [lastResult, setLastResult] = useState<SweepResult | null>(null);
 
   const sweepMutation = useMutation({
     mutationFn: () => soundsApi.sweepTranscode({ deleteOriginal: true }),
     onSuccess: (res) => {
-      setLastResult(res.data || null)
-      queryClient.invalidateQueries({ queryKey: ['sounds'] })
+      setLastResult(res.data || null);
+      queryClient.invalidateQueries({ queryKey: ['sounds'] });
     },
-  })
+  });
 
   const handleSweep = () => {
-    if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return
-    sweepMutation.mutate()
-  }
+    if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return;
+    sweepMutation.mutate();
+  };
 
   return (
     <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
@@ -38,9 +38,7 @@ export default function AdminTab() {
 
       <div className="space-y-4">
         <div className="rounded-xl border border-border bg-surface-input p-4">
-          <div className="text-sm font-semibold text-text-primary mb-1">
-            Transcode and Cleanup
-          </div>
+          <div className="text-sm font-semibold text-text-primary mb-1">Transcode and Cleanup</div>
           <div className="text-xs text-text-secondary mb-4">
             Re-encode all sounds to Ogg Opus and archive non-Ogg originals.
           </div>
@@ -53,9 +51,7 @@ export default function AdminTab() {
             {sweepMutation.isPending ? 'Working...' : 'Run Transcode Sweep'}
           </button>
           {sweepMutation.isError && (
-            <div className="mt-3 text-xs text-danger-light">
-              Failed to start sweep.
-            </div>
+            <div className="mt-3 text-xs text-danger-light">Failed to start sweep.</div>
           )}
           {lastResult && (
             <div className="mt-3 text-xs text-text-secondary">
@@ -66,5 +62,5 @@ export default function AdminTab() {
         </div>
       </div>
     </section>
-  )
+  );
 }

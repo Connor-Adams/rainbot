@@ -1,18 +1,18 @@
-import { PlayIcon, PauseIcon, SkipPreviousIcon, SkipNextIcon } from '@/components/icons'
+import { PlayIcon, PauseIcon, SkipPreviousIcon, SkipNextIcon } from '@/components/icons';
 
 interface PlaybackControlsProps {
-  isPaused: boolean
-  isLoading?: boolean
-  onPlayPause: () => void
-  onSkip: () => void
-  onPrevious?: () => void
+  isPaused: boolean;
+  isLoading?: boolean;
+  onPlayPause: () => void;
+  onSkip: () => void;
+  onPrevious?: () => void;
 }
 
 /**
  * Playback control buttons (previous, play/pause, next).
  * Displays large, accessible buttons for controlling audio playback.
  * Primary play/pause button is highlighted, skip buttons are secondary.
- * 
+ *
  * @param isPaused - Whether playback is currently paused
  * @param isLoading - Whether an action is in progress (disables buttons)
  * @param onPlayPause - Handler for play/pause toggle
@@ -55,5 +55,5 @@ export default function PlaybackControls({
         <SkipNextIcon size={24} />
       </button>
     </div>
-  )
+  );
 }

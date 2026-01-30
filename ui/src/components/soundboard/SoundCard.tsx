@@ -1,17 +1,17 @@
-import type { Sound } from '@/types'
-import { formatSize } from '@/lib/utils'
-import type { SoundCustomization } from '@/hooks/useSoundCustomization'
-import { MenuIcon } from '@/components/icons'
+import type { Sound } from '@/types';
+import { formatSize } from '@/lib/utils';
+import type { SoundCustomization } from '@/hooks/useSoundCustomization';
+import { MenuIcon } from '@/components/icons';
 
 interface SoundCardProps {
-  sound: Sound
-  customization?: SoundCustomization
-  isPlaying: boolean
-  isPreviewing: boolean
-  isDisabled: boolean
-  onPlay: (sound: Sound) => void
-  onMenuToggle: (soundName: string) => void
-  isMenuOpen: boolean
+  sound: Sound;
+  customization?: SoundCustomization;
+  isPlaying: boolean;
+  isPreviewing: boolean;
+  isDisabled: boolean;
+  onPlay: (sound: Sound) => void;
+  onMenuToggle: (soundName: string) => void;
+  isMenuOpen: boolean;
 }
 
 export function SoundCard({
@@ -24,8 +24,8 @@ export function SoundCard({
   onMenuToggle,
   isMenuOpen,
 }: SoundCardProps) {
-  const displayName = customization?.displayName || sound.name.replace(/\.[^/.]+$/, '')
-  const emoji = customization?.emoji || '🎵'
+  const displayName = customization?.displayName || sound.name.replace(/\.[^/.]+$/, '');
+  const emoji = customization?.emoji || '🎵';
 
   return (
     <div
@@ -44,8 +44,8 @@ export function SoundCard({
       tabIndex={isDisabled ? -1 : 0}
       onKeyDown={(e) => {
         if ((e.key === 'Enter' || e.key === ' ') && !isDisabled) {
-          e.preventDefault()
-          onPlay(sound)
+          e.preventDefault();
+          onPlay(sound);
         }
       }}
       aria-label={`Play ${displayName}`}
@@ -55,8 +55,8 @@ export function SoundCard({
       <button
         className="absolute top-2 right-2 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors z-10"
         onClick={(e) => {
-          e.stopPropagation()
-          onMenuToggle(sound.name)
+          e.stopPropagation();
+          onMenuToggle(sound.name);
         }}
         aria-label="Sound options"
         aria-expanded={isMenuOpen}
@@ -97,5 +97,5 @@ export function SoundCard({
         </div>
       )}
     </div>
-  )
+  );
 }

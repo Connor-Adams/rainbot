@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react'
-import EmojiPicker, { type EmojiClickData } from 'emoji-picker-react'
-import { useClickOutside } from '@/hooks/useClickOutside'
+import { useRef, useState } from 'react';
+import EmojiPicker, { type EmojiClickData } from 'emoji-picker-react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 interface EditModalProps {
-  soundName: string
-  initialDisplayName?: string
-  initialEmoji?: string
-  onSave: (displayName: string, emoji: string) => void
-  onTrim?: (startMs: number, endMs: number) => Promise<void> | void
-  onCancel: () => void
+  soundName: string;
+  initialDisplayName?: string;
+  initialEmoji?: string;
+  onSave: (displayName: string, emoji: string) => void;
+  onTrim?: (startMs: number, endMs: number) => Promise<void> | void;
+  onCancel: () => void;
 }
 
 export function EditModal({
@@ -21,56 +21,56 @@ export function EditModal({
 }: EditModalProps) {
   // Use a key prop on the modal instead of syncing state in useEffect
   // The parent should add key={soundName} to reset state when sound changes
-  const baseName = soundName.replace(/\.[^/.]+$/, '')
-  const [displayName, setDisplayName] = useState(initialDisplayName || baseName)
-  const [emoji, setEmoji] = useState(initialEmoji)
-  const [trimStartSec, setTrimStartSec] = useState('0')
-  const [trimEndSec, setTrimEndSec] = useState('')
-  const [isTrimming, setIsTrimming] = useState(false)
-  const [isPickerOpen, setIsPickerOpen] = useState(false)
-  const pickerRef = useRef<HTMLDivElement>(null)
-  const quickEmojis = ['🎵', '🔥', '😂', '😮', '👏', '💯', '⚡', '✨', '🔔', '🎉', '😎', '💥']
+  const baseName = soundName.replace(/\.[^/.]+$/, '');
+  const [displayName, setDisplayName] = useState(initialDisplayName || baseName);
+  const [emoji, setEmoji] = useState(initialEmoji);
+  const [trimStartSec, setTrimStartSec] = useState('0');
+  const [trimEndSec, setTrimEndSec] = useState('');
+  const [isTrimming, setIsTrimming] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const quickEmojis = ['🎵', '🔥', '😂', '😮', '👏', '💯', '⚡', '✨', '🔔', '🎉', '😎', '💥'];
 
   useClickOutside(pickerRef, () => {
     if (isPickerOpen) {
-      setIsPickerOpen(false)
+      setIsPickerOpen(false);
     }
-  })
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const resolvedDisplayName = displayName.trim() || baseName
-    onSave(resolvedDisplayName, emoji.trim() || '🎵')
-  }
+    e.preventDefault();
+    const resolvedDisplayName = displayName.trim() || baseName;
+    onSave(resolvedDisplayName, emoji.trim() || '🎵');
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (isPickerOpen) {
-        setIsPickerOpen(false)
-        return
+        setIsPickerOpen(false);
+        return;
       }
-      onCancel()
+      onCancel();
     }
-  }
+  };
 
   const handleTrim = async () => {
-    if (!onTrim) return
-    const start = Number(trimStartSec)
-    const end = Number(trimEndSec)
+    if (!onTrim) return;
+    const start = Number(trimStartSec);
+    const end = Number(trimEndSec);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
-      alert('Enter valid start/end seconds (end must be greater than start).')
-      return
+      alert('Enter valid start/end seconds (end must be greater than start).');
+      return;
     }
     try {
-      setIsTrimming(true)
-      await onTrim(Math.floor(start * 1000), Math.floor(end * 1000))
+      setIsTrimming(true);
+      await onTrim(Math.floor(start * 1000), Math.floor(end * 1000));
     } catch (error) {
-      const message = (error as Error).message || 'Trim failed'
-      alert(message)
+      const message = (error as Error).message || 'Trim failed';
+      alert(message);
     } finally {
-      setIsTrimming(false)
+      setIsTrimming(false);
     }
-  }
+  };
 
   return (
     <div
@@ -142,8 +142,8 @@ export function EditModal({
                 >
                   <EmojiPicker
                     onEmojiClick={(emojiData: EmojiClickData) => {
-                      setEmoji(emojiData.emoji)
-                      setIsPickerOpen(false)
+                      setEmoji(emojiData.emoji);
+                      setIsPickerOpen(false);
                     }}
                     skinTonesDisabled
                     searchDisabled={false}
@@ -170,7 +170,9 @@ export function EditModal({
                 className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                 placeholder={baseName}
               />
-              <p className="text-xs text-text-muted mt-2">Clear the name to fall back to the filename.</p>
+              <p className="text-xs text-text-muted mt-2">
+                Clear the name to fall back to the filename.
+              </p>
             </div>
 
             <p className="text-xs text-text-muted flex items-center gap-2">
@@ -242,5 +244,5 @@ export function EditModal({
         </form>
       </div>
     </div>
-  )
+  );
 }

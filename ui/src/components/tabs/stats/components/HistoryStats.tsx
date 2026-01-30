@@ -1,17 +1,17 @@
-import { useState } from 'react'
-import { statsApi } from '@/lib/api'
-import { useGuildStore } from '@/stores/guildStore'
-import type { ListeningHistoryEntry } from '@/types'
-import { escapeHtml, formatDurationLong } from '@/lib/utils'
-import { StatsLoading, StatsError, StatsSection } from '@/components/common'
-import { useStatsQuery } from '@/hooks/useStatsQuery'
+import { useState } from 'react';
+import { statsApi } from '@/lib/api';
+import { useGuildStore } from '@/stores/guildStore';
+import type { ListeningHistoryEntry } from '@/types';
+import { escapeHtml, formatDurationLong } from '@/lib/utils';
+import { StatsLoading, StatsError, StatsSection } from '@/components/common';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 
 export default function HistoryStats() {
-  const { selectedGuildId } = useGuildStore()
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [appliedStartDate, setAppliedStartDate] = useState('')
-  const [appliedEndDate, setAppliedEndDate] = useState('')
+  const { selectedGuildId } = useGuildStore();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
 
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'history', selectedGuildId, appliedStartDate, appliedEndDate],
@@ -22,17 +22,17 @@ export default function HistoryStats() {
         startDate: appliedStartDate || undefined,
         endDate: appliedEndDate || undefined,
       }),
-  })
+  });
 
   const handleFilter = () => {
-    setAppliedStartDate(startDate)
-    setAppliedEndDate(endDate)
-  }
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+  };
 
-  if (isLoading) return <StatsLoading message="Loading listening history..." />
-  if (error) return <StatsError error={error} />
+  if (isLoading) return <StatsLoading message="Loading listening history..." />;
+  if (error) return <StatsError error={error} />;
 
-  const history = data?.history || []
+  const history = data?.history || [];
 
   return (
     <StatsSection title="Listening History">
@@ -74,7 +74,7 @@ export default function HistoryStats() {
             </thead>
             <tbody>
               {history.map((entry: ListeningHistoryEntry, index: number) => {
-                const playedAt = new Date(entry.played_at)
+                const playedAt = new Date(entry.played_at);
                 const sourceIcon =
                   entry.source_type === 'youtube'
                     ? '▶️'
@@ -84,15 +84,17 @@ export default function HistoryStats() {
                         ? '🎧'
                         : entry.source_type === 'local'
                           ? '📁'
-                          : '🎵'
-                const duration = entry.duration ? formatDurationLong(entry.duration) : '-'
+                          : '🎵';
+                const duration = entry.duration ? formatDurationLong(entry.duration) : '-';
 
                 return (
                   <tr key={index} className="hover:bg-surface-hover/50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {entry.is_soundboard && <span className="text-lg">🔊</span>}
-                        <span className="text-sm text-text-primary">{escapeHtml(entry.track_title)}</span>
+                        <span className="text-sm text-text-primary">
+                          {escapeHtml(entry.track_title)}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-text-secondary">
@@ -108,14 +110,16 @@ export default function HistoryStats() {
                         <em>Unknown</em>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-text-secondary">{playedAt.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-text-secondary">
+                      {playedAt.toLocaleString()}
+                    </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
         )}
       </div>
     </StatsSection>
-  )
+  );
 }
