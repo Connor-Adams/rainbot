@@ -7,6 +7,11 @@ jest.mock('../../src/rpc/clients', () => ({
     pranjeet: { status: 'fulfilled' as const, value: { ok: true, service: 'pranjeet' } },
     hungerbot: { status: 'fulfilled' as const, value: { ok: true, service: 'hungerbot' } },
   }),
+  workerBaseUrls: {
+    rainbot: 'http://localhost:3001',
+    pranjeet: 'http://localhost:3002',
+    hungerbot: 'http://localhost:3003',
+  },
   rainbotClient: {},
   pranjeetClient: {},
   hungerbotClient: {},

@@ -12,7 +12,10 @@ function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   return withScheme.replace(/\/$/, '');
 }
 
-const RAINBOT_URL = normalizeRpcBaseUrl(process.env['RAINBOT_URL'] || '', 'http://rainbot.railway.internal:3001');
+const RAINBOT_URL = normalizeRpcBaseUrl(
+  process.env['RAINBOT_URL'] || '',
+  'http://rainbot.railway.internal:3001'
+);
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
   'http://pranjeet.railway.internal:3002'

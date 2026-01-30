@@ -163,10 +163,12 @@ export class WorkerCoordinator {
       log.info('TTS queue disabled (REDIS_URL not configured)');
     }
 
-    const targets = Object.entries(workerBaseUrls)
-      .map(([k, v]) => `${k}=${v}`)
-      .join(', ');
-    log.info(`Worker RPC targets: ${targets}`);
+    if (workerBaseUrls && typeof workerBaseUrls === 'object') {
+      const targets = Object.entries(workerBaseUrls)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(', ');
+      log.info(`Worker RPC targets: ${targets}`);
+    }
     this.startHealthPolling();
   }
 
