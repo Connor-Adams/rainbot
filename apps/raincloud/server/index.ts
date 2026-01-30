@@ -2,7 +2,6 @@ import express, { Application, Request, Response } from 'express';
 import session from 'express-session';
 import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
-import type { Client } from 'discord.js';
 import { createLogger } from '@utils/logger';
 import * as storage from '@utils/storage';
 import requestLogger from './middleware/requestLogger';
@@ -296,25 +295,6 @@ export async function createServer(): Promise<Application> {
   // API-only: no UI serving; unmatched routes 404
   app.use((_req: Request, res: Response): void => {
     res.status(404).json({ error: 'Not found' });
-  });
-
-  return app;
-}
-
-export async function start(client: Client, port = 3000): Promise<Application> {
-  setClient(client);
-  const app = await createServer();
-  const { loadConfig } = require('@utils/config');
-  const config: AppConfig = loadConfig();
-
-  // Railway and other platforms use 0.0.0.0 instead of localhost
-  const host = process.env['HOST'] || '0.0.0.0';
-
-  app.listen(port, host, () => {
-    const url = config.railwayPublicDomain
-      ? `https://${config.railwayPublicDomain}`
-      : `http://${host}:${port}`;
-    log.info(`Dashboard running at ${url}`);
   });
 
   return app;

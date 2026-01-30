@@ -4,7 +4,7 @@ Multi-bot Discord voice system with a web dashboard.
 
 ## Architecture (4 bots)
 
-- Raincloud: orchestrator + API/dashboard
+- Raincloud: orchestrator + API (no UI; dashboard is separate)
 - Rainbot: music playback worker
 - Pranjeet: TTS worker
 - Hungerbot: soundboard worker
@@ -38,7 +38,7 @@ yarn dev
 - `yarn validate` (type-check, lint, format, test)
 - `yarn dev` (turbo dev – runs all apps including Raincloud and workers)
 - `yarn build`
-- `yarn workspace @rainbot/raincloud dev` – run only the orchestrator (web UI + Discord commands)
+- `yarn workspace @rainbot/raincloud dev` – run only the orchestrator (API + Discord commands)
 
 ## Docs
 
@@ -49,4 +49,4 @@ yarn dev
 
 ## UI
 
-The dashboard lives in `ui/`.
+The dashboard lives in `ui/`. Deploy it separately (see `ui/railway.json`); it talks to Raincloud via `VITE_API_BASE_URL` / `VITE_AUTH_BASE_URL`.
