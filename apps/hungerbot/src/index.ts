@@ -439,18 +439,18 @@ app.use((req: Request, res: Response, next) => {
     return;
   }
 
+  // tRPC from Raincloud sends x-internal-secret; legacy/registration uses x-worker-secret (same value: WORKER_SECRET)
+  const secret = req.header('x-internal-secret') || req.header('x-worker-secret');
+  if (WORKER_SECRET && secret === WORKER_SECRET) {
+    next();
+    return;
+  }
+
   if (!WORKER_SECRET) {
     res.status(503).json({ error: 'Worker secret not configured' });
     return;
   }
-
-  const providedSecret = req.header('x-worker-secret');
-  if (providedSecret !== WORKER_SECRET) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-
-  next();
+  res.status(401).json({ error: 'Unauthorized' });
 });
 app.use(
   '/trpc',

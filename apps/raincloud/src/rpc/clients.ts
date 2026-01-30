@@ -2,7 +2,8 @@ import { createTRPCClient } from '@rainbot/rpc';
 import type { HungerbotRouter, PranjeetRouter, RainbotRouter } from '@rainbot/rpc';
 import type { StatusResponse } from '@rainbot/worker-protocol';
 
-const INTERNAL_SECRET = process.env['INTERNAL_RPC_SECRET'] || '';
+/** Same secret workers use (WORKER_SECRET); used for tRPC x-internal-secret header. */
+const RPC_SECRET = process.env['WORKER_SECRET'] || process.env['INTERNAL_RPC_SECRET'] || '';
 
 function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   const candidate = rawUrl.trim();
@@ -23,17 +24,17 @@ const HUNGERBOT_URL = normalizeRpcBaseUrl(
 
 export const rainbotClient = createTRPCClient<RainbotRouter>({
   baseUrl: RAINBOT_URL,
-  secret: INTERNAL_SECRET,
+  secret: RPC_SECRET,
 });
 
 export const pranjeetClient = createTRPCClient<PranjeetRouter>({
   baseUrl: PRANJEET_URL,
-  secret: INTERNAL_SECRET,
+  secret: RPC_SECRET,
 });
 
 export const hungerbotClient = createTRPCClient<HungerbotRouter>({
   baseUrl: HUNGERBOT_URL,
-  secret: INTERNAL_SECRET,
+  secret: RPC_SECRET,
 });
 
 export async function fetchWorkerHealthChecks(): Promise<{
