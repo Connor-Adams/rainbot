@@ -317,8 +317,10 @@ curl http://localhost:3002/health/ready  # Pranjeet
 curl http://localhost:3003/health/ready  # HungerBot
 ```
 
-The internal tRPC control plane is mounted at `/trpc` and requires the
-`x-internal-secret` header to match `INTERNAL_RPC_SECRET`.
+The internal tRPC control plane is mounted at `/trpc`. Raincloud sends
+`x-internal-secret` with **`WORKER_SECRET`**; workers accept either
+`x-internal-secret` or `x-worker-secret` when the value matches `WORKER_SECRET`.
+Only `WORKER_SECRET` is required (same value on Raincloud and all workers).
 
 ### Orchestrator can't reach workers
 
@@ -328,8 +330,9 @@ Verify worker URLs in `.env`:
 RAINBOT_URL=http://localhost:3001
 PRANJEET_URL=http://localhost:3002
 HUNGERBOT_URL=http://localhost:3003
-INTERNAL_RPC_SECRET=replace-with-a-shared-secret
+WORKER_SECRET=replace-with-a-shared-secret
 ```
+Set `WORKER_SECRET` on Raincloud and on each worker (same value).
 
 In Docker, use service names:
 

@@ -53,6 +53,7 @@ const ORCHESTRATOR_BOT_ID = process.env['ORCHESTRATOR_BOT_ID'] || process.env['R
 const REDIS_URL = process.env['REDIS_URL'];
 const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
 const WORKER_SECRET = process.env['WORKER_SECRET'];
+const INTERNAL_RPC_SECRET = process.env['INTERNAL_RPC_SECRET'];
 const WORKER_INSTANCE_ID =
   process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
 const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
@@ -614,18 +615,18 @@ app.use((req: Request, res: Response, next) => {
     return;
   }
 
+  // tRPC from Raincloud sends x-internal-secret; legacy/registration uses x-worker-secret (same value: WORKER_SECRET)
+  const secret = req.header('x-internal-secret') || req.header('x-worker-secret');
+  if (WORKER_SECRET && secret === WORKER_SECRET) {
+    next();
+    return;
+  }
+
   if (!WORKER_SECRET) {
     res.status(503).json({ error: 'Worker secret not configured' });
     return;
   }
-
-  const providedSecret = req.header('x-worker-secret');
-  if (providedSecret !== WORKER_SECRET) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-
-  next();
+  res.status(401).json({ error: 'Unauthorized' });
 });
 app.use(
   '/trpc',

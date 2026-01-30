@@ -19,7 +19,7 @@ export function createContext({ req, res }: { req: Request; res: Response }): RP
 export const t = initTRPC.context<RPCContext>().create();
 
 export const requireInternalSecret = t.middleware(({ ctx, next }) => {
-  const expectedSecret = process.env['INTERNAL_RPC_SECRET'];
+  const expectedSecret = process.env['INTERNAL_RPC_SECRET'] || process.env['WORKER_SECRET'];
   if (!expectedSecret || ctx.internalSecret !== expectedSecret) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
