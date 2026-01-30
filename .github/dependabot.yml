@@ -1,28 +1,27 @@
 version: 2
 updates:
   # Backend dependencies
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "backend"
+      - 'dependencies'
+      - 'backend'
     commit-message:
-      prefix: "chore(backend)"
-      include: "scope"
+      prefix: 'chore(backend)'
+      include: 'scope'
 
   # Frontend dependencies
-  - package-ecosystem: "npm"
-    directory: "/ui"
+  - package-ecosystem: 'npm'
+    directory: '/ui'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "frontend"
+      - 'dependencies'
+      - 'frontend'
     commit-message:
-      prefix: "chore(frontend)"
-      include: "scope"
-
+      prefix: 'chore(frontend)'
+      include: 'scope'

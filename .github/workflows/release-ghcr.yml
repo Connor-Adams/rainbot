@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Force build (bypass CI + diff gating)"
+        description: 'Force build (bypass CI + diff gating)'
         required: false
         default: false
         type: boolean
@@ -271,7 +271,7 @@ jobs:
         run: |
           IMAGE_TAG=${{ needs.plan.outputs.tag }}
           IMAGE_NAME="ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}"
-          
+
           # Build image with railpack using the primary tag
           # Note: railpack will read railway.json from the app_path directory
           railpack build ${{ matrix.app_path }} \
@@ -281,7 +281,7 @@ jobs:
         run: |
           IMAGE_TAG=${{ needs.plan.outputs.tag }}
           IMAGE_NAME="ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}"
-          
+
           # Create additional prod tag
           docker tag "${IMAGE_NAME}:${IMAGE_TAG}" "${IMAGE_NAME}:prod"
 

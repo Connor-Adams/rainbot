@@ -6,11 +6,11 @@ services:
     image: redis:7-alpine
     container_name: rainbot-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 3
@@ -25,11 +25,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-rainbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rainbot}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rainbot}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-rainbot}']
       interval: 10s
       timeout: 3s
       retries: 3
@@ -54,7 +54,7 @@ services:
       - HUNGERBOT_URL=http://hungerbot:3003
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       redis:
         condition: service_healthy
@@ -77,14 +77,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: rainbot-worker
-    command: ["node", "apps/rainbot/dist/index.js"]
+    command: ['node', 'apps/rainbot/dist/index.js']
     environment:
       - RAINBOT_TOKEN=${RAINBOT_TOKEN}
       - RAINBOT_PORT=3001
       - ORCHESTRATOR_BOT_ID=${ORCHESTRATOR_BOT_ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
-      - "3001:3001"
+      - '3001:3001'
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
@@ -95,7 +95,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: pranjeet-worker
-    command: ["node", "apps/pranjeet/dist/index.js"]
+    command: ['node', 'apps/pranjeet/dist/index.js']
     environment:
       - PRANJEET_TOKEN=${PRANJEET_TOKEN}
       - PRANJEET_PORT=3002
@@ -105,7 +105,7 @@ services:
       - TTS_VOICE_NAME=${TTS_VOICE_NAME:-alloy}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
-      - "3002:3002"
+      - '3002:3002'
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
@@ -116,14 +116,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: hungerbot-worker
-    command: ["node", "apps/hungerbot/dist/index.js"]
+    command: ['node', 'apps/hungerbot/dist/index.js']
     environment:
       - HUNGERBOT_TOKEN=${HUNGERBOT_TOKEN}
       - HUNGERBOT_PORT=3003
       - ORCHESTRATOR_BOT_ID=${ORCHESTRATOR_BOT_ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
-      - "3003:3003"
+      - '3003:3003'
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
@@ -138,7 +138,7 @@ services:
     environment:
       - VITE_API_URL=http://raincloud:3000
     ports:
-      - "5173:5173"
+      - '5173:5173'
     volumes:
       - ./ui:/app
       - /app/node_modules

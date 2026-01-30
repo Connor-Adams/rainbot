@@ -8,6 +8,8 @@
     "build": "tsc",
     "build:ts": "tsc",
     "dev": "npm run build && node dist/index.js",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "test": "jest --passWithNoTests"
