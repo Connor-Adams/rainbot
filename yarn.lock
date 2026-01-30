@@ -2820,7 +2820,7 @@ __metadata:
     inversify: "npm:^7.10.8"
     ioredis: "npm:^5.4.1"
     jest: "npm:^29.7.0"
-    libsodium-wrappers: "npm:^0.7.15"
+    libsodium-wrappers: "npm:^0.8.2"
     multer: "npm:^2.0.2"
     openai: "npm:^4.104.0"
     opusscript: "npm:^0.1.1"
@@ -9237,19 +9237,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"libsodium-wrappers@npm:^0.7.15":
-  version: 0.7.15
-  resolution: "libsodium-wrappers@npm:0.7.15"
+"libsodium-wrappers@npm:^0.8.2":
+  version: 0.8.2
+  resolution: "libsodium-wrappers@npm:0.8.2"
   dependencies:
-    libsodium: "npm:^0.7.15"
-  checksum: 10c0/852c4879f3b3c48332fe704454c4dfc2a1387f9f3930faf84d8626c9670f93365e56aa186d14e2995e5d352f08af07c99c06a2c26d5f44818039f1014d404171
+    libsodium: "npm:^0.8.0"
+  checksum: 10c0/4e0cdce7348bd2f45d4d6549e804b10e76bcebc8acbcd68f200188d3168a652730f0555d5aa2d964b31fa3dcacfca9b3c9a0d519b2e4f0640de2ab87d7cc11f9
   languageName: node
   linkType: hard
 
-"libsodium@npm:^0.7.15":
-  version: 0.7.15
-  resolution: "libsodium@npm:0.7.15"
-  checksum: 10c0/7bdb529681f30be0533f33921509c36823d18f6fc158d66842e50d33cd9635ebb0dd02eb1fe3b51e192996ff173949f846793e10103371c8b179e5c29525556c
+"libsodium@npm:^0.8.0":
+  version: 0.8.2
+  resolution: "libsodium@npm:0.8.2"
+  checksum: 10c0/e943b269331670e45d63885ee32dec5471daa4c78ddfbe35e00e27a5b0ea7b51e7fa8260142ba478dcba0918e8117e9151883c11466b2fab2638ec29a1f3482b
   languageName: node
   linkType: hard
 
