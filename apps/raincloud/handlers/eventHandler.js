@@ -7,11 +7,25 @@ const log = createLogger('EVENTS');
 module.exports = (client) => {
   const distEventsPath = path.join(__dirname, '..', 'dist', 'src', 'events');
   const srcEventsPath = path.join(__dirname, '..', 'src', 'events');
-  const eventsPath = fs.existsSync(distEventsPath) ? distEventsPath : srcEventsPath;
-  const eventFiles = fs.readdirSync(eventsPath).filter((file) => file.endsWith('.js'));
+  const eventFiles = new Map();
 
-  for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
+  // Prefer compiled events when available.
+  if (fs.existsSync(distEventsPath)) {
+    for (const file of fs.readdirSync(distEventsPath).filter((name) => name.endsWith('.js'))) {
+      eventFiles.set(file, path.join(distEventsPath, file));
+    }
+  }
+
+  // Fall back to source events for any files not compiled to dist.
+  if (fs.existsSync(srcEventsPath)) {
+    for (const file of fs.readdirSync(srcEventsPath).filter((name) => name.endsWith('.js'))) {
+      if (!eventFiles.has(file)) {
+        eventFiles.set(file, path.join(srcEventsPath, file));
+      }
+    }
+  }
+
+  for (const filePath of eventFiles.values()) {
     const event = require(filePath);
 
     if (event.once) {
