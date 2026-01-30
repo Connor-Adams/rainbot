@@ -205,13 +205,21 @@ function getBaseUrl(req: Request): string {
 
 // Initiate OAuth flow (no-store so browser/proxy never cache the redirect; avoids 304 and stuck login)
 router.get('/discord', (req: Request, res: Response, next: NextFunction) => {
+  log.info('OAuth start requested', {
+    host: req.get('host'),
+    origin: req.get('origin'),
+    referer: req.get('referer'),
+    url: req.originalUrl,
+  });
   if (!oauthConfigured) {
     res.status(503).json({ error: 'OAuth not configured' });
     return;
   }
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  // Aggressive no-cache so proxies (e.g. Railway edge) never return 304
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
   const session = req.session as { oauthState?: string };
   session.oauthState = crypto.randomBytes(16).toString('hex');
   return passport.authenticate('discord', { state: session.oauthState })(req, res, next);
@@ -342,8 +350,13 @@ router.get('/me', (req: AuthenticatedRequest, res: Response): void => {
 
 // Check authentication status
 router.get('/check', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  log.info('Auth check requested', {
+    host: req.get('host'),
+    origin: req.get('origin'),
+    authenticated: !!(req.isAuthenticated && req.isAuthenticated()),
+  });
   log.debug(
-    `Auth check requested - Session ID: ${req.sessionID}, Authenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}`
+    `Auth check - Session ID: ${req.sessionID}, Authenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}`
   );
 
   if (!req.isAuthenticated || !req.isAuthenticated()) {

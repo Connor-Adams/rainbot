@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User } from '@/types';
-import { authApi, buildAuthUrl } from '@/lib/api';
+import { authApi, buildAuthUrl, authBaseUrl } from '@/lib/api';
 
 const debugEnabled = import.meta.env.DEV;
 
@@ -27,6 +27,8 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading) => set({ isLoading: loading }),
       checkAuth: async () => {
         set({ isLoading: true });
+        const checkUrl = buildAuthUrl('/auth/check');
+        console.info('[Auth] checkAuth target:', checkUrl, { authBaseUrl });
         try {
           if (debugEnabled) console.log('[Auth] Checking authentication...');
           const res = await authApi.check();
