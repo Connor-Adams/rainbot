@@ -138,3 +138,58 @@ export interface CleanupUserResponse {
   status: 'success' | 'error';
   message?: string;
 }
+
+// Rainbot-only command responses (used by RPC)
+export interface SkipResponse {
+  status: 'success' | 'error';
+  message?: string;
+  skipped?: string[];
+}
+
+export interface PauseResponse {
+  status: 'success' | 'error';
+  message?: string;
+  paused?: boolean;
+}
+
+export interface StopResponse {
+  status: 'success' | 'error';
+  message?: string;
+}
+
+export interface ClearResponse {
+  status: 'success' | 'error';
+  message?: string;
+  cleared?: number;
+}
+
+export interface AutoplayResponse {
+  status: 'success' | 'error';
+  message?: string;
+  enabled?: boolean;
+}
+
+export interface ReplayResponse {
+  status: 'success' | 'error';
+  message?: string;
+  track?: string;
+}
+
+/** Minimal queue payload for RPC getQueue (compatible with coordinator normalizeQueueState) */
+export interface QueueItemPayload {
+  title?: string;
+  url?: string;
+  durationMs?: number;
+  duration?: number;
+  sourceType?: string;
+  userId?: string;
+  username?: string;
+  [key: string]: unknown;
+}
+
+export interface QueueResponse {
+  queue: QueueItemPayload[];
+  nowPlaying?: QueueItemPayload;
+  isPaused?: boolean;
+  isAutoplay?: boolean;
+}

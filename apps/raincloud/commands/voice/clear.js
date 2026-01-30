@@ -35,7 +35,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -44,7 +44,7 @@ module.exports = {
     const totalInQueue = queueResult.success ? queueResult.queue?.queue?.length || 0 : 0;
 
     if (totalInQueue === 0) {
-      return interaction.reply('ðŸ“‹ Queue is already empty.');
+      return interaction.reply('Queue is already empty.');
     }
 
     // If confirmation is skipped or there are 3 or fewer tracks, clear immediately
@@ -55,12 +55,12 @@ module.exports = {
         if (result.success) {
           log.info(`Cleared queue by ${interaction.user.tag}`);
           const nowPlaying = status.queue?.nowPlaying?.title ?? null;
-          const currentTrack = nowPlaying ? `\n\nâ–¶ï¸ Still playing: **${nowPlaying}**` : '';
+          const currentTrack = nowPlaying ? `\n\nStill playing: **${nowPlaying}**` : '';
 
-          await interaction.reply(`ðŸ—‘ï¸ Cleared the queue.${currentTrack}`);
+          await interaction.reply(`Cleared the queue.${currentTrack}`);
         } else {
           await interaction.reply({
-            content: `âŒ Failed to clear queue: ${result.message}`,
+            content: `Failed to clear queue: ${result.message}`,
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -75,9 +75,9 @@ module.exports = {
 
         await interaction.reply({
           content:
-            `âš ï¸ You are about to clear **${totalInQueue}** track${totalInQueue === 1 ? '' : 's'} from the queue.\n\n` +
+            `Warning: You are about to clear **${totalInQueue}** track${totalInQueue === 1 ? '' : 's'} from the queue.\n\n` +
             `This action cannot be undone. Are you sure?\n\n` +
-            `ðŸ’¡ *Tip: Use \`/clear confirm:true\` to skip this confirmation.*`,
+            `Tip: Use \`/clear confirm:true\` to skip this confirmation.`,
           components: [createConfirmationRow('clear_queue', guildId, interaction.user.id)],
           ephemeral: true,
         });
@@ -85,10 +85,10 @@ module.exports = {
         // Fallback if confirmation buttons aren't available
         const result = await service.clearQueue(guildId);
         if (result.success) {
-          await interaction.reply('ðŸ—‘ï¸ Cleared the queue.');
+          await interaction.reply('Cleared the queue.');
         } else {
           await interaction.reply({
-            content: `âŒ Failed to clear queue: ${result.message}`,
+            content: `Failed to clear queue: ${result.message}`,
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -96,4 +96,3 @@ module.exports = {
     }
   },
 };
-

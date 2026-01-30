@@ -16,7 +16,11 @@ module.exports = {
     .setName('vol')
     .setDescription('Get or set the playback volume')
     .addIntegerOption((option) =>
-      option.setName('level').setDescription('Volume level (1â€“100)').setMinValue(1).setMaxValue(100)
+      option
+        .setName('level')
+        .setDescription('Volume level (1â€“100)')
+        .setMinValue(1)
+        .setMaxValue(100)
     ),
 
   async execute(interaction) {
@@ -64,4 +68,3 @@ module.exports = {
     }
   },
 };
-

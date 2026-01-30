@@ -93,7 +93,6 @@ module.exports = {
         content: '❌ Resume history is not available in worker mode.',
         flags: MessageFlags.Ephemeral,
       });
-      return;
     }
 
     if (interaction.customId.startsWith('dismiss_history_')) {

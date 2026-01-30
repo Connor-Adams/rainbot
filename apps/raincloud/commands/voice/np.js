@@ -40,4 +40,3 @@ module.exports = {
     await interaction.reply(createPlayerMessage(mediaState, guildId));
   },
 };
-

@@ -3,10 +3,7 @@
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
-const {
-  getMultiBotService,
-  createWorkerUnavailableResponse,
-} = require('../utils/commandHelpers');
+const { getMultiBotService, createWorkerUnavailableResponse } = require('../utils/commandHelpers');
 
 const log = createLogger('AUTOPLAY');
 
@@ -64,4 +61,3 @@ module.exports = {
     }
   },
 };
-

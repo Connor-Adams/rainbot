@@ -1,10 +1,14 @@
 import { createLogger } from '@utils/logger';
 import { VoiceStateManager } from './voiceStateManager';
-import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { fetchWorkerHealthChecks } from '../src/rpc/clients';
+import {
+  fetchWorkerHealthChecks,
+  rainbotClient,
+  pranjeetClient,
+  hungerbotClient,
+} from '../src/rpc/clients';
 import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
 
 const log = createLogger('WORKER-COORDINATOR');
@@ -368,41 +372,48 @@ export class WorkerCoordinator {
     channelId: string
   ): Promise<{ success: boolean; error?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get(botType);
-
-    if (!worker) {
-      return { success: false, error: `Worker ${botType} not configured` };
-    }
     const guard = this.guardWorker(botType);
     if (!guard.ok) {
       return { success: false, error: guard.error };
     }
 
-    try {
-      // Check if already connected
-      const statusResponse = await this.requestWithRetry(
-        botType,
-        () => worker.get(`/status`, { params: { guildId } }),
-        true
-      );
+    const worker = this.workers.get(botType);
+    if (!worker && botType !== 'rainbot') {
+      return { success: false, error: `Worker ${botType} not configured` };
+    }
 
-      if (statusResponse.data.connected && statusResponse.data.channelId === channelId) {
+    try {
+      const getStatus = async (): Promise<{ connected: boolean; channelId?: string }> => {
+        if (botType === 'rainbot') {
+          return rainbotClient.getState.query({ guildId });
+        }
+        if (botType === 'pranjeet') {
+          return pranjeetClient.getState.query({ guildId });
+        }
+        return hungerbotClient.getState.query({ guildId });
+      };
+
+      const doJoin = async (): Promise<{ status: string; message?: string }> => {
+        if (botType === 'rainbot') {
+          return rainbotClient.join.mutate({ requestId, guildId, channelId });
+        }
+        if (botType === 'pranjeet') {
+          return pranjeetClient.join.mutate({ requestId, guildId, channelId });
+        }
+        return hungerbotClient.join.mutate({ requestId, guildId, channelId });
+      };
+
+      let status = await this.requestWithRetry(botType, getStatus, true);
+      if (status.connected && status.channelId === channelId) {
         log.debug(`${botType} already connected to channel ${channelId} in guild ${guildId}`);
         return { success: true };
       }
 
-      // Workers should already be connected via auto-follow if orchestrator is
-      // If not connected yet, give them a moment to catch up (async event processing)
       log.debug(`${botType} not yet connected, waiting for auto-follow...`);
-      // Wait up to 2 seconds for auto-follow to kick in
       for (let i = 0; i < 4; i++) {
         await new Promise((resolve) => setTimeout(resolve, 500));
-        const retryStatus = await this.requestWithRetry(
-          botType,
-          () => worker.get(`/status`, { params: { guildId } }),
-          true
-        );
-        if (retryStatus.data.connected && retryStatus.data.channelId === channelId) {
+        status = await this.requestWithRetry(botType, getStatus, true);
+        if (status.connected && status.channelId === channelId) {
           log.debug(`${botType} connected via auto-follow`);
           await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
           return { success: true };
@@ -410,29 +421,13 @@ export class WorkerCoordinator {
       }
       log.warn(`${botType} did not auto-follow, falling back to explicit join`);
 
-      // Fallback: Join the channel explicitly
-      const joinResponse = await this.requestWithRetry(
-        botType,
-        () =>
-          worker.post('/join', {
-            requestId,
-            guildId,
-            channelId,
-          }),
-        true
-      );
-
-      if (
-        joinResponse.data.status === 'joined' ||
-        joinResponse.data.status === 'already_connected'
-      ) {
-        // Update worker status in Redis
+      const joinResponse = await this.requestWithRetry(botType, doJoin, true);
+      if (joinResponse.status === 'joined' || joinResponse.status === 'already_connected') {
         await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
         log.info(`${botType} joined channel ${channelId} in guild ${guildId}`);
         return { success: true };
       }
-
-      return { success: false, error: joinResponse.data.message };
+      return { success: false, error: joinResponse.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to connect ${botType} to voice: ${message}`);
@@ -446,8 +441,7 @@ export class WorkerCoordinator {
   async disconnectWorker(botType: BotType, guildId: string): Promise<void> {
     const requestId = uuidv4();
     const worker = this.workers.get(botType);
-
-    if (!worker) {
+    if (!worker && botType !== 'rainbot') {
       log.warn(`Worker ${botType} not configured`);
       return;
     }
@@ -458,15 +452,16 @@ export class WorkerCoordinator {
     }
 
     try {
-      await this.requestWithRetry(
-        botType,
-        () =>
-          worker.post('/leave', {
-            requestId,
-            guildId,
-          }),
-        true
-      );
+      const doLeave = (): Promise<{ status: string }> => {
+        if (botType === 'rainbot') {
+          return rainbotClient.leave.mutate({ requestId, guildId });
+        }
+        if (botType === 'pranjeet') {
+          return pranjeetClient.leave.mutate({ requestId, guildId });
+        }
+        return hungerbotClient.leave.mutate({ requestId, guildId });
+      };
+      await this.requestWithRetry(botType, doLeave, true);
       await this.voiceStateManager.setWorkerStatus(botType, guildId, '', false);
       log.info(`${botType} left voice in guild ${guildId}`);
     } catch (error: unknown) {
@@ -497,11 +492,6 @@ export class WorkerCoordinator {
     requestedByUsername?: string
   ): Promise<{ success: boolean; message?: string; position?: number }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -511,7 +501,7 @@ export class WorkerCoordinator {
       const response = await this.requestWithRetry(
         'rainbot',
         () =>
-          worker.post('/enqueue', {
+          rainbotClient.enqueue.mutate({
             requestId,
             guildId,
             url,
@@ -521,18 +511,16 @@ export class WorkerCoordinator {
         true
       );
 
-      // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
 
-      if (response.data.status === 'success') {
+      if (response.status === 'success') {
         return {
           success: true,
-          message: response.data.message,
-          position: response.data.position,
+          message: response.message,
+          position: response.position,
         };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to enqueue track: ${message}`);
@@ -553,11 +541,6 @@ export class WorkerCoordinator {
     if (await this.enqueueTTS({ requestId, guildId, text, voice, userId })) {
       return { success: true, message: 'Queued' };
     }
-    const worker = this.workers.get('pranjeet');
-
-    if (!worker) {
-      return { success: false, message: 'TTS worker not configured' };
-    }
     const guard = this.guardWorker('pranjeet');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -567,7 +550,7 @@ export class WorkerCoordinator {
       const response = await this.requestWithRetry(
         'pranjeet',
         () =>
-          worker.post('/speak', {
+          pranjeetClient.speak.mutate({
             requestId,
             guildId,
             text,
@@ -580,11 +563,11 @@ export class WorkerCoordinator {
       // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
 
-      if (response.data.status === 'success') {
-        return { success: true, message: response.data.message };
+      if (response.status === 'success') {
+        return { success: true, message: response.message };
       }
 
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to speak TTS: ${message}`);
@@ -602,11 +585,6 @@ export class WorkerCoordinator {
     volume?: number
   ): Promise<{ success: boolean; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('hungerbot');
-
-    if (!worker) {
-      return { success: false, message: 'Soundboard worker not configured' };
-    }
     const guard = this.guardWorker('hungerbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -616,7 +594,7 @@ export class WorkerCoordinator {
       const response = await this.requestWithRetry(
         'hungerbot',
         () =>
-          worker.post('/play-sound', {
+          hungerbotClient.playSound.mutate({
             requestId,
             guildId,
             userId,
@@ -629,11 +607,11 @@ export class WorkerCoordinator {
       // Refresh session on activity
       await this.voiceStateManager.refreshSession(guildId);
 
-      if (response.data.status === 'success') {
-        return { success: true, message: response.data.message };
+      if (response.status === 'success') {
+        return { success: true, message: response.message };
       }
 
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to play sound: ${message}`);
@@ -661,27 +639,26 @@ export class WorkerCoordinator {
     }
 
     try {
-      const response = await this.requestWithRetry(
-        botType,
-        () =>
-          worker.post('/volume', {
-            requestId,
-            guildId,
-            volume,
-          }),
-        true
-      );
+      const doVolume = async () => {
+        if (botType === 'rainbot') {
+          return rainbotClient.volume.mutate({ requestId, guildId, volume });
+        }
+        if (botType === 'pranjeet') {
+          return pranjeetClient.volume.mutate({ requestId, guildId, volume });
+        }
+        return hungerbotClient.volume.mutate({ requestId, guildId, volume });
+      };
+      const response = await this.requestWithRetry(botType, doVolume, true);
 
-      if (response.data.status === 'success') {
+      if (response.status === 'success') {
         await this.voiceStateManager.setVolume(guildId, botType, volume);
         return { success: true };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
-      const message = getErrorMessage(error);
-      log.error(`Failed to set volume for ${botType}: ${message}`);
-      return { success: false, message };
+      const errMsg = getErrorMessage(error);
+      log.error(`Failed to set volume for ${botType}: ${errMsg}`);
+      return { success: false, message: errMsg };
     }
   }
 
@@ -691,7 +668,7 @@ export class WorkerCoordinator {
   async getWorkersStatus(guildId: string): Promise<Record<BotType, MediaState>> {
     const statuses: Partial<Record<BotType, MediaState>> = {};
 
-    for (const [botType, worker] of this.workers.entries()) {
+    for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
       if (this.isCircuitOpen(botType) || !this.isWorkerReady(botType)) {
         statuses[botType] = {
           guildId,
@@ -703,12 +680,34 @@ export class WorkerCoordinator {
         continue;
       }
       try {
-        const response = await this.requestWithRetry(
-          botType,
-          () => worker.get('/status', { params: { guildId } }),
-          true
-        );
-        statuses[botType] = normalizeWorkerStatus(response.data, botType, guildId);
+        if (botType === 'rainbot') {
+          const [state, queue] = await Promise.all([
+            this.requestWithRetry(botType, () => rainbotClient.getState.query({ guildId }), true),
+            this.requestWithRetry(botType, () => rainbotClient.getQueue.query({ guildId }), true),
+          ]);
+          const record = {
+            connected: state.connected,
+            channelId: state.channelId,
+            playing: state.playing,
+            volume: state.volume,
+            queue,
+          };
+          statuses[botType] = normalizeWorkerStatus(record, botType, guildId);
+        } else if (botType === 'pranjeet') {
+          const state = await this.requestWithRetry(
+            botType,
+            () => pranjeetClient.getState.query({ guildId }),
+            true
+          );
+          statuses[botType] = normalizeWorkerStatus(state, botType, guildId);
+        } else {
+          const state = await this.requestWithRetry(
+            botType,
+            () => hungerbotClient.getState.query({ guildId }),
+            true
+          );
+          statuses[botType] = normalizeWorkerStatus(state, botType, guildId);
+        }
       } catch (_error) {
         statuses[botType] = {
           guildId,
@@ -731,11 +730,6 @@ export class WorkerCoordinator {
     count: number = 1
   ): Promise<{ success: boolean; skipped?: string[]; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -744,20 +738,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/skip', {
-            requestId,
-            guildId,
-            count,
-          }),
+        () => rainbotClient.skip.mutate({ requestId, guildId, count }),
         true
       );
-
-      if (response.data.status === 'success') {
-        return { success: true, skipped: response.data.skipped };
+      if (response.status === 'success') {
+        return { success: true, skipped: response.skipped };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to skip track: ${message}`);
@@ -772,11 +759,6 @@ export class WorkerCoordinator {
     guildId: string
   ): Promise<{ success: boolean; paused?: boolean; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -785,19 +767,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/pause', {
-            requestId,
-            guildId,
-          }),
+        () => rainbotClient.pause.mutate({ requestId, guildId }),
         true
       );
-
-      if (response.data.status === 'success') {
-        return { success: true, paused: response.data.paused };
+      if (response.status === 'success') {
+        return { success: true, paused: response.paused };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to toggle pause: ${message}`);
@@ -810,11 +786,6 @@ export class WorkerCoordinator {
    */
   async stopPlayback(guildId: string): Promise<{ success: boolean; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -823,19 +794,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/stop', {
-            requestId,
-            guildId,
-          }),
+        () => rainbotClient.stop.mutate({ requestId, guildId }),
         true
       );
-
-      if (response.data.status === 'success') {
+      if (response.status === 'success') {
         return { success: true };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to stop playback: ${message}`);
@@ -850,11 +815,6 @@ export class WorkerCoordinator {
     guildId: string
   ): Promise<{ success: boolean; cleared?: number; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -863,19 +823,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/clear', {
-            requestId,
-            guildId,
-          }),
+        () => rainbotClient.clear.mutate({ requestId, guildId }),
         true
       );
-
-      if (response.data.status === 'success') {
-        return { success: true, cleared: response.data.cleared };
+      if (response.status === 'success') {
+        return { success: true, cleared: response.cleared };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to clear queue: ${message}`);
@@ -887,11 +841,6 @@ export class WorkerCoordinator {
    * Get queue from Rainbot
    */
   async getQueue(guildId: string): Promise<QueueState> {
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { queue: [] };
-    }
     if (this.isCircuitOpen('rainbot') || !this.isWorkerReady('rainbot')) {
       return { queue: [] };
     }
@@ -899,11 +848,10 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () => worker.get('/queue', { params: { guildId } }),
+        () => rainbotClient.getQueue.query({ guildId }),
         true
       );
-
-      return normalizeQueueState(response.data);
+      return normalizeQueueState(response);
     } catch (error: unknown) {
       log.error(`Failed to get queue: ${getErrorMessage(error)}`);
       return { queue: [] };
@@ -918,11 +866,6 @@ export class WorkerCoordinator {
     enabled?: boolean | null
   ): Promise<{ success: boolean; enabled?: boolean; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -931,20 +874,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/autoplay', {
-            requestId,
-            guildId,
-            enabled,
-          }),
+        () => rainbotClient.autoplay.mutate({ requestId, guildId, enabled }),
         true
       );
-
-      if (response.data.status === 'success') {
-        return { success: true, enabled: response.data.enabled };
+      if (response.status === 'success') {
+        return { success: true, enabled: response.enabled };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to toggle autoplay: ${message}`);
@@ -957,11 +893,6 @@ export class WorkerCoordinator {
    */
   async replay(guildId: string): Promise<{ success: boolean; track?: string; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get('rainbot');
-
-    if (!worker) {
-      return { success: false, message: 'Music worker not configured' };
-    }
     const guard = this.guardWorker('rainbot');
     if (!guard.ok) {
       return { success: false, message: guard.error };
@@ -970,19 +901,13 @@ export class WorkerCoordinator {
     try {
       const response = await this.requestWithRetry(
         'rainbot',
-        () =>
-          worker.post('/replay', {
-            requestId,
-            guildId,
-          }),
+        () => rainbotClient.replay.mutate({ requestId, guildId }),
         true
       );
-
-      if (response.data.status === 'success') {
-        return { success: true, track: response.data.track };
+      if (response.status === 'success') {
+        return { success: true, track: response.track };
       }
-
-      return { success: false, message: response.data.message };
+      return { success: false, message: response.message };
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       log.error(`Failed to replay: ${message}`);

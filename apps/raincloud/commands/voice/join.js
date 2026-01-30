@@ -3,7 +3,11 @@
  * Connects all worker bots to the voice channel
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { checkVoicePermissions, createErrorResponse, getMultiBotService } = require('../utils/commandHelpers');
+const {
+  checkVoicePermissions,
+  createErrorResponse,
+  getMultiBotService,
+} = require('../utils/commandHelpers');
 const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('JOIN');
@@ -79,4 +83,3 @@ module.exports = {
     }
   },
 };
-

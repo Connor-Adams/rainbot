@@ -2,7 +2,7 @@
  * Play command - Multi-bot architecture version
  * Routes music playback through the Rainbot worker
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
 const { getMultiBotService, createWorkerUnavailableResponse } = require('../utils/commandHelpers');
 
@@ -65,4 +65,3 @@ module.exports = {
     }
   },
 };
-

@@ -770,16 +770,7 @@ router.post(
       const result = await multiBot.replay(guildId);
       if (result.success && result.track) {
         if (userId) {
-          stats.trackCommand(
-            'replay',
-            userId,
-            guildId,
-            'api',
-            true,
-            null,
-            username,
-            discriminator
-          );
+          stats.trackCommand('replay', userId, guildId, 'api', true, null, username, discriminator);
         }
         res.json({ message: `Replaying: ${result.track}`, track: result.track });
         return;
@@ -1116,7 +1107,6 @@ router.delete(
     }
 
     try {
-      const { id: userId, username, discriminator } = getAuthUser(req);
       const multiBot = getPlaybackService();
       if (multiBot) {
         res.status(501).json({ error: 'Remove track not supported in multi-bot mode yet' });
@@ -1125,13 +1115,6 @@ router.delete(
 
       res.status(503).json({ error: 'Worker services unavailable' });
       return;
-
-      // Track API command
-      if (userId) {
-        stats.trackCommand('remove', userId, guildId, 'api', true, null, username, discriminator);
-      }
-
-      res.json({ message: 'Track removed', track: removed });
     } catch (error) {
       const err = error as Error;
       const { id: userId, username, discriminator } = getAuthUser(req);

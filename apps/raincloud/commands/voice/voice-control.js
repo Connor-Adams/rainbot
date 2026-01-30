@@ -125,4 +125,3 @@ Users in voice channels can now control music with voice commands.
     }
   },
 };
-

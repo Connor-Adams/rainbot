@@ -72,7 +72,10 @@ module.exports = {
       embedColor = 0xf59e0b; // Orange when paused
     }
 
-    const embed = new EmbedBuilder().setTitle('ðŸŽµ Music Queue').setColor(embedColor).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setTitle('ðŸŽµ Music Queue')
+      .setColor(embedColor)
+      .setTimestamp();
 
     // Now Playing section with playback position
     if (nowPlaying && currentTrack) {
@@ -165,4 +168,3 @@ module.exports = {
     await interaction.reply({ embeds: [embed], components });
   },
 };
-
