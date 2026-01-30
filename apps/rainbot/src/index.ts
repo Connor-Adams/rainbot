@@ -9,8 +9,8 @@ import {
 } from '@discordjs/voice';
 import { fetchTracks } from './voice/trackFetcher';
 import { createTrackResourceForAny } from './voice/audioResource';
-import type { Track } from '@rainbot/protocol';
-import { TrackKind } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
+import type { MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
 import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { Request, Response } from 'express';
@@ -170,6 +170,44 @@ function getPlaybackPosition(state: RainbotGuildState): number {
   return playbackPosition;
 }
 
+function buildPlaybackState(state: RainbotGuildState | null): PlaybackState {
+  if (!state) {
+    return { status: 'idle' };
+  }
+
+  let status: PlaybackState['status'] = 'idle';
+  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    status = 'paused';
+  } else if (state.player.state.status === AudioPlayerStatus.Playing) {
+    status = 'playing';
+  }
+
+  const positionMs = getPlaybackPosition(state) * 1000;
+  const durationMs =
+    state.currentTrack?.durationMs ??
+    (state.currentTrack?.duration ? state.currentTrack.duration * 1000 : undefined);
+
+  return {
+    status,
+    positionMs: positionMs > 0 ? positionMs : undefined,
+    durationMs,
+    volume: state.volume,
+  };
+}
+
+function buildQueueState(state: RainbotGuildState | null, playback: PlaybackState): QueueState {
+  if (!state) {
+    return { queue: [] };
+  }
+
+  return {
+    nowPlaying: state.currentTrack || (state.nowPlaying ? { title: state.nowPlaying } : undefined),
+    queue: state.queue,
+    isPaused: playback.status === 'paused',
+    isAutoplay: state.autoplay,
+  };
+}
+
 async function playNext(guildId: string): Promise<void> {
   const state = getOrCreateGuildState(guildId);
 
@@ -186,7 +224,7 @@ async function playNext(guildId: string): Promise<void> {
   const track = state.queue.shift()!;
   state.currentTrack = track;
   state.lastPlayedTrack = track.url ? track : state.lastPlayedTrack;
-  state.nowPlaying = track.title;
+  state.nowPlaying = track.title ?? null;
 
   try {
     log.info(
@@ -205,7 +243,7 @@ async function playNext(guildId: string): Promise<void> {
     if (track.userId) {
       void reportSoundStat(
         {
-          soundName: track.title,
+          soundName: track.title ?? 'Unknown',
           userId: track.userId,
           guildId,
           sourceType: track.sourceType || 'other',
@@ -421,25 +459,19 @@ app.get('/status', (req: Request, res: Response) => {
   }
 
   const state = guildStates.get(guildId);
-  if (!state) {
-    return res.json({
-      connected: false,
-      playing: false,
-      nowPlaying: null,
-      queueLength: 0,
-    });
-  }
+  const playback = buildPlaybackState(state ?? null);
+  const queue = buildQueueState(state ?? null, playback);
 
-  res.json({
-    connected: state.connection !== null,
-    channelId: state.connection?.joinConfig.channelId,
-    playing: state.player.state.status === AudioPlayerStatus.Playing,
-    queueLength: state.queue.length,
-    volume: state.volume,
-    nowPlaying: state.nowPlaying,
-    activePlayers: Array.from(guildStates.values()).filter((entry) => entry.connection !== null)
-      .length,
-  });
+  const payload: MediaState = {
+    guildId,
+    channelId: state?.connection?.joinConfig.channelId ?? null,
+    connected: state?.connection !== null,
+    kind: 'music',
+    playback,
+    queue,
+  };
+
+  res.json(payload);
 });
 
 // Enqueue track
@@ -470,7 +502,7 @@ app.post('/enqueue', async (req: Request, res: Response) => {
 
     const tracks = fetchedTracks.map((track) => ({
       ...track,
-      kind: track.kind ?? TrackKind.Music,
+      kind: 'music' as const,
       userId: requestedBy,
       username: requestedByUsername || undefined,
     }));
@@ -527,14 +559,14 @@ app.post('/skip', async (req: Request, res: Response) => {
 
   // Skip current track
   if (state.currentTrack) {
-    skipped.push(state.currentTrack.title);
+    skipped.push(state.currentTrack.title ?? 'Unknown');
   }
 
   // Remove additional tracks from queue if count > 1
   for (let i = 1; i < count && state.queue.length > 0; i++) {
     const removed = state.queue.shift();
     if (removed) {
-      skipped.push(removed.title);
+      skipped.push(removed.title ?? 'Unknown');
     }
   }
 
@@ -663,26 +695,11 @@ app.get('/queue', (req: Request, res: Response) => {
 
   const state = guildStates.get(guildId);
   if (!state) {
-    return res.json({
-      nowPlaying: null,
-      queue: [],
-      totalInQueue: 0,
-      currentTrack: null,
-      isPaused: false,
-      playbackPosition: 0,
-      autoplay: false,
-    });
+    return res.json({ queue: [] });
   }
 
-  res.json({
-    nowPlaying: state.currentTrack?.title || null,
-    queue: state.queue.slice(0, 20),
-    totalInQueue: state.queue.length,
-    currentTrack: state.currentTrack,
-    isPaused: state.player.state.status === AudioPlayerStatus.Paused,
-    playbackPosition: getPlaybackPosition(state),
-    autoplay: state.autoplay,
-  });
+  const playback = buildPlaybackState(state);
+  res.json(buildQueueState(state, playback));
 });
 
 // Replay last played track

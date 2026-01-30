@@ -1,4 +1,4 @@
-import type { AppConfig } from '@rainbot/protocol';
+import type { AppConfig } from '@rainbot/types/server';
 import { loadConfig } from '../utils/config';
 
 let serverConfig: AppConfig | null = null;

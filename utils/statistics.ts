@@ -2,7 +2,7 @@ import { query } from './database';
 import { createLogger } from './logger';
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
-import type { SourceType } from './sourceType';
+import type { SourceType } from '@rainbot/types/media';
 
 const log = createLogger('STATS');
 

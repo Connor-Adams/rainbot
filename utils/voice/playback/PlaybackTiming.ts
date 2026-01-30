@@ -1,5 +1,5 @@
 // util-category: audio
-import type { VoiceState } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 
 export function getPlaybackPosition(state: VoiceState): number {
   if (!state.playbackStartTime || !state.currentTrack) return 0;

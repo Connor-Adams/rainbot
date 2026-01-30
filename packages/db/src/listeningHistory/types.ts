@@ -1,4 +1,6 @@
-export type SourceType = 'youtube' | 'spotify' | 'soundcloud' | 'local' | 'other';
+import type { SourceType } from '@rainbot/types/media';
+
+export type { SourceType };
 
 export interface Track {
   title?: string;

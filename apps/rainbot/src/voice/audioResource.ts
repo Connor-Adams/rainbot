@@ -2,7 +2,7 @@ import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 import { createLogger } from '@rainbot/shared';
 
 // Use system yt-dlp if available, otherwise fall back to bundled.

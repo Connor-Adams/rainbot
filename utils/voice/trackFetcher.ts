@@ -13,7 +13,7 @@ import path from 'path';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('FETCHER');
 
@@ -349,10 +349,14 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
       // Fallback: use search with the video title if no related videos found
       log.debug('No related videos in metadata, falling back to search');
       // Use the title from yt-dlp if available, otherwise use lastTrack.title
-      const searchQuery = info.title || lastTrack.title;
+      const searchQuery = info.title || lastTrack.title || 'Unknown Track';
       log.debug(`Searching for similar tracks: "${searchQuery}"`);
 
-      const ytResults = await play.search(searchQuery, { limit: 5 });
+      const ytResults = (await play.search(searchQuery, { limit: 5 })) as Array<{
+        url?: string;
+        title?: string;
+        durationInSec?: number;
+      }>;
 
       if (!ytResults || ytResults.length === 0) {
         log.warn('No search results found for autoplay');
@@ -361,7 +365,7 @@ export async function getRelatedTrack(lastTrack: Track): Promise<Track | null> {
 
       // Skip the first result if it's the same as the current video
       for (const result of ytResults) {
-        if (result.url !== lastTrack.url) {
+        if (result.url && result.url !== lastTrack.url) {
           log.info(`Found related track via search: "${result.title}"`);
           return {
             title: result.title || 'Unknown Track',

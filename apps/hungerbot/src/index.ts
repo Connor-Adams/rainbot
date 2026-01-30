@@ -22,6 +22,7 @@ import { reportSoundStat } from '@rainbot/worker-shared';
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
 import { ensureClientReady } from '@rainbot/worker-shared';
 import { RequestCache } from '@rainbot/worker-shared';
+import type { MediaState, PlaybackState } from '@rainbot/types/media';
 import {
   createWorkerDiscordClient,
   setupDiscordClientErrorHandler,
@@ -221,6 +222,24 @@ function getOrCreateGuildState(guildId: string): HungerbotGuildState {
   return guildStates.get(guildId)!;
 }
 
+function buildPlaybackState(state: HungerbotGuildState | null): PlaybackState {
+  if (!state) {
+    return { status: 'idle' };
+  }
+
+  let status: PlaybackState['status'] = 'idle';
+  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    status = 'paused';
+  } else if (state.player.state.status === AudioPlayerStatus.Playing) {
+    status = 'playing';
+  }
+
+  return {
+    status,
+    volume: state.volume,
+  };
+}
+
 function normalizeSoundName(sfxId: string): string {
   return sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
 }
@@ -414,20 +433,17 @@ app.get('/status', (req: Request, res: Response) => {
   }
 
   const state = guildStates.get(guildId);
-  if (!state) {
-    return res.json({
-      connected: false,
-      playing: false,
-    });
-  }
+  const playback = buildPlaybackState(state ?? null);
+  const payload: MediaState = {
+    guildId,
+    channelId: state?.connection?.joinConfig.channelId ?? null,
+    connected: state?.connection !== null,
+    kind: 'sfx',
+    playback,
+    queue: { queue: [] },
+  };
 
-  res.json({
-    connected: state.connection !== null,
-    channelId: state.connection?.joinConfig.channelId,
-    playing: state.player.state.status === AudioPlayerStatus.Playing,
-    activePlayers: state.player.state.status === AudioPlayerStatus.Playing ? 1 : 0,
-    volume: state.volume,
-  });
+  res.json(payload);
 });
 
 // Play sound effect

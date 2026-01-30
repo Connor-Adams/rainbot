@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@rainbot/shared": "*",
+    "@rainbot/types": "*",
     "axios": "^1.6.2",
     "express": "^5.2.1"
   },

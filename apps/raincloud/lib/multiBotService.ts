@@ -14,40 +14,30 @@ import { RedisClient } from '@rainbot/redis-client';
 import { createLogger } from '@utils/logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
 import * as voiceManager from '@utils/voiceManager';
+import type { BotType } from '@rainbot/types/core';
+import type { MediaState, QueueState, PlaybackState } from '@rainbot/types/media';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
 
-type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+function buildPlaybackState(playing: boolean | undefined, volume?: number): PlaybackState {
+  return {
+    status: playing ? 'playing' : 'idle',
+    volume,
+  };
+}
 
 export interface PlayResult {
   success: boolean;
   message?: string;
   position?: number;
   error?: string;
+  queue?: QueueState;
 }
 
-export interface VoiceStatus {
-  channelId: string | null;
-  channelName: string | null;
-  isConnected: boolean;
-  isPlaying: boolean;
-  nowPlaying: string | null;
-  volume: number;
-  workers: {
-    rainbot: { connected: boolean; playing?: boolean; queueLength?: number; volume?: number };
-    pranjeet: { connected: boolean; playing?: boolean; volume?: number };
-    hungerbot: { connected: boolean; playing?: boolean; activePlayers?: number; volume?: number };
-  };
-}
+export type VoiceStatus = MediaState;
 
-export interface QueueInfo {
-  nowPlaying: string | null;
-  queue: Array<{ title: string; url?: string; duration?: number }>;
-  totalInQueue: number;
-  currentTrack: { title: string; url?: string; duration?: number } | null;
-  isPaused: boolean;
-}
+export type QueueInfo = QueueState;
 
 let instance: MultiBotService | null = null;
 
@@ -344,35 +334,32 @@ export class MultiBotService {
       }
 
       // Extract playback info from rainbot worker status
-      const rainbotStatus = workerStatuses.rainbot || {};
-      const isPlaying = rainbotStatus.playing || false;
-      const nowPlaying = rainbotStatus.nowPlaying || null;
-      const volume = rainbotStatus.volume ?? 100;
+      const rainbotStatus = workerStatuses.rainbot;
+      const playback = rainbotStatus?.playback ?? buildPlaybackState(false, undefined);
+      const queue: QueueState = rainbotStatus?.queue ?? { queue: [] };
 
       return {
+        guildId,
         channelId: session.channelId,
         channelName,
-        isConnected: rainbotStatus.connected || false,
-        isPlaying,
-        nowPlaying,
-        volume,
+        connected: rainbotStatus?.connected || false,
+        kind: 'music',
+        playback,
+        queue,
         workers: {
           rainbot: {
-            connected: rainbotStatus.connected || false,
-            playing: isPlaying,
-            queueLength: rainbotStatus.queueLength || 0,
-            volume: rainbotStatus.volume,
+            connected: rainbotStatus?.connected || false,
+            playback,
+            queue,
+            queueLength: queue.queue.length,
           },
           pranjeet: {
             connected: workerStatuses.pranjeet?.connected || false,
-            playing: workerStatuses.pranjeet?.playing || false,
-            volume: workerStatuses.pranjeet?.volume,
+            playback: workerStatuses.pranjeet?.playback ?? buildPlaybackState(false, undefined),
           },
           hungerbot: {
             connected: workerStatuses.hungerbot?.connected || false,
-            playing: workerStatuses.hungerbot?.playing || false,
-            activePlayers: workerStatuses.hungerbot?.activePlayers || 0,
-            volume: workerStatuses.hungerbot?.volume,
+            playback: workerStatuses.hungerbot?.playback ?? buildPlaybackState(false, undefined),
           },
         },
       };
@@ -387,21 +374,12 @@ export class MultiBotService {
    */
   async getQueue(guildId: string): Promise<QueueInfo> {
     try {
-      const queueData = await this.coordinator.getQueue(guildId);
       return {
-        nowPlaying: queueData.nowPlaying,
-        queue: queueData.queue,
-        totalInQueue: queueData.totalInQueue,
-        currentTrack: queueData.currentTrack,
-        isPaused: queueData.paused,
+        ...(await this.coordinator.getQueue(guildId)),
       };
     } catch {
       return {
-        nowPlaying: null,
         queue: [],
-        totalInQueue: 0,
-        currentTrack: null,
-        isPaused: false,
       };
     }
   }

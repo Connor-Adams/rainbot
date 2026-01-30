@@ -41,8 +41,6 @@ module.exports = {
 
       try {
         const result = await voiceManager.resumeHistory(interaction.guildId, userId);
-        const { nowPlaying, queue, currentTrack } = voiceManager.getQueue(interaction.guildId);
-
         await interaction.update({
           embeds: [
             {
@@ -58,17 +56,8 @@ module.exports = {
         // Send player message to channel
         const channel = interaction.channel;
         if (channel) {
-          const queueInfo = voiceManager.getQueue(interaction.guildId);
-          await channel.send(
-            createPlayerMessage(
-              nowPlaying,
-              queue,
-              false,
-              currentTrack,
-              queueInfo,
-              interaction.guildId
-            )
-          );
+          const mediaState = voiceManager.getStatus(interaction.guildId);
+          await channel.send(createPlayerMessage(mediaState, interaction.guildId));
         }
 
         stats.trackInteraction(
@@ -227,11 +216,9 @@ module.exports = {
       switch (action) {
         case 'pause': {
           const result = voiceManager.togglePause(guildId);
-          const queueInfo = voiceManager.getQueue(guildId);
-          const { nowPlaying, queue, currentTrack } = queueInfo;
-          await interaction.update(
-            createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo, guildId)
-          );
+          const mediaState = voiceManager.getStatus(guildId);
+          await interaction.update(createPlayerMessage(mediaState, guildId));
+          const nowPlaying = mediaState?.queue?.nowPlaying?.title ?? null;
           stats.trackInteraction(
             'button',
             interaction.id,
@@ -252,13 +239,10 @@ module.exports = {
           const _skipped = await voiceManager.skip(guildId, 1, interaction.user.id);
           // Small delay to let next track start
           await new Promise((r) => setTimeout(r, 500));
-          const queueInfo = voiceManager.getQueue(guildId);
-          const { nowPlaying, queue, currentTrack } = queueInfo;
-          const skipStatus = voiceManager.getStatus(guildId);
-          const isPaused = skipStatus ? !skipStatus.isPlaying : false;
-          await interaction.update(
-            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
-          );
+          const mediaState = voiceManager.getStatus(guildId);
+          await interaction.update(createPlayerMessage(mediaState, guildId));
+          const nowPlaying = mediaState?.queue?.nowPlaying?.title ?? null;
+          const queue = mediaState?.queue?.queue ?? [];
           stats.trackInteraction(
             'button',
             interaction.id,
@@ -306,7 +290,11 @@ module.exports = {
         }
 
         case 'queue': {
-          const { nowPlaying, queue, totalInQueue, currentTrack } = voiceManager.getQueue(guildId);
+          const queueState = voiceManager.getQueue(guildId);
+          const nowPlaying = queueState.nowPlaying?.title ?? null;
+          const currentTrack = queueState.nowPlaying ?? null;
+          const queue = queueState.queue ?? [];
+          const totalInQueue = queue.length;
 
           const formatDuration = (seconds) => {
             if (!seconds || isNaN(seconds)) return null;
@@ -327,9 +315,10 @@ module.exports = {
 
           // Now Playing
           if (nowPlaying && currentTrack) {
-            const durationText = currentTrack.duration
-              ? ` • \`${formatDuration(currentTrack.duration)}\``
-              : '';
+            const durationSeconds =
+              currentTrack.duration ??
+              (currentTrack.durationMs ? currentTrack.durationMs / 1000 : null);
+            const durationText = durationSeconds ? ` • \`${formatDuration(durationSeconds)}\`` : '';
             embed.description = `**${nowPlaying}**${durationText}`;
           } else if (nowPlaying) {
             embed.description = `**${nowPlaying}**`;
@@ -343,7 +332,8 @@ module.exports = {
               .slice(0, 10)
               .map((t, i) => {
                 const num = (i + 1).toString().padStart(2, '0');
-                const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
+                const durationSeconds = t.duration ?? (t.durationMs ? t.durationMs / 1000 : null);
+                const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
                 return `\`${num}\` ${t.title}${duration}`;
               })
               .join('\n');

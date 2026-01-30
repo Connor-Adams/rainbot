@@ -1,5 +1,14 @@
 import { formatDuration, getYouTubeThumbnail, createPlayerEmbed } from '../playerEmbed';
-import type { Track } from '@rainbot/protocol';
+import type { MediaItem, MediaState } from '@rainbot/types/media';
+
+function createMediaState(overrides: Partial<MediaState> = {}): MediaState {
+  return {
+    guildId: 'guild-1',
+    kind: 'music',
+    playback: { status: 'idle' },
+    ...overrides,
+  };
+}
 
 describe('playerEmbed', () => {
   describe('formatDuration', () => {
@@ -114,7 +123,7 @@ describe('playerEmbed', () => {
 
   describe('createPlayerEmbed', () => {
     it('creates embed with nothing playing', () => {
-      const embed = createPlayerEmbed(null, [], false, null);
+      const embed = createPlayerEmbed(null);
 
       expect(embed).toBeDefined();
       expect(embed.data.color).toBeDefined();
@@ -122,57 +131,66 @@ describe('playerEmbed', () => {
     });
 
     it('creates embed with current track', () => {
-      const currentTrack: Track = {
+      const currentTrack: MediaItem = {
         title: 'Test Song',
         url: 'https://youtube.com/watch?v=test123',
         isLocal: false,
         duration: 180,
       };
 
-      const embed = createPlayerEmbed('Test Song', [], false, currentTrack);
+      const embed = createPlayerEmbed(
+        createMediaState({
+          queue: { queue: [], nowPlaying: currentTrack },
+          playback: { status: 'playing' },
+        })
+      );
 
       expect(embed).toBeDefined();
     });
 
     it('sets orange color when paused', () => {
-      const embed = createPlayerEmbed('Test Song', [], true, null);
+      const embed = createPlayerEmbed(createMediaState({ playback: { status: 'paused' } }));
 
       expect(embed.data.color).toBe(0xf59e0b); // Orange
     });
 
     it('sets purple color when overlay is active', () => {
-      const embed = createPlayerEmbed('Test Song', [], false, null, { hasOverlay: true });
+      const embed = createPlayerEmbed(
+        createMediaState({ playback: { status: 'playing', overlayActive: true } })
+      );
 
       expect(embed.data.color).toBe(0x8b5cf6); // Purple
     });
 
     it('sets blue color by default', () => {
-      const embed = createPlayerEmbed('Test Song', [], false, null);
+      const embed = createPlayerEmbed(createMediaState());
 
       expect(embed.data.color).toBe(0x6366f1); // Blue
     });
 
     it('includes queue information', () => {
-      const queue: Track[] = [
+      const queue: MediaItem[] = [
         { title: 'Track 1', url: 'url1', isLocal: false },
         { title: 'Track 2', url: 'url2', isLocal: false },
       ];
 
-      const embed = createPlayerEmbed('Current Track', queue, false, null);
+      const embed = createPlayerEmbed(
+        createMediaState({ queue: { queue, nowPlaying: { title: 'Current Track' } } })
+      );
 
       expect(embed).toBeDefined();
     });
 
     it('handles empty queue', () => {
-      const embed = createPlayerEmbed('Current Track', [], false, null);
+      const embed = createPlayerEmbed(
+        createMediaState({ queue: { queue: [], nowPlaying: { title: 'Current Track' } } })
+      );
 
       expect(embed).toBeDefined();
     });
 
     it('includes channel name when provided', () => {
-      const embed = createPlayerEmbed('Test Song', [], false, null, {
-        channelName: 'General Voice',
-      });
+      const embed = createPlayerEmbed(createMediaState({ channelName: 'General Voice' }));
 
       expect(embed).toBeDefined();
     });

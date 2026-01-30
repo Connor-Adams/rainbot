@@ -3,7 +3,7 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import type { ButtonHandler } from '@rainbot/protocol';
+import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
 import * as voiceManager from '@utils/voiceManager';
 
@@ -46,7 +46,7 @@ export const handleConfirmButton: ButtonHandler = async (interaction, context) =
         }
 
         const cleared = await voiceManager.clearQueue(guildId);
-        const { nowPlaying } = voiceManager.getQueue(guildId);
+        const nowPlaying = voiceManager.getQueue(guildId).nowPlaying?.title ?? null;
         const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 
         await interaction.update({

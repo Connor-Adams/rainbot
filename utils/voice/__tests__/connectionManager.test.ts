@@ -8,8 +8,8 @@
  * 3. Error recovery attempts to play next track
  */
 
-import type { VoiceState } from '@rainbot/protocol';
-import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
+import type { Track } from '@rainbot/types/voice';
 import * as connectionManager from '../connectionManager';
 
 describe('Connection Manager Error Handling', () => {

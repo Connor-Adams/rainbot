@@ -6,7 +6,7 @@ import { createLogger } from '../../utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
 import { getServerConfig } from '../config';
-import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/protocol';
+import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/types/server';
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();

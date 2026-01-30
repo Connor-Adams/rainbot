@@ -3,7 +3,7 @@ import { createLogger } from '@utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
 import * as stats from '@utils/statistics';
-import type { SourceType } from '@utils/sourceType';
+import type { SourceType } from '@rainbot/types/media';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();

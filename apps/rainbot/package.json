@@ -18,6 +18,7 @@
     "@rainbot/protocol": "*",
     "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
+    "@rainbot/types": "*",
     "@rainbot/worker-shared": "*",
     "@trpc/server": "^10.45.2",
     "async-mutex": "^0.5.0",

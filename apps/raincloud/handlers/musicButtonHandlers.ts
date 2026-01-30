@@ -3,7 +3,7 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import type { ButtonHandler } from '@rainbot/protocol';
+import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
 import * as voiceManager from '@utils/voiceManager';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
@@ -39,12 +39,14 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
     const result = multiBot
       ? await multiBot.togglePause(guildId)
       : voiceManager.togglePause(guildId);
-    const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
-    const { nowPlaying, queue, currentTrack } = queueInfo;
+    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
+    const mediaState = multiBot
+      ? await multiBot.getStatus(guildId)
+      : voiceManager.getStatus(guildId);
+    const updatedMedia =
+      mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
-    await interaction.update(
-      createPlayerMessage(nowPlaying, queue, result.paused, currentTrack, queueInfo, guildId)
-    );
+    await interaction.update(createPlayerMessage(updatedMedia, guildId));
 
     return {
       success: true,
@@ -99,17 +101,16 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
     // Small delay to let next track start
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const queueInfo = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
-    const { nowPlaying, queue, currentTrack } = queueInfo;
-    const skipStatus = multiBot
+    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
+    const mediaState = multiBot
       ? await multiBot.getStatus(guildId)
       : voiceManager.getStatus(guildId);
-    const isPaused = skipStatus ? !skipStatus.isPlaying : false;
+    const updatedMedia =
+      mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
-    await interaction.update(
-      createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
-    );
+    await interaction.update(createPlayerMessage(updatedMedia, guildId));
 
+    const nowPlaying = updatedMedia?.queue?.nowPlaying?.title ?? null;
     return {
       success: true,
       data: { nowPlaying },
@@ -214,9 +215,11 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const { nowPlaying, queue, totalInQueue, currentTrack } = multiBot
-      ? await multiBot.getQueue(guildId)
-      : voiceManager.getQueue(guildId);
+    const queueState = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
+    const nowPlaying = queueState.nowPlaying?.title ?? null;
+    const currentTrack = queueState.nowPlaying ?? null;
+    const queue = queueState.queue ?? [];
+    const totalInQueue = queue.length;
 
     const formatDuration = (seconds: number | null | undefined): string | null => {
       if (!seconds || isNaN(seconds)) return null;
@@ -238,9 +241,9 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
 
     // Now Playing
     if (nowPlaying && currentTrack) {
-      const durationText = currentTrack.duration
-        ? ` • \`${formatDuration(currentTrack.duration)}\``
-        : '';
+      const durationSeconds =
+        currentTrack.duration ?? (currentTrack.durationMs ? currentTrack.durationMs / 1000 : null);
+      const durationText = durationSeconds ? ` • \`${formatDuration(durationSeconds)}\`` : '';
       embed.description = `**${nowPlaying}**${durationText}`;
     } else if (nowPlaying) {
       embed.description = `**${nowPlaying}**`;
@@ -255,7 +258,8 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((t: any, i: number) => {
           const num = (i + 1).toString().padStart(2, '0');
-          const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
+          const durationSeconds = t.duration ?? (t.durationMs ? t.durationMs / 1000 : null);
+          const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
           return `\`${num}\` ${t.title}${duration}`;
         })
         .join('\n');

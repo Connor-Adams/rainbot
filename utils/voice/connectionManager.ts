@@ -14,8 +14,8 @@ import {
 import type { VoiceBasedChannel } from 'discord.js';
 import { createLogger } from '../logger';
 import * as stats from '../statistics';
-import type { VoiceState } from '@rainbot/protocol';
-import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('CONNECTION');
 

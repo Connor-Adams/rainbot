@@ -4,8 +4,8 @@ import { getDiscordClient } from '../discordClient';
 import { detectSourceType } from '@utils/sourceType';
 import * as stats from '@utils/statistics';
 import * as listeningHistory from '@utils/listeningHistory';
-import type { Track } from '@rainbot/protocol';
-import type { VoiceState } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 import type { VoiceChannel, TextChannel } from 'discord.js';
 import { getPlaybackPosition } from './PlaybackTiming';
 
@@ -37,7 +37,8 @@ export async function sendNowPlaying(
       duration = ` (${m}:${s.toString().padStart(2, '0')})`;
     }
 
-    await channel.send(`🎵 Now playing: **${track.title}**${duration}`);
+    const title = track.title ?? 'Unknown';
+    await channel.send(`🎵 Now playing: **${title}**${duration}`);
   } catch (err) {
     log.debug(`Now playing failed: ${(err as Error).message}`);
   }
@@ -53,8 +54,9 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
 
   if (!userId || userId === 'unknown') return;
 
+  const title = track.title ?? 'Unknown';
   stats.trackSound(
-    track.title,
+    title,
     userId,
     guildId,
     sourceType,
@@ -70,7 +72,7 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
       userId,
       guildId,
       {
-        title: track.title,
+        title,
         url: track.url || '',
         duration: track.duration || 0,
         isLocal: track.isLocal || false,
@@ -84,7 +86,7 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
   stats.trackUserListen(
     guildId,
     state.channelId,
-    track.title,
+    title,
     track.url || null,
     sourceType,
     track.duration || null,
@@ -94,7 +96,7 @@ export function trackTrackStart(guildId: string, state: VoiceState, track: Track
   stats.startTrackEngagement(
     guildId,
     state.channelId,
-    track.title,
+    title,
     track.url || null,
     sourceType,
     track.duration || null,

@@ -1,8 +1,9 @@
 // Service type definitions
 import type { AudioPlayerStatus } from '@discordjs/voice';
+import type { SourceType } from './media';
 
 export interface AudioSource {
-  type: 'youtube' | 'spotify' | 'soundcloud' | 'local';
+  type: SourceType;
   url?: string;
   path?: string;
 }
@@ -14,7 +15,7 @@ export interface AudioMetadata {
   artist?: string;
 }
 
-export interface PlaybackState {
+export interface ServicePlaybackState {
   status: AudioPlayerStatus;
   position?: number;
   duration?: number;
@@ -61,5 +62,5 @@ export interface TrackStatistics {
   skips: number;
   completions: number;
   avgListenTime?: number;
-  sourceType: AudioSource['type'];
+  sourceType: SourceType;
 }

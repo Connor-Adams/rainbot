@@ -44,51 +44,38 @@ module.exports = {
     const pageIndex = requestedPage - 1; // Convert to 0-indexed
     const { type, service } = await getPlaybackService();
 
-    let queueInfo;
+    let queueState;
+    let mediaState;
 
     if (type === 'multibot') {
       const status = await service.getStatus(guildId);
-      if (!status || !status.isConnected) {
+      if (!status || !status.connected) {
         return interaction.reply({
           content: "❌ I'm not in a voice channel! Use `/join` first.",
           flags: require('discord.js').MessageFlags.Ephemeral,
         });
       }
 
-      // Get queue info from multi-bot service
-      queueInfo = await service.getQueueInfo(guildId);
-      if (!queueInfo.success) {
-        queueInfo = {
-          nowPlaying: null,
-          queue: [],
-          totalInQueue: 0,
-          currentTrack: null,
-          playbackPosition: 0,
-          hasOverlay: false,
-          isPaused: false,
-          channelName: null,
-        };
-      } else {
-        queueInfo = queueInfo.queue || queueInfo;
-      }
+      mediaState = status;
+      const queueInfo = await service.getQueueInfo(guildId);
+      queueState = queueInfo.success ? queueInfo.queue : { queue: [] };
     } else {
       const voiceManager = service;
       const connectionCheck = validateVoiceConnection(interaction, voiceManager);
       if (!connectionCheck.isValid) {
         return interaction.reply(connectionCheck.error);
       }
-      queueInfo = voiceManager.getQueue(guildId);
+      mediaState = voiceManager.getStatus(guildId);
+      queueState = voiceManager.getQueue(guildId);
     }
-    const {
-      nowPlaying,
-      queue,
-      totalInQueue,
-      currentTrack,
-      playbackPosition,
-      hasOverlay,
-      isPaused,
-      channelName,
-    } = queueInfo;
+    const nowPlaying = queueState?.nowPlaying?.title ?? null;
+    const currentTrack = queueState?.nowPlaying ?? null;
+    const queue = queueState?.queue ?? [];
+    const totalInQueue = queue.length;
+    const playbackPosition = Math.floor((mediaState?.playback?.positionMs ?? 0) / 1000);
+    const hasOverlay = mediaState?.playback?.overlayActive === true;
+    const isPaused = mediaState?.playback?.status === 'paused';
+    const channelName = mediaState?.channelName ?? null;
 
     // Pagination settings
     const ITEMS_PER_PAGE = 20;
@@ -113,12 +100,14 @@ module.exports = {
       let description = `**${nowPlaying}**`;
 
       // Show playback progress if available
-      if (currentTrack.duration && playbackPosition > 0) {
+      const trackDurationSeconds =
+        currentTrack.duration ?? (currentTrack.durationMs ? currentTrack.durationMs / 1000 : null);
+      if (trackDurationSeconds && playbackPosition > 0) {
         const currentTime = formatDuration(playbackPosition);
-        const totalTime = formatDuration(currentTrack.duration);
+        const totalTime = formatDuration(trackDurationSeconds);
         description += `\n\`${currentTime} / ${totalTime}\``;
-      } else if (currentTrack.duration) {
-        description += ` • \`${formatDuration(currentTrack.duration)}\``;
+      } else if (trackDurationSeconds) {
+        description += ` • \`${formatDuration(trackDurationSeconds)}\``;
       }
 
       // Add state indicators
@@ -145,7 +134,9 @@ module.exports = {
       const queueList = pageQueue
         .map((track, i) => {
           const num = (startIndex + i + 1).toString().padStart(2, '0');
-          const duration = track.duration ? ` \`${formatDuration(track.duration)}\`` : '';
+          const durationSeconds =
+            track.duration ?? (track.durationMs ? track.durationMs / 1000 : null);
+          const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
           return `\`${num}\` ${track.title}${duration}`;
         })
         .join('\n');

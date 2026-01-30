@@ -25,7 +25,7 @@ import type {
   ParsedVoiceCommand,
   VoiceCommandResult,
   IVoiceInteractionManager,
-} from '@rainbot/protocol';
+} from '@rainbot/types/voice-interaction';
 import { SpeechRecognitionManager } from './speechRecognition';
 import { TextToSpeechManager, generateResponseText } from './textToSpeech';
 import { parseVoiceCommand, validateVoiceCommand } from './voiceCommandParser';

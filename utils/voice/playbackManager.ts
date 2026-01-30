@@ -16,8 +16,8 @@ import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { detectSourceType } from '../sourceType';
 import { getDiscordClient } from './discordClient';
-import type { Track } from '@rainbot/protocol';
-import type { VoiceState } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 import type { TextChannel, VoiceChannel } from 'discord.js';
 
 // Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
@@ -378,7 +378,8 @@ export async function playNext(guildId: string): Promise<Track | null> {
     // Log player state after play() call
     log.debug(`Player state after play(): ${state.player.state.status}`);
 
-    state.nowPlaying = nextTrack.title;
+    const title = nextTrack.title ?? 'Unknown';
+    state.nowPlaying = title;
     state.currentTrack = nextTrack;
     state.currentTrackSource = nextTrack.isLocal ? null : nextTrack.url || null;
     state.playbackStartTime = Date.now();
@@ -391,7 +392,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     }
 
     log.debug(`[TIMING] playNext: player.play() called (${Date.now() - playStartTime}ms)`);
-    log.info(`Now playing: ${nextTrack.title}`);
+    log.info(`Now playing: ${title}`);
 
     // Send now playing update to voice channel (not for soundboard)
     if (!nextTrack.isSoundboard) {
@@ -409,7 +410,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
       if (userId) {
         // Track in sound_stats
         stats.trackSound(
-          nextTrack.title,
+          title,
           userId,
           guildId,
           sourceType,
@@ -426,8 +427,8 @@ export async function playNext(guildId: string): Promise<Track | null> {
             userId,
             guildId,
             {
-              title: nextTrack.title,
-              url: nextTrack.url,
+              title,
+              url: nextTrack.url || '',
               duration: nextTrack.duration,
               isLocal: nextTrack.isLocal,
               isSoundboard: false,
@@ -435,9 +436,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
             },
             nextTrack.userId || state.lastUserId || null
           )
-          .catch((err) =>
-            log.error(`Failed to track listening history: ${(err as Error).message}`)
-          );
+          .catch((err: Error) => log.error(`Failed to track listening history: ${err.message}`));
       }
     }
 
@@ -450,7 +449,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
       stats.trackUserListen(
         guildId,
         state.channelId,
-        nextTrack.title,
+        title,
         nextTrack.url || null,
         sourceType,
         nextTrack.duration || null,
@@ -461,7 +460,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
       stats.startTrackEngagement(
         guildId,
         state.channelId,
-        nextTrack.title,
+        title,
         nextTrack.url || null,
         sourceType,
         nextTrack.duration || null,
@@ -472,7 +471,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
     return nextTrack;
   } catch (error) {
     const err = error as Error;
-    log.error(`Failed to play ${nextTrack.title}: ${err.message}`);
+    log.error(`Failed to play ${nextTrack.title ?? 'Unknown'}: ${err.message}`);
 
     // Check if it's a recoverable error
     const isRecoverable =
@@ -485,7 +484,7 @@ export async function playNext(guildId: string): Promise<Track | null> {
       err.message.includes('no longer available');
 
     if (isRecoverable) {
-      log.warn(`Skipping track due to error: ${nextTrack.title}`);
+      log.warn(`Skipping track due to error: ${nextTrack.title ?? 'Unknown'}`);
     }
 
     // Try to play next track automatically
@@ -832,7 +831,8 @@ export async function playWithSeek(
 
     // Apply volume and play
     playWithVolume(state, resource);
-    state.nowPlaying = track.title;
+    const title = track.title ?? 'Unknown';
+    state.nowPlaying = title;
     state.currentTrack = track;
     state.currentTrackSource = track.isLocal ? null : track.url || null;
     state.playbackStartTime = Date.now() - seekSeconds * 1000; // Offset to account for seek
@@ -845,10 +845,10 @@ export async function playWithSeek(
       state.pauseStartTime = Date.now();
     }
 
-    log.info(`Resumed: ${track.title} at ${seekSeconds}s`);
+    log.info(`Resumed: ${title} at ${seekSeconds}s`);
   } catch (error) {
     const err = error as Error;
-    log.error(`Failed to resume ${track.title}: ${err.message}`);
+    log.error(`Failed to resume ${track.title ?? 'Unknown'}: ${err.message}`);
     throw err;
   }
 }

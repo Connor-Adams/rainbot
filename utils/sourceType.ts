@@ -2,7 +2,7 @@
  * Shared utility for detecting track source type
  */
 
-export type SourceType = 'youtube' | 'spotify' | 'soundcloud' | 'local' | 'other';
+import type { SourceType } from '@rainbot/types/media';
 
 export interface TrackForSourceDetection {
   isLocal?: boolean;

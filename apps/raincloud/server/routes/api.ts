@@ -582,7 +582,7 @@ router.post(
       );
 
       // Extract title from first track
-      const firstTrack = result.tracks?.[0];
+      const firstTrack = result.items?.[0];
       const title = firstTrack ? firstTrack.title : 'Unknown';
 
       // Track API command
@@ -591,9 +591,9 @@ router.post(
       }
 
       // Sanitize tracks array to remove stream objects (which have circular references)
-      const sanitizedTracks = result.tracks
-        ? result.tracks.map(
-            (track: { title: string; url?: string; duration?: number; isLocal?: boolean }) => ({
+      const sanitizedTracks = result.items
+        ? result.items.map(
+            (track: { title?: string; url?: string; duration?: number; isLocal?: boolean }) => ({
               title: track.title,
               url: track.url,
               duration: track.duration,
@@ -607,7 +607,7 @@ router.post(
         message: 'Playing',
         title,
         added: result.added,
-        totalInQueue: result.totalInQueue,
+        totalInQueue: result.queue?.queue.length ?? 0,
         tracks: sanitizedTracks,
       });
     } catch (error) {
@@ -1028,23 +1028,28 @@ router.get('/status', requireAuth, async (_req, res: Response): Promise<void> =>
           guildId: guilds[index]?.id,
           channelId: status.channelId,
           channelName: status.channelName,
-          isPlaying: status.isPlaying,
-          volume: toPercent(status.volume),
+          isPlaying: status.playback.status === 'playing',
+          volume: toPercent(status.playback.volume),
           workers: workers
-            ? {
-                rainbot: {
-                  ...workers.rainbot,
-                  volume: toPercent(workers.rainbot?.volume),
-                },
-                pranjeet: {
-                  ...workers.pranjeet,
-                  volume: toPercent(workers.pranjeet?.volume),
-                },
-                hungerbot: {
-                  ...workers.hungerbot,
-                  volume: toPercent(workers.hungerbot?.volume),
-                },
-              }
+            ? (() => {
+                const rainbot = workers['rainbot'];
+                const pranjeet = workers['pranjeet'];
+                const hungerbot = workers['hungerbot'];
+                return {
+                  rainbot: {
+                    ...rainbot,
+                    volume: toPercent(rainbot?.playback?.volume),
+                  },
+                  pranjeet: {
+                    ...pranjeet,
+                    volume: toPercent(pranjeet?.playback?.volume),
+                  },
+                  hungerbot: {
+                    ...hungerbot,
+                    volume: toPercent(hungerbot?.playback?.volume),
+                  },
+                };
+              })()
             : workers,
         };
       })

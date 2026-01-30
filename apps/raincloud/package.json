@@ -23,6 +23,7 @@
     "@rainbot/redis-client": "*",
     "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
+    "@rainbot/types": "*",
     "@rainbot/worker-protocol": "*",
     "@snazzah/davey": "^0.1.9",
     "async-mutex": "^0.5.0",

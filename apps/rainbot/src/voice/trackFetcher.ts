@@ -6,7 +6,7 @@ import type {
   SpotifyPlaylist,
   SpotifyTrack,
 } from 'play-dl';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 import { createLogger } from '@rainbot/shared';
 
 const MAX_PLAYLIST_TRACKS = 100;

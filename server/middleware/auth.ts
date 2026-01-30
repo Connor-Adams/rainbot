@@ -3,7 +3,7 @@ import { createLogger } from '../../utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
 import { getServerConfig } from '../config';
-import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
+import type { AuthenticatedRequest, DiscordUser } from '@rainbot/types/server';
 
 const log = createLogger('AUTH');
 

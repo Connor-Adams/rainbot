@@ -1,8 +1,8 @@
 // util-category: audio
 import { AudioPlayerStatus, AudioResource } from '@discordjs/voice';
 import { createLogger } from '@utils/logger';
-import type { VoiceState } from '@rainbot/protocol';
-import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
+import type { Track } from '@rainbot/types/voice';
 import { resetPlaybackTiming, markPaused, markResumed } from './PlaybackTiming';
 
 const log = createLogger('PLAYBACK_CTRL');
@@ -16,7 +16,7 @@ export class PlaybackController {
     state.player.play(resource);
     state.currentResource = track.isSoundboard ? null : (resource as any);
     state.currentTrack = track;
-    state.nowPlaying = track.title;
+    state.nowPlaying = track.title ?? null;
     state.currentTrackSource = track.isLocal ? null : track.url || null;
 
     resetPlaybackTiming(state);
@@ -25,7 +25,7 @@ export class PlaybackController {
       state.lastPlayedTrack = track;
     }
 
-    log.info(`Now playing: ${track.title}`);
+    log.info(`Now playing: ${track.title ?? 'Unknown'}`);
   }
 
   static pause(state: VoiceState): void {

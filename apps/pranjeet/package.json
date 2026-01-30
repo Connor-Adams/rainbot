@@ -17,6 +17,7 @@
     "@discordjs/voice": "^0.19.0",
     "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
+    "@rainbot/types": "*",
     "@rainbot/worker-shared": "*",
     "@trpc/server": "^10.45.2",
     "bullmq": "^5.17.0",

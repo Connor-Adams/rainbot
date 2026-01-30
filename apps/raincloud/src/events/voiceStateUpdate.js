@@ -79,7 +79,7 @@ module.exports = {
 
     // Don't show if bot is already playing something or has a queue
     const { queue } = vm.getQueue(guildId);
-    if (botStatus.nowPlaying || queue.length > 0) return;
+    if (botStatus.queue?.nowPlaying?.title || queue.length > 0) return;
 
     log.info(`User ${newState.member.user.tag} joined voice channel with history`);
 

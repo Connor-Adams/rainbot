@@ -1,6 +1,8 @@
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
+import type { Logger } from '@rainbot/types/core';
+export type { Logger } from '@rainbot/types/core';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -96,14 +98,6 @@ const logger = winston.createLogger({
     }),
   ],
 });
-
-export interface Logger {
-  error: (message: string, meta?: Record<string, unknown>) => void;
-  warn: (message: string, meta?: Record<string, unknown>) => void;
-  info: (message: string, meta?: Record<string, unknown>) => void;
-  http: (message: string, meta?: Record<string, unknown>) => void;
-  debug: (message: string, meta?: Record<string, unknown>) => void;
-}
 
 // Helper to create child logger with context
 export function createLogger(context: string): Logger {

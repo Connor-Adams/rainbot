@@ -1,5 +1,5 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { Track, QueueInfo } from '@rainbot/protocol';
+import type { MediaItem, MediaState, QueueState } from '@rainbot/types/media';
 import { createButtonId } from '../components/builders/buttonBuilder';
 
 /**
@@ -32,19 +32,16 @@ export function getYouTubeThumbnail(url: string | null | undefined): string | nu
 /**
  * Create a now playing embed with control buttons
  */
-export function createPlayerEmbed(
-  nowPlaying: string | null,
-  queue: Track[],
-  isPaused: boolean = false,
-  currentTrack: Track | null = null,
-  queueInfo: Partial<QueueInfo> = {}
-): EmbedBuilder {
-  const {
-    playbackPosition = 0,
-    hasOverlay = false,
-    totalInQueue = queue.length,
-    channelName = null,
-  } = queueInfo;
+export function createPlayerEmbed(media: MediaState | null): EmbedBuilder {
+  const queueState: QueueState = media?.queue ?? { queue: [] };
+  const queue: MediaItem[] = queueState.queue ?? [];
+  const currentTrack = queueState.nowPlaying ?? null;
+  const nowPlaying = currentTrack?.title ?? null;
+  const isPaused = media?.playback.status === 'paused';
+  const hasOverlay = media?.playback.overlayActive === true;
+  const totalInQueue = queue.length;
+  const channelName = media?.channelName ?? null;
+  const playbackPositionMs = media?.playback.positionMs ?? 0;
 
   // Determine embed color based on state
   let embedColor = 0x6366f1; // Default blue
@@ -64,7 +61,8 @@ export function createPlayerEmbed(
 
   if (currentTrack) {
     trackTitle = currentTrack.title || trackTitle;
-    trackDuration = currentTrack.duration ?? null;
+    trackDuration =
+      currentTrack.duration ?? (currentTrack.durationMs ? currentTrack.durationMs / 1000 : null);
     trackUrl = currentTrack.url ?? null;
     isSoundboard = currentTrack.isSoundboard || trackTitle.startsWith('🔊');
   } else if (queue.length > 0 && queue[0]) {
@@ -92,9 +90,9 @@ export function createPlayerEmbed(
   // Build description with position and duration
   let description = `**${trackTitle}**`;
 
-  if (trackDuration && playbackPosition > 0) {
+  if (trackDuration && playbackPositionMs > 0) {
     // Show progress: current / total
-    const currentTime = formatDuration(playbackPosition);
+    const currentTime = formatDuration(Math.floor(playbackPositionMs / 1000));
     const totalTime = formatDuration(trackDuration);
     description += `\n\`${currentTime} / ${totalTime}\``;
   } else if (trackDuration) {
@@ -114,7 +112,8 @@ export function createPlayerEmbed(
       .slice(0, 5)
       .map((t, i) => {
         const num = (i + 1).toString().padStart(2, '0');
-        const duration = t.duration ? ` \`${formatDuration(t.duration)}\`` : '';
+        const durationSeconds = t.duration ?? (t.durationMs ? t.durationMs / 1000 : null);
+        const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
         const source = t.isLocal ? '🔊' : '';
         return `\`${num}\` ${source}${t.title}${duration}`;
       })
@@ -195,16 +194,13 @@ export function createControlButtons(
  * Create full player message components
  */
 export function createPlayerMessage(
-  nowPlaying: string | null,
-  queue: Track[],
-  isPaused: boolean = false,
-  currentTrack: Track | null = null,
-  queueInfo: Partial<QueueInfo> = {},
+  media: MediaState | null,
   guildId?: string
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[]; content?: string } {
-  const hasQueue = (queueInfo.totalInQueue ?? queue.length) > 0;
+  const hasQueue = (media?.queue?.queue?.length ?? 0) > 0;
+  const isPaused = media?.playback.status === 'paused';
   return {
-    embeds: [createPlayerEmbed(nowPlaying, queue, isPaused, currentTrack, queueInfo)],
+    embeds: [createPlayerEmbed(media)],
     components: [createControlButtons(isPaused, hasQueue, guildId)],
   };
 }

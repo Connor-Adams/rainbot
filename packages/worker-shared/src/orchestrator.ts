@@ -1,7 +1,8 @@
 import { createLogger } from '@rainbot/shared';
 import { formatError } from './errors';
+import type { BotType } from '@rainbot/types/core';
 
-export type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+export type { BotType };
 
 /**
  * Get the orchestrator base URL from environment variables
@@ -15,7 +16,7 @@ export function getOrchestratorBaseUrl(raincloudUrl?: string): string | null {
 
   try {
     const url = new URL(normalized);
-    if (!url.port) {
+    if (!url.port && (url.hostname === 'localhost' || url.hostname.startsWith('127.'))) {
       const defaultPort =
         process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
       url.port = String(defaultPort);

@@ -9,7 +9,7 @@ import { createLogger } from '@utils/logger';
 import * as storage from '@utils/storage';
 import requestLogger from './middleware/requestLogger';
 import { setClient, getClient } from './client';
-import type { AppConfig } from '@rainbot/protocol';
+import type { AppConfig } from '@rainbot/types/server';
 
 const log = createLogger('SERVER');
 const FileStore = FileStoreFactory(session);

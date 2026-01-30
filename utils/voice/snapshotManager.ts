@@ -1,7 +1,7 @@
 import { createLogger } from '../logger';
 import { query } from '../database';
-import type { VoiceState } from '@rainbot/protocol';
-import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
+import type { Track } from '@rainbot/types/voice';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('SNAPSHOT_MANAGER');

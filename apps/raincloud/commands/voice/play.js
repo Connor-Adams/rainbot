@@ -102,27 +102,17 @@ module.exports = {
           interaction.user.username,
           interaction.user.discriminator
         );
-        const queueInfo = voiceManager.getQueue(guildId);
-        const { nowPlaying, queue, currentTrack } = queueInfo;
         const voiceStatus = voiceManager.getStatus(guildId);
-        const isPaused = voiceStatus ? !voiceStatus.isPlaying : false;
+        const updatedMedia =
+          voiceStatus && result.queue ? { ...voiceStatus, queue: result.queue } : voiceStatus;
 
         if (result.added === 1) {
-          log.info(`Playing: "${result.tracks[0].title}" in ${interaction.guild.name}`);
-          await interaction.editReply(
-            createPlayerMessage(nowPlaying, queue, isPaused, currentTrack, queueInfo, guildId)
-          );
+          log.info(`Playing: "${result.items[0]?.title || source}" in ${interaction.guild.name}`);
+          await interaction.editReply(createPlayerMessage(updatedMedia, guildId));
         } else {
           log.info(`Added ${result.added} tracks to queue in ${interaction.guild.name}`);
 
-          const playerMsg = createPlayerMessage(
-            nowPlaying,
-            queue,
-            isPaused,
-            currentTrack,
-            queueInfo,
-            guildId
-          );
+          const playerMsg = createPlayerMessage(updatedMedia, guildId);
           playerMsg.content = `📋 Added **${result.added}** track${result.added === 1 ? '' : 's'} to queue!`;
           await interaction.editReply(playerMsg);
         }

@@ -10,7 +10,7 @@ import requestLogger from './middleware/requestLogger';
 import { apiErrorHandler } from './middleware/errorHandler';
 import { setClient } from './client';
 import { getServerConfig, initServerConfig } from './config';
-import type { AppConfig } from '@rainbot/protocol';
+import type { AppConfig } from '@rainbot/types/server';
 
 const log = createLogger('SERVER');
 const FileStore = FileStoreFactory(session);

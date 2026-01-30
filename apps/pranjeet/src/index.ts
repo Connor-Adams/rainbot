@@ -24,6 +24,7 @@ import { getOrchestratorBaseUrl, registerWithOrchestrator } from '@rainbot/worke
 import { createWorkerExpressApp } from '@rainbot/worker-shared';
 import { ensureClientReady } from '@rainbot/worker-shared';
 import { RequestCache } from '@rainbot/worker-shared';
+import type { MediaState, PlaybackState } from '@rainbot/types/media';
 import {
   createWorkerDiscordClient,
   setupDiscordClientErrorHandler,
@@ -214,6 +215,24 @@ function getOrCreateGuildState(guildId: string): PranjeetGuildState {
     });
   }
   return guildStates.get(guildId)!;
+}
+
+function buildPlaybackState(state: PranjeetGuildState | null): PlaybackState {
+  if (!state) {
+    return { status: 'idle' };
+  }
+
+  let status: PlaybackState['status'] = 'idle';
+  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    status = 'paused';
+  } else if (state.player.state.status === AudioPlayerStatus.Playing) {
+    status = 'playing';
+  }
+
+  return {
+    status,
+    volume: state.volume,
+  };
 }
 
 /**
@@ -618,19 +637,17 @@ app.get('/status', (req: Request, res: Response) => {
   }
 
   const state = guildStates.get(guildId);
-  if (!state) {
-    return res.json({
-      connected: false,
-      playing: false,
-    });
-  }
+  const playback = buildPlaybackState(state ?? null);
+  const payload: MediaState = {
+    guildId,
+    channelId: state?.connection?.joinConfig.channelId ?? null,
+    connected: state?.connection !== null,
+    kind: 'tts',
+    playback,
+    queue: { queue: [] },
+  };
 
-  res.json({
-    connected: state.connection !== null,
-    channelId: state.connection?.joinConfig.channelId,
-    playing: state.player.state.status === AudioPlayerStatus.Playing,
-    volume: state.volume,
-  });
+  res.json(payload);
 });
 
 // Speak TTS

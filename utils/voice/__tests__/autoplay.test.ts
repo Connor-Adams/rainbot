@@ -7,7 +7,7 @@
  * 3. Autoplay respects the enabled/disabled state
  */
 
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 import * as trackFetcher from '../trackFetcher';
 
 // Mock dependencies

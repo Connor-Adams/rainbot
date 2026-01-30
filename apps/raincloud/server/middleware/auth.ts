@@ -2,7 +2,7 @@ import type { Response, NextFunction } from 'express';
 import { createLogger } from '@utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
-import type { AuthenticatedRequest, DiscordUser } from '@rainbot/protocol';
+import type { AuthenticatedRequest, DiscordUser } from '@rainbot/types/server';
 
 const log = createLogger('AUTH');
 

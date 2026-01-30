@@ -6,7 +6,8 @@ import { AudioPlayerStatus } from '@discordjs/voice';
 import { createLogger } from '../logger';
 import * as stats from '../statistics';
 import { getVoiceState } from './connectionManager';
-import type { Track, QueueInfo } from '@rainbot/protocol';
+import type { QueueState, MediaItem } from '@rainbot/types/media';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('QUEUE');
 
@@ -131,7 +132,7 @@ export async function skip(
       if (state.queue.length > 0) {
         const track = state.queue[0];
         if (track) {
-          skipped.push(track.title);
+          skipped.push(track.title ?? 'Unknown');
         }
         state.queue.shift();
       }
@@ -206,44 +207,22 @@ export async function removeTrackFromQueue(guildId: string, index: number): Prom
 /**
  * Get the current queue with stateful information
  */
-export function getQueue(guildId: string): QueueInfo {
+export function getQueue(guildId: string): QueueState {
   const state = getVoiceState(guildId);
   if (!state) {
     return {
-      nowPlaying: null,
       queue: [],
-      totalInQueue: 0,
-      currentTrack: null,
-      playbackPosition: 0,
-      hasOverlay: false,
-      isPaused: false,
-      channelName: null,
-      autoplay: false,
     };
   }
 
-  let playbackPosition = 0;
-  if (state.playbackStartTime && state.currentTrack) {
-    const elapsed = Date.now() - state.playbackStartTime;
-    const pausedTime = state.totalPausedTime || 0;
-    const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
-    playbackPosition = Math.max(0, Math.floor((elapsed - pausedTime - currentPauseTime) / 1000));
-
-    if (state.currentTrack.duration && playbackPosition > state.currentTrack.duration) {
-      playbackPosition = state.currentTrack.duration;
-    }
-  }
+  const nowPlaying: MediaItem | undefined =
+    state.currentTrack || (state.nowPlaying ? { title: state.nowPlaying } : undefined);
 
   return {
-    nowPlaying: state.nowPlaying || null,
+    nowPlaying,
     queue: state.queue.slice(0, 20),
-    totalInQueue: state.queue.length,
-    currentTrack: state.currentTrack || null,
-    playbackPosition: playbackPosition,
-    hasOverlay: !!state.overlayProcess,
     isPaused: state.player.state.status === AudioPlayerStatus.Paused,
-    channelName: state.channelName || null,
-    autoplay: state.autoplay || false,
+    isAutoplay: state.autoplay || false,
   };
 }
 
