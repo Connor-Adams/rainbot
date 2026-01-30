@@ -34,7 +34,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -44,7 +44,7 @@ module.exports = {
 
       if (skipped.length === 0) {
         return interaction.reply({
-          content: 'âŒ Nothing is playing right now.',
+          content: '❌ Nothing is playing right now.',
           flags: MessageFlags.Ephemeral,
         });
       }

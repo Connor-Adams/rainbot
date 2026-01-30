@@ -39,7 +39,7 @@ module.exports = {
     if (!voiceStateManager) {
       return interaction.reply({
         content:
-          'âŒ Voice interaction system is not available. Please ensure Redis is properly configured.',
+          '❌ Voice interaction system is not available. Please ensure Redis is properly configured.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -95,7 +95,7 @@ Users in voice channels can now control music with voice commands.
 
           const statusMessage = isEnabled
             ? 'âœ… **Voice commands are enabled**'
-            : 'âŒ **Voice commands are disabled**';
+            : '❌ **Voice commands are disabled**';
 
           await interaction.reply({
             content: statusMessage,
@@ -106,13 +106,13 @@ Users in voice channels can now control music with voice commands.
 
         default:
           await interaction.reply({
-            content: 'âŒ Unknown subcommand.',
+            content: '❌ Unknown subcommand.',
             flags: MessageFlags.Ephemeral,
           });
       }
     } catch (error) {
       log.error(`Error executing voice-control command: ${error.message}`);
-      const errorMessage = `âŒ Failed to ${subcommand} voice commands: ${error.message}`;
+      const errorMessage = `❌ Failed to ${subcommand} voice commands: ${error.message}`;
 
       if (interaction.deferred) {
         await interaction.editReply({ content: errorMessage });

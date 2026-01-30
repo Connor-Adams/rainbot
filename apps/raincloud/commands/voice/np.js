@@ -20,7 +20,7 @@ module.exports = {
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
       return interaction.reply({
-        content: "âŒ I'm not in a voice channel! Use `/join` first.",
+        content: "❌ I'm not in a voice channel! Use `/join` first.",
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -28,7 +28,7 @@ module.exports = {
     const nowPlaying = status.queue?.nowPlaying?.title ?? null;
     if (!nowPlaying) {
       return interaction.reply({
-        content: 'âŒ Nothing is playing right now. Use `/play` to start playing music.',
+        content: '❌ Nothing is playing right now. Use `/play` to start playing music.',
         flags: MessageFlags.Ephemeral,
       });
     }
