@@ -23,9 +23,14 @@ function buildCoordinator(): {
 
   const { WorkerCoordinator } =
     require('@lib/workerCoordinator') as typeof import('@lib/workerCoordinator');
-  (WorkerCoordinator as any).prototype.startHealthPolling = jest.fn();
+  const coordinatorProto = WorkerCoordinator.prototype as unknown as {
+    startHealthPolling: () => void;
+  };
+  coordinatorProto.startHealthPolling = jest.fn();
 
-  const voiceStateManager = new VoiceStateManager({} as any);
+  const voiceStateManager = new VoiceStateManager(
+    {} as unknown as import('@rainbot/redis-client').RedisClient
+  );
   return {
     coordinator: new WorkerCoordinator(voiceStateManager),
     axiosModule,

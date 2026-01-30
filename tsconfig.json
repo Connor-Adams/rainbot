@@ -55,7 +55,6 @@
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@commands/*": ["commands/*"],
       "@utils/*": ["utils/*"],
-      "@server/*": ["server/*"],
       "@events/*": ["events/*"],
       "@components/*": ["components/*"]
     },
@@ -68,7 +67,6 @@
     "utils/**/*.ts",
     "packages/types/src/**/*.ts",
     "packages/types/src/**/*.d.ts",
-    "server/**/*.ts",
     "events/**/*.ts",
     "scripts/**/*.ts",
     "components/**/*.ts"

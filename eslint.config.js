@@ -57,17 +57,6 @@ module.exports = [
     },
   },
   {
-    files: ['public/**/*.js', 'server/routes/auth.js'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'script',
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-    },
-  },
-  {
     files: ['**/*.{js,ts,jsx,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -133,7 +122,6 @@ module.exports = [
       'build/**',
       '**/build/**',
       'ui/**',
-      'public/**',
       'logs/**',
       'sessions/**',
       'sounds/**',

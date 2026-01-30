@@ -44,7 +44,7 @@ yarn dev
 - `docs/MULTIBOT_ARCHITECTURE.md`
 - `RAILWAY_DEPLOY.md`
 - `OAUTH_SETUP.md`
-- `VOICE_INTERACTION_GUIDE.md`
+- `docs/TYPES_CANONICAL.md`
 
 ## UI
 
