@@ -1,5 +1,4 @@
 // util-category: audio
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Speech Recognition Module - Convert audio to text
  * Supports multiple STT providers: Google Cloud Speech, Azure, AWS, local Whisper
@@ -27,6 +26,8 @@ interface STTProvider {
  * Requires @google-cloud/speech package and credentials
  */
 class GoogleSTTProvider implements STTProvider {
+  /** @google-cloud/speech client (optional dep, no types at build time) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private client: any;
 
   constructor(apiKey?: string) {

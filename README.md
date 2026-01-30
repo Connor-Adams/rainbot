@@ -49,6 +49,10 @@ yarn dev
 - `RAILWAY_DEPLOY.md`
 - `OAUTH_SETUP.md`
 
+## Project layout
+
+- **Slash commands**: `apps/raincloud/commands/` is canonical. Root `commands/` is a legacy duplicate; the app loads from the raincloud path when run from the repo root.
+
 ## UI
 
 The dashboard lives in `ui/`. Deploy it separately (see `ui/railway.json`); it talks to Raincloud via `VITE_API_BASE_URL` / `VITE_AUTH_BASE_URL`.

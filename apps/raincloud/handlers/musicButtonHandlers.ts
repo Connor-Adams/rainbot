@@ -3,7 +3,9 @@
  */
 
 import { MessageFlags } from 'discord.js';
+import type { APIEmbed } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
+import type { MediaItem } from '@rainbot/types/media';
 import { createLogger } from '@utils/logger';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createPlayerMessage } from '@utils/playerEmbed';
@@ -249,8 +251,7 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
       return `${minutes}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const embed: any = {
+    const embed: APIEmbed = {
       color: 0x6366f1,
       title: '📋 Queue',
       timestamp: new Date().toISOString(),
@@ -272,12 +273,11 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
     if (queue.length > 0) {
       const queueList = queue
         .slice(0, 10)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((t: any, i: number) => {
+        .map((t: MediaItem, i: number) => {
           const num = (i + 1).toString().padStart(2, '0');
           const durationSeconds = t.duration ?? (t.durationMs ? t.durationMs / 1000 : null);
           const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
-          return `\`${num}\` ${t.title}${duration}`;
+          return `\`${num}\` ${t.title ?? 'Unknown'}${duration}`;
         })
         .join('\n');
 

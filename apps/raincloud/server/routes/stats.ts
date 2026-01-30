@@ -1792,8 +1792,9 @@ router.get('/stream', requireAuth, (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-  res.flushHeaders && res.flushHeaders();
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
 
   const send = (event: string, data: unknown) => {
     try {

@@ -38,8 +38,10 @@ describe('buttonBuilder', () => {
     });
 
     it('skips null values', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const id = createButtonId('test', { action: 'test', userId: null as any });
+      // ButtonMetadata does not allow null; test that createButtonId skips null when present
+      const id = createButtonId('test', { action: 'test', userId: null } as Parameters<
+        typeof createButtonId
+      >[1]);
       expect(id).toBe('test_action:test');
     });
   });

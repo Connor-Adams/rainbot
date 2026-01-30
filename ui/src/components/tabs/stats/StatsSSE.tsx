@@ -54,9 +54,7 @@ export default function StatsSSE() {
         es = null;
       }
     };
-    // only mount once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [qc]);
 
   return null;
 }
