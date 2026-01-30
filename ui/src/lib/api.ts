@@ -10,19 +10,33 @@ const defaultOrigin =
 const defaultApiOrigin = `${defaultOrigin}/api`;
 const debugEnabled = import.meta.env.DEV || runtimeConfig['VITE_DEBUG_LOGS'] === 'true';
 
-export const apiBaseUrl =
-  runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || defaultApiOrigin;
-
-// Auth must hit the backend (OAuth routes). If VITE_AUTH_BASE_URL is unset or same as current
-// origin (UI host), we'd redirect to the UI's /auth/discord and the SPA would just show login again.
-// Derive auth base from API base (strip /api) when auth URL is missing or points at current origin.
-const explicitAuthBase =
-  runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || '';
 const currentOrigin =
   typeof window !== 'undefined' && window.location?.origin ? window.location.origin : defaultOrigin;
+
+// Known Railway layout: UI at rainbot-production, API at raincloud-production. Use when runtime
+// config isn't injected (startCommand env vars missing).
+const RAILWAY_UI_ORIGIN = 'https://rainbot-production.up.railway.app';
+const RAILWAY_API_ORIGIN = 'https://raincloud-production.up.railway.app';
+const useRailwayFallback =
+  currentOrigin === RAILWAY_UI_ORIGIN &&
+  !runtimeConfig['VITE_API_BASE_URL'] &&
+  !import.meta.env.VITE_API_BASE_URL;
+
+const resolvedApiBase =
+  runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || '';
+export const apiBaseUrl = useRailwayFallback
+  ? `${RAILWAY_API_ORIGIN}/api`
+  : resolvedApiBase || defaultApiOrigin;
+
+// Auth must hit the backend (OAuth routes). If unset or same as current origin, we'd hit the UI.
+const explicitAuthBase =
+  runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || '';
 const derivedFromApi = apiBaseUrl.replace(/\/api\/?$/, '').trim() || defaultOrigin;
-export const authBaseUrl =
-  explicitAuthBase && explicitAuthBase !== currentOrigin ? explicitAuthBase : derivedFromApi;
+export const authBaseUrl = useRailwayFallback
+  ? RAILWAY_API_ORIGIN
+  : explicitAuthBase && explicitAuthBase !== currentOrigin
+    ? explicitAuthBase
+    : derivedFromApi;
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');
