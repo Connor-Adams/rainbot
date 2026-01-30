@@ -9,6 +9,32 @@ if (dotenvResult.error) {
   console.log(`[MAIN] Loaded ${Object.keys(dotenvResult.parsed).length} variables from .env file`);
 }
 
+// Resolve TS path aliases in compiled JS at runtime
+const path = require('path');
+const Module = require('module');
+const originalResolveFilename = Module._resolveFilename;
+const aliasRoot = path.join(__dirname, 'dist');
+const aliasMap = {
+  '@utils': path.join(aliasRoot, 'utils'),
+  '@server': path.join(aliasRoot, 'apps', 'raincloud', 'server'),
+  '@handlers': path.join(aliasRoot, 'apps', 'raincloud', 'handlers'),
+  '@events': path.join(aliasRoot, 'apps', 'raincloud', 'src', 'events'),
+  '@components': path.join(aliasRoot, 'apps', 'raincloud', 'components'),
+  '@lib': path.join(aliasRoot, 'apps', 'raincloud', 'lib'),
+  '@commands': path.join(aliasRoot, 'apps', 'raincloud', 'commands'),
+};
+
+Module._resolveFilename = function (request, parent, isMain, options) {
+  for (const [alias, target] of Object.entries(aliasMap)) {
+    if (request === alias || request.startsWith(`${alias}/`)) {
+      const remainder = request.length > alias.length ? request.slice(alias.length + 1) : '';
+      const mapped = remainder ? path.join(target, remainder) : target;
+      return originalResolveFilename.call(this, mapped, parent, isMain, options);
+    }
+  }
+  return originalResolveFilename.call(this, request, parent, isMain, options);
+};
+
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const server = require('./dist/apps/raincloud/server');
 const { loadConfig } = require('./dist/utils/config');
