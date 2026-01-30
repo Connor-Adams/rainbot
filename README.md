@@ -35,7 +35,8 @@ yarn dev
 
 ## Scripts
 
-- `yarn validate` (type-check, lint, format, test)
+- `yarn validate` (type-check, lint, format check, test)
+- `yarn format` (Prettier via turbo in all workspace packages)
 - `yarn dev` (turbo dev – runs all apps including Raincloud and workers)
 - `yarn build`
 - `yarn workspace @rainbot/raincloud dev` – run only the orchestrator (API + Discord commands)
@@ -43,9 +44,10 @@ yarn dev
 ## Docs
 
 - `docs/MULTIBOT_ARCHITECTURE.md`
+- `docs/TYPES_CANONICAL.md`
+- `docs/FUTURE_WORK.md`
 - `RAILWAY_DEPLOY.md`
 - `OAUTH_SETUP.md`
-- `docs/TYPES_CANONICAL.md`
 
 ## UI
 

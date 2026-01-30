@@ -80,7 +80,7 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   const sourceInfo = getSourceInfo();
 
   const handleProgressClick = () => {
-    // TODO: Would seek to position here if API supported it
+    // See docs/FUTURE_WORK.md: Seek API (UI)
   };
 
   return (

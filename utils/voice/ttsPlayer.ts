@@ -124,7 +124,7 @@ export async function playTTSAudio(
     const isPlaying = player.state.status === AudioPlayerStatus.Playing;
 
     if (isPlaying) {
-      // TODO: Implement true stream mixing
+      // See docs/FUTURE_WORK.md: TTS stream mixing
       // For now, log that we're skipping to avoid interruption
       log.info(
         `Music is playing - TTS responses temporarily disabled to avoid interruption in guild ${guildId}`

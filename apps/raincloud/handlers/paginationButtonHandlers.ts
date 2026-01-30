@@ -4,6 +4,7 @@
 
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
+import type { MediaItem } from '@rainbot/types/media';
 import { createLogger } from '@utils/logger';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
@@ -110,13 +111,12 @@ async function createQueueEmbed(
   // Queue section
   if (queue.length > 0 && pageQueue.length > 0) {
     const queueList = pageQueue
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((track: any, i: number) => {
+      .map((track: MediaItem, i: number) => {
         const num = (startIndex + i + 1).toString().padStart(2, '0');
         const durationSeconds =
           track.duration ?? (track.durationMs ? track.durationMs / 1000 : null);
         const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
-        return `\`${num}\` ${track.title}${duration}`;
+        return `\`${num}\` ${track.title ?? 'Unknown'}${duration}`;
       })
       .join('\n');
 
