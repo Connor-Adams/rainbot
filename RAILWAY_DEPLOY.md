@@ -2,6 +2,8 @@
 
 Railway is perfect for deploying both your Discord bot and web dashboard together! It's as easy as Vercel but supports long-running processes.
 
+**Default layout:** UI service at **rainbot-production** (dashboard), API/orchestrator at **raincloud-production** (Raincloud). The UI’s `railway.json` points API/auth at raincloud-production; Raincloud’s `railway.json` sets `DASHBOARD_ORIGIN` to rainbot-production for CORS and post-login redirect.
+
 ## Quick Start
 
 ### 1. Create Railway Account
@@ -114,7 +116,7 @@ Railway will automatically:
 | `DISCORD_GUILD_ID`      | Guild ID for faster command deployment (optional)                                          | No                              |
 | `DISABLE_AUTO_DEPLOY`   | Set to `true` to disable auto-deploy (optional)                                            | No                              |
 | `CALLBACK_URL`          | OAuth callback URL. **Production:** must be your Raincloud public URL (e.g. `https://raincloud-xxx.up.railway.app/auth/discord/callback`), not localhost. | No (required for login if not same as Railway domain) |
-| `DASHBOARD_ORIGIN`      | UI origin for CORS and post-login redirect (e.g. `https://rainbot-ui.up.railway.app`)     | No (required when UI is on a different service)      |
+| `DASHBOARD_ORIGIN`      | UI origin for CORS and post-login redirect. Default in Raincloud’s `railway.json`: `https://rainbot-production.up.railway.app` (UI service). Override if your UI is elsewhere. | No                      |
 | `DATABASE_URL`          | PostgreSQL connection URL (auto-set when PostgreSQL addon is added)                        | No (required for statistics)    |
 | `REDIS_URL`             | Redis connection URL (auto-set when Redis addon is added)                                  | No                              |
 | `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                   | No                              |
