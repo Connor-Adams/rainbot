@@ -28,7 +28,11 @@ const getConfig = (): OAuthConfig => {
     callbackURL = `https://${config.railwayPublicDomain}/auth/discord/callback`;
   }
   if (!callbackURL) {
-    callbackURL = 'http://localhost:3000/auth/discord/callback';
+    // In dev, UI is often on 5173 (Vite) with proxy to API on 3000; callback must be UI origin so cookie is set for 5173
+    const isDev = process.env['NODE_ENV'] !== 'production';
+    callbackURL = isDev
+      ? 'http://localhost:5173/auth/discord/callback'
+      : 'http://localhost:3000/auth/discord/callback';
   }
 
   return {
@@ -177,7 +181,7 @@ passport.deserializeUser((user: Express.User, done) => {
   done(null, user);
 });
 
-// Helper to get base URL from request
+// Helper to get base URL from request (where to redirect after login/logout)
 function getBaseUrl(req: Request): string {
   const config: AppConfig = loadConfig();
   const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
@@ -190,11 +194,9 @@ function getBaseUrl(req: Request): string {
   if (config.railwayPublicDomain) {
     return `https://${config.railwayPublicDomain}`;
   }
-  // Local development
+  // Local development: default to Vite UI origin so redirect after OAuth goes to dashboard, not API 404
   if (process.env['NODE_ENV'] !== 'production') {
-    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
-    const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
-    return `${protocol}://${host}`;
+    return 'http://localhost:5173';
   }
 
   // Production fallback avoids host-header injection
