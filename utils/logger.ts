@@ -60,19 +60,28 @@ function sanitizeLogMessage(message: string): string {
   return sanitized;
 }
 
-// Create the logger
-const logger = winston.createLogger({
-  levels,
-  level: process.env['LOG_LEVEL'] || 'debug',
-  format: combine(errors({ stack: true }), timestamp({ format: 'HH:mm:ss' })),
-  transports: [
-    // Console transport with colors
-    new winston.transports.Console({
-      format: combine(colorize({ all: true }), consoleFormat),
-    }),
-    // File transport for errors only
+// Console format: use colors only when stdout is a TTY (avoids broken output in Railway/containers)
+const isTty = typeof process.stdout?.isTTY === 'boolean' && process.stdout.isTTY;
+const consoleTransportFormat = isTty
+  ? combine(colorize({ all: true }), consoleFormat)
+  : combine(consoleFormat);
+
+const transports: winston.transport[] = [
+  new winston.transports.Console({
+    format: consoleTransportFormat,
+  }),
+];
+
+// File transport only when logs dir is writable (e.g. skip in read-only containers)
+try {
+  const logsDir = path.join(__dirname, '..', '..', 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  const errorLogPath = path.join(logsDir, 'error.log');
+  transports.push(
     new winston.transports.File({
-      filename: path.join(__dirname, '..', '..', 'logs', 'error.log'),
+      filename: errorLogPath,
       level: 'error',
       format: combine(
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -95,8 +104,17 @@ const logger = winston.createLogger({
           return `${ts} ${level.toUpperCase()}${ctx} ${msg}`;
         })
       ),
-    }),
-  ],
+    })
+  );
+} catch {
+  // Logs dir not writable (e.g. Railway); console only
+}
+
+const logger = winston.createLogger({
+  levels,
+  level: process.env['LOG_LEVEL'] || 'info',
+  format: combine(errors({ stack: true }), timestamp({ format: 'HH:mm:ss' })),
+  transports,
 });
 
 // Helper to create child logger with context
@@ -113,12 +131,6 @@ export function createLogger(context: string): Logger {
     debug: (message: string, meta: Record<string, unknown> = {}) =>
       logger.debug(sanitizeLogMessage(message), { context, ...meta }),
   };
-}
-
-// Ensure logs directory exists (go up 2 levels from dist/utils/ to project root)
-const logsDir = path.join(__dirname, '..', '..', 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 export { logger };
