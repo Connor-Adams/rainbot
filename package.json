@@ -25,7 +25,7 @@
     "build:hungerbot": "yarn workspace @rainbot/hungerbot-worker build",
     "start": "turbo run start",
     "lint": "turbo run lint",
-    "lint:fix": "eslint . --ext .js,.ts --fix",
+    "lint:fix": "eslint . --ext .js,.ts,.jsx,.tsx --fix",
     "format": "prettier --write \"**/*.{js,ts,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,ts,json,md}\"",
     "type-check": "turbo run type-check",
@@ -72,7 +72,7 @@
     "openai": "^4.104.0"
   },
   "lint-staged": {
-    "*.{js,ts}": [
+    "*.{js,ts,jsx,tsx}": [
       "eslint --fix",
       "prettier --write"
     ],

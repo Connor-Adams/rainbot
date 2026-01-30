@@ -15,11 +15,6 @@ const log = createLogger('WORKER-COORDINATOR');
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
 
-interface WorkerConfig {
-  baseUrl: string;
-  timeout: number;
-}
-
 interface WorkerHealth {
   ready: boolean;
   lastChecked: number;
@@ -38,33 +33,6 @@ const HEALTH_POLL_MS = 15_000;
 const RETRY_MAX = 2;
 const RETRY_BASE_MS = 150;
 const TTS_QUEUE_NAME = 'tts';
-const DEFAULT_WORKER_PORT =
-  process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-const WORKER_SECRET = process.env['WORKER_SECRET'];
-
-function shouldAppendDefaultPort(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  return lower === 'localhost' || lower.startsWith('127.');
-}
-
-function normalizeWorkerUrl(rawUrl: string): string {
-  const withScheme = rawUrl.match(/^https?:\/\//) ? rawUrl : `http://${rawUrl}`;
-  const trimmed = withScheme.replace(/\/$/, '');
-
-  try {
-    const url = new URL(trimmed);
-    if (!url.port && shouldAppendDefaultPort(url.hostname)) {
-      url.port = String(DEFAULT_WORKER_PORT);
-    }
-    const normalizedPath = url.pathname.replace(/\/$/, '');
-    return `${url.origin}${normalizedPath}`;
-  } catch {
-    if (trimmed.match(/:\d+$/)) {
-      return trimmed;
-    }
-    return shouldAppendDefaultPort(trimmed) ? `${trimmed}:${DEFAULT_WORKER_PORT}` : trimmed;
-  }
-}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -154,47 +122,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 export class WorkerCoordinator {
-  private workers: Map<BotType, AxiosInstance>;
   private circuit: Map<BotType, CircuitState>;
   private health: Map<BotType, WorkerHealth>;
   private ttsQueue: Queue | null;
 
   constructor(private voiceStateManager: VoiceStateManager) {
-    this.workers = new Map();
     this.circuit = new Map();
     this.health = new Map();
     this.ttsQueue = null;
 
-    // Initialize worker clients
-    const config: Record<BotType, WorkerConfig> = {
-      rainbot: {
-        baseUrl: normalizeWorkerUrl(process.env['RAINBOT_URL'] || 'http://localhost:3001'),
-        timeout: 500,
-      },
-      pranjeet: {
-        baseUrl: normalizeWorkerUrl(process.env['PRANJEET_URL'] || 'http://localhost:3002'),
-        timeout: 500,
-      },
-      hungerbot: {
-        baseUrl: normalizeWorkerUrl(process.env['HUNGERBOT_URL'] || 'http://localhost:3003'),
-        timeout: 500,
-      },
-    };
-
-    for (const [botType, cfg] of Object.entries(config)) {
-      this.workers.set(
-        botType as BotType,
-        axios.create({
-          baseURL: cfg.baseUrl,
-          timeout: cfg.timeout,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(WORKER_SECRET ? { 'x-worker-secret': WORKER_SECRET } : {}),
-          },
-        })
-      );
-      this.circuit.set(botType as BotType, { failureCount: 0, openedUntil: 0 });
-      this.health.set(botType as BotType, { ready: true, lastChecked: 0 });
+    for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
+      this.circuit.set(botType, { failureCount: 0, openedUntil: 0 });
+      this.health.set(botType, { ready: true, lastChecked: 0 });
     }
 
     // Auto-follow is always enabled - workers join automatically when orchestrator joins
@@ -226,23 +165,20 @@ export class WorkerCoordinator {
         return null;
       });
 
-      for (const [botType, worker] of this.workers.entries()) {
+      for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
         const rpcResult = rpcResults?.[botType];
         if (rpcResult && rpcResult.status === 'fulfilled') {
           this.health.set(botType, { ready: true, lastChecked: Date.now() });
-          continue;
-        }
-
-        try {
-          await this.requestWithRetry(botType, () => worker.get('/health/ready'), true);
-          this.health.set(botType, { ready: true, lastChecked: Date.now() });
-        } catch (error) {
-          const rpcMessage =
+        } else {
+          const message =
             rpcResult && rpcResult.status === 'rejected'
               ? getErrorMessage(rpcResult.reason)
-              : undefined;
-          const message = rpcMessage || getErrorMessage(error);
-          this.health.set(botType, { ready: false, lastChecked: Date.now(), lastError: message });
+              : 'RPC health check failed';
+          this.health.set(botType, {
+            ready: false,
+            lastChecked: Date.now(),
+            lastError: message,
+          });
           log.warn(`${botType} health check failed: ${message}`);
         }
       }
@@ -377,11 +313,6 @@ export class WorkerCoordinator {
       return { success: false, error: guard.error };
     }
 
-    const worker = this.workers.get(botType);
-    if (!worker && botType !== 'rainbot') {
-      return { success: false, error: `Worker ${botType} not configured` };
-    }
-
     try {
       const getStatus = async (): Promise<{ connected: boolean; channelId?: string }> => {
         if (botType === 'rainbot') {
@@ -440,11 +371,6 @@ export class WorkerCoordinator {
    */
   async disconnectWorker(botType: BotType, guildId: string): Promise<void> {
     const requestId = uuidv4();
-    const worker = this.workers.get(botType);
-    if (!worker && botType !== 'rainbot') {
-      log.warn(`Worker ${botType} not configured`);
-      return;
-    }
     const guard = this.guardWorker(botType);
     if (!guard.ok) {
       log.warn(guard.error ?? `${botType} unavailable`);
@@ -628,11 +554,6 @@ export class WorkerCoordinator {
     volume: number
   ): Promise<{ success: boolean; message?: string }> {
     const requestId = uuidv4();
-    const worker = this.workers.get(botType);
-
-    if (!worker) {
-      return { success: false, message: `Worker ${botType} not configured` };
-    }
     const guard = this.guardWorker(botType);
     if (!guard.ok) {
       return { success: false, message: guard.error };

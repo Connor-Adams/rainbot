@@ -1,4 +1,5 @@
-// Using tsx to run TypeScript files directly
+// Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
+// so path aliases (dist/, apps/raincloud/) resolve correctly.
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
