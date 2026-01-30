@@ -1,6 +1,9 @@
 // Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
 // so path aliases (dist/, apps/raincloud/) resolve correctly.
 
+// Immediate stdout so Railway/containers always capture at least one line (before logger may load)
+console.log('[Raincloud] Process starting');
+
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
 const dotenvResult = require('dotenv').config();
