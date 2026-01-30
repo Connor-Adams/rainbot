@@ -5,6 +5,7 @@ import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import {
   fetchWorkerHealthChecks,
+  workerBaseUrls,
   rainbotClient,
   pranjeetClient,
   hungerbotClient,
@@ -35,7 +36,14 @@ const RETRY_BASE_MS = 150;
 const TTS_QUEUE_NAME = 'tts';
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    const cause = error.cause;
+    if (cause instanceof Error && cause.message && cause.message !== error.message) {
+      return `${error.message}: ${cause.message}`;
+    }
+    if (typeof cause === 'string') return `${error.message}: ${cause}`;
+    return error.message;
+  }
   if (typeof error === 'string') return error;
   return 'Unknown error';
 }
@@ -155,6 +163,10 @@ export class WorkerCoordinator {
       log.info('TTS queue disabled (REDIS_URL not configured)');
     }
 
+    const targets = Object.entries(workerBaseUrls)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ');
+    log.info(`Worker RPC targets: ${targets}`);
     this.startHealthPolling();
   }
 

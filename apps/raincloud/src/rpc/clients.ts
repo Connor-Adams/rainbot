@@ -12,15 +12,22 @@ function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   return withScheme.replace(/\/$/, '');
 }
 
-const RAINBOT_URL = normalizeRpcBaseUrl(process.env['RAINBOT_URL'] || '', 'http://localhost:3001');
+const RAINBOT_URL = normalizeRpcBaseUrl(process.env['RAINBOT_URL'] || '', 'http://rainbot.railway.internal:3001');
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
-  'http://localhost:3002'
+  'http://pranjeet.railway.internal:3002'
 );
 const HUNGERBOT_URL = normalizeRpcBaseUrl(
   process.env['HUNGERBOT_URL'] || '',
-  'http://localhost:3003'
+  'http://hungerbot.railway.internal:3003'
 );
+
+/** Exported for logging; used by coordinator to show which worker URLs are targeted. */
+export const workerBaseUrls = {
+  rainbot: RAINBOT_URL,
+  pranjeet: PRANJEET_URL,
+  hungerbot: HUNGERBOT_URL,
+} as const;
 
 export const rainbotClient = createTRPCClient<RainbotRouter>({
   baseUrl: RAINBOT_URL,
