@@ -17,8 +17,7 @@ const log = createLogger('RAINBOT-AUDIO');
 function getYtdlpOptions(): Record<string, unknown> {
   // Try clients in order: tv_embedded/android often work without PO token; ios/web as fallback
   const extractorArgs =
-    process.env['YTDLP_EXTRACTOR_ARGS'] ||
-    'youtube:player_client=tv_embedded,android,ios,web';
+    process.env['YTDLP_EXTRACTOR_ARGS'] || 'youtube:player_client=tv_embedded,android,ios,web';
   const options: Record<string, unknown> = {
     noPlaylist: true,
     noWarnings: true,
