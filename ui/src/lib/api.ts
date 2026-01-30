@@ -13,8 +13,17 @@ const debugEnabled = import.meta.env.DEV || runtimeConfig['VITE_DEBUG_LOGS'] ===
 
 export const apiBaseUrl =
   runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || defaultApiOrigin;
+
+// Auth must hit the backend (OAuth routes). If VITE_AUTH_BASE_URL is unset or same as current
+// origin (UI host), we'd redirect to the UI's /auth/discord and the SPA would just show login again.
+// Derive auth base from API base (strip /api) when auth URL is missing or points at current origin.
+const explicitAuthBase =
+  runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || '';
+const currentOrigin =
+  typeof window !== 'undefined' && window.location?.origin ? window.location.origin : defaultOrigin;
+const derivedFromApi = apiBaseUrl.replace(/\/api\/?$/, '').trim() || defaultOrigin;
 export const authBaseUrl =
-  runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || defaultAuthOrigin;
+  explicitAuthBase && explicitAuthBase !== currentOrigin ? explicitAuthBase : derivedFromApi;
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');
