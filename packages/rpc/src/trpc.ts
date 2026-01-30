@@ -8,7 +8,7 @@ export interface RPCContext {
 }
 
 export function createContext({ req, res }: { req: Request; res: Response }): RPCContext {
-  const headerValue = req.header('x-internal-secret');
+  const headerValue = req.header('x-internal-secret') || req.header('x-worker-secret') || null;
   return {
     req,
     res,

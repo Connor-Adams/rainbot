@@ -106,22 +106,22 @@ Railway will automatically:
 
 ## Environment Variables Reference
 
-| Variable                | Description                                                                                | Required                        |
-| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
-| `DISCORD_BOT_TOKEN`     | Bot token from Discord Developer Portal                                                    | Yes                             |
-| `DISCORD_CLIENT_ID`     | Bot Client ID                                                                              | Yes                             |
-| `DISCORD_CLIENT_SECRET` | OAuth Client Secret                                                                        | Yes                             |
-| `SESSION_SECRET`        | Random secret for sessions (MUST be consistent across deployments for sessions to persist) | Yes                             |
-| `REQUIRED_ROLE_ID`      | Discord role ID for dashboard access                                                       | Yes                             |
-| `DISCORD_GUILD_ID`      | Guild ID for faster command deployment (optional)                                          | No                              |
-| `DISABLE_AUTO_DEPLOY`   | Set to `true` to disable auto-deploy (optional)                                            | No                              |
-| `CALLBACK_URL`          | OAuth callback URL. **Production:** must be your Raincloud public URL (e.g. `https://raincloud-xxx.up.railway.app/auth/discord/callback`), not localhost. | No (required for login if not same as Railway domain) |
-| `DASHBOARD_ORIGIN`      | UI origin for CORS and post-login redirect. Default in Raincloud’s `railway.json`: `https://rainbot-production.up.railway.app` (UI service). Override if your UI is elsewhere. | No                      |
-| `DATABASE_URL`          | PostgreSQL connection URL (auto-set when PostgreSQL addon is added)                        | No (required for statistics)    |
-| `REDIS_URL`             | Redis connection URL (auto-set when Redis addon is added)                                  | No                              |
-| `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                   | No                              |
-| `SPOTIFY_CLIENT_ID`     | Spotify Client ID for Spotify URL support                                                  | No (required for Spotify links) |
-| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support                                              | No (required for Spotify links) |
+| Variable                | Description                                                                                                                                                                    | Required                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `DISCORD_BOT_TOKEN`     | Bot token from Discord Developer Portal                                                                                                                                        | Yes                                                   |
+| `DISCORD_CLIENT_ID`     | Bot Client ID                                                                                                                                                                  | Yes                                                   |
+| `DISCORD_CLIENT_SECRET` | OAuth Client Secret                                                                                                                                                            | Yes                                                   |
+| `SESSION_SECRET`        | Random secret for sessions (MUST be consistent across deployments for sessions to persist)                                                                                     | Yes                                                   |
+| `REQUIRED_ROLE_ID`      | Discord role ID for dashboard access                                                                                                                                           | Yes                                                   |
+| `DISCORD_GUILD_ID`      | Guild ID for faster command deployment (optional)                                                                                                                              | No                                                    |
+| `DISABLE_AUTO_DEPLOY`   | Set to `true` to disable auto-deploy (optional)                                                                                                                                | No                                                    |
+| `CALLBACK_URL`          | OAuth callback URL. **Production:** must be your Raincloud public URL (e.g. `https://raincloud-xxx.up.railway.app/auth/discord/callback`), not localhost.                      | No (required for login if not same as Railway domain) |
+| `DASHBOARD_ORIGIN`      | UI origin for CORS and post-login redirect. Default in Raincloud’s `railway.json`: `https://rainbot-production.up.railway.app` (UI service). Override if your UI is elsewhere. | No                                                    |
+| `DATABASE_URL`          | PostgreSQL connection URL (auto-set when PostgreSQL addon is added)                                                                                                            | No (required for statistics)                          |
+| `REDIS_URL`             | Redis connection URL (auto-set when Redis addon is added)                                                                                                                      | No                                                    |
+| `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                                                                                                       | No                                                    |
+| `SPOTIFY_CLIENT_ID`     | Spotify Client ID for Spotify URL support                                                                                                                                      | No (required for Spotify links)                       |
+| `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support                                                                                                                                  | No (required for Spotify links)                       |
 
 ## Generating Session Secret
 

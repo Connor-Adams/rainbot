@@ -6,8 +6,12 @@ import type {
   SpotifyPlaylist,
   SpotifyTrack,
 } from 'play-dl';
+import youtubedlPkg from 'youtube-dl-exec';
 import type { Track } from '@rainbot/types/voice';
 import { createLogger } from '@rainbot/shared';
+import { getYtdlpOptions } from './audioResource';
+
+const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 const MAX_PLAYLIST_TRACKS = 100;
 const log = createLogger('RAINBOT-TRACKS');
@@ -71,6 +75,20 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
         }
       } catch {
         // Keep fallback title
+      }
+
+      if (title === 'Unknown Track' || duration === undefined) {
+        try {
+          const info = (await youtubedl(cleanSource, {
+            ...getYtdlpOptions(),
+            dumpSingleJson: true,
+            noPlaylist: true,
+          })) as { title?: string; duration?: number };
+          if (info.title && info.title.trim()) title = info.title.trim();
+          if (info.duration != null && Number.isFinite(info.duration)) duration = info.duration;
+        } catch {
+          // Keep existing title/duration
+        }
       }
 
       tracks.push({
