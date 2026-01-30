@@ -12,17 +12,28 @@ function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   return withScheme.replace(/\/$/, '');
 }
 
+/** Railway uses port 8080; local dev often 3001/3002/3003. */
+const isRailway = Boolean(
+  process.env['RAILWAY_ENVIRONMENT'] ?? process.env['RAILWAY_PUBLIC_DOMAIN']
+);
+
 const RAINBOT_URL = normalizeRpcBaseUrl(
   process.env['RAINBOT_URL'] || '',
-  'http://rainbot.railway.internal:3001'
+  isRailway
+    ? `http://rainbot.railway.internal:8080`
+    : 'http://localhost:3001'
 );
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
-  'http://pranjeet.railway.internal:3002'
+  isRailway
+    ? `http://pranjeet.railway.internal:8080`
+    : 'http://localhost:3002'
 );
 const HUNGERBOT_URL = normalizeRpcBaseUrl(
   process.env['HUNGERBOT_URL'] || '',
-  'http://hungerbot.railway.internal:3003'
+  isRailway
+    ? `http://hungerbot.railway.internal:8080`
+    : 'http://localhost:3003'
 );
 
 /** Exported for logging; used by coordinator to show which worker URLs are targeted. */

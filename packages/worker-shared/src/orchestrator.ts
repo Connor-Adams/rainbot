@@ -16,7 +16,9 @@ export function getOrchestratorBaseUrl(raincloudUrl?: string): string | null {
 
   try {
     const url = new URL(normalized);
-    if (!url.port && (url.hostname === 'localhost' || url.hostname.startsWith('127.'))) {
+    // When no port is set, default to 8080 on Railway (internal hostnames like raincloud.railway.internal)
+    // or 3000 locally; otherwise fetch would use port 80 and time out.
+    if (!url.port || url.port === '') {
       const defaultPort =
         process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
       url.port = String(defaultPort);
