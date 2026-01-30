@@ -6,6 +6,31 @@
 const { MessageFlags } = require('discord.js');
 
 /**
+ * Get the initialized MultiBotService instance if available.
+ */
+async function getMultiBotService() {
+  try {
+    const { MultiBotService } = require('../../dist/apps/raincloud/lib/multiBotService');
+    if (MultiBotService.isInitialized()) {
+      return MultiBotService.getInstance();
+    }
+  } catch {
+    // Multi-bot service not available
+  }
+  return null;
+}
+
+/**
+ * Standard response when worker services are unavailable.
+ */
+function createWorkerUnavailableResponse() {
+  return {
+    content: 'Error: worker services are not ready. Please try again in a moment.',
+    flags: MessageFlags.Ephemeral,
+  };
+}
+
+/**
  * Check if bot is connected to a voice channel in the guild
  * Returns an error response if not connected
  */
@@ -86,6 +111,8 @@ function checkVoicePermissions(voiceChannel, botUser) {
 }
 
 module.exports = {
+  getMultiBotService,
+  createWorkerUnavailableResponse,
   validateVoiceConnection,
   createErrorResponse,
   formatDuration,

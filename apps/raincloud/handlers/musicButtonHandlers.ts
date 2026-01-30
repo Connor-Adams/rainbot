@@ -5,7 +5,6 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
-import * as voiceManager from '@utils/voiceManager';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createPlayerMessage } from '@utils/playerEmbed';
 
@@ -26,7 +25,15 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -36,13 +43,9 @@ export const handlePauseButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const result = multiBot
-      ? await multiBot.togglePause(guildId)
-      : voiceManager.togglePause(guildId);
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
-    const mediaState = multiBot
-      ? await multiBot.getStatus(guildId)
-      : voiceManager.getStatus(guildId);
+    const result = await multiBot.togglePause(guildId);
+    const queueState = await multiBot.getQueue(guildId);
+    const mediaState = await multiBot.getStatus(guildId);
     const updatedMedia =
       mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
@@ -82,7 +85,15 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -92,19 +103,13 @@ export const handleSkipButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    if (multiBot) {
-      await multiBot.skip(guildId, 1);
-    } else {
-      await voiceManager.skip(guildId, 1, interaction.user.id);
-    }
+    await multiBot.skip(guildId, 1);
 
     // Small delay to let next track start
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : null;
-    const mediaState = multiBot
-      ? await multiBot.getStatus(guildId)
-      : voiceManager.getStatus(guildId);
+    const queueState = await multiBot.getQueue(guildId);
+    const mediaState = await multiBot.getStatus(guildId);
     const updatedMedia =
       mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
 
@@ -145,7 +150,15 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -155,11 +168,7 @@ export const handleStopButton: ButtonHandler = async (interaction, context) => {
   }
 
   try {
-    if (multiBot) {
-      await multiBot.stop(guildId);
-    } else {
-      voiceManager.stopSound(guildId);
-    }
+    await multiBot.stop(guildId);
 
     await interaction.update({
       embeds: [
@@ -205,7 +214,15 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
-  const status = multiBot ? await multiBot.getStatus(guildId) : voiceManager.getStatus(guildId);
+  if (!multiBot) {
+    await interaction.reply({
+      content: '❌ Worker services are not ready.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return { success: false, error: 'Workers unavailable' };
+  }
+
+  const status = await multiBot.getStatus(guildId);
   if (!status) {
     await interaction.reply({
       content: "❌ I'm not in a voice channel!",
@@ -215,7 +232,7 @@ export const handleQueueButton: ButtonHandler = async (interaction, context) => 
   }
 
   try {
-    const queueState = multiBot ? await multiBot.getQueue(guildId) : voiceManager.getQueue(guildId);
+    const queueState = await multiBot.getQueue(guildId);
     const nowPlaying = queueState.nowPlaying?.title ?? null;
     const currentTrack = queueState.nowPlaying ?? null;
     const queue = queueState.queue ?? [];

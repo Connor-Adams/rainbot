@@ -36,8 +36,9 @@ yarn dev
 ## Scripts
 
 - `yarn validate` (type-check, lint, format, test)
-- `yarn dev` (turbo dev)
+- `yarn dev` (turbo dev – runs all apps including Raincloud and workers)
 - `yarn build`
+- `yarn workspace @rainbot/raincloud dev` – run only the orchestrator (web UI + Discord commands)
 
 ## Docs
 

@@ -1,6 +1,4 @@
 import express, { Application, Request, Response } from 'express';
-import path from 'path';
-import fs from 'fs';
 import session from 'express-session';
 import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
@@ -295,42 +293,9 @@ export async function createServer(): Promise<Application> {
   const statsRoutes = require('./routes/stats').default;
   app.use('/api/stats', statsRoutes);
 
-  // Serve React build from ui/dist (production)
-  // After TS compilation, __dirname is dist/server/, so go up 2 levels to reach project root
-  const reactBuildPath = path.join(__dirname, '..', '..', 'ui', 'dist');
-
-  if (fs.existsSync(reactBuildPath)) {
-    // Serve React build static assets
-    app.use(express.static(reactBuildPath));
-    log.info('Serving React UI from ui/dist');
-  } else {
-    log.warn('React build not found at ui/dist. Run "npm run build:ui" to build the UI.');
-  }
-
-  // Serve React app for all other routes (SPA fallback)
-  // IMPORTANT: Don't require auth here - let React app handle auth client-side
-  // The React app will check auth via /auth/check API endpoint
-  app.use((req: Request, res: Response): void => {
-    // Skip if it's an API or auth route (shouldn't reach here, but safety check)
-    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
-      res.status(404).json({ error: 'Not found' });
-      return;
-    }
-    // Serve React app (SPA fallback) - no auth required, React handles it
-    const reactIndex = path.join(reactBuildPath, 'index.html');
-    if (fs.existsSync(reactIndex)) {
-      res.sendFile(reactIndex);
-    } else {
-      res.status(503).send(`
-                <html>
-                    <body style="font-family: sans-serif; padding: 2rem; text-align: center;">
-                        <h1>UI Not Built</h1>
-                        <p>React UI has not been built yet.</p>
-                        <p>Run: <code>npm run build:ui</code></p>
-                    </body>
-                </html>
-            `);
-    }
+  // API-only: no UI serving; unmatched routes 404
+  app.use((_req: Request, res: Response): void => {
+    res.status(404).json({ error: 'Not found' });
   });
 
   return app;
@@ -355,4 +320,4 @@ export async function start(client: Client, port = 3000): Promise<Application> {
   return app;
 }
 
-export { getClient };
+export { getClient, setClient };

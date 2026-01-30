@@ -1,28 +1,12 @@
-/**
+﻿/**
  * Join command - Multi-bot architecture version
  * Connects all worker bots to the voice channel
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { checkVoicePermissions, createErrorResponse } = require('../utils/commandHelpers');
+const { checkVoicePermissions, createErrorResponse, getMultiBotService } = require('../utils/commandHelpers');
 const { createLogger } = require('../../dist/utils/logger');
 
 const log = createLogger('JOIN');
-
-// Try to use multi-bot service, fall back to local voiceManager
-async function getPlaybackService() {
-  try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
-    if (MultiBotService.isInitialized()) {
-      return { type: 'multibot', service: MultiBotService.getInstance() };
-    }
-  } catch {
-    // Multi-bot service not available
-  }
-
-  // Fall back to local voiceManager
-  const voiceManager = require('../../dist/utils/voiceManager');
-  return { type: 'local', service: voiceManager };
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,7 +19,7 @@ module.exports = {
 
     if (!voiceChannel) {
       return interaction.reply({
-        content: '❌ You need to be in a voice channel first! Join a voice channel and try again.',
+        content: 'âŒ You need to be in a voice channel first! Join a voice channel and try again.',
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -45,10 +29,9 @@ module.exports = {
       return interaction.reply(permissionCheck.error);
     }
 
-    const { type, service } = await getPlaybackService();
-
     try {
-      if (type === 'multibot') {
+      const service = await getMultiBotService();
+      if (service) {
         // Multi-bot architecture - connect all workers
         await interaction.deferReply();
 
@@ -56,25 +39,24 @@ module.exports = {
 
         if (!result.success) {
           return interaction.editReply({
-            content: `❌ ${result.message || 'Failed to join voice channel'}`,
+            content: `âŒ ${result.message || 'Failed to join voice channel'}`,
           });
         }
 
         log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name} (multi-bot mode)`);
         await interaction.editReply(
-          `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
+          `ðŸ”Š Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
         );
-      } else {
-        // Local voiceManager fallback
-        const voiceManager = service;
-        await voiceManager.joinChannel(voiceChannel);
-
-        // Pranjeet will auto-follow raincloud and handle voice listening when enabled
-        log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name}`);
-        await interaction.reply(
-          `🔊 Joined **${voiceChannel.name}**! Use \`/play\` to start playing music.`
-        );
+        return;
       }
+
+      // Workers unavailable; allow orchestrator to join only.
+      const voiceManager = require('../../dist/utils/voiceManager');
+      await voiceManager.joinChannel(voiceChannel);
+      log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name} (orchestrator only)`);
+      await interaction.reply(
+        `ðŸ”Š Joined **${voiceChannel.name}**! (Workers unavailable; playback disabled.)`
+      );
     } catch (error) {
       log.error(`Error joining voice channel: ${error.message}`);
       if (interaction.replied || interaction.deferred) {
@@ -82,7 +64,7 @@ module.exports = {
           createErrorResponse(
             error,
             'Failed to join the voice channel',
-            '💡 Make sure I have the necessary permissions and try again.'
+            'ðŸ’¡ Make sure I have the necessary permissions and try again.'
           )
         );
       } else {
@@ -90,10 +72,11 @@ module.exports = {
           createErrorResponse(
             error,
             'Failed to join the voice channel',
-            '💡 Make sure I have the necessary permissions and try again.'
+            'ðŸ’¡ Make sure I have the necessary permissions and try again.'
           )
         );
       }
     }
   },
 };
+

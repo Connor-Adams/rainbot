@@ -2,11 +2,13 @@ const { Events, MessageFlags } = require('discord.js');
 const path = require('path');
 
 const distRoot = path.join(__dirname, '..', '..', 'dist');
-const voiceManager = require(path.join(distRoot, 'utils', 'voiceManager'));
 const { createPlayerMessage } = require(path.join(distRoot, 'utils', 'playerEmbed'));
 const { createLogger } = require(path.join(distRoot, 'utils', 'logger'));
 const listeningHistory = require(path.join(distRoot, 'utils', 'listeningHistory'));
 const stats = require(path.join(distRoot, 'utils', 'statistics'));
+const { MultiBotService } = require(
+  path.join(distRoot, 'apps', 'raincloud', 'lib', 'multiBotService')
+);
 const { handleButtonInteraction, hasButtonHandler } = require(
   path.join(distRoot, 'apps', 'raincloud', 'handlers', 'buttonHandler')
 );
@@ -15,6 +17,13 @@ const { parseButtonId } = require(
 );
 
 const log = createLogger('BUTTONS');
+
+function getMultiBotService() {
+  if (MultiBotService && typeof MultiBotService.isInitialized === 'function') {
+    return MultiBotService.isInitialized() ? MultiBotService.getInstance() : null;
+  }
+  return null;
+}
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -46,42 +55,8 @@ module.exports = {
         });
       }
 
-      try {
-        const result = await voiceManager.resumeHistory(interaction.guildId, userId);
-        await interaction.update({
-          embeds: [
-            {
-              color: 0x10b981,
-              title: '✅ Resumed',
-              description: `Restored **${result.restored}** track${result.restored === 1 ? '' : 's'} from your listening history!`,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-          components: [],
-        });
-
-        // Send player message to channel
-        const channel = interaction.channel;
-        if (channel) {
-          const mediaState = voiceManager.getStatus(interaction.guildId);
-          await channel.send(createPlayerMessage(mediaState, interaction.guildId));
-        }
-
-        stats.trackInteraction(
-          'button',
-          interaction.id,
-          'resume',
-          interaction.user.id,
-          interaction.user.username,
-          interaction.guildId,
-          interaction.channelId,
-          Date.now() - startTime,
-          true,
-          null,
-          { tracksRestored: result.restored }
-        );
-      } catch (error) {
-        log.error(`Resume error: ${error.message}`);
+      const multiBot = getMultiBotService();
+      if (!multiBot) {
         stats.trackInteraction(
           'button',
           interaction.id,
@@ -92,17 +67,32 @@ module.exports = {
           interaction.channelId,
           Date.now() - startTime,
           false,
-          error.message,
+          'Workers unavailable',
           null
         );
-        await interaction
-          .update({
-            content: `❌ Failed to resume: ${error.message}`,
-            embeds: [],
-            components: [],
-          })
-          .catch(() => {});
+        return interaction.reply({
+          content: '❌ Worker services are not ready.',
+          flags: MessageFlags.Ephemeral,
+        });
       }
+
+      stats.trackInteraction(
+        'button',
+        interaction.id,
+        'resume',
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        Date.now() - startTime,
+        false,
+        'Resume history not supported in worker mode',
+        null
+      );
+      return interaction.reply({
+        content: '❌ Resume history is not available in worker mode.',
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -193,7 +183,28 @@ module.exports = {
     if (!interaction.customId.startsWith('player_')) return;
 
     const guildId = interaction.guildId;
-    const status = voiceManager.getStatus(guildId);
+    const multiBot = getMultiBotService();
+    if (!multiBot) {
+      stats.trackInteraction(
+        'button',
+        interaction.id,
+        `player_${interaction.customId.replace('player_', '')}`,
+        interaction.user.id,
+        interaction.user.username,
+        interaction.guildId,
+        interaction.channelId,
+        Date.now() - startTime,
+        false,
+        'Workers unavailable',
+        null
+      );
+      return interaction.reply({
+        content: '❌ Worker services are not ready.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const status = await multiBot.getStatus(guildId);
     const action = interaction.customId.replace('player_', '');
 
     if (!status) {
@@ -222,10 +233,13 @@ module.exports = {
     try {
       switch (action) {
         case 'pause': {
-          const result = voiceManager.togglePause(guildId);
-          const mediaState = voiceManager.getStatus(guildId);
-          await interaction.update(createPlayerMessage(mediaState, guildId));
-          const nowPlaying = mediaState?.queue?.nowPlaying?.title ?? null;
+          const result = await multiBot.togglePause(guildId);
+          const queueState = await multiBot.getQueue(guildId);
+          const mediaState = await multiBot.getStatus(guildId);
+          const updatedMedia =
+            mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
+          await interaction.update(createPlayerMessage(updatedMedia, guildId));
+          const nowPlaying = updatedMedia?.queue?.nowPlaying?.title ?? null;
           stats.trackInteraction(
             'button',
             interaction.id,
@@ -243,13 +257,16 @@ module.exports = {
         }
 
         case 'skip': {
-          const _skipped = await voiceManager.skip(guildId, 1, interaction.user.id);
+          await multiBot.skip(guildId, 1);
           // Small delay to let next track start
           await new Promise((r) => setTimeout(r, 500));
-          const mediaState = voiceManager.getStatus(guildId);
-          await interaction.update(createPlayerMessage(mediaState, guildId));
-          const nowPlaying = mediaState?.queue?.nowPlaying?.title ?? null;
-          const queue = mediaState?.queue?.queue ?? [];
+          const queueState = await multiBot.getQueue(guildId);
+          const mediaState = await multiBot.getStatus(guildId);
+          const updatedMedia =
+            mediaState && queueState ? { ...mediaState, queue: queueState } : mediaState;
+          await interaction.update(createPlayerMessage(updatedMedia, guildId));
+          const nowPlaying = updatedMedia?.queue?.nowPlaying?.title ?? null;
+          const queue = updatedMedia?.queue?.queue ?? [];
           stats.trackInteraction(
             'button',
             interaction.id,
@@ -267,7 +284,7 @@ module.exports = {
         }
 
         case 'stop': {
-          voiceManager.stopSound(guildId);
+          await multiBot.stop(guildId);
           await interaction.update({
             embeds: [
               {
@@ -297,7 +314,7 @@ module.exports = {
         }
 
         case 'queue': {
-          const queueState = voiceManager.getQueue(guildId);
+          const queueState = await multiBot.getQueue(guildId);
           const nowPlaying = queueState.nowPlaying?.title ?? null;
           const currentTrack = queueState.nowPlaying ?? null;
           const queue = queueState.queue ?? [];

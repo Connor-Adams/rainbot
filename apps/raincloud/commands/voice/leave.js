@@ -1,27 +1,15 @@
-/**
+﻿/**
  * Leave command - Multi-bot architecture version
  * Disconnects all worker bots from voice channel
  */
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
+const {
+  getMultiBotService,
+  createWorkerUnavailableResponse,
+} = require('../utils/commandHelpers');
 
 const log = createLogger('LEAVE');
-
-// Try to use multi-bot service, fall back to local voiceManager
-async function getPlaybackService() {
-  try {
-    const { MultiBotService } = require('../../dist/lib/multiBotService');
-    if (MultiBotService.isInitialized()) {
-      return { type: 'multibot', service: MultiBotService.getInstance() };
-    }
-  } catch {
-    // Multi-bot service not available
-  }
-
-  // Fall back to local voiceManager
-  const voiceManager = require('../../dist/utils/voiceManager');
-  return { type: 'local', service: voiceManager };
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,71 +18,41 @@ module.exports = {
 
   async execute(interaction) {
     const guildId = interaction.guildId;
-    const { type, service } = await getPlaybackService();
+    const service = await getMultiBotService();
+    if (!service) {
+      return interaction.reply(createWorkerUnavailableResponse());
+    }
 
-    if (type === 'multibot') {
-      // Multi-bot architecture
-      const status = await service.getStatus(guildId);
+    // Multi-bot architecture
+    const status = await service.getStatus(guildId);
 
-      if (!status || !status.connected) {
-        return interaction.reply({
-          content:
-            "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+    if (!status || !status.connected) {
+      return interaction.reply({
+        content:
+          "âŒ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    try {
+      const channelName = status.channelName || 'the channel';
+      await service.leaveChannel(guildId);
+      log.info(`Left voice in ${interaction.guild.name}`);
+      await interaction.reply(`ðŸ‘‹ Left **${channelName}**! The queue has been cleared.`);
+    } catch (error) {
+      log.error(`Error leaving voice channel: ${error.message}`);
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          content: `âŒ Failed to leave the voice channel: ${error.message}`,
           flags: MessageFlags.Ephemeral,
         });
-      }
-
-      try {
-        const channelName = status.channelName || 'the channel';
-        await service.leaveChannel(guildId);
-        log.info(`Left voice in ${interaction.guild.name}`);
-        await interaction.reply(`👋 Left **${channelName}**! The queue has been cleared.`);
-      } catch (error) {
-        log.error(`Error leaving voice channel: ${error.message}`);
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp({
-            content: `❌ Failed to leave the voice channel: ${error.message}`,
-            flags: MessageFlags.Ephemeral,
-          });
-        } else {
-          await interaction.reply({
-            content: `❌ Failed to leave the voice channel: ${error.message}`,
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-      }
-    } else {
-      // Local voiceManager fallback
-      const voiceManager = service;
-      const status = voiceManager.getStatus(guildId);
-
-      if (!status) {
-        return interaction.reply({
-          content:
-            "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+      } else {
+        await interaction.reply({
+          content: `âŒ Failed to leave the voice channel: ${error.message}`,
           flags: MessageFlags.Ephemeral,
         });
-      }
-
-      try {
-        const channelName = status.channelName;
-        voiceManager.leaveChannel(guildId);
-        log.info(`Left ${channelName} in ${interaction.guild.name}`);
-        await interaction.reply(`👋 Left **${channelName}**! The queue has been cleared.`);
-      } catch (error) {
-        log.error(`Error leaving voice channel: ${error.message}`);
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp({
-            content: `❌ Failed to leave the voice channel: ${error.message}`,
-            flags: MessageFlags.Ephemeral,
-          });
-        } else {
-          await interaction.reply({
-            content: `❌ Failed to leave the voice channel: ${error.message}`,
-            flags: MessageFlags.Ephemeral,
-          });
-        }
       }
     }
   },
 };
+

@@ -5,7 +5,7 @@
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
-import * as voiceManager from '@utils/voiceManager';
+import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
 
 const log = createLogger('PAGINATION_BUTTONS');
@@ -40,13 +40,14 @@ function getYouTubeThumbnail(url: string | null | undefined): string | null {
 /**
  * Create queue embed for a specific page
  */
-function createQueueEmbed(
+async function createQueueEmbed(
+  multiBot: ReturnType<typeof getMultiBotService>,
   guildId: string,
   page: number,
   itemsPerPage: number = 20
-): { embed: EmbedBuilder; totalPages: number; actualPage: number } {
-  const mediaState = voiceManager.getStatus(guildId);
-  const queueState = voiceManager.getQueue(guildId);
+): Promise<{ embed: EmbedBuilder; totalPages: number; actualPage: number }> {
+  const mediaState = await multiBot.getStatus(guildId);
+  const queueState = await multiBot.getQueue(guildId);
   const nowPlaying = queueState.nowPlaying?.title ?? null;
   const currentTrack = queueState.nowPlaying ?? null;
   const queue = queueState.queue ?? [];
@@ -173,8 +174,17 @@ export const handleQueuePaginationButton: ButtonHandler = async (interaction, co
   }
 
   try {
-    const status = voiceManager.getStatus(guildId);
-    if (!status) {
+    const multiBot = MultiBotService.isInitialized() ? getMultiBotService() : null;
+    if (!multiBot) {
+      await interaction.reply({
+        content: '❌ Worker services are not ready.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return { success: false, error: 'Workers unavailable' };
+    }
+
+    const status = await multiBot.getStatus(guildId);
+    if (!status || !status.connected) {
       await interaction.update({
         content: "❌ I'm not in a voice channel anymore!",
         embeds: [],
@@ -184,7 +194,7 @@ export const handleQueuePaginationButton: ButtonHandler = async (interaction, co
     }
 
     // Create the queue embed for the requested page
-    const { embed, totalPages, actualPage } = createQueueEmbed(guildId, page);
+    const { embed, totalPages, actualPage } = await createQueueEmbed(multiBot, guildId, page);
 
     // Add pagination buttons if multiple pages
     const components = [];
