@@ -60,9 +60,11 @@ function sanitizeLogMessage(message: string): string {
   return sanitized;
 }
 
-// Console format: use colors only when stdout is a TTY (avoids broken output in Railway/containers)
-const isTty = typeof process.stdout?.isTTY === 'boolean' && process.stdout.isTTY;
-const consoleTransportFormat = isTty
+// Console format: colors on by default (TTY and Railway log viewer support ANSI). Set LOG_COLORS=0 to disable.
+const logColorsEnv = process.env['LOG_COLORS'];
+const colorsDisabled = logColorsEnv === '0' || logColorsEnv === 'false';
+const useColors = !colorsDisabled;
+const consoleTransportFormat = useColors
   ? combine(colorize({ all: true }), consoleFormat)
   : combine(consoleFormat);
 

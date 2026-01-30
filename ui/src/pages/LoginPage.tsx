@@ -1,14 +1,32 @@
+import { useEffect } from 'react';
 import { DiscordIcon } from '@/components/icons';
-import { buildAuthUrl } from '@/lib/api';
+import { buildAuthUrl, authBaseUrl } from '@/lib/api';
 
-const discordAuthUrl = buildAuthUrl('/auth/discord');
+// Navigate to OAuth with cache-bust so browsers/proxies don't return 304 and block the redirect
+function goToDiscordAuth() {
+  const url = `${buildAuthUrl('/auth/discord')}?_=${Date.now()}`;
+  console.info('[Login] Redirecting to OAuth:', url);
+  window.location.href = url;
+}
 
 const linkButtonStyles =
-  'inline-flex items-center justify-center gap-2 w-full max-w-xs px-6 py-3 text-lg font-medium rounded-lg transition-all duration-200 ' +
+  'inline-flex items-center justify-center gap-2 w-full max-w-xs px-6 py-3 text-lg font-medium rounded-lg transition-all duration-200 cursor-pointer ' +
   'bg-gradient-to-r from-primary to-primary-dark text-text-primary shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0 ' +
   'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background';
 
 export default function LoginPage() {
+  useEffect(() => {
+    const authUrl = buildAuthUrl('/auth/discord');
+    const currentOrigin =
+      typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    console.info('[Login] Auth config:', {
+      authBaseUrl,
+      currentOrigin,
+      loginRedirectTarget: authUrl,
+      sameOrigin: authBaseUrl.replace(/\/$/, '') === currentOrigin,
+    });
+  }, []);
+
   return (
     <div className="flex items-center justify-center min-h-screen p-6 sm:p-8 animate-fade-in">
       <div className="flex flex-col items-center gap-6 sm:gap-8 max-w-md w-full text-center">
@@ -21,10 +39,15 @@ export default function LoginPage() {
           Connect to Discord to access the music bot dashboard
         </p>
 
-        <a href={discordAuthUrl} className={linkButtonStyles} aria-label="Login with Discord">
+        <button
+          type="button"
+          onClick={goToDiscordAuth}
+          className={linkButtonStyles}
+          aria-label="Login with Discord"
+        >
           <DiscordIcon size={20} />
           Login with Discord
-        </a>
+        </button>
 
         <p className="text-xs sm:text-sm text-text-muted">
           Secure authentication via Discord OAuth2
