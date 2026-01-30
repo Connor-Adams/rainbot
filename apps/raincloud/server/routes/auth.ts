@@ -203,13 +203,15 @@ function getBaseUrl(req: Request): string {
   return 'http://localhost:3000';
 }
 
-// Initiate OAuth flow (no-store so browser never caches the redirect; avoids 304 and stuck login)
+// Initiate OAuth flow (no-store so browser/proxy never cache the redirect; avoids 304 and stuck login)
 router.get('/discord', (req: Request, res: Response, next: NextFunction) => {
   if (!oauthConfigured) {
     res.status(503).json({ error: 'OAuth not configured' });
     return;
   }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const session = req.session as { oauthState?: string };
   session.oauthState = crypto.randomBytes(16).toString('hex');
   return passport.authenticate('discord', { state: session.oauthState })(req, res, next);
