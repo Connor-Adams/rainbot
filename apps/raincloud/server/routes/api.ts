@@ -10,7 +10,6 @@ import { requireAuth } from '../middleware/auth';
 import * as stats from '@utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
 import type { GuildMember } from 'discord.js';
-import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
@@ -122,11 +121,6 @@ async function trimToOggOpus(input: Buffer, startMs: number, endMs: number): Pro
     ffmpeg.stdin.end();
   });
 }
-
-const uploadRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-});
 
 interface AuthUser {
   id: string | null;
@@ -316,7 +310,6 @@ router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
 // POST /api/sounds - Upload one or more sounds
 router.post(
   '/sounds',
-  uploadRateLimiter,
   requireAuth,
   upload.array('sound', MAX_UPLOAD_FILES),
   async (req: Request, res: Response): Promise<void> => {
@@ -479,7 +472,6 @@ router.post(
 router.post(
   '/sounds/:name/trim',
   requireAuth,
-  uploadRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const rawName = getParamValue(req.params['name']) || '';
     const name = decodeURIComponent(rawName);
