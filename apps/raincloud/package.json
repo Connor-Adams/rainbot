@@ -9,7 +9,7 @@
   "main": "index.js",
   "scripts": {
     "build": "npm run build:ts",
-    "build:ts": "tsc",
+    "build:ts": "tsc && tsc-alias -p tsconfig.json",
     "dev": "npm run build:ts && node index.js",
     "start": "npm run build:ts && node index.js",
     "lint": "eslint . --ext .js,.ts",

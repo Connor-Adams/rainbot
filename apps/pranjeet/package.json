@@ -5,8 +5,8 @@
   "private": true,
   "main": "dist/apps/pranjeet/src/index.js",
   "scripts": {
-    "build": "tsc",
-    "build:ts": "tsc",
+    "build": "npm run build:ts",
+    "build:ts": "tsc && tsc-alias -p tsconfig.json",
     "dev": "npm run build && node dist/apps/pranjeet/src/index.js",
     "start": "node dist/apps/pranjeet/src/index.js",
     "type-check": "tsc --noEmit -p tsconfig.typecheck.json",
