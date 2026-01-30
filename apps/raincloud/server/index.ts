@@ -8,6 +8,7 @@ import type { Client } from 'discord.js';
 import { createLogger } from '@utils/logger';
 import * as storage from '@utils/storage';
 import requestLogger from './middleware/requestLogger';
+import { unauthRateLimiter } from './middleware/unauthRateLimit';
 import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/types/server';
 
@@ -43,6 +44,8 @@ export async function createServer(): Promise<Application> {
 
   // Request logging
   app.use(requestLogger);
+  // Rate limit unauthenticated requests across all routers
+  app.use(unauthRateLimiter);
 
   if (enableCors) {
     app.use((req, res, next) => {
