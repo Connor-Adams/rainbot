@@ -3,17 +3,105 @@ name: Release Deploy (Railway)
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force deploy (bypass CI + diff gating)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  checks: read
 
 jobs:
-  deploy:
-    name: Trigger Railway Deploys
+  plan:
+    name: Plan Railway Deploys
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      any: ${{ steps.detect.outputs.any }}
+      tag_sha: ${{ steps.tag.outputs.sha }}
+      default_branch: ${{ steps.repo.outputs.default_branch }}
 
     steps:
+      - name: Repo info
+        id: repo
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            core.setOutput('default_branch', data.default_branch);
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Resolve tag SHA
+        id: tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagName = context.payload.release?.tag_name;
+            if (!tagName) {
+              core.setFailed('Release tag not found in payload.');
+              return;
+            }
+            const ref = `tags/${tagName}`;
+            const { data: tagRef } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref,
+            });
+            core.setOutput('sha', tagRef.object.sha);
+
+      - name: Verify tag on default branch (unless force)
+        if: ${{ inputs.force != true }}
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ steps.repo.outputs.default_branch }}" --depth=200
+          if ! git merge-base --is-ancestor "${{ steps.tag.outputs.sha }}" "origin/${{ steps.repo.outputs.default_branch }}"; then
+            echo "Tag commit is not on default branch (${{
+              steps.repo.outputs.default_branch
+            }}). Refusing to deploy."
+            exit 1
+          fi
+
+      - name: Verify CI status for tag (unless force)
+        if: ${{ inputs.force != true }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.tag.outputs.sha }}';
+            const { data: status } = await github.rest.repos.getCombinedStatusForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: sha,
+            });
+            const { data: checks } = await github.rest.checks.listSuitesForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: sha,
+            });
+            const hasChecks = checks.total_count > 0;
+            const hasStatuses = status.total_count > 0;
+            if (!hasChecks && !hasStatuses) {
+              core.warning(`No CI status or check suites found for ${sha}; continuing deploy.`);
+              return;
+            }
+            const failedChecks = checks.check_suites.filter((s) => s.conclusion && s.conclusion !== 'success');
+            if (failedChecks.length > 0) {
+              core.setFailed(`CI checks not successful for ${sha}: ${failedChecks.map((s) => s.conclusion).join(', ')}`);
+              return;
+            }
+            if (hasStatuses && status.state !== 'success') {
+              core.setFailed(`Commit status is ${status.state} for ${sha}`);
+            }
 
       - name: Detect service changes
         id: detect
@@ -21,6 +109,9 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "GitHub CLI not found; falling back to git describe for previous tag."
+          fi
 
           if git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
             CURRENT_TAG="${RELEASE_TAG}"
@@ -28,12 +119,21 @@ jobs:
             CURRENT_TAG="refs/tags/${RELEASE_TAG}"
           fi
 
-          # No previous tag => deploy nothing
-          if ! PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null); then
-            echo "raincloud=false" >> "$GITHUB_OUTPUT"
-            echo "rainbot=false" >> "$GITHUB_OUTPUT"
-            echo "pranjeet=false" >> "$GITHUB_OUTPUT"
-            echo "hungerbot=false" >> "$GITHUB_OUTPUT"
+          PREV_TAG=""
+          if command -v gh >/dev/null 2>&1; then
+            if PREV_TAG_API=$(gh api repos/${GITHUB_REPOSITORY}/releases \
+              --jq '.[] | select(.tag_name != env.RELEASE_TAG) | .tag_name' | head -n 1); then
+              PREV_TAG="${PREV_TAG_API}"
+            fi
+          fi
+          if [[ -z "${PREV_TAG}" ]]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
+          fi
+
+          # No previous tag => deploy everything (first release)
+          if [[ -z "${PREV_TAG}" ]]; then
+            echo 'matrix={"include":[{"service":"raincloud","webhook":"RAILWAY_WEBHOOK_RAINCLOUD","health":"RAINCLOUD_HEALTH_URL"},{"service":"rainbot","webhook":"RAILWAY_WEBHOOK_RAINBOT","health":"RAINBOT_HEALTH_URL"},{"service":"pranjeet","webhook":"RAILWAY_WEBHOOK_PRANJEET","health":"PRANJEET_HEALTH_URL"},{"service":"hungerbot","webhook":"RAILWAY_WEBHOOK_HUNGERBOT","health":"HUNGERBOT_HEALTH_URL"}]}' >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -45,23 +145,57 @@ jobs:
             SHARED=true
           fi
 
-          echo "raincloud=$([ "$SHARED" = true ] || changed "apps/raincloud/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "rainbot=$([ "$SHARED" = true ] || changed "apps/rainbot/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "pranjeet=$([ "$SHARED" = true ] || changed "apps/pranjeet/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "hungerbot=$([ "$SHARED" = true ] || changed "apps/hungerbot/" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          INC=""
+          add() {
+            local service="$1" webhook="$2" health="$3"
+            if [[ -n "${INC}" ]]; then INC="${INC},"; fi
+            INC="${INC}{\"service\":\"${service}\",\"webhook\":\"${webhook}\",\"health\":\"${health}\"}"
+          }
 
-      - name: Deploy Raincloud to Railway
-        if: ${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD != '' && steps.detect.outputs.raincloud == 'true' }}
-        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}" -H "Content-Type: application/json" -d '{}'
+          if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then
+            add "raincloud" "RAILWAY_WEBHOOK_RAINCLOUD" "RAINCLOUD_HEALTH_URL"
+          fi
 
-      - name: Deploy Rainbot Worker to Railway
-        if: ${{ secrets.RAILWAY_WEBHOOK_RAINBOT != '' && steps.detect.outputs.rainbot == 'true' }}
-        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}" -H "Content-Type: application/json" -d '{}'
+          if [[ "${SHARED}" == "true" ]] || changed "apps/rainbot/"; then
+            add "rainbot" "RAILWAY_WEBHOOK_RAINBOT" "RAINBOT_HEALTH_URL"
+          fi
 
-      - name: Deploy Pranjeet Worker to Railway
-        if: ${{ secrets.RAILWAY_WEBHOOK_PRANJEET != '' && steps.detect.outputs.pranjeet == 'true' }}
-        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}" -H "Content-Type: application/json" -d '{}'
+          if [[ "${SHARED}" == "true" ]] || changed "apps/pranjeet/"; then
+            add "pranjeet" "RAILWAY_WEBHOOK_PRANJEET" "PRANJEET_HEALTH_URL"
+          fi
 
-      - name: Deploy HungerBot Worker to Railway
-        if: ${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT != '' && steps.detect.outputs.hungerbot == 'true' }}
-        run: curl -fsSL -X POST "${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}" -H "Content-Type: application/json" -d '{}'
+          if [[ "${SHARED}" == "true" ]] || changed "apps/hungerbot/"; then
+            add "hungerbot" "RAILWAY_WEBHOOK_HUNGERBOT" "HUNGERBOT_HEALTH_URL"
+          fi
+
+          if [[ -z "${INC}" ]]; then
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix={\"include\":[${INC}]}" >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy ${{ matrix.service }}
+    needs: [plan]
+    if: ${{ needs.plan.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+
+    steps:
+      - name: Trigger Railway deploy
+        if: ${{ secrets[matrix.webhook] != '' }}
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
+            -X POST "${{ secrets[matrix.webhook] }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      - name: Smoke check (optional)
+        if: ${{ secrets[matrix.health] != '' }}
+        run: |
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 \
+            "${{ secrets[matrix.health] }}"

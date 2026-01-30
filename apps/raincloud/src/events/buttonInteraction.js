@@ -1,11 +1,18 @@
 const { Events, MessageFlags } = require('discord.js');
-const voiceManager = require('../../dist/utils/voiceManager');
-const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
-const { createLogger } = require('../../dist/utils/logger');
-const listeningHistory = require('../../dist/utils/listeningHistory');
-const stats = require('../../dist/utils/statistics');
-const { handleButtonInteraction, hasButtonHandler } = require('../../dist/handlers/buttonHandler');
-const { parseButtonId } = require('../../dist/components/builders/buttonBuilder');
+const path = require('path');
+
+const distRoot = path.join(__dirname, '..', '..', 'dist');
+const voiceManager = require(path.join(distRoot, 'utils', 'voiceManager'));
+const { createPlayerMessage } = require(path.join(distRoot, 'utils', 'playerEmbed'));
+const { createLogger } = require(path.join(distRoot, 'utils', 'logger'));
+const listeningHistory = require(path.join(distRoot, 'utils', 'listeningHistory'));
+const stats = require(path.join(distRoot, 'utils', 'statistics'));
+const { handleButtonInteraction, hasButtonHandler } = require(
+  path.join(distRoot, 'apps', 'raincloud', 'handlers', 'buttonHandler')
+);
+const { parseButtonId } = require(
+  path.join(distRoot, 'apps', 'raincloud', 'components', 'builders', 'buttonBuilder')
+);
 
 const log = createLogger('BUTTONS');
 
