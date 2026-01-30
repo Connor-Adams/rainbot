@@ -47,7 +47,7 @@ interface VoiceManagerLazy {
   resumePlayback: (guildId: string) => Promise<void>;
   stopPlayback: (guildId: string) => Promise<void>;
   getQueue: (guildId: string) => { queue: unknown[] };
-  getVoiceState?: (guildId: string) => unknown;
+  getVoiceState?: (guildId: string) => { volume?: number } | undefined;
   setVolume: (guildId: string, volume: number) => Promise<void>;
   clearQueue: (guildId: string) => Promise<number>;
 }
