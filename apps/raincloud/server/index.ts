@@ -28,7 +28,11 @@ export async function createServer(): Promise<Application> {
   const app = express();
   const { loadConfig } = require('@utils/config');
   const config: AppConfig = loadConfig();
-  const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
+  // In dev, allow Vite UI origin by default so login works without setting DASHBOARD_ORIGIN
+  const dashboardOrigin =
+    process.env['DASHBOARD_ORIGIN'] ||
+    process.env['UI_ORIGIN'] ||
+    (process.env['NODE_ENV'] !== 'production' ? 'http://localhost:5173' : undefined);
   const enableCors = !!dashboardOrigin;
 
   // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly

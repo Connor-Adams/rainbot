@@ -76,7 +76,7 @@ In your Railway project settings, go to "Variables" and add:
 4. Add your Railway public domain callback URL:
    - **Production URL**: `https://rainbot-production.up.railway.app/auth/discord/callback`
    - Add this exact URL to Discord OAuth redirects
-   - Also add local development URL: `http://localhost:3000/auth/discord/callback`
+   - For local dev (UI on Vite port 5173): add `http://localhost:5173/auth/discord/callback`
    - Or use your custom domain if configured
 
 ### 7. Deploy
