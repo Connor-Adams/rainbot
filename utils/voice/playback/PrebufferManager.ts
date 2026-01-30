@@ -2,8 +2,8 @@
 import { createLogger } from '../../logger';
 import { resolveStream } from './StreamResolver';
 import { createMusicResource } from './ResourceFactory';
-import type { Track } from '@rainbot/protocol';
-import type { VoiceState } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 import type { AudioResource } from '@discordjs/voice';
 import { Readable } from 'stream';
 

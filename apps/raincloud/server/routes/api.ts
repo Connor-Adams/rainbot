@@ -153,7 +153,10 @@ function getPlaybackService(): ReturnType<typeof getMultiBotService> | null {
  * Middleware to verify user is a member of the requested guild
  */
 async function requireGuildMember(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const guildId = getParamValue(req.body?.guildId) || getParamValue(req.params?.['guildId']);
+  const guildId =
+    getParamValue(req.body?.guildId) ||
+    getParamValue(req.params?.['guildId']) ||
+    getParamValue(req.params?.['id']);
   if (!guildId) {
     next();
     return;
@@ -207,12 +210,16 @@ function toPercent(volume?: number): number | undefined {
   return volume <= 1 ? Math.round(volume * 100) : Math.round(volume);
 }
 
+const MAX_UPLOAD_FILES = 10;
+const MAX_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB across all files
+
 // Configure multer for file uploads
 // Always use memory storage - files are uploaded to S3
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max
+    files: MAX_UPLOAD_FILES,
   },
   fileFilter: (_req, file, cb) => {
     const allowedTypes = /\.(mp3|wav|ogg|m4a|webm|flac)$/i;
@@ -225,7 +232,7 @@ const upload = multer({
 });
 
 // GET /api/sounds - List all sounds
-router.get('/sounds', async (_req, res: Response) => {
+router.get('/sounds', requireAuth, async (_req, res: Response) => {
   try {
     const sounds = await voiceManager.listSounds();
     res.json(sounds);
@@ -249,7 +256,7 @@ router.get('/sounds/customizations', requireAuth, async (_req, res: Response) =>
 });
 
 // GET /api/recordings - List all voice recordings
-router.get('/recordings', async (req, res: Response) => {
+router.get('/recordings', requireAuth, async (req, res: Response) => {
   try {
     const userId = req.query['userId'] as string | undefined;
     const recordings = await storage.listRecordings(userId);
@@ -261,9 +268,9 @@ router.get('/recordings', async (req, res: Response) => {
 });
 
 // GET /api/sounds/:name/download - Download a sound file
-router.get('/sounds/:name/download', async (req, res: Response) => {
+router.get('/sounds/:name/download', requireAuth, async (req, res: Response) => {
   try {
-    const filename = getParamValue(req.params.name);
+    const filename = getParamValue(req.params['name']);
     if (!filename) {
       res.status(400).json({ error: 'Sound name is required' });
       return;
@@ -289,10 +296,10 @@ router.get('/sounds/:name/preview', requireAuth, async (req, res: Response) => {
       res.status(400).json({ error: 'Sound name is required' });
       return;
     }
-    const stream = await storage.getSoundStream(filename);
+    const { stream, filename: resolvedName } = await storage.getSoundStreamWithName(filename);
 
     // Get the appropriate audio content type based on file extension
-    const ext = filename.split('.').pop()?.toLowerCase();
+    const ext = resolvedName.split('.').pop()?.toLowerCase();
     const contentType = ext ? AUDIO_CONTENT_TYPES[ext] || 'audio/mpeg' : 'audio/mpeg';
 
     // Set headers for inline playback
@@ -311,11 +318,16 @@ router.post(
   '/sounds',
   uploadRateLimiter,
   requireAuth,
-  upload.array('sound', 50),
+  upload.array('sound', MAX_UPLOAD_FILES),
   async (req: Request, res: Response): Promise<void> => {
     const files = req.files as Express.Multer.File[] | undefined;
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded' });
+      return;
+    }
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      res.status(413).json({ error: 'Total upload size exceeds 200MB' });
       return;
     }
 
@@ -570,7 +582,7 @@ router.post(
       );
 
       // Extract title from first track
-      const firstTrack = result.tracks?.[0];
+      const firstTrack = result.items?.[0];
       const title = firstTrack ? firstTrack.title : 'Unknown';
 
       // Track API command
@@ -579,9 +591,9 @@ router.post(
       }
 
       // Sanitize tracks array to remove stream objects (which have circular references)
-      const sanitizedTracks = result.tracks
-        ? result.tracks.map(
-            (track: { title: string; url?: string; duration?: number; isLocal?: boolean }) => ({
+      const sanitizedTracks = result.items
+        ? result.items.map(
+            (track: { title?: string; url?: string; duration?: number; isLocal?: boolean }) => ({
               title: track.title,
               url: track.url,
               duration: track.duration,
@@ -595,7 +607,7 @@ router.post(
         message: 'Playing',
         title,
         added: result.added,
-        totalInQueue: result.totalInQueue,
+        totalInQueue: result.queue?.queue.length ?? 0,
         tracks: sanitizedTracks,
       });
     } catch (error) {
@@ -987,7 +999,7 @@ router.post(
 );
 
 // GET /api/status - Get bot status
-router.get('/status', async (_req, res: Response): Promise<void> => {
+router.get('/status', requireAuth, async (_req, res: Response): Promise<void> => {
   const client = getClient();
 
   if (!client || !client.isReady()) {
@@ -1016,23 +1028,28 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
           guildId: guilds[index]?.id,
           channelId: status.channelId,
           channelName: status.channelName,
-          isPlaying: status.isPlaying,
-          volume: toPercent(status.volume),
+          isPlaying: status.playback.status === 'playing',
+          volume: toPercent(status.playback.volume),
           workers: workers
-            ? {
-                rainbot: {
-                  ...workers.rainbot,
-                  volume: toPercent(workers.rainbot?.volume),
-                },
-                pranjeet: {
-                  ...workers.pranjeet,
-                  volume: toPercent(workers.pranjeet?.volume),
-                },
-                hungerbot: {
-                  ...workers.hungerbot,
-                  volume: toPercent(workers.hungerbot?.volume),
-                },
-              }
+            ? (() => {
+                const rainbot = workers['rainbot'];
+                const pranjeet = workers['pranjeet'];
+                const hungerbot = workers['hungerbot'];
+                return {
+                  rainbot: {
+                    ...rainbot,
+                    volume: toPercent(rainbot?.playback?.volume),
+                  },
+                  pranjeet: {
+                    ...pranjeet,
+                    volume: toPercent(pranjeet?.playback?.volume),
+                  },
+                  hungerbot: {
+                    ...hungerbot,
+                    volume: toPercent(hungerbot?.playback?.volume),
+                  },
+                };
+              })()
             : workers,
         };
       })
@@ -1060,7 +1077,7 @@ router.get('/status', async (_req, res: Response): Promise<void> => {
 });
 
 // GET /api/guilds/:id/channels - Get voice channels for a guild
-router.get('/guilds/:id/channels', (req, res: Response): void => {
+router.get('/guilds/:id/channels', requireAuth, requireGuildMember, (req, res: Response): void => {
   const client = getClient();
 
   if (!client || !client.isReady()) {

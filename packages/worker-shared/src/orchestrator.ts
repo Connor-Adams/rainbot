@@ -1,7 +1,8 @@
 import { createLogger } from '@rainbot/shared';
 import { formatError } from './errors';
+import type { BotType } from '@rainbot/types/core';
 
-export type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+export type { BotType };
 
 /**
  * Get the orchestrator base URL from environment variables
@@ -10,11 +11,21 @@ export function getOrchestratorBaseUrl(raincloudUrl?: string): string | null {
   const RAINCLOUD_URL = raincloudUrl || process.env['RAINCLOUD_URL'];
   if (!RAINCLOUD_URL) return null;
   const normalized = RAINCLOUD_URL.match(/^https?:\/\//)
-    ? RAINCLOUD_URL.replace(/\/$/, '')
-    : `http://${RAINCLOUD_URL.replace(/\/$/, '')}`;
-  const defaultPort =
-    process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
-  return normalized.match(/:\d+$/) ? normalized : `${normalized}:${defaultPort}`;
+    ? RAINCLOUD_URL
+    : `http://${RAINCLOUD_URL}`;
+
+  try {
+    const url = new URL(normalized);
+    if (!url.port && (url.hostname === 'localhost' || url.hostname.startsWith('127.'))) {
+      const defaultPort =
+        process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+      url.port = String(defaultPort);
+    }
+    const normalizedPath = url.pathname.replace(/\/$/, '');
+    return `${url.origin}${normalizedPath}`;
+  } catch {
+    return null;
+  }
 }
 
 export interface RegisterWithOrchestratorOptions {

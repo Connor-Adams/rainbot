@@ -2,7 +2,9 @@
  * Common request/response types for worker protocol
  */
 
-export type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+import type { BotType } from '@rainbot/types/core';
+
+export type { BotType };
 
 export type WorkerStatus = 'joined' | 'already_connected' | 'error' | 'left' | 'not_connected';
 

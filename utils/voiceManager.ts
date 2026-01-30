@@ -13,12 +13,87 @@ import { createLogger } from './logger';
 import * as stats from './statistics';
 import * as storage from './storage';
 import * as listeningHistory from './listeningHistory';
-import type { Track, QueueInfo, VoiceStatus } from '@rainbot/protocol';
+import type {
+  QueueState,
+  MediaState,
+  PlaybackState,
+  PlaybackStatus,
+  MediaItem,
+} from '@rainbot/types/media';
+import type { Track, PlayResult } from '@rainbot/types/voice';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 
 const log = createLogger('VOICE');
 
 // Re-export getVoiceState for other modules
 export const getVoiceState = connectionManager.getVoiceState;
+
+function mapPlayerStatus(status: AudioPlayerStatus): PlaybackStatus {
+  switch (status) {
+    case AudioPlayerStatus.Playing:
+      return 'playing';
+    case AudioPlayerStatus.Paused:
+      return 'paused';
+    case AudioPlayerStatus.Buffering:
+      return 'buffering';
+    case AudioPlayerStatus.Idle:
+      return 'idle';
+    default:
+      return 'idle';
+  }
+}
+
+function getPlaybackPositionMs(state: VoiceState | undefined): number | undefined {
+  if (!state?.playbackStartTime) return undefined;
+  const now = state.pauseStartTime ?? Date.now();
+  const pausedTime = state.totalPausedTime || 0;
+  const elapsed = now - state.playbackStartTime - pausedTime;
+  return Math.max(0, elapsed);
+}
+
+function buildQueueState(state: VoiceState): QueueState {
+  const nowPlaying: MediaItem | undefined =
+    state.currentTrack || (state.nowPlaying ? { title: state.nowPlaying } : undefined);
+
+  return {
+    nowPlaying,
+    queue: state.queue.slice(0, 20),
+    isPaused: state.player.state.status === AudioPlayerStatus.Paused,
+    isAutoplay: state.autoplay || false,
+  };
+}
+
+function buildPlaybackState(state: VoiceState): PlaybackState {
+  const status = mapPlayerStatus(state.player.state.status);
+  const positionMs = getPlaybackPositionMs(state);
+  const durationMs =
+    state.currentTrack?.durationMs ??
+    (state.currentTrack?.duration ? state.currentTrack.duration * 1000 : undefined);
+
+  return {
+    status,
+    positionMs,
+    durationMs,
+    volume: state.volume,
+    overlayActive: !!state.overlayProcess,
+  };
+}
+
+function buildMediaState(state: VoiceState): MediaState {
+  return {
+    guildId: state.connection.joinConfig.guildId,
+    channelId: state.channelId,
+    channelName: state.channelName,
+    connected: true,
+    kind: 'music',
+    playback: buildPlaybackState(state),
+    queue: buildQueueState(state),
+  };
+}
+
+function getNowPlayingTitle(queueState: QueueState | null): string | null {
+  return queueState?.nowPlaying?.title ?? null;
+}
 
 /**
  * Track soundboard usage in statistics and listening history
@@ -59,7 +134,7 @@ function trackSoundboardUsage(
       },
       userId
     )
-    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
+    .catch((err: Error) => log.error(`Failed to track soundboard history: ${err.message}`));
 }
 
 // ============================================================================
@@ -112,19 +187,19 @@ export function leaveChannel(guildId: string): boolean {
 
   // Save history before leaving
   if (state && state.lastUserId) {
-    const queueInfo = getQueue(guildId);
+    const queueState = getQueue(guildId);
     listeningHistory.saveHistory(
       state.lastUserId,
       guildId,
-      queueInfo.queue,
-      queueInfo.nowPlaying,
-      queueInfo.currentTrack || null
+      queueState.queue,
+      getNowPlayingTitle(queueState),
+      (queueState.nowPlaying as Track | undefined) || null
     );
   }
 
   // End all user sessions for this guild before leaving
-  stats.endAllUserSessionsForGuild(guildId).catch((err) => {
-    log.error(`Failed to end user sessions: ${(err as Error).message}`);
+  stats.endAllUserSessionsForGuild(guildId).catch((err: Error) => {
+    log.error(`Failed to end user sessions: ${err.message}`);
   });
 
   const channelId = state?.channelId || null;
@@ -138,18 +213,11 @@ export function leaveChannel(guildId: string): boolean {
   }
 
   // End the voice session for duration tracking
-  stats.endVoiceSession(guildId).catch((err) => {
-    log.error(`Failed to end voice session: ${(err as Error).message}`);
+  stats.endVoiceSession(guildId).catch((err: Error) => {
+    log.error(`Failed to end voice session: ${err.message}`);
   });
 
   return result;
-}
-
-export interface PlayResult {
-  added: number;
-  tracks: Array<{ title: string; isLocal?: boolean }>;
-  totalInQueue: number;
-  overlaid?: boolean;
 }
 
 /**
@@ -239,8 +307,8 @@ export async function playSound(
 
         return {
           added: 1,
-          tracks: [{ title: track.title, isLocal: true }],
-          totalInQueue: state.queue.length,
+          items: [{ title: track.title, isLocal: true }],
+          queue: buildQueueState(state),
           overlaid: overlayResult.overlaid,
         };
       } catch (overlayError) {
@@ -249,7 +317,8 @@ export async function playSound(
         const soundStream = await storage.getSoundStream(source);
         const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
-        playbackManager.playSoundImmediate(guildId, resource, track.title);
+        const title = track.title ?? source;
+        playbackManager.playSoundImmediate(guildId, resource, title);
 
         if (userId) {
           trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
@@ -257,8 +326,8 @@ export async function playSound(
 
         return {
           added: 1,
-          tracks: [{ title: track.title, isLocal: true }],
-          totalInQueue: state.queue.length,
+          items: [{ title: track.title ?? source, isLocal: true }],
+          queue: buildQueueState(state),
           overlaid: false,
         };
       }
@@ -268,7 +337,8 @@ export async function playSound(
       const soundStream = await storage.getSoundStream(source);
       const resource = createAudioResource(soundStream, { inputType: StreamType.Arbitrary });
 
-      playbackManager.playSoundImmediate(guildId, resource, track.title);
+      const title = track.title ?? source;
+      playbackManager.playSoundImmediate(guildId, resource, title);
 
       if (userId) {
         trackSoundboardUsage(source, userId, guildId, requestSource, username, discriminator);
@@ -276,8 +346,8 @@ export async function playSound(
 
       return {
         added: 1,
-        tracks: [{ title: track.title, isLocal: true }],
-        totalInQueue: state.queue.length,
+        items: [{ title: track.title ?? source, isLocal: true }],
+        queue: buildQueueState(state),
         overlaid: false,
       };
     }
@@ -325,20 +395,20 @@ export async function playSound(
 
   // Save history for user
   if (userId) {
-    const queueInfo = getQueue(guildId);
+    const queueState = getQueue(guildId);
     listeningHistory.saveHistory(
       userId,
       guildId,
-      queueInfo.queue,
-      queueInfo.nowPlaying,
+      queueState.queue,
+      getNowPlayingTitle(queueState),
       state.currentTrack
     );
   }
 
   return {
     added: result.added,
-    tracks: result.tracks.slice(0, 5),
-    totalInQueue: state.queue.length,
+    items: result.tracks.slice(0, 5),
+    queue: buildQueueState(state),
   };
 }
 
@@ -378,10 +448,10 @@ export async function replay(guildId: string): Promise<{ title: string } | null>
     const state = connectionManager.getVoiceState(guildId);
     if (state?.lastUserId) {
       stats.trackQueueOperation('replay', state.lastUserId, guildId, 'discord', {
-        track: track.title,
+        track: track.title ?? 'Unknown',
       });
     }
-    return { title: track.title };
+    return { title: track.title ?? 'Unknown' };
   }
 
   return null;
@@ -414,7 +484,7 @@ export function togglePause(
 /**
  * Get the current queue with stateful information
  */
-export function getQueue(guildId: string): QueueInfo {
+export function getQueue(guildId: string): QueueState {
   return queueManager.getQueue(guildId);
 }
 
@@ -462,13 +532,13 @@ export function stopSound(guildId: string): boolean {
 
   // Save history before stopping
   if (state?.lastUserId) {
-    const queueInfo = getQueue(guildId);
+    const queueState = getQueue(guildId);
     listeningHistory.saveHistory(
       state.lastUserId,
       guildId,
-      queueInfo.queue,
-      queueInfo.nowPlaying,
-      queueInfo.currentTrack || null
+      queueState.queue,
+      getNowPlayingTitle(queueState),
+      (queueState.nowPlaying as Track | undefined) || null
     );
   }
 
@@ -478,22 +548,12 @@ export function stopSound(guildId: string): boolean {
 /**
  * Get status for a guild
  */
-export function getStatus(guildId: string): VoiceStatus | null {
+export function getStatus(guildId: string): MediaState | null {
   const state = connectionManager.getVoiceState(guildId);
   if (!state) {
     return null;
   }
-
-  return {
-    channelId: state.channelId,
-    channelName: state.channelName,
-    nowPlaying: state.nowPlaying,
-    isPlaying: state.player.state.status === AudioPlayerStatus.Playing,
-    queueLength: state.queue.length,
-    canReplay: !!state.lastPlayedTrack,
-    lastPlayedTitle: state.lastPlayedTrack?.title || null,
-    autoplay: state.autoplay,
-  };
+  return buildMediaState(state);
 }
 
 /**
@@ -556,7 +616,8 @@ export async function resumeHistory(
   }
 
   // Restore queue using queueManager - map history tracks to voice tracks
-  const voiceTracks = history.queue
+  const historyQueue = history.queue as listeningHistory.Track[];
+  const voiceTracks = historyQueue
     .filter((t): t is listeningHistory.Track & { title: string } => !!t.title)
     .map((t) => ({
       title: t.title,
@@ -570,8 +631,8 @@ export async function resumeHistory(
   // Start playing if not already
   const isPlaying = state.player.state.status === AudioPlayerStatus.Playing;
   if (!isPlaying && state.queue.length > 0) {
-    playbackManager.playNext(guildId).catch((err) => {
-      log.error(`Failed to resume playback: ${(err as Error).message}`);
+    playbackManager.playNext(guildId).catch((err: Error) => {
+      log.error(`Failed to resume playback: ${err.message}`);
     });
   }
 

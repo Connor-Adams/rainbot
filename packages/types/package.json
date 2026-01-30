@@ -1,0 +1,29 @@
+{
+  "name": "@rainbot/types",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "typesVersions": {
+    "*": {
+      "*": [
+        "dist/*"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:ts": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@rainbot/protocol": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

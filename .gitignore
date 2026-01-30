@@ -68,6 +68,21 @@ build/
 # TypeScript compiled output
 
 utils/playerEmbed.js
+utils/**/*.js
+utils/**/*.d.ts
+utils/**/*.map
+components/**/*.js
+components/**/*.d.ts
+components/**/*.map
+db/*.js
+db/*.d.ts
+db/*.map
+server/routes/stats/*.js
+server/routes/stats/*.d.ts
+server/routes/stats/*.map
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.map
 
 # React UI build output (source is tracked, build is not)
 ui/dist/

@@ -39,7 +39,7 @@ module.exports = {
 
     if (type === 'multibot') {
       const status = await service.getStatus(guildId);
-      if (!status || !status.isConnected) {
+      if (!status || !status.connected) {
         return interaction.reply({
           content: "❌ I'm not in a voice channel! Use `/join` first.",
           flags: MessageFlags.Ephemeral,

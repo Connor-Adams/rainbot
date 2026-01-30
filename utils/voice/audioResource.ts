@@ -4,7 +4,7 @@ import youtubedlPkg from 'youtube-dl-exec';
 import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'stream';
 import { createLogger } from '../logger';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('AUDIO_RESOURCE');
 

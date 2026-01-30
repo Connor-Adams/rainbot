@@ -47,6 +47,10 @@ export abstract class WorkerServerBase {
     this.setupCommonRoutes();
   }
 
+  private buildCacheKey(action: string, requestId: string): string {
+    return `${action}:${requestId}`;
+  }
+
   private setupCommonRoutes(): void {
     // Join voice channel
     this.app.post('/join', async (req: Request, res: Response) => {
@@ -59,15 +63,16 @@ export abstract class WorkerServerBase {
         });
       }
 
+      const cacheKey = this.buildCacheKey('join', request.requestId);
       // Idempotency check
-      if (this.requestCache.has(request.requestId)) {
-        log.debug(`Returning cached response for request ${request.requestId}`);
-        return res.json(this.requestCache.get(request.requestId));
+      if (this.requestCache.has(cacheKey)) {
+        log.debug(`Returning cached response for request ${cacheKey}`);
+        return res.json(this.requestCache.get(cacheKey));
       }
 
       try {
         const response = await this.handleJoin(request);
-        this.cacheResponse(request.requestId, response);
+        this.cacheResponse(cacheKey, response);
         res.json(response);
       } catch (error) {
         logRequestError(
@@ -94,15 +99,16 @@ export abstract class WorkerServerBase {
         });
       }
 
+      const cacheKey = this.buildCacheKey('leave', request.requestId);
       // Idempotency check
-      if (this.requestCache.has(request.requestId)) {
-        log.debug(`Returning cached response for request ${request.requestId}`);
-        return res.json(this.requestCache.get(request.requestId));
+      if (this.requestCache.has(cacheKey)) {
+        log.debug(`Returning cached response for request ${cacheKey}`);
+        return res.json(this.requestCache.get(cacheKey));
       }
 
       try {
         const response = await this.handleLeave(request);
-        this.cacheResponse(request.requestId, response);
+        this.cacheResponse(cacheKey, response);
         res.json(response);
       } catch (error) {
         logRequestError(
@@ -137,15 +143,16 @@ export abstract class WorkerServerBase {
         });
       }
 
+      const cacheKey = this.buildCacheKey('volume', request.requestId);
       // Idempotency check
-      if (this.requestCache.has(request.requestId)) {
-        log.debug(`Returning cached response for request ${request.requestId}`);
-        return res.json(this.requestCache.get(request.requestId));
+      if (this.requestCache.has(cacheKey)) {
+        log.debug(`Returning cached response for request ${cacheKey}`);
+        return res.json(this.requestCache.get(cacheKey));
       }
 
       try {
         const response = await this.handleVolume(request);
-        this.cacheResponse(request.requestId, response);
+        this.cacheResponse(cacheKey, response);
         res.json(response);
       } catch (error) {
         logRequestError(
@@ -202,11 +209,11 @@ export abstract class WorkerServerBase {
   /**
    * Cache a response for idempotency (60 seconds TTL)
    */
-  private cacheResponse(requestId: string, response: unknown): void {
-    this.requestCache.set(requestId, response);
+  private cacheResponse(cacheKey: string, response: unknown): void {
+    this.requestCache.set(cacheKey, response);
     setTimeout(() => {
-      this.requestCache.delete(requestId);
-      log.debug(`Removed cached response for request ${requestId}`);
+      this.requestCache.delete(cacheKey);
+      log.debug(`Removed cached response for request ${cacheKey}`);
     }, 60000); // 60 seconds
   }
 

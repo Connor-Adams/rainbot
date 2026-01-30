@@ -3,7 +3,7 @@
  */
 
 import type { ButtonInteraction } from 'discord.js';
-import type { ButtonHandler, ButtonHandlerResult } from '@rainbot/protocol';
+import type { ButtonHandler, ButtonHandlerResult } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
 import { parseButtonId } from '../components/builders/buttonBuilder';
 

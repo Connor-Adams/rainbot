@@ -5,7 +5,7 @@ import type { Client, VoiceBasedChannel } from 'discord.js';
 import { createLogger } from '../logger';
 import { getVoiceState, voiceStates, joinChannel } from './connectionManager';
 import { query } from '../database';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('SNAPSHOT');
 

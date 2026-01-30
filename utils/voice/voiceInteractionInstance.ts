@@ -6,7 +6,7 @@
 
 import type { Client } from 'discord.js';
 import { VoiceInteractionManager } from './voiceInteractionManager';
-import type { VoiceInteractionConfig } from '@rainbot/protocol';
+import type { VoiceInteractionConfig } from '@rainbot/types/voice-interaction';
 import { createLogger } from '../logger';
 
 const log = createLogger('VOICE_INTERACTION_INSTANCE');

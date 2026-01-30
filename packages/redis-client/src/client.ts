@@ -8,10 +8,19 @@ export class RedisClient {
   private connected = false;
 
   async connect(url?: string): Promise<void> {
-    const redisUrl = url || process.env['REDIS_URL'] || 'redis://localhost:6379';
+    const isProd = process.env['NODE_ENV'] === 'production';
+    const redisUrl = url || process.env['REDIS_URL'];
+
+    if (!redisUrl) {
+      if (isProd) {
+        throw new Error('REDIS_URL is required in production');
+      }
+      log.warn('REDIS_URL not set, falling back to localhost for development');
+    }
+    const finalUrl = redisUrl || 'redis://localhost:6379';
 
     try {
-      this.client = createClient({ url: redisUrl });
+      this.client = createClient({ url: finalUrl });
 
       this.client.on('error', (err) => {
         log.error(`Redis error: ${err.message}`);
@@ -32,7 +41,7 @@ export class RedisClient {
       });
 
       await this.client.connect();
-      log.info(`Redis connected to ${redisUrl}`);
+      log.info(`Redis connected to ${finalUrl}`);
     } catch (error) {
       log.error(`Failed to connect to Redis: ${(error as Error).message}`);
       throw error;

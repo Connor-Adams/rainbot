@@ -1,4 +1,4 @@
-import { createListeningHistoryRepo } from '@rainbot/db/listeningHistory';
+import { createListeningHistoryRepo } from '../packages/db/src/listeningHistory';
 import { createLogger } from '../utils/logger';
 import { query } from '../utils/database';
 import { detectSourceType } from '../utils/sourceType';
@@ -26,4 +26,4 @@ export type {
   ListeningHistoryRow,
   Track,
   SourceType,
-} from '@rainbot/db/listeningHistory';
+} from '../packages/db/src/listeningHistory';

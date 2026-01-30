@@ -79,7 +79,7 @@ module.exports = {
 
     // Don't show if bot is already playing something or has a queue
     const { queue } = vm.getQueue(guildId);
-    if (botStatus.nowPlaying || queue.length > 0) return;
+    if (botStatus.queue?.nowPlaying?.title || queue.length > 0) return;
 
     log.info(`User ${newState.member.user.tag} joined voice channel with history`);
 
@@ -122,17 +122,20 @@ module.exports = {
           embeds: [embed],
           components: [row],
         });
-      } catch (error) {
+      } catch (_error) {
         // Can't DM user (DMs disabled), send to voice channel instead
-        const channel = newState.guild.channels.cache.get(channelId);
-        if (channel) {
-          await channel.send({
+        const fallbackChannel =
+          newState.guild.systemChannel ||
+          newState.guild.channels.cache.find((c) => c.isTextBased && c.isTextBased());
+        if (fallbackChannel && fallbackChannel.isTextBased()) {
+          await fallbackChannel.send({
             content: `${newState.member}`,
             embeds: [embed],
             components: [row],
           });
+        } else {
+          log.warn('No text channel available for resume prompt fallback');
         }
-        throw new Error(error);
       }
     } catch (error) {
       log.error(`Failed to send resume prompt: ${error.message}`);

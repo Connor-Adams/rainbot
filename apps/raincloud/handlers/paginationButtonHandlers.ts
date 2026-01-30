@@ -3,7 +3,7 @@
  */
 
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import type { ButtonHandler } from '@rainbot/protocol';
+import type { ButtonHandler } from '@rainbot/types/buttons';
 import { createLogger } from '@utils/logger';
 import * as voiceManager from '@utils/voiceManager';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
@@ -45,23 +45,22 @@ function createQueueEmbed(
   page: number,
   itemsPerPage: number = 20
 ): { embed: EmbedBuilder; totalPages: number; actualPage: number } {
-  const queueInfo = voiceManager.getQueue(guildId);
-  const {
-    nowPlaying,
-    queue,
-    totalInQueue,
-    currentTrack,
-    playbackPosition,
-    hasOverlay,
-    isPaused,
-    channelName,
-  } = queueInfo;
+  const mediaState = voiceManager.getStatus(guildId);
+  const queueState = voiceManager.getQueue(guildId);
+  const nowPlaying = queueState.nowPlaying?.title ?? null;
+  const currentTrack = queueState.nowPlaying ?? null;
+  const queue = queueState.queue ?? [];
+  const totalInQueue = queue.length;
+  const playbackPositionMs = mediaState?.playback.positionMs ?? 0;
+  const hasOverlay = mediaState?.playback.overlayActive === true;
+  const isPaused = mediaState?.playback.status === 'paused';
+  const channelName = mediaState?.channelName ?? null;
 
   // Pagination calculation
-  const totalPages = Math.max(1, Math.ceil((totalInQueue ?? 0) / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalInQueue / itemsPerPage));
   const safePage = Math.max(0, Math.min(page, totalPages - 1));
   const startIndex = safePage * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalInQueue ?? 0);
+  const endIndex = Math.min(startIndex + itemsPerPage, totalInQueue);
   const pageQueue = queue.slice(startIndex, endIndex);
 
   // Determine embed color based on state
@@ -78,12 +77,15 @@ function createQueueEmbed(
   if (nowPlaying && currentTrack) {
     let description = `**${nowPlaying}**`;
 
-    if (currentTrack.duration && (playbackPosition ?? 0) > 0) {
-      const currentTime = formatDuration(playbackPosition);
-      const totalTime = formatDuration(currentTrack.duration);
+    const trackDurationSeconds =
+      currentTrack.duration ?? (currentTrack.durationMs ? currentTrack.durationMs / 1000 : null);
+    const playbackPositionSeconds = Math.floor(playbackPositionMs / 1000);
+    if (trackDurationSeconds && playbackPositionSeconds > 0) {
+      const currentTime = formatDuration(playbackPositionSeconds);
+      const totalTime = formatDuration(trackDurationSeconds);
       description += `\n\`${currentTime} / ${totalTime}\``;
-    } else if (currentTrack.duration) {
-      description += ` • \`${formatDuration(currentTrack.duration)}\``;
+    } else if (trackDurationSeconds) {
+      description += ` • \`${formatDuration(trackDurationSeconds)}\``;
     }
 
     if (hasOverlay) {
@@ -110,7 +112,9 @@ function createQueueEmbed(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((track: any, i: number) => {
         const num = (startIndex + i + 1).toString().padStart(2, '0');
-        const duration = track.duration ? ` \`${formatDuration(track.duration)}\`` : '';
+        const durationSeconds =
+          track.duration ?? (track.durationMs ? track.durationMs / 1000 : null);
+        const duration = durationSeconds ? ` \`${formatDuration(durationSeconds)}\`` : '';
         return `\`${num}\` ${track.title}${duration}`;
       })
       .join('\n');

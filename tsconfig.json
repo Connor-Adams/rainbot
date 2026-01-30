@@ -49,12 +49,12 @@
     /* Path Mapping */
     "baseUrl": "./",
     "paths": {
+      "@rainbot/db": ["packages/db/src/index.ts"],
+      "@rainbot/db/*": ["packages/db/src/*"],
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@commands/*": ["commands/*"],
       "@utils/*": ["utils/*"],
-      "@types/*": ["types/*"],
-      "@server/*": ["server/*"],
       "@events/*": ["events/*"],
       "@components/*": ["components/*"]
     },
@@ -65,9 +65,8 @@
   "include": [
     "commands/**/*.ts",
     "utils/**/*.ts",
-    "types/**/*.ts",
-    "types/**/*.d.ts",
-    "server/**/*.ts",
+    "packages/types/src/**/*.ts",
+    "packages/types/src/**/*.d.ts",
     "events/**/*.ts",
     "scripts/**/*.ts",
     "components/**/*.ts"

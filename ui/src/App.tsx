@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import LoadingOverlay from './components/LoadingOverlay'
 
+const debugEnabled = import.meta.env.DEV
+
 function App() {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore()
 
@@ -19,17 +21,19 @@ function App() {
       const fromOAuth = document.referrer.includes('/auth/discord') || urlParams.has('code');
       
       if (fromOAuth) {
-        console.log('[App] Detected OAuth redirect, waiting for session cookie...');
+        if (debugEnabled) {
+          console.log('[App] Detected OAuth redirect, waiting for session cookie...');
+        }
         await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms for cookie
       }
       
-      console.log('[App] Checking auth...');
+      if (debugEnabled) console.log('[App] Checking auth...');
       const authenticated = await checkAuth();
-      console.log('[App] Auth check result:', authenticated);
+      if (debugEnabled) console.log('[App] Auth check result:', authenticated);
       
       // If still not authenticated after OAuth redirect, retry once
       if (!authenticated && fromOAuth) {
-        console.log('[App] Retrying auth check after OAuth...');
+        if (debugEnabled) console.log('[App] Retrying auth check after OAuth...');
         await new Promise(resolve => setTimeout(resolve, 1000));
         await checkAuth();
       }

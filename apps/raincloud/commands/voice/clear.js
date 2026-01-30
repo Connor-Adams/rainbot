@@ -42,7 +42,7 @@ module.exports = {
 
     if (type === 'multibot') {
       const status = await service.getStatus(guildId);
-      if (!status || !status.isConnected) {
+      if (!status || !status.connected) {
         return interaction.reply({
           content: "❌ I'm not in a voice channel! Use `/join` first.",
           flags: MessageFlags.Ephemeral,
@@ -50,9 +50,7 @@ module.exports = {
       }
 
       const queueResult = await service.getQueueInfo(guildId);
-      const totalInQueue = queueResult.success
-        ? queueResult.queue?.length || queueResult.totalInQueue || 0
-        : 0;
+      const totalInQueue = queueResult.success ? queueResult.queue?.queue?.length || 0 : 0;
 
       if (totalInQueue === 0) {
         return interaction.reply('📋 Queue is already empty.');
@@ -65,7 +63,7 @@ module.exports = {
 
           if (result.success) {
             log.info(`Cleared queue by ${interaction.user.tag}`);
-            const nowPlaying = status.nowPlaying;
+            const nowPlaying = status.queue?.nowPlaying?.title ?? null;
             const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 
             await interaction.reply(`🗑️ Cleared the queue.${currentTrack}`);
@@ -113,7 +111,7 @@ module.exports = {
         return interaction.reply(connectionCheck.error);
       }
 
-      const { totalInQueue } = voiceManager.getQueue(guildId);
+      const totalInQueue = voiceManager.getQueue(guildId).queue?.length || 0;
 
       // If queue is empty, no need for confirmation
       if (totalInQueue === 0) {
@@ -126,7 +124,7 @@ module.exports = {
           const cleared = voiceManager.clearQueue(guildId);
           log.info(`Cleared ${cleared} tracks by ${interaction.user.tag}`);
 
-          const { nowPlaying } = voiceManager.getQueue(guildId);
+          const nowPlaying = voiceManager.getQueue(guildId).nowPlaying?.title ?? null;
           const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 
           await interaction.reply(
@@ -154,7 +152,7 @@ module.exports = {
           log.warn('Confirmation buttons not available, clearing without confirmation');
           try {
             const cleared = voiceManager.clearQueue(guildId);
-            const { nowPlaying } = voiceManager.getQueue(guildId);
+            const nowPlaying = voiceManager.getQueue(guildId).nowPlaying?.title ?? null;
             const currentTrack = nowPlaying ? `\n\n▶️ Still playing: **${nowPlaying}**` : '';
 
             await interaction.reply(

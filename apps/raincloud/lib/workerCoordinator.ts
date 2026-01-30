@@ -5,20 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { fetchWorkerHealthChecks } from '../src/rpc/clients';
+import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
 
 const log = createLogger('WORKER-COORDINATOR');
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
-interface WorkerStatusResponse {
-  connected: boolean;
-  channelId?: string;
-  playing?: boolean;
-  nowPlaying?: string;
-  volume?: number;
-  queueLength?: number;
-  activePlayers?: number;
-  error?: string;
-}
 
 interface WorkerConfig {
   baseUrl: string;
@@ -45,14 +36,30 @@ const RETRY_BASE_MS = 150;
 const TTS_QUEUE_NAME = 'tts';
 const DEFAULT_WORKER_PORT =
   process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN'] ? 8080 : 3000;
+const WORKER_SECRET = process.env['WORKER_SECRET'];
+
+function shouldAppendDefaultPort(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  return lower === 'localhost' || lower.startsWith('127.');
+}
 
 function normalizeWorkerUrl(rawUrl: string): string {
   const withScheme = rawUrl.match(/^https?:\/\//) ? rawUrl : `http://${rawUrl}`;
   const trimmed = withScheme.replace(/\/$/, '');
-  if (trimmed.match(/:\d+$/)) {
-    return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    if (!url.port && shouldAppendDefaultPort(url.hostname)) {
+      url.port = String(DEFAULT_WORKER_PORT);
+    }
+    const normalizedPath = url.pathname.replace(/\/$/, '');
+    return `${url.origin}${normalizedPath}`;
+  } catch {
+    if (trimmed.match(/:\d+$/)) {
+      return trimmed;
+    }
+    return shouldAppendDefaultPort(trimmed) ? `${trimmed}:${DEFAULT_WORKER_PORT}` : trimmed;
   }
-  return `${trimmed}:${DEFAULT_WORKER_PORT}`;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -61,23 +68,80 @@ function getErrorMessage(error: unknown): string {
   return 'Unknown error';
 }
 
-function normalizeWorkerStatus(data: unknown): WorkerStatusResponse {
-  if (!data || typeof data !== 'object') {
-    return { connected: false, error: 'Invalid status response' };
-  }
-  const record = data as Record<string, unknown>;
-  const connected = typeof record['connected'] === 'boolean' ? record['connected'] : false;
-  const channelId = typeof record['channelId'] === 'string' ? record['channelId'] : undefined;
+const BOT_KINDS: Record<BotType, MediaKind> = {
+  rainbot: 'music',
+  pranjeet: 'tts',
+  hungerbot: 'sfx',
+};
+
+function buildLegacyPlayback(record: Record<string, unknown>): PlaybackState {
+  const playing = typeof record['playing'] === 'boolean' ? record['playing'] : false;
+  const volume = typeof record['volume'] === 'number' ? record['volume'] : undefined;
   return {
-    connected,
-    channelId,
-    playing: typeof record['playing'] === 'boolean' ? record['playing'] : undefined,
-    nowPlaying: typeof record['nowPlaying'] === 'string' ? record['nowPlaying'] : undefined,
-    volume: typeof record['volume'] === 'number' ? record['volume'] : undefined,
-    queueLength: typeof record['queueLength'] === 'number' ? record['queueLength'] : undefined,
-    activePlayers:
-      typeof record['activePlayers'] === 'number' ? record['activePlayers'] : undefined,
-    error: typeof record['error'] === 'string' ? record['error'] : undefined,
+    status: playing ? 'playing' : 'idle',
+    volume,
+  };
+}
+
+function normalizeQueueState(data: unknown): QueueState {
+  if (!data || typeof data !== 'object') {
+    return { queue: [] };
+  }
+
+  const record = data as Record<string, unknown>;
+  const queue = Array.isArray(record['queue']) ? (record['queue'] as QueueState['queue']) : [];
+  const currentTrack =
+    record['currentTrack'] && typeof record['currentTrack'] === 'object'
+      ? (record['currentTrack'] as QueueState['nowPlaying'])
+      : undefined;
+  const nowPlaying =
+    currentTrack ||
+    (typeof record['nowPlaying'] === 'string' ? { title: record['nowPlaying'] } : undefined);
+
+  return {
+    nowPlaying,
+    queue,
+    isPaused:
+      typeof record['isPaused'] === 'boolean'
+        ? record['isPaused']
+        : typeof record['paused'] === 'boolean'
+          ? record['paused']
+          : undefined,
+    isAutoplay: typeof record['autoplay'] === 'boolean' ? record['autoplay'] : undefined,
+  };
+}
+
+function normalizeWorkerStatus(data: unknown, botType: BotType, guildId: string): MediaState {
+  const kind = BOT_KINDS[botType];
+
+  if (!data || typeof data !== 'object') {
+    return {
+      guildId,
+      kind,
+      connected: false,
+      playback: { status: 'idle' },
+      queue: { queue: [] },
+    };
+  }
+
+  const record = data as Record<string, unknown>;
+  const playback =
+    record['playback'] && typeof record['playback'] === 'object'
+      ? (record['playback'] as PlaybackState)
+      : buildLegacyPlayback(record);
+
+  const queue =
+    record['queue'] && typeof record['queue'] === 'object'
+      ? normalizeQueueState(record['queue'])
+      : normalizeQueueState(record);
+
+  return {
+    guildId,
+    kind,
+    channelId: typeof record['channelId'] === 'string' ? record['channelId'] : undefined,
+    connected: typeof record['connected'] === 'boolean' ? record['connected'] : false,
+    playback: playback.status ? playback : { status: 'idle' },
+    queue,
   };
 }
 
@@ -121,6 +185,7 @@ export class WorkerCoordinator {
           timeout: cfg.timeout,
           headers: {
             'Content-Type': 'application/json',
+            ...(WORKER_SECRET ? { 'x-worker-secret': WORKER_SECRET } : {}),
           },
         })
       );
@@ -623,12 +688,18 @@ export class WorkerCoordinator {
   /**
    * Get status for all workers in guild
    */
-  async getWorkersStatus(guildId: string): Promise<Record<BotType, WorkerStatusResponse>> {
-    const statuses: Partial<Record<BotType, WorkerStatusResponse>> = {};
+  async getWorkersStatus(guildId: string): Promise<Record<BotType, MediaState>> {
+    const statuses: Partial<Record<BotType, MediaState>> = {};
 
     for (const [botType, worker] of this.workers.entries()) {
       if (this.isCircuitOpen(botType) || !this.isWorkerReady(botType)) {
-        statuses[botType] = { connected: false, error: `${botType} unavailable` };
+        statuses[botType] = {
+          guildId,
+          kind: BOT_KINDS[botType],
+          connected: false,
+          playback: { status: 'idle' },
+          queue: { queue: [] },
+        };
         continue;
       }
       try {
@@ -637,13 +708,19 @@ export class WorkerCoordinator {
           () => worker.get('/status', { params: { guildId } }),
           true
         );
-        statuses[botType] = normalizeWorkerStatus(response.data);
+        statuses[botType] = normalizeWorkerStatus(response.data, botType, guildId);
       } catch (_error) {
-        statuses[botType] = { connected: false, error: 'Failed to get status' };
+        statuses[botType] = {
+          guildId,
+          kind: BOT_KINDS[botType],
+          connected: false,
+          playback: { status: 'idle' },
+          queue: { queue: [] },
+        };
       }
     }
 
-    return statuses as Record<BotType, WorkerStatusResponse>;
+    return statuses as Record<BotType, MediaState>;
   }
 
   /**
@@ -809,20 +886,14 @@ export class WorkerCoordinator {
   /**
    * Get queue from Rainbot
    */
-  async getQueue(guildId: string): Promise<{
-    nowPlaying: string | null;
-    queue: Array<{ title: string; url?: string }>;
-    totalInQueue: number;
-    currentTrack: { title: string; url?: string } | null;
-    paused: boolean;
-  }> {
+  async getQueue(guildId: string): Promise<QueueState> {
     const worker = this.workers.get('rainbot');
 
     if (!worker) {
-      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+      return { queue: [] };
     }
     if (this.isCircuitOpen('rainbot') || !this.isWorkerReady('rainbot')) {
-      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+      return { queue: [] };
     }
 
     try {
@@ -832,10 +903,10 @@ export class WorkerCoordinator {
         true
       );
 
-      return response.data;
+      return normalizeQueueState(response.data);
     } catch (error: unknown) {
       log.error(`Failed to get queue: ${getErrorMessage(error)}`);
-      return { nowPlaying: null, queue: [], totalInQueue: 0, currentTrack: null, paused: false };
+      return { queue: [] };
     }
   }
 

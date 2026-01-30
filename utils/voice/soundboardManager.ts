@@ -6,7 +6,7 @@ import { getStreamUrl } from './audioResource';
 import * as storage from '../storage';
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
-import type { VoiceState } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 
 const log = createLogger('SOUNDBOARD');
 
@@ -49,7 +49,7 @@ export function trackSoundboardUsage(
       },
       userId
     )
-    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
+    .catch((err: Error) => log.error(`Failed to track soundboard history: ${err.message}`));
 }
 
 export interface SoundboardResult {

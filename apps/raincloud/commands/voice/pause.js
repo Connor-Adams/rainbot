@@ -33,7 +33,7 @@ module.exports = {
 
     if (type === 'multibot') {
       const status = await service.getStatus(guildId);
-      if (!status || !status.isConnected) {
+      if (!status || !status.connected) {
         return interaction.reply({
           content: "❌ I'm not in a voice channel! Use `/join` first.",
           flags: MessageFlags.Ephemeral,
@@ -43,7 +43,7 @@ module.exports = {
       try {
         const result = await service.togglePause(guildId);
         const queueInfo = await service.getQueue(guildId);
-        const trackInfo = queueInfo.nowPlaying ? ` **${queueInfo.nowPlaying}**` : '';
+        const trackInfo = queueInfo.nowPlaying?.title ? ` **${queueInfo.nowPlaying.title}**` : '';
 
         if (result.paused) {
           log.info(`Paused by ${interaction.user.tag}`);
@@ -76,12 +76,12 @@ module.exports = {
         if (result.paused) {
           log.info(`Paused by ${interaction.user.tag}`);
           const { nowPlaying } = voiceManager.getQueue(guildId);
-          const trackInfo = nowPlaying ? ` **${nowPlaying}**` : '';
+          const trackInfo = nowPlaying?.title ? ` **${nowPlaying.title}**` : '';
           await interaction.reply(`⏸️ Paused playback${trackInfo}.`);
         } else {
           log.info(`Resumed by ${interaction.user.tag}`);
           const { nowPlaying } = voiceManager.getQueue(guildId);
-          const trackInfo = nowPlaying ? ` **${nowPlaying}**` : '';
+          const trackInfo = nowPlaying?.title ? ` **${nowPlaying.title}**` : '';
           await interaction.reply(`▶️ Resumed playback${trackInfo}.`);
         }
       } catch (error) {

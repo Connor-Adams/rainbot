@@ -2,7 +2,8 @@
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { createLogger } from '../logger';
-import type { QueueInfo, Track } from '@rainbot/protocol';
+import type { QueueState } from '@rainbot/types/media';
+import type { Track } from '@rainbot/types/voice';
 
 const log = createLogger('VOICE_EVENTS');
 
@@ -56,7 +57,7 @@ export function onPauseToggle(ctx: VoiceEventContext, paused: boolean) {
 
 export function saveUserHistory(
   ctx: VoiceEventContext,
-  queueInfo: QueueInfo,
+  queueState: QueueState,
   currentTrack: Track | null
 ) {
   if (!ctx.userId) return;
@@ -64,8 +65,8 @@ export function saveUserHistory(
   listeningHistory.saveHistory(
     ctx.userId,
     ctx.guildId,
-    queueInfo.queue,
-    queueInfo.nowPlaying,
+    queueState.queue,
+    queueState.nowPlaying?.title ?? null,
     currentTrack
   );
 }
@@ -97,5 +98,5 @@ export function trackSoundboard(ctx: VoiceEventContext, soundName: string) {
       },
       ctx.userId
     )
-    .catch((err) => log.error(`Failed to track soundboard history: ${(err as Error).message}`));
+    .catch((err: Error) => log.error(`Failed to track soundboard history: ${err.message}`));
 }

@@ -38,7 +38,7 @@ module.exports = {
 
     if (type === 'multibot') {
       const status = await service.getStatus(guildId);
-      if (!status || !status.isConnected) {
+      if (!status || !status.connected) {
         return interaction.reply({
           content: "❌ I'm not in a voice channel! Use `/join` first.",
           flags: MessageFlags.Ephemeral,
@@ -82,7 +82,7 @@ module.exports = {
       const status = voiceManager.getStatus(guildId);
       if (level === null) {
         return interaction.reply({
-          content: `🔊 Current volume is **${status.volume}%**`,
+          content: `🔊 Current volume is **${status?.playback?.volume ?? 100}%**`,
           flags: MessageFlags.Ephemeral,
         });
       }

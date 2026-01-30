@@ -9,8 +9,8 @@ import {
 } from '@discordjs/voice';
 import { fetchTracks } from './voice/trackFetcher';
 import { createTrackResourceForAny } from './voice/audioResource';
-import type { Track } from '@rainbot/protocol';
-import { TrackKind } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
+import type { MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
 import { rainbotRouter, createContext } from '@rainbot/rpc';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { Request, Response } from 'express';
@@ -170,6 +170,44 @@ function getPlaybackPosition(state: RainbotGuildState): number {
   return playbackPosition;
 }
 
+function buildPlaybackState(state: RainbotGuildState | null): PlaybackState {
+  if (!state) {
+    return { status: 'idle' };
+  }
+
+  let status: PlaybackState['status'] = 'idle';
+  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    status = 'paused';
+  } else if (state.player.state.status === AudioPlayerStatus.Playing) {
+    status = 'playing';
+  }
+
+  const positionMs = getPlaybackPosition(state) * 1000;
+  const durationMs =
+    state.currentTrack?.durationMs ??
+    (state.currentTrack?.duration ? state.currentTrack.duration * 1000 : undefined);
+
+  return {
+    status,
+    positionMs: positionMs > 0 ? positionMs : undefined,
+    durationMs,
+    volume: state.volume,
+  };
+}
+
+function buildQueueState(state: RainbotGuildState | null, playback: PlaybackState): QueueState {
+  if (!state) {
+    return { queue: [] };
+  }
+
+  return {
+    nowPlaying: state.currentTrack || (state.nowPlaying ? { title: state.nowPlaying } : undefined),
+    queue: state.queue,
+    isPaused: playback.status === 'paused',
+    isAutoplay: state.autoplay,
+  };
+}
+
 async function playNext(guildId: string): Promise<void> {
   const state = getOrCreateGuildState(guildId);
 
@@ -186,7 +224,7 @@ async function playNext(guildId: string): Promise<void> {
   const track = state.queue.shift()!;
   state.currentTrack = track;
   state.lastPlayedTrack = track.url ? track : state.lastPlayedTrack;
-  state.nowPlaying = track.title;
+  state.nowPlaying = track.title ?? null;
 
   try {
     log.info(
@@ -205,7 +243,7 @@ async function playNext(guildId: string): Promise<void> {
     if (track.userId) {
       void reportSoundStat(
         {
-          soundName: track.title,
+          soundName: track.title ?? 'Unknown',
           userId: track.userId,
           guildId,
           sourceType: track.sourceType || 'other',
@@ -221,12 +259,31 @@ async function playNext(guildId: string): Promise<void> {
   } catch (error) {
     logErrorWithStack(log, 'Error playing track', error);
     // Skip to next track on error
-    playNext(guildId);
+    await playNext(guildId);
   }
 }
 
 // Express server for worker protocol
 const app = createWorkerExpressApp();
+app.use((req: Request, res: Response, next) => {
+  if (req.path.startsWith('/health')) {
+    next();
+    return;
+  }
+
+  if (!WORKER_SECRET) {
+    res.status(503).json({ error: 'Worker secret not configured' });
+    return;
+  }
+
+  const providedSecret = req.header('x-worker-secret');
+  if (providedSecret !== WORKER_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  next();
+});
 app.use(
   '/trpc',
   trpcExpress.createExpressMiddleware({
@@ -248,9 +305,10 @@ app.post('/join', async (req: Request, res: Response) => {
     return;
   }
 
+  const cacheKey = `join:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    res.json(requestCache.get(cacheKey));
     return;
   }
 
@@ -258,7 +316,7 @@ app.post('/join', async (req: Request, res: Response) => {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
       const response = { status: 'error', message: 'Guild not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.status(404).json(response);
       return;
     }
@@ -266,7 +324,7 @@ app.post('/join', async (req: Request, res: Response) => {
     const channel = guild.channels.cache.get(channelId);
     if (!channel || !channel.isVoiceBased()) {
       const response = { status: 'error', message: 'Voice channel not found' };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.status(404).json(response);
       return;
     }
@@ -275,7 +333,7 @@ app.post('/join', async (req: Request, res: Response) => {
 
     if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
       const response = { status: 'already_connected', channelId };
-      requestCache.set(requestId, response);
+      requestCache.set(cacheKey, response);
       res.json(response);
       return;
     }
@@ -307,7 +365,7 @@ app.post('/join', async (req: Request, res: Response) => {
     });
 
     const response = { status: 'joined', channelId };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     logErrorWithStack(log, 'Join error', error);
@@ -328,16 +386,17 @@ app.post('/leave', async (req: Request, res: Response) => {
     return;
   }
 
+  const cacheKey = `leave:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    res.json(requestCache.get(cacheKey));
     return;
   }
 
   const state = guildStates.get(guildId);
   if (!state || !state.connection) {
     const response = { status: 'not_connected' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
     return;
   }
@@ -348,7 +407,7 @@ app.post('/leave', async (req: Request, res: Response) => {
   state.currentTrack = null;
 
   const response = { status: 'left' };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -374,9 +433,10 @@ app.post('/volume', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `volume:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = getOrCreateGuildState(guildId);
@@ -386,7 +446,7 @@ app.post('/volume', async (req: Request, res: Response) => {
   }
 
   const response = { status: 'success', volume: state.volume };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -399,25 +459,19 @@ app.get('/status', (req: Request, res: Response) => {
   }
 
   const state = guildStates.get(guildId);
-  if (!state) {
-    return res.json({
-      connected: false,
-      playing: false,
-      nowPlaying: null,
-      queueLength: 0,
-    });
-  }
+  const playback = buildPlaybackState(state ?? null);
+  const queue = buildQueueState(state ?? null, playback);
 
-  res.json({
-    connected: state.connection !== null,
-    channelId: state.connection?.joinConfig.channelId,
-    playing: state.player.state.status === AudioPlayerStatus.Playing,
-    queueLength: state.queue.length,
-    volume: state.volume,
-    nowPlaying: state.nowPlaying,
-    activePlayers: Array.from(guildStates.values()).filter((entry) => entry.connection !== null)
-      .length,
-  });
+  const payload: MediaState = {
+    guildId,
+    channelId: state?.connection?.joinConfig.channelId ?? null,
+    connected: state?.connection !== null,
+    kind: 'music',
+    playback,
+    queue,
+  };
+
+  res.json(payload);
 });
 
 // Enqueue track
@@ -431,9 +485,10 @@ app.post('/enqueue', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `enqueue:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const release = await mutex.acquire();
@@ -447,7 +502,7 @@ app.post('/enqueue', async (req: Request, res: Response) => {
 
     const tracks = fetchedTracks.map((track) => ({
       ...track,
-      kind: track.kind ?? TrackKind.Music,
+      kind: 'music' as const,
       userId: requestedBy,
       username: requestedByUsername || undefined,
     }));
@@ -464,7 +519,7 @@ app.post('/enqueue', async (req: Request, res: Response) => {
       position: state.queue.length - tracks.length + 1,
       message: `Added ${tracks.length} track(s) to queue`,
     };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     res.json(response);
   } catch (error) {
     res.status(500).json({
@@ -487,15 +542,16 @@ app.post('/skip', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `skip:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
   if (!state) {
     const response = { status: 'error', message: 'Not connected' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     return res.json(response);
   }
 
@@ -503,14 +559,14 @@ app.post('/skip', async (req: Request, res: Response) => {
 
   // Skip current track
   if (state.currentTrack) {
-    skipped.push(state.currentTrack.title);
+    skipped.push(state.currentTrack.title ?? 'Unknown');
   }
 
   // Remove additional tracks from queue if count > 1
   for (let i = 1; i < count && state.queue.length > 0; i++) {
     const removed = state.queue.shift();
     if (removed) {
-      skipped.push(removed.title);
+      skipped.push(removed.title ?? 'Unknown');
     }
   }
 
@@ -518,7 +574,7 @@ app.post('/skip', async (req: Request, res: Response) => {
   state.player.stop();
 
   const response = { status: 'success', skipped };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -533,9 +589,10 @@ app.post('/pause', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `pause:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -556,7 +613,7 @@ app.post('/pause', async (req: Request, res: Response) => {
   }
 
   const response = { status: 'success', paused };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -571,9 +628,10 @@ app.post('/stop', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `stop:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -592,7 +650,7 @@ app.post('/stop', async (req: Request, res: Response) => {
   state.totalPausedTime = 0;
 
   const response = { status: 'success' };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -607,9 +665,10 @@ app.post('/clear', async (req: Request, res: Response) => {
     });
   }
 
+  const cacheKey = `clear:${requestId}`;
   // Idempotency check
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
@@ -622,7 +681,7 @@ app.post('/clear', async (req: Request, res: Response) => {
   state.queue = [];
 
   const response = { status: 'success', cleared };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -636,26 +695,11 @@ app.get('/queue', (req: Request, res: Response) => {
 
   const state = guildStates.get(guildId);
   if (!state) {
-    return res.json({
-      nowPlaying: null,
-      queue: [],
-      totalInQueue: 0,
-      currentTrack: null,
-      isPaused: false,
-      playbackPosition: 0,
-      autoplay: false,
-    });
+    return res.json({ queue: [] });
   }
 
-  res.json({
-    nowPlaying: state.currentTrack?.title || null,
-    queue: state.queue.slice(0, 20),
-    totalInQueue: state.queue.length,
-    currentTrack: state.currentTrack,
-    isPaused: state.player.state.status === AudioPlayerStatus.Paused,
-    playbackPosition: getPlaybackPosition(state),
-    autoplay: state.autoplay,
-  });
+  const playback = buildPlaybackState(state);
+  res.json(buildQueueState(state, playback));
 });
 
 // Replay last played track
@@ -669,14 +713,15 @@ app.post('/replay', async (req: Request, res: Response) => {
     });
   }
 
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  const cacheKey = `replay:${requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = guildStates.get(guildId);
   if (!state || !state.lastPlayedTrack) {
     const response = { status: 'error', message: 'No track to replay' };
-    requestCache.set(requestId, response);
+    requestCache.set(cacheKey, response);
     return res.json(response);
   }
 
@@ -685,7 +730,7 @@ app.post('/replay', async (req: Request, res: Response) => {
   state.player.stop();
 
   const response = { status: 'success', track: track.title };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -700,8 +745,9 @@ app.post('/autoplay', async (req: Request, res: Response) => {
     });
   }
 
-  if (requestCache.has(requestId)) {
-    return res.json(requestCache.get(requestId));
+  const cacheKey = `autoplay:${requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return res.json(requestCache.get(cacheKey));
   }
 
   const state = getOrCreateGuildState(guildId);
@@ -712,7 +758,7 @@ app.post('/autoplay', async (req: Request, res: Response) => {
     enabled: false,
     message: 'Autoplay is disabled in the rainbot worker',
   };
-  requestCache.set(requestId, response);
+  requestCache.set(cacheKey, response);
   res.json(response);
 });
 
@@ -737,13 +783,17 @@ client = createWorkerDiscordClient();
 setupDiscordClientErrorHandler(client, log);
 
 // Setup auto-follow voice state handler
-setupAutoFollowVoiceStateHandler(client, {
-  orchestratorBotId: ORCHESTRATOR_BOT_ID!,
-  guildStates: guildStates as unknown as Map<string, GuildState>,
-  getOrCreateGuildState: (guildId: string) =>
-    getOrCreateGuildState(guildId) as unknown as GuildState,
-  logger: log,
-});
+if (ORCHESTRATOR_BOT_ID) {
+  setupAutoFollowVoiceStateHandler(client, {
+    orchestratorBotId: ORCHESTRATOR_BOT_ID,
+    guildStates: guildStates as unknown as Map<string, GuildState>,
+    getOrCreateGuildState: (guildId: string) =>
+      getOrCreateGuildState(guildId) as unknown as GuildState,
+    logger: log,
+  });
+} else {
+  log.warn('ORCHESTRATOR_BOT_ID not set; auto-follow voice state handler disabled');
+}
 
 // Extend voice state handler for rainbot-specific cleanup
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {

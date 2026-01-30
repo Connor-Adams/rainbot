@@ -8,7 +8,7 @@ import type {
   TextToSpeechRequest,
   TextToSpeechResult,
   VoiceInteractionConfig,
-} from '@rainbot/protocol';
+} from '@rainbot/types/voice-interaction';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -324,7 +324,9 @@ export class TextToSpeechManager {
     const normalized = text.toLowerCase().trim();
     const voice = options?.voiceName || this.config.voiceName || 'default';
     const lang = options?.languageCode || this.config.language;
-    return `${lang}:${voice}:${normalized}`;
+    const pitch = options?.pitch ?? 0;
+    const rate = options?.speakingRate ?? 1.0;
+    return `${lang}:${voice}:${pitch}:${rate}:${normalized}`;
   }
 
   /**

@@ -1,7 +1,7 @@
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { createLogger } from '../logger';
-import type { VoiceState } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/types/voice-modules';
 
 const log = createLogger('TRACK_METADATA');
 

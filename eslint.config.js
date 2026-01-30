@@ -57,21 +57,10 @@ module.exports = [
     },
   },
   {
-    files: ['public/**/*.js', 'server/routes/auth.js'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'script',
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-    },
-  },
-  {
     files: ['**/*.{js,ts,jsx,tsx}'],
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             'types/*',
@@ -82,18 +71,10 @@ module.exports = [
             '**/utils/*',
             'components/*',
             '**/components/*',
+            'apps/raincloud/events/*',
+            'events/*',
+            'handlers/*',
           ],
-        },
-      ],
-    },
-  },
-  {
-    files: ['**/*.{js,ts,jsx,tsx}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: ['apps/raincloud/events/*', 'events/*', 'handlers/*'],
         },
       ],
     },
@@ -141,7 +122,6 @@ module.exports = [
       'build/**',
       '**/build/**',
       'ui/**',
-      'public/**',
       'logs/**',
       'sessions/**',
       'sounds/**',

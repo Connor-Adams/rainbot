@@ -1,5 +1,5 @@
 import { withQueueLock, addToQueue, clearQueue } from '../queueManager';
-import type { Track } from '@rainbot/protocol';
+import type { Track } from '@rainbot/types/voice';
 
 // Mock logger
 jest.mock('../../logger', () => ({

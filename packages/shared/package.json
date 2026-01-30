@@ -11,6 +11,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@rainbot/types": "*",
     "winston": "^3.19.0"
   },
   "devDependencies": {

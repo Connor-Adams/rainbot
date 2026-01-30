@@ -2661,6 +2661,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/db@workspace:packages/db"
   dependencies:
+    "@rainbot/types": "npm:*"
     "@types/node": "npm:^25.0.3"
     drizzle-orm: "npm:^0.44.6"
     pg: "npm:^8.11.3"
@@ -2676,6 +2677,7 @@ __metadata:
     "@discordjs/voice": "npm:^0.19.0"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/types": "npm:*"
     "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
@@ -2697,6 +2699,7 @@ __metadata:
     "@google-cloud/text-to-speech": "npm:^5.8.0"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/types": "npm:*"
     "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
@@ -2736,6 +2739,7 @@ __metadata:
     "@rainbot/protocol": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/types": "npm:*"
     "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
@@ -2763,6 +2767,7 @@ __metadata:
     "@rainbot/redis-client": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/types": "npm:*"
     "@rainbot/worker-protocol": "npm:*"
     "@snazzah/davey": "npm:^0.1.9"
     "@types/express": "npm:^5.0.0"
@@ -2846,9 +2851,19 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/shared@workspace:packages/shared"
   dependencies:
+    "@rainbot/types": "npm:*"
     "@types/node": "npm:^25.0.3"
     typescript: "npm:^5.9.3"
     winston: "npm:^3.19.0"
+  languageName: unknown
+  linkType: soft
+
+"@rainbot/types@npm:*, @rainbot/types@workspace:packages/types":
+  version: 0.0.0-use.local
+  resolution: "@rainbot/types@workspace:packages/types"
+  dependencies:
+    "@rainbot/protocol": "npm:*"
+    typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -2889,6 +2904,7 @@ __metadata:
   resolution: "@rainbot/worker-protocol@workspace:packages/worker-protocol"
   dependencies:
     "@rainbot/shared": "npm:*"
+    "@rainbot/types": "npm:*"
     "@types/express": "npm:^5.0.0"
     "@types/node": "npm:^25.0.3"
     axios: "npm:^1.6.2"
@@ -2903,6 +2919,7 @@ __metadata:
   dependencies:
     "@discordjs/voice": "npm:^0.19.0"
     "@rainbot/shared": "workspace:*"
+    "@rainbot/types": "npm:*"
     "@types/express": "npm:^5.0.0"
     "@types/node": "npm:^25.0.3"
     discord.js: "npm:^14.18.0"

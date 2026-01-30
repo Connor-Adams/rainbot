@@ -165,6 +165,18 @@ async function archiveSound(filename: string): Promise<void> {
   await deleteSound(filename);
 }
 
+async function resolveSoundFilename(filename: string): Promise<string> {
+  const isRecording = filename.startsWith(RECORDS_PREFIX);
+  if (!isRecording && TRANSCODE_ENABLED && !isOpusFilename(filename)) {
+    const oggName = toOggFilename(filename);
+    if (await soundExists(oggName)) {
+      return oggName;
+    }
+    void ensureOggCopy(filename, oggName);
+  }
+  return filename;
+}
+
 /**
  * Initialize storage - requires Railway S3-compatible bucket
  */
@@ -388,20 +400,12 @@ export async function getSoundStream(filename: string): Promise<Readable> {
     throw new Error('Storage not configured');
   }
 
-  const isRecording = filename.startsWith(RECORDS_PREFIX);
-  if (!isRecording && TRANSCODE_ENABLED && !isOpusFilename(filename)) {
-    const oggName = toOggFilename(filename);
-    if (await soundExists(oggName)) {
-      filename = oggName;
-    } else {
-      void ensureOggCopy(filename, oggName);
-    }
-  }
+  const resolvedName = await resolveSoundFilename(filename);
 
   try {
     const command = new GetObjectCommand({
       Bucket: bucketName,
-      Key: `sounds/${filename}`,
+      Key: `sounds/${resolvedName}`,
     });
 
     const response = await s3Client.send(command);
@@ -432,10 +436,18 @@ export async function getSoundStream(filename: string): Promise<Readable> {
   } catch (error) {
     const err = error as S3Error;
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
-      throw new Error(`Sound not found: ${filename}`);
+      throw new Error(`Sound not found: ${resolvedName}`);
     }
     throw error;
   }
+}
+
+export async function getSoundStreamWithName(
+  filename: string
+): Promise<{ stream: Readable; filename: string }> {
+  const resolvedName = await resolveSoundFilename(filename);
+  const stream = await getSoundStream(resolvedName);
+  return { stream, filename: resolvedName };
 }
 
 /**
