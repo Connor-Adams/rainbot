@@ -10,9 +10,6 @@
       "dependsOn": ["^build:ts"],
       "outputs": ["dist/**"]
     },
-    "lint": {
-      "outputs": []
-    },
     "prettier": {
       "outputs": []
     },

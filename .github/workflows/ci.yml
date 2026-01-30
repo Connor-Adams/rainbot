@@ -52,8 +52,8 @@ jobs:
           YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
         run: yarn install --immutable --check-cache
 
-      - name: Lint (turbo)
-        run: yarn lint
+      - name: Formatting Check (Turbo - Prettier)
+        run: yarn format:check
 
   typecheck:
     name: Type check

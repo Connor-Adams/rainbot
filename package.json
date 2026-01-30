@@ -24,8 +24,6 @@
     "build:pranjeet": "yarn workspace @rainbot/pranjeet-worker build",
     "build:hungerbot": "yarn workspace @rainbot/hungerbot-worker build",
     "start": "turbo run start",
-    "lint": "turbo run lint",
-    "lint:fix": "eslint . --ext .js,.ts,.jsx,.tsx --fix",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
     "format": "turbo run prettier",
