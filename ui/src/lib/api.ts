@@ -7,7 +7,6 @@ const defaultOrigin =
   typeof window !== 'undefined' && window.location?.origin
     ? window.location.origin
     : 'http://localhost:3000';
-const defaultAuthOrigin = defaultOrigin;
 const defaultApiOrigin = `${defaultOrigin}/api`;
 const debugEnabled = import.meta.env.DEV || runtimeConfig['VITE_DEBUG_LOGS'] === 'true';
 
