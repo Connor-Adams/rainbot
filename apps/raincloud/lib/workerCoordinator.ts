@@ -232,8 +232,10 @@ export class WorkerCoordinator {
     if (this.isCircuitOpen(botType)) {
       return { ok: false, error: `${botType} temporarily unavailable (circuit open)` };
     }
-    if (!this.isWorkerReady(botType)) {
-      return { ok: false, error: `${botType} not ready` };
+    const health = this.health.get(botType);
+    if (health && !health.ready) {
+      const hint = health.lastError ? ` (${health.lastError})` : '';
+      return { ok: false, error: `${botType} not ready${hint}` };
     }
     return { ok: true };
   }

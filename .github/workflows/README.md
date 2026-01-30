@@ -26,9 +26,13 @@ This directory contains CI/CD workflows for the Rainbot project.
 
 **Jobs:**
 
-- **Backend**: Lints Node.js backend code
-- **Frontend**: Lints, type-checks, and builds React app
-- **Build Test**: Verifies full build process works
+- **Lint**: Format check (Prettier via Turbo)
+- **Type check**: TypeScript (Turbo)
+- **Test**: Unit tests (Turbo)
+- **Build**: Full monorepo build (Turbo)
+- **CI gate**: Pass when all above succeed
+
+**Turbo cache:** CI caches `.turbo` via GitHub Actions so repeated runs reuse task outputs. For **Turbo Remote Cache** (Vercel), set repo secrets `TURBO_TEAM` and `TURBO_TOKEN`; then CI will read/write the remote cache for faster builds across branches and machines.
 
 **Status Badge:**
 
@@ -70,9 +74,10 @@ This directory contains CI/CD workflows for the Rainbot project.
 
 ## Setup
 
-### Required Secrets (if using manual Railway deployment)
+### Optional Secrets
 
-- `RAILWAY_TOKEN` - Railway API token (optional, Railway auto-deploys via Git)
+- **Turbo Remote Cache:** `TURBO_TEAM` and `TURBO_TOKEN` (from [Vercel](https://vercel.com/docs/monorepos/remote-caching)) — CI uses them when set for faster Turbo cache across runs.
+- **Railway:** `RAILWAY_TOKEN` — only if using manual Railway deployment (Railway usually auto-deploys via Git).
 
 ### Enable Dependabot
 
