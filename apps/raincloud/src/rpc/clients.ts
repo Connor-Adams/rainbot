@@ -19,21 +19,15 @@ const isRailway = Boolean(
 
 const RAINBOT_URL = normalizeRpcBaseUrl(
   process.env['RAINBOT_URL'] || '',
-  isRailway
-    ? `http://rainbot.railway.internal:8080`
-    : 'http://localhost:3001'
+  isRailway ? `http://rainbot.railway.internal:8080` : 'http://localhost:3001'
 );
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
-  isRailway
-    ? `http://pranjeet.railway.internal:8080`
-    : 'http://localhost:3002'
+  isRailway ? `http://pranjeet.railway.internal:8080` : 'http://localhost:3002'
 );
 const HUNGERBOT_URL = normalizeRpcBaseUrl(
   process.env['HUNGERBOT_URL'] || '',
-  isRailway
-    ? `http://hungerbot.railway.internal:8080`
-    : 'http://localhost:3003'
+  isRailway ? `http://hungerbot.railway.internal:8080` : 'http://localhost:3003'
 );
 
 /** Exported for logging; used by coordinator to show which worker URLs are targeted. */
