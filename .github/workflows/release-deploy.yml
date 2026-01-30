@@ -22,6 +22,7 @@ jobs:
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       any: ${{ steps.detect.outputs.any }}
+      services: ${{ steps.detect.outputs.services }}
       tag_sha: ${{ steps.tag.outputs.sha }}
       default_branch: ${{ steps.repo.outputs.default_branch }}
 
@@ -134,6 +135,7 @@ jobs:
           if [[ -z "${PREV_TAG}" ]]; then
             echo 'matrix={"include":[{"service":"raincloud","webhook":"RAILWAY_WEBHOOK_RAINCLOUD","health":"RAINCLOUD_HEALTH_URL"},{"service":"rainbot","webhook":"RAILWAY_WEBHOOK_RAINBOT","health":"RAINBOT_HEALTH_URL"},{"service":"pranjeet","webhook":"RAILWAY_WEBHOOK_PRANJEET","health":"PRANJEET_HEALTH_URL"},{"service":"hungerbot","webhook":"RAILWAY_WEBHOOK_HUNGERBOT","health":"HUNGERBOT_HEALTH_URL"}]}' >> "$GITHUB_OUTPUT"
             echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "services=raincloud,rainbot,pranjeet,hungerbot" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -146,10 +148,13 @@ jobs:
           fi
 
           INC=""
+          SERVICES=""
           add() {
             local service="$1" webhook="$2" health="$3"
             if [[ -n "${INC}" ]]; then INC="${INC},"; fi
             INC="${INC}{\"service\":\"${service}\",\"webhook\":\"${webhook}\",\"health\":\"${health}\"}"
+            if [[ -n "${SERVICES}" ]]; then SERVICES="${SERVICES},"; fi
+            SERVICES="${SERVICES}${service}"
           }
 
           if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then
@@ -171,31 +176,121 @@ jobs:
           if [[ -z "${INC}" ]]; then
             echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
             echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "services=" >> "$GITHUB_OUTPUT"
           else
             echo "matrix={\"include\":[${INC}]}" >> "$GITHUB_OUTPUT"
             echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
           fi
 
-  deploy:
-    name: Deploy ${{ matrix.service }}
+  deploy-raincloud:
+    name: Deploy raincloud
     needs: [plan]
-    if: ${{ needs.plan.outputs.any == 'true' }}
+    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'raincloud') }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
-
     steps:
       - name: Trigger Railway deploy
-        if: ${{ secrets[matrix.webhook] != '' }}
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}
         run: |
+          if [[ -z "${WEBHOOK}" ]]; then
+            echo "RAILWAY_WEBHOOK_RAINCLOUD not set, skipping deploy."
+            exit 0
+          fi
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
-            -X POST "${{ secrets[matrix.webhook] }}" \
+            -X POST "${WEBHOOK}" \
             -H "Content-Type: application/json" \
             -d '{}'
-
       - name: Smoke check (optional)
-        if: ${{ secrets[matrix.health] != '' }}
+        env:
+          HEALTH_URL: ${{ secrets.RAINCLOUD_HEALTH_URL }}
         run: |
-          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 \
-            "${{ secrets[matrix.health] }}"
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "RAINCLOUD_HEALTH_URL not set, skipping smoke check."
+            exit 0
+          fi
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
+
+  deploy-rainbot:
+    name: Deploy rainbot
+    needs: [plan]
+    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'rainbot') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Railway deploy
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}
+        run: |
+          if [[ -z "${WEBHOOK}" ]]; then
+            echo "RAILWAY_WEBHOOK_RAINBOT not set, skipping deploy."
+            exit 0
+          fi
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
+            -X POST "${WEBHOOK}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+      - name: Smoke check (optional)
+        env:
+          HEALTH_URL: ${{ secrets.RAINBOT_HEALTH_URL }}
+        run: |
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "RAINBOT_HEALTH_URL not set, skipping smoke check."
+            exit 0
+          fi
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
+
+  deploy-pranjeet:
+    name: Deploy pranjeet
+    needs: [plan]
+    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'pranjeet') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Railway deploy
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}
+        run: |
+          if [[ -z "${WEBHOOK}" ]]; then
+            echo "RAILWAY_WEBHOOK_PRANJEET not set, skipping deploy."
+            exit 0
+          fi
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
+            -X POST "${WEBHOOK}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+      - name: Smoke check (optional)
+        env:
+          HEALTH_URL: ${{ secrets.PRANJEET_HEALTH_URL }}
+        run: |
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "PRANJEET_HEALTH_URL not set, skipping smoke check."
+            exit 0
+          fi
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
+
+  deploy-hungerbot:
+    name: Deploy hungerbot
+    needs: [plan]
+    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'hungerbot') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Railway deploy
+        env:
+          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}
+        run: |
+          if [[ -z "${WEBHOOK}" ]]; then
+            echo "RAILWAY_WEBHOOK_HUNGERBOT not set, skipping deploy."
+            exit 0
+          fi
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
+            -X POST "${WEBHOOK}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+      - name: Smoke check (optional)
+        env:
+          HEALTH_URL: ${{ secrets.HUNGERBOT_HEALTH_URL }}
+        run: |
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "HUNGERBOT_HEALTH_URL not set, skipping smoke check."
+            exit 0
+          fi
+          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
