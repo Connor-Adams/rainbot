@@ -11,17 +11,20 @@ const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 const log = createLogger('RAINBOT-AUDIO');
 
 /**
- * yt-dlp options for YouTube. Uses extractor-args to prefer clients that
- * work without PO token; cookies help when fetch is used.
+ * yt-dlp options for YouTube. Multiple player_client fallbacks improve
+ * reliability when YouTube changes; pipe avoids 403 from direct URL fetch.
  */
 function getYtdlpOptions(): Record<string, unknown> {
+  // Try clients in order: tv_embedded/android often work without PO token; ios/web as fallback
+  const extractorArgs =
+    process.env['YTDLP_EXTRACTOR_ARGS'] ||
+    'youtube:player_client=tv_embedded,android,ios,web';
   const options: Record<string, unknown> = {
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-    // Prefer clients that often work without PO token (reduces 403 when using get_url + fetch)
-    extractorArgs: 'youtube:player_client=android,tv_embedded',
+    extractorArgs,
   };
 
   if (COOKIES_FILE) {
