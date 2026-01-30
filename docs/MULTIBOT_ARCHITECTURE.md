@@ -322,6 +322,18 @@ The internal tRPC control plane is mounted at `/trpc`. Raincloud sends
 `x-internal-secret` or `x-worker-secret` when the value matches `WORKER_SECRET`.
 Only `WORKER_SECRET` is required (same value on Raincloud and all workers).
 
+### Commands respond "rainbot not ready" (or pranjeet/hungerbot)
+
+Raincloud marks a worker "not ready" when its **RPC health check** fails. The response now includes the failure reason in parentheses (e.g. `Unauthorized`, `connect ECONNREFUSED`).
+
+1. **On Raincloud**, set worker URLs to the **actual** worker endpoints (reachable from Raincloud):
+   - Railway: use each service’s public URL or internal hostname (e.g. `https://rainbot-production-xxx.up.railway.app` or `http://rainbot:3001` if same project).
+   - If `RAINBOT_URL` is `localhost` or wrong, health checks will fail and the bot will stay "not ready".
+2. **Same `WORKER_SECRET`** on Raincloud and on **every** worker. Raincloud sends it as `x-internal-secret` for tRPC; a mismatch causes `Unauthorized` and "not ready".
+3. **Reachability**: from the Raincloud process, `curl "$RAINBOT_URL/health/ready"` (with no auth) should return JSON. If it times out or is refused, fix URLs/firewall.
+
+After fixing, wait up to **15 seconds** (health poll interval) or restart Raincloud so it re-marks workers ready.
+
 ### Orchestrator can't reach workers
 
 Verify worker URLs in `.env`:
