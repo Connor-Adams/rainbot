@@ -4,7 +4,9 @@ package-lock.json
 
 # Build output
 dist/
+**/dist/
 build/
+**/build/
 *.js.map
 
 # Logs

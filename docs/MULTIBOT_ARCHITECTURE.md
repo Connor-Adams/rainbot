@@ -361,6 +361,7 @@ PRANJEET_URL=http://localhost:3002
 HUNGERBOT_URL=http://localhost:3003
 WORKER_SECRET=replace-with-a-shared-secret
 ```
+
 Set `WORKER_SECRET` on Raincloud and on each worker (same value).
 
 In Docker, use service names:

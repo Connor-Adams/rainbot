@@ -13,8 +13,9 @@ const log = createLogger('RAINBOT-AUDIO');
 /**
  * yt-dlp options for YouTube. Multiple player_client fallbacks improve
  * reliability when YouTube changes; pipe avoids 403 from direct URL fetch.
+ * Exported for use in trackFetcher metadata fallback.
  */
-function getYtdlpOptions(): Record<string, unknown> {
+export function getYtdlpOptions(): Record<string, unknown> {
   // Try clients in order: tv_embedded/android often work without PO token; ios/web as fallback
   const extractorArgs =
     process.env['YTDLP_EXTRACTOR_ARGS'] || 'youtube:player_client=tv_embedded,android,ios,web';
@@ -131,7 +132,13 @@ async function createTrackResourceAsync(track: Track): Promise<AudioResource | n
   }
 }
 
-function createTrackResource(track: Track): AudioResource | null {
+const PIPE_START_TIMEOUT_MS = 4000;
+
+/**
+ * Try to create a resource via yt-dlp pipe. If the subprocess fails or exits
+ * within the start window, returns null so the caller can fall back to async/play-dl.
+ */
+async function createTrackResourcePipe(track: Track): Promise<AudioResource | null> {
   if (!track.url) return null;
 
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
@@ -146,9 +153,32 @@ function createTrackResource(track: Track): AudioResource | null {
     bufferSize: '16K',
   });
 
-  subprocess.catch(() => {});
-  subprocess.stderr?.on('data', () => {});
-  subprocess.stdout?.on('error', () => {});
+  subprocess.catch((err: unknown) => {
+    log.error(
+      `yt-dlp pipe subprocess error for "${track.url}": ${err instanceof Error ? err.message : String(err)}`
+    );
+    if (err instanceof Error && err.stack) log.debug(err.stack);
+  });
+  subprocess.stderr?.on('data', (data: Buffer | string) => {
+    const text = typeof data === 'string' ? data : data.toString();
+    const trimmed = text.trim();
+    if (trimmed) log.warn(`yt-dlp stderr: ${trimmed}`);
+  });
+  subprocess.stdout?.on('error', (err: Error) => {
+    log.warn(`yt-dlp pipe stdout error: ${err.message}`);
+  });
+
+  const outcome = await Promise.race([
+    subprocess.then(() => 'exited' as const).catch(() => 'failed' as const),
+    new Promise<'timeout'>((resolve) =>
+      setTimeout(() => resolve('timeout'), PIPE_START_TIMEOUT_MS)
+    ),
+  ]);
+
+  if (outcome !== 'timeout') {
+    log.debug(`yt-dlp pipe ${outcome} within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
+    return null;
+  }
 
   return createAudioResource(subprocess.stdout as Readable, {
     inputType: StreamType.Arbitrary,
@@ -176,7 +206,7 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     // Prefer yt-dlp pipe for YouTube: avoids 403 from direct URL fetch (YouTube often blocks server fetches).
     // Pipe streams via subprocess stdout; no second HTTP fetch, so no 403.
     try {
-      const pipeResource = createTrackResource(track);
+      const pipeResource = await createTrackResourcePipe(track);
       if (pipeResource) return pipeResource;
     } catch (error) {
       const err = error as Error;
