@@ -113,7 +113,8 @@ Railway will automatically:
 | `REQUIRED_ROLE_ID`      | Discord role ID for dashboard access                                                       | Yes                             |
 | `DISCORD_GUILD_ID`      | Guild ID for faster command deployment (optional)                                          | No                              |
 | `DISABLE_AUTO_DEPLOY`   | Set to `true` to disable auto-deploy (optional)                                            | No                              |
-| `CALLBACK_URL`          | OAuth callback URL (auto-detected if not set)                                              | No                              |
+| `CALLBACK_URL`          | OAuth callback URL. **Production:** must be your Raincloud public URL (e.g. `https://raincloud-xxx.up.railway.app/auth/discord/callback`), not localhost. | No (required for login if not same as Railway domain) |
+| `DASHBOARD_ORIGIN`      | UI origin for CORS and post-login redirect (e.g. `https://rainbot-ui.up.railway.app`)     | No (required when UI is on a different service)      |
 | `DATABASE_URL`          | PostgreSQL connection URL (auto-set when PostgreSQL addon is added)                        | No (required for statistics)    |
 | `REDIS_URL`             | Redis connection URL (auto-set when Redis addon is added)                                  | No                              |
 | `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                   | No                              |
@@ -166,6 +167,18 @@ Railway provides:
 - **Deployments**: View deployment history
 
 ## Troubleshooting
+
+### Login returns 304 or never redirects to Discord
+
+- **CALLBACK_URL**: On Raincloud, set `CALLBACK_URL` to your **Raincloud** public URL (e.g. `https://raincloud-xxx.up.railway.app/auth/discord/callback`). Do not use `http://localhost:3000/...` in production.
+- **Login link must hit Raincloud**: The UI’s “Login with Discord” must go to the Raincloud server. Build the UI with `VITE_AUTH_BASE_URL` = your Raincloud public URL (e.g. `https://raincloud-xxx.up.railway.app`). If UI and API are on different Railway services, the UI service needs this at build time.
+- **DASHBOARD_ORIGIN**: If the UI is on a different domain than Raincloud, set `DASHBOARD_ORIGIN` on Raincloud to the UI’s origin (e.g. `https://rainbot-ui.up.railway.app`) so CORS and post-login redirect work.
+
+### Worker registration "fetch failed" / stats report failed
+
+- Workers call Raincloud at `RAINCLOUD_URL` (e.g. `raincloud.railway.internal`). If Raincloud listens on a port other than 8080 (e.g. Railway sets `PORT=3000`), workers must use that port:
+  - Set **RAINCLOUD_PORT** on each worker service (Rainbot, Hungerbot, Pranjeet) to match Raincloud’s `PORT` (e.g. `3000`), or
+  - Set **RAINCLOUD_URL** to the full URL including port, e.g. `http://raincloud.railway.internal:3000`.
 
 ### Bot not connecting
 
