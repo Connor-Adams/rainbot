@@ -1,24 +1,24 @@
-name-template: "v$RESOLVED_VERSION"
+﻿name-template: "v$RESOLVED_VERSION"
 tag-template: "v$RESOLVED_VERSION"
 
 version-resolver:
   major:
-    labels: ["major", "breaking"]
+    labels: ["major", "breaking", "breaking-change"]
   minor:
     labels: ["feature", "enhancement", "feat"]
   patch:
     labels: ["fix", "bug"]
   default: patch
 
-change-template: "    $TITLE @$AUTHOR (#$NUMBER)"
-no-changes-template: "    No changes"
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+no-changes-template: "- No changes"
 
 categories:
-  - title: "🧰 Maintenance"
+  - title: "Maintenance"
     labels: ["chore", "deps", "dependencies", "maintenance"]
-  - title: "🚀 What's Changed"
+  - title: "Features & Fixes"
     labels: ["feature", "enhancement", "feat", "fix", "bug"]
-  - title: "🧩 Other Changes"
+  - title: "Other Changes"
     labels: ["*"]
 
 category-template: |
@@ -27,17 +27,17 @@ category-template: |
   $CHANGES
 
 template: |
-  🚀 What's Changed
+  What's Changed
 
   $CHANGES
 
-  🚢 Deployment Model (Important)
+  Deployment Model (Important)
 
-  • **Railway services track the `:prod` image tag**
-  • **Only services with code changes in this release receive a new versioned image**
-  • Unchanged services continue running their previously deployed image digest
+  - **Railway services track the `:prod` image tag**
+  - **Only services with code changes in this release receive a new versioned image**
+  - Unchanged services continue running their previously deployed image digest
 
-  🐳 Docker Images (GHCR)
+  Docker Images (GHCR)
 
   Pull images manually (if needed):
 
@@ -49,12 +49,12 @@ template: |
   ghcr.io/connor-adams/rainbot-pranjeet:prod
   ghcr.io/connor-adams/rainbot-hungerbot:prod
 
-  🔖 Versioned Tags
+  Versioned Tags
 
-  • Version tags (e.g. `v$RESOLVED_VERSION`) are **only published for services that changed**
-  • Do **not** assume every service has a tag for this release
+  - Version tags (e.g. `v$RESOLVED_VERSION`) are **only published for services that changed**
+  - Do **not** assume every service has a tag for this release
 
-  📦 Railway
+  Railway
 
   No manual action required. Railway redeploys only affected services via webhook.
 
