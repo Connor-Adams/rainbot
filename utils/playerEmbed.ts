@@ -1,6 +1,7 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import type { MediaItem, MediaState, QueueState } from '@rainbot/types/media';
 import { createButtonId } from '../components/builders/buttonBuilder';
+import { getYouTubeThumbnailUrl } from '@rainbot/shared';
 
 /**
  * Format duration in seconds to MM:SS or HH:MM:SS
@@ -18,15 +19,11 @@ export function formatDuration(seconds: number | null | undefined): string | nul
 }
 
 /**
- * Extract YouTube video ID from URL
+ * Get YouTube thumbnail URL from video URL or ID.
+ * @deprecated Use getYouTubeThumbnailUrl from @rainbot/shared
  */
 export function getYouTubeThumbnail(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (match) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
-  }
-  return null;
+  return getYouTubeThumbnailUrl(url);
 }
 
 /**

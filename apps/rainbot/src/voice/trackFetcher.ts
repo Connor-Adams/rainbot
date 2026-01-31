@@ -8,7 +8,7 @@ import type {
 } from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import type { Track } from '@rainbot/types/voice';
-import { createLogger } from '@rainbot/shared';
+import { createLogger, toCanonicalYouTubeUrl } from '@rainbot/shared';
 import { getYtdlpOptions } from './audioResource';
 
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -36,9 +36,17 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
       throw new Error('Invalid URL format');
     }
 
+    // Use canonical parser for YouTube - extracts video ID, strips list/index params
     let urlType: string | false | undefined;
-    if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
-      urlType = url.searchParams.has('list') ? 'yt_playlist' : 'yt_video';
+    const ytVideoUrl = toCanonicalYouTubeUrl(source);
+    if (ytVideoUrl) {
+      urlType = 'yt_video';
+    } else if (
+      url.hostname.includes('youtube.com') &&
+      url.pathname.includes('/playlist') &&
+      url.searchParams.has('list')
+    ) {
+      urlType = 'yt_playlist';
     } else if (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com')) {
       const pathParts = url.pathname.split('/').filter((p) => p);
       if (pathParts[0] === 'track') {
@@ -60,10 +68,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
     }
 
     if (urlType === 'yt_video') {
-      let cleanSource = source;
-      if (url.hostname.includes('youtube.com') && url.searchParams.has('list')) {
-        cleanSource = `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`;
-      }
+      const cleanSource = ytVideoUrl!;
 
       let title = 'Unknown Track';
       let duration: number | undefined;
