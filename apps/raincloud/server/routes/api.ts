@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/auth';
 import * as stats from '@utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
 import type { GuildMember } from 'discord.js';
+import type { SeekRequest } from '@rainbot/worker-protocol';
 
 const router = express.Router();
 
@@ -837,6 +838,50 @@ router.post(
           discriminator
         );
       }
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+/** Request body for POST /api/seek (canonical: Pick<SeekRequest, 'guildId' | 'positionSeconds'>) */
+type SeekRequestBody = Pick<SeekRequest, 'guildId' | 'positionSeconds'>;
+
+// POST /api/seek - Seek to position (seconds)
+router.post(
+  '/seek',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const body = req.body as Partial<SeekRequestBody>;
+    const guildId = body.guildId;
+    const positionSeconds = body.positionSeconds;
+
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    const pos =
+      typeof positionSeconds === 'number'
+        ? positionSeconds
+        : typeof positionSeconds === 'string'
+          ? parseFloat(positionSeconds)
+          : NaN;
+    if (Number.isNaN(pos) || pos < 0) {
+      res.status(400).json({ error: 'positionSeconds must be a non-negative number' });
+      return;
+    }
+
+    try {
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const result = await multiBot.seek(guildId, pos);
+      if (result.success) {
+        res.json({ message: 'Seeked', positionSeconds: Math.floor(pos) });
+      } else {
+        res.status(400).json({ error: result.message || 'Seek failed' });
+      }
+    } catch (error) {
+      const err = error as Error;
       res.status(400).json({ error: err.message });
     }
   }

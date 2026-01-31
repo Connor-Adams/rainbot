@@ -50,6 +50,10 @@ interface VoiceManagerLazy {
   getVoiceState?: (guildId: string) => { volume?: number } | undefined;
   setVolume: (guildId: string, volume: number) => Promise<void>;
   clearQueue: (guildId: string) => Promise<number>;
+  /** For TTS ducking: current playback position in seconds */
+  getPlaybackPositionSeconds?: (guildId: string) => number;
+  /** For TTS ducking: resume music at position (seconds) */
+  resumeAtPosition?: (guildId: string, positionSeconds: number) => Promise<void>;
 }
 
 /**
@@ -730,9 +734,19 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         return;
       }
 
-      // Play via dedicated TTS player (doesn't interfere with music/soundboard)
+      // Play via dedicated TTS player; use ducking (pause → TTS → resume at position) when music is playing and VM supports it
       log.debug(`▶️ Playing TTS audio in voice channel...`);
-      await ttsPlayer.playTTSAudio(guildId, connection, audioFile);
+      const vm = this.getVoiceManager();
+      const ttsOptions =
+        typeof vm.getPlaybackPositionSeconds === 'function' &&
+        typeof vm.resumeAtPosition === 'function'
+          ? {
+              onBeforeTTS: () => Promise.resolve(vm.getPlaybackPositionSeconds!(guildId) ?? 0),
+              onAfterTTS: (positionSeconds: number) =>
+                vm.resumeAtPosition!(guildId, positionSeconds),
+            }
+          : undefined;
+      await ttsPlayer.playTTSAudio(guildId, connection, audioFile, ttsOptions);
       log.info('TTS playback completed');
 
       // Schedule cleanup

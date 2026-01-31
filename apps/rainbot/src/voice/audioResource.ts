@@ -52,17 +52,23 @@ function createVolumeResource(
   return createAudioResource(input, { ...options, inlineVolume: true });
 }
 
-async function getStreamUrl(videoUrl: string): Promise<string> {
-  const cached = urlCache.get(videoUrl);
+async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> {
+  const cacheKey = seekSeconds > 0 ? `${videoUrl}#seek=${seekSeconds}` : videoUrl;
+  const cached = urlCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     return cached.url;
   }
 
-  const result = (await youtubedl(videoUrl, {
+  const options: Record<string, unknown> = {
     ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio/best',
     getUrl: true,
-  })) as unknown as string;
+  };
+  if (seekSeconds > 0) {
+    options['downloadSections'] = `*${seekSeconds}-inf`;
+  }
+
+  const result = (await youtubedl(videoUrl, options)) as unknown as string;
 
   const streamUrl = result.trim();
 
@@ -71,18 +77,23 @@ async function getStreamUrl(videoUrl: string): Promise<string> {
     if (oldestKey) urlCache.delete(oldestKey);
   }
 
-  urlCache.set(videoUrl, { url: streamUrl, expires: Date.now() + CACHE_EXPIRATION_MS });
+  urlCache.set(cacheKey, { url: streamUrl, expires: Date.now() + CACHE_EXPIRATION_MS });
   return streamUrl;
 }
 
-async function createTrackResourceAsync(track: Track): Promise<AudioResource | null> {
+async function createTrackResourceAsync(
+  track: Track,
+  seekSeconds = 0
+): Promise<AudioResource | null> {
   if (!track.url) return null;
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
   try {
-    log.debug(`stream async (yt-dlp url) title="${track.title}" url="${track.url}"`);
-    const streamUrl = await getStreamUrl(track.url);
+    log.debug(
+      `stream async (yt-dlp url) title="${track.title}" url="${track.url}" seek=${seekSeconds}`
+    );
+    const streamUrl = await getStreamUrl(track.url, seekSeconds);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -138,20 +149,27 @@ const PIPE_START_TIMEOUT_MS = 4000;
  * Try to create a resource via yt-dlp pipe. If the subprocess fails or exits
  * within the start window, returns null so the caller can fall back to async/play-dl.
  */
-async function createTrackResourcePipe(track: Track): Promise<AudioResource | null> {
+async function createTrackResourcePipe(
+  track: Track,
+  seekSeconds = 0
+): Promise<AudioResource | null> {
   if (!track.url) return null;
 
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (!ytMatch) return null;
 
-  log.debug(`stream yt-dlp pipe title="${track.title}" url="${track.url}"`);
-  const subprocess = youtubedl.exec(track.url, {
+  log.debug(`stream yt-dlp pipe title="${track.title}" url="${track.url}" seek=${seekSeconds}`);
+  const pipeOptions: Record<string, unknown> = {
     ...getYtdlpOptions(),
     format: 'bestaudio[acodec=opus]/bestaudio',
     output: '-',
     preferFreeFormats: true,
     bufferSize: '16K',
-  });
+  };
+  if (seekSeconds > 0) {
+    pipeOptions['downloadSections'] = `*${seekSeconds}-inf`;
+  }
+  const subprocess = youtubedl.exec(track.url, pipeOptions);
 
   subprocess.catch((err: unknown) => {
     log.error(
@@ -186,7 +204,10 @@ async function createTrackResourcePipe(track: Track): Promise<AudioResource | nu
   });
 }
 
-export async function createTrackResourceForAny(track: Track): Promise<AudioResource> {
+export async function createTrackResourceForAny(
+  track: Track,
+  seekSeconds = 0
+): Promise<AudioResource> {
   if (track.isLocal) {
     throw new Error('Local tracks are not supported in the rainbot worker');
   }
@@ -200,13 +221,13 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
 
   const ytMatch = track.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   log.debug(
-    `stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+    `stream start title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'} seek=${seekSeconds}`
   );
   if (ytMatch) {
     // Prefer yt-dlp pipe for YouTube: avoids 403 from direct URL fetch (YouTube often blocks server fetches).
     // Pipe streams via subprocess stdout; no second HTTP fetch, so no 403.
     try {
-      const pipeResource = await createTrackResourcePipe(track);
+      const pipeResource = await createTrackResourcePipe(track, seekSeconds);
       if (pipeResource) return pipeResource;
     } catch (error) {
       const err = error as Error;
@@ -214,7 +235,7 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     }
 
     try {
-      const asyncResource = await createTrackResourceAsync(track);
+      const asyncResource = await createTrackResourceAsync(track, seekSeconds);
       if (asyncResource) return asyncResource;
     } catch (error) {
       const err = error as Error;
@@ -222,7 +243,10 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     }
 
     log.debug(`stream play-dl fallback title="${track.title}" url="${track.url}"`);
-    const streamInfo = await play.stream(track.url, { quality: 2 });
+    const streamInfo = await play.stream(track.url, {
+      quality: 2,
+      ...(seekSeconds > 0 ? { seek: seekSeconds } : {}),
+    });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
   }
 
@@ -234,7 +258,10 @@ export async function createTrackResourceForAny(track: Track): Promise<AudioReso
     log.debug(
       `stream play-dl non-youtube type=${urlType} title="${track.title}" url="${track.url}"`
     );
-    const streamInfo = await play.stream(track.url, { quality: 2 });
+    const streamInfo = await play.stream(track.url, {
+      quality: 2,
+      ...(seekSeconds > 0 ? { seek: seekSeconds } : {}),
+    });
     return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
   }
 

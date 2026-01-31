@@ -13,11 +13,11 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(0);
 
-  const currentTrack = queueData.currentTrack || {
-    title: queueData.nowPlaying || 'No track playing',
+  const currentTrack = queueData.nowPlaying ?? {
+    title: 'No track playing',
     duration: 0,
   };
-  const trackKey = `${currentTrack.title}-${currentTrack.url || ''}-${currentTrack.duration || 0}`;
+  const trackKey = `${currentTrack.title}-${currentTrack.url ?? ''}-${currentTrack.duration ?? 0}`;
   const trackKeyRef = useRef(trackKey);
 
   const pauseMutation = useMutation({
@@ -36,6 +36,15 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     },
   });
 
+  const seekMutation = useMutation({
+    mutationFn: (positionSeconds: number) => playbackApi.seek(guildId, positionSeconds),
+    onSuccess: (_, positionSeconds) => {
+      setCurrentTime(positionSeconds);
+      queryClient.invalidateQueries({ queryKey: ['queue', guildId] });
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+    },
+  });
+
   const isPaused = queueData.isPaused || false;
 
   // Simulate progress (would need real-time updates from API)
@@ -49,14 +58,14 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
         if (isPaused || !currentTrack.duration) {
           return prev;
         }
-        if (prev >= (currentTrack.duration || 0)) {
+        if (prev >= (currentTrack.duration ?? 0)) {
           return prev;
         }
         return prev + 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPaused, currentTrack.duration, trackKey]);
+  }, [isPaused, currentTrack.duration ?? 0, trackKey]);
 
   const getSourceInfo = () => {
     if (currentTrack.isLocal) {
@@ -79,8 +88,11 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   const sourceInfo = getSourceInfo();
 
-  const handleProgressClick = () => {
-    // See docs/FUTURE_WORK.md: Seek API (UI)
+  const handleProgressClick = (positionSeconds: number) => {
+    const duration = currentTrack.duration ?? 0;
+    if (duration <= 0) return;
+    const clamped = Math.max(0, Math.min(Math.floor(positionSeconds), duration));
+    seekMutation.mutate(clamped);
   };
 
   return (
@@ -90,20 +102,20 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
         <div className="now-playing-info flex-1 flex flex-col gap-6 min-w-0 w-full">
           <TrackInfo
-            title={currentTrack.title}
+            title={currentTrack.title ?? 'Unknown'}
             source={sourceInfo.text}
             sourceLink={sourceInfo.link}
           />
 
           <ProgressBar
             currentTime={currentTime}
-            duration={currentTrack.duration || 0}
+            duration={currentTrack.duration ?? 0}
             onClick={handleProgressClick}
           />
 
           <PlaybackControls
             isPaused={isPaused}
-            isLoading={pauseMutation.isPending || skipMutation.isPending}
+            isLoading={pauseMutation.isPending || skipMutation.isPending || seekMutation.isPending}
             onPlayPause={() => pauseMutation.mutate()}
             onSkip={() => skipMutation.mutate()}
           />

@@ -51,7 +51,7 @@ yarn dev
 
 ## Project layout
 
-- **Slash commands**: `apps/raincloud/commands/` is canonical. Root `commands/` is a legacy duplicate; the app loads from the raincloud path when run from the repo root.
+- **Slash commands**: `apps/raincloud/commands/` is the single source of truth. Deploy script and runtime both load from there.
 
 ## UI
 

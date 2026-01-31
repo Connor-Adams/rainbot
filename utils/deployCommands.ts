@@ -14,12 +14,12 @@ interface Command {
 }
 
 /**
- * Load all commands from the commands directory
+ * Load all commands from the canonical commands directory (apps/raincloud/commands)
  */
 export function loadCommands(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
-  // After TS compilation, __dirname is dist/utils/, so go up 2 levels to project root
-  const commandsPath = path.join(__dirname, '..', '..', 'commands');
+  // After TS compilation, __dirname is dist/utils/; load from apps/raincloud/commands
+  const commandsPath = path.join(__dirname, '..', '..', 'apps', 'raincloud', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 
   for (const folder of commandFolders) {

@@ -29,6 +29,8 @@ import type {
   QueueResponse,
   AutoplayResponse,
   ReplayResponse,
+  SeekRequest,
+  SeekResponse,
 } from '@rainbot/worker-protocol';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import { Request, Response } from 'express';
@@ -416,6 +418,56 @@ async function handleReplay(input: {
   return response;
 }
 
+async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
+  const cacheKey = `seek:${input.requestId}`;
+  if (requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey) as SeekResponse;
+  }
+  const state = guildStates.get(input.guildId);
+  if (!state) {
+    const response: SeekResponse = { status: 'error', message: 'Not connected' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  if (!state.currentTrack) {
+    const response: SeekResponse = { status: 'error', message: 'No track playing' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  if (!state.connection) {
+    const response: SeekResponse = { status: 'error', message: 'Not connected' };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+  const track = state.currentTrack;
+  let positionSeconds = Math.max(0, Math.floor(input.positionSeconds));
+  if (track.duration != null && track.duration > 0) {
+    positionSeconds = Math.min(positionSeconds, track.duration);
+  }
+  try {
+    state.player.stop();
+    const resource = await createTrackResourceForAny(track, positionSeconds);
+    if (resource.volume) {
+      resource.volume.setVolume(state.volume / 100);
+    }
+    state.currentResource = resource;
+    state.playbackStartTime = Date.now() - positionSeconds * 1000;
+    state.pauseStartTime = null;
+    state.totalPausedTime = 0;
+    state.player.play(resource);
+    log.info(`Seeked to ${positionSeconds}s in "${track.title}" in guild ${input.guildId}`);
+    const response: SeekResponse = { status: 'success' };
+    requestCache.set(cacheKey, response);
+    return response;
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Seek failed in guild ${input.guildId}: ${err.message}`);
+    const response: SeekResponse = { status: 'error', message: err.message };
+    requestCache.set(cacheKey, response);
+    return response;
+  }
+}
+
 const rainbotRouter = createRainbotRouter({
   getState: getStateForRpc,
   join: handleJoin,
@@ -429,6 +481,7 @@ const rainbotRouter = createRainbotRouter({
   getQueue: handleGetQueue,
   autoplay: handleAutoplay,
   replay: handleReplay,
+  seek: handleSeek,
 });
 
 function getOrCreateGuildState(guildId: string): RainbotGuildState {

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
-import type { Track } from '@/types';
+import type { MediaItem } from '@/types';
 import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import EmptyState from '@/components/common/EmptyState';
@@ -42,9 +42,9 @@ export default function QueueList() {
     }
   };
 
-  const queue = queueData?.queue || [];
-  const totalInQueue = queueData?.totalInQueue || 0;
-  const hasQueue = queue.length > 0 || queueData?.nowPlaying;
+  const queue = queueData?.queue ?? [];
+  const totalInQueue = queue.length;
+  const hasQueue = queue.length > 0 || !!queueData?.nowPlaying;
 
   if (!selectedGuildId) {
     return (
@@ -65,7 +65,7 @@ export default function QueueList() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <CardTitle>Queue</CardTitle>
-            {queueData?.autoplay && (
+            {queueData?.isAutoplay && (
               <span className="text-xs text-primary font-normal" title="Autoplay enabled">
                 🔁
               </span>
@@ -95,14 +95,14 @@ export default function QueueList() {
             icon="🎵"
             message="Queue is empty"
             submessage={
-              queueData?.autoplay
+              queueData?.isAutoplay
                 ? 'Add tracks to start playing. 🔁 Autoplay is enabled - similar tracks will play automatically'
                 : 'Add tracks to start playing'
             }
           />
         ) : (
           <div className="flex flex-col gap-2 pr-2">
-            {queue.map((track: Track, index: number) => (
+            {queue.map((track: MediaItem, index: number) => (
               <QueueItem
                 key={index}
                 track={track}
