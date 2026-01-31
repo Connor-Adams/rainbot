@@ -1,4 +1,13 @@
-// API Response Types
+// Canonical types from @rainbot/types (queue/now-playing from API)
+export type { MediaItem, QueueState } from '@rainbot/types/media';
+
+/** Queue response from GET /api/queue/:guildId (canonical QueueState) */
+export type QueueData = import('@rainbot/types/media').QueueState;
+
+/** Current-track / media item (canonical MediaItem) */
+export type Track = import('@rainbot/types/media').MediaItem;
+
+// API Response Types (UI-specific or API response shapes)
 export interface Guild {
   id: string;
   name: string;
@@ -15,24 +24,6 @@ export interface Connection {
 export interface Sound {
   name: string;
   size: number;
-}
-
-export interface Track {
-  title: string;
-  url?: string;
-  duration?: number;
-  isLocal?: boolean;
-  spotifyUrl?: string;
-  spotifyId?: string;
-}
-
-export interface QueueData {
-  nowPlaying: string | null;
-  currentTrack?: Track;
-  queue: Track[];
-  totalInQueue: number;
-  isPaused?: boolean;
-  autoplay?: boolean;
 }
 
 export interface BotStatus {

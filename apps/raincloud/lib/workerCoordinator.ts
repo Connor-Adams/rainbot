@@ -719,6 +719,41 @@ export class WorkerCoordinator {
   }
 
   /**
+   * Seek to position (seconds) on Rainbot
+   */
+  async seek(
+    guildId: string,
+    positionSeconds: number
+  ): Promise<{ success: boolean; message?: string }> {
+    const requestId = uuidv4();
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
+
+    try {
+      const response = await this.requestWithRetry(
+        'rainbot',
+        () =>
+          rainbotClient.seek.mutate({
+            requestId,
+            guildId,
+            positionSeconds: Math.max(0, Math.floor(positionSeconds)),
+          }),
+        true
+      );
+      if (response.status === 'success') {
+        return { success: true };
+      }
+      return { success: false, message: response.message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Failed to seek: ${message}`);
+      return { success: false, message };
+    }
+  }
+
+  /**
    * Stop playback on Rainbot
    */
   async stopPlayback(guildId: string): Promise<{ success: boolean; message?: string }> {

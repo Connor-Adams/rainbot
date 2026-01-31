@@ -557,6 +557,31 @@ export function getStatus(guildId: string): MediaState | null {
 }
 
 /**
+ * Get current playback position in seconds (for TTS ducking).
+ */
+export function getPlaybackPositionSeconds(guildId: string): number {
+  const state = connectionManager.getVoiceState(guildId);
+  const ms = getPlaybackPositionMs(state);
+  return Math.floor((ms ?? 0) / 1000);
+}
+
+/**
+ * Resume playback at position in seconds (for TTS ducking).
+ */
+export async function resumeAtPosition(guildId: string, positionSeconds: number): Promise<void> {
+  const state = connectionManager.getVoiceState(guildId);
+  if (!state) {
+    throw new Error('Bot is not connected to a voice channel');
+  }
+  const currentTrack = state.currentTrack;
+  if (!currentTrack) {
+    throw new Error('No track playing to resume');
+  }
+  const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
+  await playbackManager.playWithSeek(state, currentTrack, positionSeconds, isPaused);
+}
+
+/**
  * Set volume for a guild (1-100)
  */
 export function setVolume(

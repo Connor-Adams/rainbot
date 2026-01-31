@@ -38,9 +38,9 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
       <div className="flex-1 min-w-0 space-y-1">
         <div
           className="text-sm font-semibold text-text-primary whitespace-nowrap overflow-hidden text-ellipsis"
-          title={escapeHtml(track.title)}
+          title={escapeHtml(track.title ?? 'Unknown')}
         >
-          {escapeHtml(track.title)}
+          {escapeHtml(track.title ?? 'Unknown')}
         </div>
         <div className="flex items-center gap-3 text-xs text-text-secondary font-medium">
           <span className="flex items-center gap-1.5">
@@ -56,9 +56,9 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         onClick={() => onRemove(index)}
         icon={<XIcon size={16} />}
         className="!min-h-[32px] !w-8 !p-0 flex-shrink-0 hover:bg-danger hover:text-text-primary"
-        aria-label={`Remove ${escapeHtml(track.title)} from queue`}
+        aria-label={`Remove ${escapeHtml(track.title ?? 'Unknown')} from queue`}
       >
-        <span className="sr-only">Remove {escapeHtml(track.title)} from queue</span>
+        <span className="sr-only">Remove {escapeHtml(track.title ?? 'Unknown')} from queue</span>
       </Button>
     </div>
   );

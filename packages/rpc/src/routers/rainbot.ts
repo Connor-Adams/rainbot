@@ -15,6 +15,7 @@ import type {
   QueueResponse,
   AutoplayResponse,
   ReplayResponse,
+  SeekResponse,
 } from '@rainbot/worker-protocol';
 import { z } from 'zod';
 
@@ -55,6 +56,11 @@ const autoplayInputSchema = z.object({
   enabled: z.boolean().nullable().optional(),
 });
 const replayInputSchema = z.object({ requestId: z.string(), guildId: z.string() });
+const seekInputSchema = z.object({
+  requestId: z.string(),
+  guildId: z.string(),
+  positionSeconds: z.number().min(0),
+});
 
 export type GetStateInput = z.infer<typeof getStateInputSchema>;
 export type RainbotGetStateFn = (input?: GetStateInput) => StatusResponse;
@@ -72,6 +78,7 @@ export interface RainbotHandlers {
   getQueue: (input: { guildId: string }) => Promise<QueueResponse>;
   autoplay: (input: z.infer<typeof autoplayInputSchema>) => Promise<AutoplayResponse>;
   replay: (input: z.infer<typeof replayInputSchema>) => Promise<ReplayResponse>;
+  seek: (input: z.infer<typeof seekInputSchema>) => Promise<SeekResponse>;
 }
 
 export function createRainbotRouter(handlers: RainbotHandlers) {
@@ -103,6 +110,7 @@ export function createRainbotRouter(handlers: RainbotHandlers) {
     replay: internalProcedure
       .input(replayInputSchema)
       .mutation(({ input }) => handlers.replay(input)),
+    seek: internalProcedure.input(seekInputSchema).mutation(({ input }) => handlers.seek(input)),
   });
 }
 

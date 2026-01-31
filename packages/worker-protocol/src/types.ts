@@ -175,6 +175,17 @@ export interface ReplayResponse {
   track?: string;
 }
 
+export interface SeekRequest {
+  requestId: string;
+  guildId: string;
+  positionSeconds: number;
+}
+
+export interface SeekResponse {
+  status: 'success' | 'error';
+  message?: string;
+}
+
 /** Minimal queue payload for RPC getQueue (compatible with coordinator normalizeQueueState) */
 export interface QueueItemPayload {
   title?: string;

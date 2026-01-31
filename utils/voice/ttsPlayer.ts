@@ -97,23 +97,29 @@ function initializeTTSMixer(guildId: string, connection: VoiceConnection): TTSMi
 }
 */
 
+export interface PlayTTSAudioOptions {
+  /** Return current playback position in seconds before TTS (for ducking). */
+  onBeforeTTS?: () => Promise<number>;
+  /** Resume playback at position (seconds) after TTS (for ducking). */
+  onAfterTTS?: (positionSeconds: number) => Promise<void>;
+}
+
 /**
- * Play TTS audio by mixing it with current playback
- * The TTS will play simultaneously with music without interruption
+ * Play TTS audio. When music is playing and onBeforeTTS/onAfterTTS are provided,
+ * ducks: pause music, play TTS, resume music at saved position.
  */
 export async function playTTSAudio(
   guildId: string,
   connection: VoiceConnection,
-  audioFilePath: string
+  audioFilePath: string,
+  options?: PlayTTSAudioOptions
 ): Promise<void> {
   try {
     if (!existsSync(audioFilePath)) {
       throw new Error(`TTS audio file not found: ${audioFilePath}`);
     }
-    log.info(`Playing TTS audio with mixing in guild ${guildId}: ${audioFilePath}`);
+    log.info(`Playing TTS audio in guild ${guildId}: ${audioFilePath}`);
 
-    // For now, use simple approach: play TTS only when idle
-    // Full mixing requires capturing the current player's output stream
     const subscription = 'subscription' in connection.state ? connection.state.subscription : null;
     if (!subscription) {
       log.warn(`No audio player subscription for guild ${guildId}`);
@@ -123,13 +129,51 @@ export async function playTTSAudio(
     const player = subscription.player;
     const isPlaying = player.state.status === AudioPlayerStatus.Playing;
 
+    if (isPlaying && options?.onBeforeTTS && options?.onAfterTTS) {
+      // Ducking: pause music, get position, play TTS, resume at position
+      const positionSeconds = await options.onBeforeTTS();
+      log.info(`Ducking: pausing playback at ${positionSeconds}s for TTS in guild ${guildId}`);
+      player.pause();
+
+      const resource = createAudioResource(createReadStream(audioFilePath), {
+        inputType: StreamType.Arbitrary,
+        inlineVolume: true,
+      });
+      if (resource.volume) {
+        resource.volume.setVolume(0.8);
+      }
+      player.play(resource);
+
+      await new Promise<void>((resolve, reject) => {
+        const onIdle = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = (error: Error) => {
+          cleanup();
+          reject(error);
+        };
+        const cleanup = () => {
+          player.off(AudioPlayerStatus.Idle, onIdle);
+          player.off('error', onError);
+        };
+        player.once(AudioPlayerStatus.Idle, onIdle);
+        player.once('error', onError);
+        setTimeout(() => {
+          cleanup();
+          resolve();
+        }, 30000);
+      });
+
+      await options.onAfterTTS(positionSeconds);
+      log.debug(`TTS ducking completed, resumed at ${positionSeconds}s in guild ${guildId}`);
+      return;
+    }
+
     if (isPlaying) {
-      // See docs/FUTURE_WORK.md: TTS stream mixing
-      // For now, log that we're skipping to avoid interruption
       log.info(
-        `Music is playing - TTS responses temporarily disabled to avoid interruption in guild ${guildId}`
+        `Music is playing - TTS skipped in guild ${guildId} (no resume callbacks). Provide onBeforeTTS/onAfterTTS for ducking.`
       );
-      log.info(`Consider implementing true stream mixing for simultaneous playback`);
       return;
     }
 

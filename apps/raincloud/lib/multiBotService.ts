@@ -453,6 +453,21 @@ export class MultiBotService {
   }
 
   /**
+   * Seek to position in seconds (Rainbot)
+   */
+  async seek(
+    guildId: string,
+    positionSeconds: number
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      return await this.coordinator.seek(guildId, positionSeconds);
+    } catch (error) {
+      log.error(`Seek failed: ${(error as Error).message}`);
+      return { success: false, message: (error as Error).message };
+    }
+  }
+
+  /**
    * Stop playback (Rainbot)
    */
   async stop(guildId: string): Promise<boolean> {

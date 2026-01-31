@@ -1,0 +1,44 @@
+---
+description: Rainbot monorepo — architecture, build commands, module conventions
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Rainbot Project Rules
+
+Node.js 22.12.0+ monorepo (yarn workspaces). See `.github/copilot-instructions.md` for full context.
+
+## Architecture
+
+- **Orchestrator**: `apps/raincloud` (API + Discord)
+- **Workers**: `apps/rainbot`, `apps/pranjeet`, `apps/hungerbot`
+- **Dashboard**: `ui/` (Vite + React, deploy separately)
+- **Entrypoints**: `apps/raincloud/index.js`, `apps/raincloud/server/` (Express API only)
+
+## Commands
+
+- `yarn` — install
+- `yarn build` / `yarn build:ts` — compile TypeScript
+- `yarn dev` — turbo dev (all apps)
+- `yarn workspace @rainbot/raincloud dev` — orchestrator only
+- `yarn workspace @rainbot/ui dev` — UI only
+- `yarn type-check` / `yarn lint` / `yarn format` / `yarn test` / `yarn validate`
+
+## Module format
+
+- **Bot commands/events**: CommonJS (`require()`)
+- **Server, utils, UI**: TypeScript (ES imports)
+- Compiled TS → `dist/`; JS imports via `require('./dist/...')`
+- Be conservative when changing module formats.
+
+## Key directories
+
+- `apps/raincloud/commands/` — slash commands
+- `apps/raincloud/handlers/`, `apps/raincloud/src/events/` — event handlers
+- `utils/voice/` — voice subsystem (authoritative playback API)
+- `apps/raincloud/server/` — Express API
+- `ui/` — React dashboard
+
+## Logging
+
+Use `createLogger(moduleName)` from `utils/logger.ts`.

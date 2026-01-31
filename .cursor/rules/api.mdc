@@ -1,0 +1,23 @@
+---
+description: Express server, routes, auth, Swagger
+globs: ["**/apps/raincloud/server/**", "**/server/**"]
+alwaysApply: false
+---
+
+# API / Server Rules
+
+Express TypeScript server in `apps/raincloud/server/`. API-only (no UI serving). Main: `apps/raincloud/server/index.ts`.
+
+## Routes & auth
+
+- Routes in `apps/raincloud/server/routes/`
+- Auth middleware: `apps/raincloud/server/middleware/auth.ts`
+- Main API: `apps/raincloud/server/routes/api.ts`
+
+## Swagger
+
+Update `apps/raincloud/server/swagger.ts` when adding/changing API endpoints.
+
+## Tests
+
+Add tests in `apps/raincloud/server/__tests__/` and `apps/raincloud/server/routes/__tests__/`.
