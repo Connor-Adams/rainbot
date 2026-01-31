@@ -1,0 +1,43 @@
+---
+description: Voice subsystem — queue locks, audio resources, playback patterns
+globs: ["**/utils/voice/**", "**/apps/rainbot/**", "**/apps/raincloud/commands/**", "**/packages/worker-protocol/**", "**/packages/rpc/**"]
+alwaysApply: false
+---
+
+# Voice Subsystem Rules
+
+Authoritative playback code lives in `utils/voice/`. See `docs/MULTIBOT_ARCHITECTURE.md` for design.
+
+## CRITICAL: Queue concurrency
+
+**Always use `queueManager.withQueueLock(guildId, fn)` for any code that mutates playback queues.** Race conditions are a frequent source of bugs.
+
+```typescript
+// ✅ Correct
+return withQueueLock(guildId, () => {
+  const state = getVoiceState(guildId);
+  state.queue.push(...tracks);
+});
+```
+
+```typescript
+// ❌ Wrong — direct mutation without lock
+const state = getVoiceState(guildId);
+state.queue.push(...tracks);
+```
+
+## Audio resources
+
+- Use helpers in `utils/voice/audioResource.ts` for streaming
+- `createTrackResourceForAny()` handles YouTube, SoundCloud, Spotify, local files
+- Don't reimplement streaming logic
+
+## Key files
+
+- `utils/voice/queueManager.ts` — queue state, withQueueLock
+- `utils/voice/playbackManager.ts` — playback flow
+- `utils/voice/audioResource.ts` — stream creation
+
+## Tests
+
+Add tests under `utils/voice/__tests__/` for voice behavior changes.
