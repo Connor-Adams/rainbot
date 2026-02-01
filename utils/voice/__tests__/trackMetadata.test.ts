@@ -34,11 +34,17 @@ describe('trackMetadata', () => {
         expect(detectUrlType('https://youtu.be/dQw4w9WgXcQ')).toBe('yt_video');
       });
 
-      it('detects YouTube playlist with list parameter', () => {
+      it('treats watch URL with list param as single video (user shared a video link)', () => {
         expect(
           detectUrlType(
             'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'
           )
+        ).toBe('yt_video');
+      });
+
+      it('detects pure YouTube playlist URL', () => {
+        expect(
+          detectUrlType('https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf')
         ).toBe('yt_playlist');
       });
 

@@ -5,6 +5,7 @@
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ButtonHandler } from '@rainbot/types/buttons';
 import type { MediaItem } from '@rainbot/types/media';
+import { getYouTubeThumbnailUrl } from '@rainbot/shared';
 import { createLogger } from '@utils/logger';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
@@ -24,18 +25,6 @@ function formatDuration(seconds: number | null | undefined): string | null {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
-}
-
-/**
- * Get YouTube thumbnail from URL
- */
-function getYouTubeThumbnail(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (match) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
-  }
-  return null;
 }
 
 /**
@@ -96,7 +85,7 @@ async function createQueueEmbed(
       description += '\n\n⏸️ *Paused*';
     }
 
-    const thumbnail = getYouTubeThumbnail(currentTrack.url);
+    const thumbnail = getYouTubeThumbnailUrl(currentTrack.url);
     if (thumbnail && !currentTrack.isSoundboard) {
       embed.setThumbnail(thumbnail);
     }

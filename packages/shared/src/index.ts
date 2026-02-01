@@ -2,4 +2,5 @@
 export { createLogger, logger } from './logger';
 export type { Logger } from './logger';
 
-// Common types and constants can be added here as needed
+// YouTube URL utilities
+export { extractYouTubeVideoId, toCanonicalYouTubeUrl, getYouTubeThumbnailUrl } from './youtubeUrl';

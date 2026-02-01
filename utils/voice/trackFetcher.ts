@@ -2,6 +2,7 @@
  * Track Fetcher - Handles track metadata fetching and URL validation
  */
 import play from 'play-dl';
+import { toCanonicalYouTubeUrl } from '@rainbot/shared';
 import type {
   SoundCloudPlaylist,
   SoundCloudTrack,
@@ -45,14 +46,17 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
       throw new Error('Invalid URL format');
     }
 
-    // Fast URL type detection
+    // Fast URL type detection - use canonical parser for YouTube
     let urlType: string | false | undefined;
-    if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
-      if (url.searchParams.has('list')) {
-        urlType = 'yt_playlist';
-      } else {
-        urlType = 'yt_video';
-      }
+    const ytVideoUrl = toCanonicalYouTubeUrl(source);
+    if (ytVideoUrl) {
+      urlType = 'yt_video';
+    } else if (
+      url.hostname.includes('youtube.com') &&
+      url.pathname.includes('/playlist') &&
+      url.searchParams.has('list')
+    ) {
+      urlType = 'yt_playlist';
     } else if (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com')) {
       const pathParts = url.pathname.split('/').filter((p) => p);
       if (pathParts[0] === 'track') {
@@ -72,13 +76,9 @@ export async function fetchTracks(source: string, _guildId: string): Promise<Tra
       throw new Error('Unsupported URL. Supported: YouTube, SoundCloud, Spotify');
     }
 
-    // Handle YouTube video
+    // Handle YouTube video - use canonical URL (strips list, index, etc.)
     if (urlType === 'yt_video') {
-      // Clean playlist parameter if present
-      let cleanSource = source;
-      if (url.hostname.includes('youtube.com') && url.searchParams.has('list')) {
-        cleanSource = `https://www.youtube.com/watch?v=${url.searchParams.get('v')}`;
-      }
+      const cleanSource = ytVideoUrl!;
 
       // Fetch actual video info to get the title
       let title = 'Unknown Track';

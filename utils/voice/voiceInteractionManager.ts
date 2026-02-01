@@ -4,7 +4,11 @@
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
  */
 
-import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
+import {
+  VoiceConnection,
+  VoiceConnectionStatus,
+  EndBehaviorType,
+} from '@discordjs/voice';
 import type { Client } from 'discord.js';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
@@ -173,46 +177,18 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   }
 
   /**
-   * Start listening to a user in a voice channel
+   * Subscribe to a user's audio stream and attach data/end/error handlers.
+   * On stream end, processes the utterance then resubscribes so the next utterance is captured.
    */
-  async startListening(
-    userId: string,
-    guildId: string,
-    connection: VoiceConnection
-  ): Promise<void> {
-    if (!this.isEnabledForGuild(guildId)) {
-      log.debug(`Voice interactions not enabled for guild ${guildId}`);
-      return;
-    }
+  private subscribeToUserAudio(session: VoiceInteractionSession): void {
+    const state = this.states.get(session.guildId);
+    const connection = (session as any).connection as VoiceConnection | undefined;
+    if (!state || !connection) return;
 
-    const state = this.states.get(guildId);
-    if (!state) {
-      throw new Error(`No voice interaction state for guild ${guildId}`);
-    }
-
-    log.info(`Starting to listen to user ${userId} in guild ${guildId}`);
-
-    // Create session
-    const session: VoiceInteractionSession = {
-      userId,
-      guildId,
-      channelId: connection.joinConfig.channelId!,
-      username: 'User', // Will be updated when we get user info
-      isListening: true,
-      audioBuffer: [],
-      lastCommandTime: Date.now(),
-      consecutiveFailures: 0,
-    };
-
-    state.sessions.set(userId, session);
-
-    // Store connection reference for TTS playback
-    (session as any).connection = connection;
-
-    // Set up voice receiver
     const receiver = connection.receiver;
+    const userId = session.userId;
+    const guildId = session.guildId;
 
-    // Subscribe to user's audio with proper error handling
     const audioStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
@@ -222,13 +198,11 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
     log.debug(`Subscribed to audio from user ${userId}`);
 
-    // Track when audio actually starts coming in
     let firstChunkReceived = false;
-
-    // Process audio chunks
     let chunkSequence = 0;
     let lastLogTime = Date.now();
     let totalBytesReceived = 0;
+
     audioStream.on('data', (chunk: Buffer) => {
       if (!session.isListening) return;
 
@@ -239,7 +213,6 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       totalBytesReceived += chunk.length;
 
-      // Log audio capture with detailed stats
       const now = Date.now();
       if (now - lastLogTime > 500) {
         const durationSoFar = totalBytesReceived / 192000;
@@ -249,9 +222,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         lastLogTime = now;
       }
 
-      // Log individual chunk sizes for debugging
       if (chunk.length <= 10) {
-        // Skip very small chunks - these are Discord silence markers
         log.debug(`⏭️ Skipping silence packet: ${chunk.length} bytes`);
         return;
       }
@@ -273,7 +244,6 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       });
     });
 
-    // Handle stream end (user stopped speaking)
     audioStream.on('end', async () => {
       log.info(
         `Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
@@ -282,31 +252,79 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       if (session.audioBuffer.length > 0) {
         await this.processCompleteAudio(session);
       }
+
+      // Resubscribe for the next utterance if session is still active
+      const currentState = this.states.get(session.guildId);
+      const conn = (session as any).connection as VoiceConnection | undefined;
+      if (
+        currentState?.sessions.get(session.userId) === session &&
+        session.isListening &&
+        conn?.state.status !== VoiceConnectionStatus.Destroyed
+      ) {
+        this.subscribeToUserAudio(session);
+      }
     });
 
     audioStream.on('error', (error) => {
       const errorMsg = error.message;
       log.error(`Audio stream error for user ${userId}: ${errorMsg}`);
 
-      // Handle decryption errors specifically
       if (errorMsg.includes('DecryptionFailed') || errorMsg.includes('Failed to decrypt')) {
         log.error('Voice decryption error detected!');
         log.error('This usually means Discord voice encryption is not properly configured.');
         log.error('Try disconnecting and reconnecting the bot to the voice channel.');
 
-        // Try to recover by resubscribing after a delay
         setTimeout(() => {
           const currentSession = state?.sessions.get(userId);
-          if (currentSession && currentSession.isListening) {
+          const conn = (session as any).connection as VoiceConnection | undefined;
+          if (
+            currentSession &&
+            currentSession.isListening &&
+            conn?.state.status !== VoiceConnectionStatus.Destroyed
+          ) {
             log.info(`Attempting to resubscribe to user ${userId} audio after error...`);
-            // The stream has already failed, so we'll just wait for the next connection
-            this.stopListening(userId, guildId).catch((err) => {
-              log.error(`Failed to stop listening after error: ${(err as Error).message}`);
-            });
+            this.subscribeToUserAudio(session);
           }
         }, 1000);
       }
     });
+  }
+
+  /**
+   * Start listening to a user in a voice channel
+   */
+  async startListening(
+    userId: string,
+    guildId: string,
+    connection: VoiceConnection
+  ): Promise<void> {
+    if (!this.isEnabledForGuild(guildId)) {
+      log.debug(`Voice interactions not enabled for guild ${guildId}`);
+      return;
+    }
+
+    const state = this.states.get(guildId);
+    if (!state) {
+      throw new Error(`No voice interaction state for guild ${guildId}`);
+    }
+
+    log.info(`Starting to listen to user ${userId} in guild ${guildId}`);
+
+    const session: VoiceInteractionSession = {
+      userId,
+      guildId,
+      channelId: connection.joinConfig.channelId!,
+      username: 'User',
+      isListening: true,
+      audioBuffer: [],
+      lastCommandTime: Date.now(),
+      consecutiveFailures: 0,
+    };
+
+    state.sessions.set(userId, session);
+    (session as any).connection = connection;
+
+    this.subscribeToUserAudio(session);
   }
 
   /**
@@ -448,9 +466,26 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
 
       log.info(`Transcribed: "${result.text}" (confidence: ${result.confidence.toFixed(2)})`);
 
+      // Trigger word: only process if transcript starts with trigger (when configured)
+      let textToParse = result.text.trim();
+      const triggerWord = this.config.triggerWord?.trim();
+      if (triggerWord && triggerWord.length > 0) {
+        const tw = triggerWord.toLowerCase();
+        const t = textToParse.toLowerCase();
+        if (!t.startsWith(tw)) {
+          log.debug(`Ignored utterance (no trigger match): "${result.text}"`);
+          return;
+        }
+        textToParse = textToParse.slice(tw.length).trim();
+        if (textToParse.length === 0) {
+          log.debug('Ignored: transcript was only trigger');
+          return;
+        }
+      }
+
       // Parse command
-      log.debug(`Parsing voice command: "${result.text}"`);
-      const command = parseVoiceCommand(result.text);
+      log.debug(`Parsing voice command: "${textToParse}"`);
+      const command = parseVoiceCommand(textToParse);
 
       // Validate command
       const validation = validateVoiceCommand(command, this.config.confidenceThreshold);
@@ -468,14 +503,11 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     } catch (error) {
       log.error(`Error processing audio: ${(error as Error).message}`);
       session.consecutiveFailures++;
-
-      if (session.consecutiveFailures >= 3) {
-        await this.sendVoiceResponse(
-          session.guildId,
-          "I'm having trouble understanding you. Voice commands are temporarily disabled."
-        );
-        await this.stopListening(session.userId, session.guildId);
-      }
+      await this.sendVoiceResponse(
+        session.guildId,
+        "I'm having trouble understanding you."
+      );
+      // Do not call stopListening; resubscribe happens in stream end handler
     }
   }
 

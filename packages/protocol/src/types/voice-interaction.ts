@@ -64,6 +64,7 @@ export interface VoiceInteractionConfig {
     maxCommandsPerMinute: number;
     maxCommandsPerHour: number;
   };
+  triggerWord?: string; // e.g. "hey bot", "rainbot"; empty/undefined = process all utterances
   ttsHandler?: (guildId: string, text: string, userId?: string) => Promise<void>;
   commandHandler?: (
     session: VoiceInteractionSession,
