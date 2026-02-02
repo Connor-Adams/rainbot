@@ -58,6 +58,7 @@ const WORKER_INSTANCE_ID =
   process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
 const WORKER_VERSION = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 const VOICE_INTERACTION_ENABLED = process.env['VOICE_INTERACTION_ENABLED'] === 'true';
+const VOICE_TRIGGER_WORD = process.env['VOICE_TRIGGER_WORD']?.trim() || undefined;
 
 const log = createLogger('PRANJEET');
 
@@ -729,6 +730,7 @@ setupDiscordClientReadyHandler(client, {
     // Initialize Voice Interaction Manager
     initVoiceInteractionManager(client, {
       enabled: VOICE_INTERACTION_ENABLED,
+      triggerWord: VOICE_TRIGGER_WORD,
       ttsHandler: async (guildId: string, text: string, userId?: string) => {
         if (!userId) return;
         try {

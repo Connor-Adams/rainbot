@@ -32,6 +32,7 @@ yarn dev
 - INTERNAL_RPC_SECRET
 - REDIS_URL
 - DATABASE_URL (optional)
+- VOICE_TRIGGER_WORD (optional, Pranjeet: e.g. "hey bot" – only process voice when user says this first)
 
 ## Scripts
 

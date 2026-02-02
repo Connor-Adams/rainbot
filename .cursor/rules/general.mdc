@@ -8,6 +8,10 @@ alwaysApply: true
 
 Node.js 22.12.0+ monorepo (yarn workspaces). See `.github/copilot-instructions.md` for full context.
 
+## Definition of done
+
+**Work is not done until `yarn validate` passes.** Fix type-check, lint, format, and tests before considering a change complete.
+
 ## Architecture
 
 - **Orchestrator**: `apps/raincloud` (API + Discord)

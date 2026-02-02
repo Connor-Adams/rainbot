@@ -4,6 +4,7 @@
  */
 
 const { MessageFlags } = require('discord.js');
+const { getYouTubeThumbnailUrl } = require('@rainbot/shared');
 
 /**
  * Get the initialized MultiBotService instance if available.
@@ -78,15 +79,11 @@ function formatDuration(seconds) {
 }
 
 /**
- * Get YouTube thumbnail URL from video URL
+ * Get YouTube thumbnail URL from video URL or ID.
+ * Uses shared parser for consistent handling of all YouTube URL formats.
  */
 function getYouTubeThumbnail(url) {
-  if (!url) return null;
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (match) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
-  }
-  return null;
+  return getYouTubeThumbnailUrl(url);
 }
 
 /**

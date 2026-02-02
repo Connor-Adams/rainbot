@@ -1,2 +1,4 @@
-#build output
+# Build output
 dist/
+src/**/*.js
+src/**/*.d.ts

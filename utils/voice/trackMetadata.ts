@@ -140,6 +140,8 @@ export async function processSpotifyPlaylistTracks(
   log.info(`Added ${added} tracks from Spotify (${failed} failed)`);
 }
 
+import { extractYouTubeVideoId } from '@rainbot/shared';
+
 /**
  * Check if hostname matches expected domain
  */
@@ -161,17 +163,13 @@ export function detectUrlType(source: string): UrlType {
     const url = new URL(source);
     const hostname = url.hostname.toLowerCase();
 
-    // YouTube detection - check hostname properly
-    if (
-      isValidHostname(hostname, 'youtube.com') ||
-      isValidHostname(hostname, 'youtu.be') ||
-      isValidHostname(hostname, 'www.youtube.com') ||
-      isValidHostname(hostname, 'm.youtube.com')
-    ) {
-      if (url.searchParams.has('list')) {
+    // YouTube: use extractYouTubeVideoId for video detection; pure /playlist?list= = playlist
+    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+      if (extractYouTubeVideoId(source)) return 'yt_video';
+      if (url.pathname.includes('/playlist') && url.searchParams.has('list')) {
         return 'yt_playlist';
       }
-      return 'yt_video';
+      return null;
     }
 
     // Spotify detection - check hostname properly

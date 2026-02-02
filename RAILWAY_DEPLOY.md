@@ -122,6 +122,7 @@ Railway will automatically:
 | `SESSION_STORE_PATH`    | Path for session files (fallback if Redis not available)                                                                                                                       | No                                                    |
 | `SPOTIFY_CLIENT_ID`     | Spotify Client ID for Spotify URL support                                                                                                                                      | No (required for Spotify links)                       |
 | `SPOTIFY_CLIENT_SECRET` | Spotify Client Secret for Spotify URL support                                                                                                                                  | No (required for Spotify links)                       |
+| `VOICE_TRIGGER_WORD`    | (Pranjeet) Optional trigger word for voice commands; only utterances that start with this (e.g. "hey bot") are processed. Unset = process all utterances.                      | No                                                    |
 
 ## Generating Session Secret
 
