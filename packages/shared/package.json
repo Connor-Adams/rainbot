@@ -10,6 +10,11 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./youtube": {
+      "import": "./dist/esm/youtubeUrl.js",
+      "require": "./dist/youtubeUrl.js",
+      "types": "./dist/youtubeUrl.d.ts"
     }
   },
   "scripts": {
