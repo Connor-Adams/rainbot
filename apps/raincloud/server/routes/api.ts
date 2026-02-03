@@ -9,6 +9,11 @@ import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '@utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
+import {
+  addQueueSubscriber,
+  broadcastQueueUpdate,
+  sendQueueSnapshotToClient,
+} from '../sse/queueEvents';
 import type { GuildMember } from 'discord.js';
 import type { SeekRequest } from '@rainbot/worker-protocol';
 
@@ -567,6 +572,7 @@ router.post(
         stats.trackCommand('play', userId, guildId, 'api', true, null, username, discriminator);
       }
 
+      void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
       res.json({
         message: result.playedAsSoundboard ? 'Playing soundboard' : 'Playing',
         position: result.position ?? null,
@@ -629,6 +635,7 @@ router.post(
         );
       }
 
+      void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
       res.json(result);
     } catch (error) {
       const err = error as Error;
@@ -673,6 +680,7 @@ router.post(
         stats.trackCommand('stop', userId, guildId, 'api', true, null, username, discriminator);
         stats.trackQueueOperation('clear', userId, guildId, 'api', { cleared: 0 });
       }
+      void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
       res.json({ message: 'Playback stopped' });
     } else {
       if (userId) {
@@ -715,6 +723,7 @@ router.post(
         if (userId) {
           stats.trackCommand('skip', userId, guildId, 'api', true, null, username, discriminator);
         }
+        void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
         res.json({ message: `Skipped ${skipped.length} track(s)`, skipped });
       } else {
         if (userId) {
@@ -774,6 +783,7 @@ router.post(
         if (userId) {
           stats.trackCommand('replay', userId, guildId, 'api', true, null, username, discriminator);
         }
+        void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
         res.json({ message: `Replaying: ${result.track}`, track: result.track });
         return;
       }
@@ -822,6 +832,7 @@ router.post(
         stats.trackCommand('pause', userId, guildId, 'api', true, null, username, discriminator);
       }
 
+      void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
       res.json({ message: paused ? 'Paused' : 'Resumed', paused });
     } catch (error) {
       const err = error as Error;
@@ -876,6 +887,7 @@ router.post(
       if (!multiBot) return;
       const result = await multiBot.seek(guildId, pos);
       if (result.success) {
+        void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
         res.json({ message: 'Seeked', positionSeconds: Math.floor(pos) });
       } else {
         res.status(400).json({ error: result.message || 'Seek failed' });
@@ -1084,6 +1096,40 @@ router.get(
   }
 );
 
+// GET /api/queue/:guildId/events - SSE for queue/now-playing updates (only sends on state change)
+router.get(
+  '/queue/:guildId/events',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+
+    const multiBot = getPlaybackService();
+    if (!multiBot) {
+      res.status(503).json({ error: 'Worker services unavailable' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // nginx
+    res.flushHeaders?.();
+
+    addQueueSubscriber(guildId, res);
+    try {
+      const queue = await multiBot.getQueue(guildId);
+      sendQueueSnapshotToClient(res, queue);
+    } catch (err) {
+      // Client still gets updates on next state change; no need to fail the stream
+    }
+  }
+);
+
 // POST /api/queue/:guildId/clear - Clear the queue
 router.post(
   '/queue/:guildId/clear',
@@ -1112,6 +1158,7 @@ router.post(
         stats.trackCommand('clear', userId, guildId, 'api', true, null, username, discriminator);
       }
 
+      void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
       res.json({ message: `Cleared ${cleared} tracks`, cleared });
     } catch (error) {
       const err = error as Error;

@@ -54,6 +54,10 @@ export interface QueueState {
   isPaused?: boolean;
   isAutoplay?: boolean;
   loopMode?: 'off' | 'track' | 'queue';
+  /** Current playback position in ms when something is playing. */
+  positionMs?: number;
+  /** Total duration of current track in ms when something is playing. */
+  durationMs?: number;
 }
 
 export interface MediaWorkerState {

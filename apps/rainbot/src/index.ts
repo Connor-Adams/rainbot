@@ -366,12 +366,19 @@ async function handleGetQueue(input: { guildId: string }): Promise<QueueResponse
   }
   const playback = buildPlaybackState(state);
   const q = buildQueueState(state, playback);
-  return {
+  const response: QueueResponse = {
     queue: (q.queue ?? []) as QueueResponse['queue'],
     nowPlaying: q.nowPlaying as QueueResponse['nowPlaying'],
     isPaused: q.isPaused,
     isAutoplay: q.isAutoplay,
   };
+  if (state.currentTrack && playback.positionMs != null) {
+    response.positionMs = playback.positionMs;
+  }
+  if (state.currentTrack && playback.durationMs != null) {
+    response.durationMs = playback.durationMs;
+  }
+  return response;
 }
 
 async function handleAutoplay(input: {
