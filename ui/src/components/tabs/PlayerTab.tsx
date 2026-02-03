@@ -206,8 +206,14 @@ export default function PlayerTab() {
           </div>
           {speakMutation.isError && (
             <p className="text-xs text-red-500 mt-2">
-              {(speakMutation.error as { response?: { data?: { error?: string } }; message?: string })
-                ?.response?.data?.error ?? (speakMutation.error as Error)?.message ?? 'Failed to speak'}
+              {(
+                speakMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (speakMutation.error as Error)?.message ??
+                'Failed to speak'}
             </p>
           )}
         </div>
