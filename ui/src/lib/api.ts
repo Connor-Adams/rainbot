@@ -134,6 +134,7 @@ export const playbackApi = {
     api.post('/seek', { guildId, positionSeconds }),
   volume: (guildId: string, level: number, botType?: 'rainbot' | 'pranjeet' | 'hungerbot') =>
     api.post('/volume', { guildId, level, botType }),
+  speak: (guildId: string, text: string) => api.post('/speak', { guildId, text }),
 };
 
 // Sounds API

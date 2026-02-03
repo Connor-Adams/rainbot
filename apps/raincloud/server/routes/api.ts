@@ -739,6 +739,37 @@ router.post(
   }
 );
 
+// POST /api/speak - TTS: say text in the user's voice channel (Pranjeet)
+router.post(
+  '/speak',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, text } = req.body;
+
+    if (!guildId || text == null || String(text).trim() === '') {
+      res.status(400).json({ error: 'guildId and text are required' });
+      return;
+    }
+
+    try {
+      const { id: userId } = getAuthUser(req);
+      const effectiveUserId = userId || 'unknown';
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+
+      const result = await multiBot.speakTTS(guildId, String(text).trim(), effectiveUserId);
+      if (!result.success) {
+        throw new Error(result.message || 'TTS failed');
+      }
+      res.json({ message: result.message ?? 'Queued' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',

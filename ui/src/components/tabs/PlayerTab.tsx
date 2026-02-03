@@ -9,6 +9,7 @@ import NowPlayingCard from '../NowPlayingCard';
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore();
   const [urlInput, setUrlInput] = useState('');
+  const [ttsInput, setTtsInput] = useState('');
   const [localVolumes, setLocalVolumes] = useState<{
     rainbot: number | null;
     pranjeet: number | null;
@@ -62,6 +63,13 @@ export default function PlayerTab() {
       queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
       setUrlInput('');
+    },
+  });
+
+  const speakMutation = useMutation({
+    mutationFn: (text: string) => playbackApi.speak(selectedGuildId!, text),
+    onSuccess: () => {
+      setTtsInput('');
     },
   });
 
@@ -157,6 +165,51 @@ export default function PlayerTab() {
               <span className="btn-icon">■</span> Stop
             </button>
           </div>
+        </div>
+
+        {/* Say (TTS) - Pranjeet speaks whatever you type */}
+        <div className="tts-speak mt-6 pt-6 border-t border-border">
+          <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">
+            Say (TTS)
+          </h3>
+          <p className="text-xs text-text-muted mb-3">
+            Type something and Pranjeet will say it in your voice channel. You must be in a voice
+            channel.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={ttsInput}
+              onChange={(e) => setTtsInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const t = ttsInput.trim();
+                  if (t && selectedGuildId) speakMutation.mutate(t);
+                }
+              }}
+              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-text-muted"
+              placeholder="Type what you want the bot to say..."
+              disabled={!selectedGuildId}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary w-full sm:w-auto shrink-0"
+              onClick={() => {
+                const t = ttsInput.trim();
+                if (t && selectedGuildId) speakMutation.mutate(t);
+              }}
+              disabled={speakMutation.isPending || !ttsInput.trim() || !selectedGuildId}
+            >
+              {speakMutation.isPending ? '…' : 'Say'}
+            </button>
+          </div>
+          {speakMutation.isError && (
+            <p className="text-xs text-red-500 mt-2">
+              {(speakMutation.error as { response?: { data?: { error?: string } }; message?: string })
+                ?.response?.data?.error ?? (speakMutation.error as Error)?.message ?? 'Failed to speak'}
+            </p>
+          )}
         </div>
 
         {/* Volume Control */}
