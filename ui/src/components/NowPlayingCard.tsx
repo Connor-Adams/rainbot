@@ -9,16 +9,39 @@ interface NowPlayingCardProps {
   guildId: string;
 }
 
+/** Duration in seconds from API (durationMs) or track (duration or durationMs). */
+function durationSeconds(queueData: QueueData, currentTrack: QueueData['nowPlaying']): number {
+  if (queueData.durationMs != null && queueData.durationMs >= 0) {
+    return queueData.durationMs / 1000;
+  }
+  if (currentTrack?.duration != null && currentTrack.duration >= 0) {
+    return currentTrack.duration;
+  }
+  if (currentTrack?.durationMs != null && currentTrack.durationMs >= 0) {
+    return currentTrack.durationMs / 1000;
+  }
+  return 0;
+}
+
 export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardProps) {
   const queryClient = useQueryClient();
-  const [currentTime, setCurrentTime] = useState(0);
+  const durationSec = durationSeconds(queueData, queueData.nowPlaying ?? undefined);
+  const initialPosition =
+    queueData.positionMs != null && queueData.positionMs >= 0 ? queueData.positionMs / 1000 : 0;
+  const [currentTime, setCurrentTime] = useState(initialPosition);
 
   const currentTrack = queueData.nowPlaying ?? {
     title: 'No track playing',
     duration: 0,
   };
-  const trackKey = `${currentTrack.title}-${currentTrack.url ?? ''}-${currentTrack.duration ?? 0}`;
+  const trackKey = `${currentTrack.title}-${currentTrack.url ?? ''}-${durationSec}`;
   const trackKeyRef = useRef(trackKey);
+
+  // Reset position when track changes
+  useEffect(() => {
+    trackKeyRef.current = trackKey;
+    setCurrentTime(initialPosition);
+  }, [trackKey]);
 
   const pauseMutation = useMutation({
     mutationFn: () => playbackApi.pause(guildId),
@@ -47,25 +70,28 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   const isPaused = queueData.isPaused || false;
 
-  // Simulate progress (would need real-time updates from API)
+  // Sync position when API sends new positionMs (e.g. after refetch or SSE)
+  useEffect(() => {
+    if (queueData.positionMs != null && queueData.positionMs >= 0) {
+      setCurrentTime(queueData.positionMs / 1000);
+    }
+  }, [queueData.positionMs, trackKey]);
+
+  // Tick progress locally when playing (smooth UX; API/SSE resyncs on state change)
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime((prev) => {
         if (trackKeyRef.current !== trackKey) {
           trackKeyRef.current = trackKey;
-          return 0;
+          return initialPosition;
         }
-        if (isPaused || !currentTrack.duration) {
-          return prev;
-        }
-        if (prev >= (currentTrack.duration ?? 0)) {
-          return prev;
-        }
+        if (isPaused || durationSec <= 0) return prev;
+        if (prev >= durationSec) return prev;
         return prev + 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPaused, currentTrack.duration ?? 0, trackKey]);
+  }, [isPaused, durationSec, trackKey, initialPosition]);
 
   const getSourceInfo = () => {
     if (currentTrack.isLocal) {
@@ -89,9 +115,8 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   const sourceInfo = getSourceInfo();
 
   const handleProgressClick = (positionSeconds: number) => {
-    const duration = currentTrack.duration ?? 0;
-    if (duration <= 0) return;
-    const clamped = Math.max(0, Math.min(Math.floor(positionSeconds), duration));
+    if (durationSec <= 0) return;
+    const clamped = Math.max(0, Math.min(Math.floor(positionSeconds), durationSec));
     seekMutation.mutate(clamped);
   };
 
@@ -109,7 +134,7 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
           <ProgressBar
             currentTime={currentTime}
-            duration={currentTrack.duration ?? 0}
+            duration={durationSec}
             onClick={handleProgressClick}
           />
 

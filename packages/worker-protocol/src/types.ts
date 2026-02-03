@@ -186,7 +186,11 @@ export interface SeekResponse {
   message?: string;
 }
 
-/** Minimal queue payload for RPC getQueue (compatible with coordinator normalizeQueueState) */
+/**
+ * Minimal queue payload for RPC getQueue (compatible with coordinator normalizeQueueState).
+ * Contract: getQueue returns QueueResponse with nowPlaying as QueueItemPayload (object), not string.
+ * When something is playing, positionMs/durationMs may be set for progress display.
+ */
 export interface QueueItemPayload {
   title?: string;
   url?: string;
@@ -203,4 +207,8 @@ export interface QueueResponse {
   nowPlaying?: QueueItemPayload;
   isPaused?: boolean;
   isAutoplay?: boolean;
+  /** Current playback position in ms when something is playing. */
+  positionMs?: number;
+  /** Total duration of current track in ms when something is playing. */
+  durationMs?: number;
 }

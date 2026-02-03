@@ -4,11 +4,7 @@
  * Handles audio receiving, STT, command parsing, execution, and TTS responses
  */
 
-import {
-  VoiceConnection,
-  VoiceConnectionStatus,
-  EndBehaviorType,
-} from '@discordjs/voice';
+import { VoiceConnection, VoiceConnectionStatus, EndBehaviorType } from '@discordjs/voice';
 import type { Client } from 'discord.js';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
@@ -503,10 +499,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     } catch (error) {
       log.error(`Error processing audio: ${(error as Error).message}`);
       session.consecutiveFailures++;
-      await this.sendVoiceResponse(
-        session.guildId,
-        "I'm having trouble understanding you."
-      );
+      await this.sendVoiceResponse(session.guildId, "I'm having trouble understanding you.");
       // Do not call stopListening; resubscribe happens in stream end handler
     }
   }

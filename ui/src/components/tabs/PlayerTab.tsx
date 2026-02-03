@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
+import { useQueueEvents } from '@/hooks/useQueueEvents';
 import NowPlayingCard from '../NowPlayingCard';
 
 export default function PlayerTab() {
@@ -19,11 +20,13 @@ export default function PlayerTab() {
   }>({ rainbot: null, pranjeet: null, hungerbot: null });
   const queryClient = useQueryClient();
 
+  const { connected: isSSEConnected } = useQueueEvents(selectedGuildId ?? null);
+
   const { data: queueData } = useQuery({
     queryKey: ['queue', selectedGuildId],
     queryFn: () => botApi.getQueue(selectedGuildId!).then((res) => res.data),
     enabled: !!selectedGuildId,
-    refetchInterval: 5000,
+    refetchInterval: isSSEConnected ? false : 5000,
   });
 
   const { data: botStatus } = useQuery({

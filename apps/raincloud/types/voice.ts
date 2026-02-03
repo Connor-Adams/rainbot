@@ -1,35 +1,16 @@
 /**
  * Voice manager type definitions
- * Legacy file - use voice-modules.ts for new voice module types
+ * Legacy file - use voice-modules.ts for new voice module types.
+ * Queue and track shapes align with @rainbot/types (canonical QueueState + MediaItem).
  */
 
-export interface Track {
-  title: string;
-  url?: string;
-  duration?: number;
-  isLocal?: boolean;
-  isSoundboard?: boolean;
-  isStream?: boolean;
-  source?: string;
-  sourceType?: 'youtube' | 'soundcloud' | 'spotify' | 'local' | 'other';
-  userId?: string;
-  username?: string;
-  discriminator?: string;
-  spotifyId?: string;
-  spotifyUrl?: string;
-}
+import type { QueueState, MediaItem } from '@rainbot/types/media';
 
-export interface QueueInfo {
-  nowPlaying: string | null;
-  queue: Track[];
-  totalInQueue?: number;
-  playbackPosition?: number;
-  hasOverlay?: boolean;
-  channelName?: string | null;
-  currentTrack?: Track | null;
-  isPaused?: boolean;
-  autoplay?: boolean;
-}
+/** Canonical queue + now-playing (same as protocol QueueState). */
+export type QueueInfo = QueueState;
+
+/** Canonical track/media item (same as protocol MediaItem). */
+export type Track = MediaItem;
 
 export interface VoiceStatus {
   channelId: string;

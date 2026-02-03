@@ -70,13 +70,24 @@ function normalizeQueueState(data: unknown): QueueState {
 
   const record = data as Record<string, unknown>;
   const queue = Array.isArray(record['queue']) ? (record['queue'] as QueueState['queue']) : [];
-  const currentTrack =
-    record['currentTrack'] && typeof record['currentTrack'] === 'object'
-      ? (record['currentTrack'] as QueueState['nowPlaying'])
-      : undefined;
+  // Canonical: worker sends nowPlaying as object (QueueItemPayload). Legacy fallbacks for currentTrack/string.
   const nowPlaying =
-    currentTrack ||
-    (typeof record['nowPlaying'] === 'string' ? { title: record['nowPlaying'] } : undefined);
+    typeof record['nowPlaying'] === 'object' && record['nowPlaying'] !== null
+      ? (record['nowPlaying'] as QueueState['nowPlaying'])
+      : record['currentTrack'] && typeof record['currentTrack'] === 'object'
+        ? (record['currentTrack'] as QueueState['nowPlaying'])
+        : typeof record['nowPlaying'] === 'string'
+          ? { title: record['nowPlaying'] }
+          : undefined;
+
+  const positionMs =
+    typeof record['positionMs'] === 'number' && record['positionMs'] >= 0
+      ? record['positionMs']
+      : undefined;
+  const durationMs =
+    typeof record['durationMs'] === 'number' && record['durationMs'] >= 0
+      ? record['durationMs']
+      : undefined;
 
   return {
     nowPlaying,
@@ -88,6 +99,8 @@ function normalizeQueueState(data: unknown): QueueState {
           ? record['paused']
           : undefined,
     isAutoplay: typeof record['autoplay'] === 'boolean' ? record['autoplay'] : undefined,
+    ...(positionMs != null && { positionMs }),
+    ...(durationMs != null && { durationMs }),
   };
 }
 
