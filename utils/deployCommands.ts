@@ -14,12 +14,15 @@ interface Command {
 }
 
 /**
- * Load all commands from the canonical commands directory (apps/raincloud/commands)
+ * Load all commands from the canonical commands directory (apps/raincloud/commands).
+ * Works when run from monorepo root (dist/utils) or from raincloud app (apps/raincloud/dist/utils).
  */
 export function loadCommands(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
-  // After TS compilation, __dirname is dist/utils/; load from apps/raincloud/commands
-  const commandsPath = path.join(__dirname, '..', '..', 'apps', 'raincloud', 'commands');
+  const base = path.join(__dirname, '..', '..');
+  const inRaincloud = path.join(base, 'commands');
+  const inMonorepo = path.join(base, 'apps', 'raincloud', 'commands');
+  const commandsPath = fs.existsSync(inRaincloud) ? inRaincloud : inMonorepo;
   const commandFolders = fs.readdirSync(commandsPath);
 
   for (const folder of commandFolders) {

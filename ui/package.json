@@ -13,6 +13,7 @@
     "start:prod": "serve -s dist -l $PORT"
   },
   "dependencies": {
+    "@rainbot/shared": "*",
     "@rainbot/types": "*",
     "@tanstack/react-query": "^5.90.15",
     "axios": "^1.13.2",

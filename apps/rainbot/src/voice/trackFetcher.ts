@@ -8,7 +8,7 @@ import type {
 } from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import type { Track } from '@rainbot/types/voice';
-import { createLogger, toCanonicalYouTubeUrl } from '@rainbot/shared';
+import { createLogger, extractYouTubeVideoId, toCanonicalYouTubeUrl } from '@rainbot/shared';
 import { getYtdlpOptions } from './audioResource';
 
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -36,18 +36,36 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
       throw new Error('Invalid URL format');
     }
 
-    // Use canonical parser for YouTube - extracts video ID, strips list/index params
+    // Use canonical parser for YouTube - extracts video ID, strips list/index params.
+    // Watch URLs with list= (e.g. watch?v=ID&list=PL...) are treated as single video to avoid
+    // play.playlist_info() which can fail; we play just the video from v=.
     let urlType: string | false | undefined;
-    const ytVideoUrl = toCanonicalYouTubeUrl(source);
+    let ytVideoUrl: string | null = toCanonicalYouTubeUrl(source);
     if (ytVideoUrl) {
       urlType = 'yt_video';
     } else if (
+      url.hostname.includes('youtube.com') &&
+      url.pathname.includes('/watch') &&
+      url.searchParams.has('v')
+    ) {
+      const videoId = extractYouTubeVideoId(source);
+      if (videoId) {
+        ytVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        urlType = 'yt_video';
+      }
+    }
+    if (
+      !urlType &&
       url.hostname.includes('youtube.com') &&
       url.pathname.includes('/playlist') &&
       url.searchParams.has('list')
     ) {
       urlType = 'yt_playlist';
-    } else if (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com')) {
+    }
+    if (
+      !urlType &&
+      (url.hostname.includes('spotify.com') || url.hostname.includes('open.spotify.com'))
+    ) {
       const pathParts = url.pathname.split('/').filter((p) => p);
       if (pathParts[0] === 'track') {
         urlType = 'sp_track';
@@ -58,7 +76,8 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
       } else {
         urlType = await play.validate(source);
       }
-    } else {
+    }
+    if (!urlType) {
       urlType = await play.validate(source);
     }
 

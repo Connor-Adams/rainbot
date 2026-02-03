@@ -1,10 +1,59 @@
 import {
+  parseYouTubeUrl,
   extractYouTubeVideoId,
   toCanonicalYouTubeUrl,
   getYouTubeThumbnailUrl,
+  YouTubeUrl,
 } from '../youtubeUrl';
 
 describe('youtubeUrl', () => {
+  describe('parseYouTubeUrl', () => {
+    it('returns videoId, watchUrl, thumbnailUrl for watch URL', () => {
+      const info = parseYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      expect(info).toEqual({
+        videoId: 'dQw4w9WgXcQ',
+        watchUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        thumbnailUrl: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+      });
+    });
+
+    it('strips list/index params', () => {
+      const info = parseYouTubeUrl('https://www.youtube.com/watch?v=Z52QLyqMlTE&list=PLCC&index=6');
+      expect(info?.videoId).toBe('Z52QLyqMlTE');
+      expect(info?.watchUrl).toBe('https://www.youtube.com/watch?v=Z52QLyqMlTE');
+    });
+
+    it('accepts raw video ID', () => {
+      const info = parseYouTubeUrl('dQw4w9WgXcQ');
+      expect(info?.videoId).toBe('dQw4w9WgXcQ');
+      expect(info?.watchUrl).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    });
+
+    it('returns null for playlist-only URL', () => {
+      expect(parseYouTubeUrl('https://www.youtube.com/playlist?list=PLxxx')).toBe(null);
+    });
+
+    it('returns null for invalid input', () => {
+      expect(parseYouTubeUrl(null)).toBe(null);
+      expect(parseYouTubeUrl('')).toBe(null);
+      expect(parseYouTubeUrl('https://example.com')).toBe(null);
+    });
+  });
+
+  describe('YouTubeUrl namespace', () => {
+    it('parse returns same as parseYouTubeUrl', () => {
+      expect(YouTubeUrl.parse('https://youtu.be/dQw4w9WgXcQ')).toEqual(
+        parseYouTubeUrl('https://youtu.be/dQw4w9WgXcQ')
+      );
+    });
+    it('getVideoId, toWatchUrl, getThumbnailUrl match helpers', () => {
+      const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+      expect(YouTubeUrl.getVideoId(url)).toBe(extractYouTubeVideoId(url));
+      expect(YouTubeUrl.toWatchUrl(url)).toBe(toCanonicalYouTubeUrl(url));
+      expect(YouTubeUrl.getThumbnailUrl(url)).toBe(getYouTubeThumbnailUrl(url));
+    });
+  });
+
   describe('extractYouTubeVideoId', () => {
     it('extracts ID from standard watch URL', () => {
       expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(

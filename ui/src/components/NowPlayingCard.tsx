@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { playbackApi } from '@/lib/api';
+import { YouTubeUrl } from '@rainbot/shared';
 import type { QueueData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player';
@@ -114,6 +115,10 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   const sourceInfo = getSourceInfo();
 
+  const thumbnailUrl =
+    currentTrack?.thumbnail ??
+    (currentTrack?.url ? YouTubeUrl.getThumbnailUrl(currentTrack.url) : null);
+
   const handleProgressClick = (positionSeconds: number) => {
     if (durationSec <= 0) return;
     const clamped = Math.max(0, Math.min(Math.floor(positionSeconds), durationSec));
@@ -123,7 +128,7 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   return (
     <section className="panel now-playing-card bg-surface rounded-2xl border border-border overflow-hidden">
       <div className="now-playing-content flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 items-center lg:items-start">
-        <NowPlayingArtwork isPlaying={!isPaused} />
+        <NowPlayingArtwork isPlaying={!isPaused} thumbnailUrl={thumbnailUrl} />
 
         <div className="now-playing-info flex-1 flex flex-col gap-6 min-w-0 w-full">
           <TrackInfo
