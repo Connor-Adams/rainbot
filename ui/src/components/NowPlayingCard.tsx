@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { playbackApi } from '@/lib/api';
-import { YouTubeUrl } from '@rainbot/shared';
+import { YouTubeUrl } from '@rainbot/shared/youtube';
 import type { QueueData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player';
