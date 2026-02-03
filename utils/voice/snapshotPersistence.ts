@@ -131,7 +131,7 @@ export async function saveAllQueueSnapshots(): Promise<void> {
   }
   await Promise.all(promises);
   if (promises.length > 0) {
-    log.info(`Saved ${promises.length} queue snapshot(s)`);
+    log.debug(`Saved ${promises.length} queue snapshot(s)`);
   }
 }
 

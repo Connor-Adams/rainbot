@@ -3,4 +3,11 @@ export { createLogger, logger } from './logger';
 export type { Logger } from './logger';
 
 // YouTube URL utilities
-export { extractYouTubeVideoId, toCanonicalYouTubeUrl, getYouTubeThumbnailUrl } from './youtubeUrl';
+export {
+  parseYouTubeUrl,
+  extractYouTubeVideoId,
+  toCanonicalYouTubeUrl,
+  getYouTubeThumbnailUrl,
+  YouTubeUrl,
+} from './youtubeUrl';
+export type { YouTubeVideoInfo } from './youtubeUrl';

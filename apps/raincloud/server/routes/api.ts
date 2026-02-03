@@ -14,6 +14,11 @@ import {
   broadcastQueueUpdate,
   sendQueueSnapshotToClient,
 } from '../sse/queueEvents';
+import {
+  addStatusSubscriber,
+  broadcastStatusUpdate,
+  sendStatusSnapshotToClient,
+} from '../sse/statusEvents';
 import type { GuildMember } from 'discord.js';
 import type { SeekRequest } from '@rainbot/worker-protocol';
 
@@ -217,6 +222,83 @@ function getAuthUser(req: Request): AuthUser {
 function toPercent(volume?: number): number | undefined {
   if (volume === undefined || volume === null) return undefined;
   return volume <= 1 ? Math.round(volume * 100) : Math.round(volume);
+}
+
+/** Build the same payload returned by GET /api/status (for SSE and reuse). */
+async function getStatusPayload(): Promise<{
+  online: boolean;
+  username?: string;
+  discriminator?: string;
+  guilds: Array<{ id: string; name: string; memberCount: number }>;
+  connections: unknown[];
+  workersUnavailable?: boolean;
+}> {
+  const client = getClient();
+  if (!client || !client.isReady()) {
+    return { online: false, guilds: [], connections: [] };
+  }
+
+  const guilds = client.guilds.cache.map((guild) => ({
+    id: guild.id,
+    name: guild.name,
+    memberCount: guild.memberCount,
+  }));
+
+  const multiBot = getPlaybackService();
+  if (multiBot) {
+    const statusResults = await Promise.all(guilds.map((guild) => multiBot.getStatus(guild.id)));
+    const connections = statusResults
+      .map((status, index) => {
+        if (!status) return null;
+        const workers = status.workers;
+        return {
+          guildId: guilds[index]?.id,
+          channelId: status.channelId,
+          channelName: status.channelName,
+          isPlaying: status.playback.status === 'playing',
+          volume: toPercent(status.playback.volume),
+          workers: workers
+            ? (() => {
+                const rainbot = workers['rainbot'];
+                const pranjeet = workers['pranjeet'];
+                const hungerbot = workers['hungerbot'];
+                return {
+                  rainbot: {
+                    ...rainbot,
+                    volume: toPercent(rainbot?.playback?.volume),
+                  },
+                  pranjeet: {
+                    ...pranjeet,
+                    volume: toPercent(pranjeet?.playback?.volume),
+                  },
+                  hungerbot: {
+                    ...hungerbot,
+                    volume: toPercent(hungerbot?.playback?.volume),
+                  },
+                };
+              })()
+            : workers,
+        };
+      })
+      .filter((entry) => entry !== null);
+
+    return {
+      online: true,
+      username: client.user.username,
+      discriminator: client.user.discriminator,
+      guilds,
+      connections,
+    };
+  }
+
+  return {
+    online: true,
+    username: client.user.username,
+    discriminator: client.user.discriminator,
+    guilds,
+    connections: [],
+    workersUnavailable: true,
+  };
 }
 
 const MAX_UPLOAD_FILES = 10;
@@ -944,6 +1026,7 @@ router.post(
         stats.trackCommand('volume', userId, guildId, 'api', true, null, username, discriminator);
       }
 
+      void broadcastStatusUpdate(getStatusPayload);
       res.json({ message: `Volume set to ${volume}%`, volume });
     } catch (error) {
       const err = error as Error;
@@ -967,79 +1050,24 @@ router.post(
 
 // GET /api/status - Get bot status
 router.get('/status', requireAuth, async (_req, res: Response): Promise<void> => {
-  const client = getClient();
+  res.json(await getStatusPayload());
+});
 
-  if (!client || !client.isReady()) {
-    res.json({
-      online: false,
-      guilds: [],
-      connections: [],
-    });
-    return;
+// GET /api/status/events - SSE for bot-status updates (volume, connections; only sends on change)
+router.get('/status/events', requireAuth, async (_req: Request, res: Response): Promise<void> => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  addStatusSubscriber(res);
+  try {
+    const status = await getStatusPayload();
+    sendStatusSnapshotToClient(res, status);
+  } catch {
+    // Client still gets updates on next broadcast
   }
-
-  const guilds = client.guilds.cache.map((guild) => ({
-    id: guild.id,
-    name: guild.name,
-    memberCount: guild.memberCount,
-  }));
-
-  const multiBot = getPlaybackService();
-  if (multiBot) {
-    const statusResults = await Promise.all(guilds.map((guild) => multiBot.getStatus(guild.id)));
-    const connections = statusResults
-      .map((status, index) => {
-        if (!status) return null;
-        const workers = status.workers;
-        return {
-          guildId: guilds[index]?.id,
-          channelId: status.channelId,
-          channelName: status.channelName,
-          isPlaying: status.playback.status === 'playing',
-          volume: toPercent(status.playback.volume),
-          workers: workers
-            ? (() => {
-                const rainbot = workers['rainbot'];
-                const pranjeet = workers['pranjeet'];
-                const hungerbot = workers['hungerbot'];
-                return {
-                  rainbot: {
-                    ...rainbot,
-                    volume: toPercent(rainbot?.playback?.volume),
-                  },
-                  pranjeet: {
-                    ...pranjeet,
-                    volume: toPercent(pranjeet?.playback?.volume),
-                  },
-                  hungerbot: {
-                    ...hungerbot,
-                    volume: toPercent(hungerbot?.playback?.volume),
-                  },
-                };
-              })()
-            : workers,
-        };
-      })
-      .filter((entry) => entry !== null);
-
-    res.json({
-      online: true,
-      username: client.user.username,
-      discriminator: client.user.discriminator,
-      guilds,
-      connections,
-    });
-    return;
-  }
-
-  res.json({
-    online: true,
-    username: client.user.username,
-    discriminator: client.user.discriminator,
-    guilds,
-    connections: [],
-    workersUnavailable: true,
-  });
 });
 
 // GET /api/guilds/:id/channels - Get voice channels for a guild
