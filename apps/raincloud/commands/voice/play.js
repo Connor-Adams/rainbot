@@ -4,7 +4,8 @@
  */
 const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
-const { getMultiBotService, createWorkerUnavailableResponse } = require('../utils/commandHelpers');
+const { getMultiBotService } = require('../utils/commandHelpers');
+const { replyError, replyWorkerUnavailable } = require('../utils/responseBuilder');
 
 const log = createLogger('PLAY');
 
@@ -32,10 +33,9 @@ module.exports = {
 
     const service = await getMultiBotService();
     if (!service) {
-      return interaction.reply(createWorkerUnavailableResponse());
+      return interaction.reply(replyWorkerUnavailable());
     }
 
-    // Multi-bot architecture - use worker
     await interaction.deferReply();
 
     try {
@@ -66,9 +66,7 @@ module.exports = {
       });
     } catch (error) {
       log.error(`Failed to play "${source}": ${error.message}`);
-      await interaction.editReply({
-        content: `❌ Failed to play "${source}": ${error.message}`,
-      });
+      await interaction.editReply(replyError(error, `Failed to play "${source}"`));
     }
   },
 };

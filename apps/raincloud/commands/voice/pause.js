@@ -1,13 +1,15 @@
-﻿/**
+/**
  * Pause command - Multi-bot architecture version
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
+const { getMultiBotService } = require('../utils/commandHelpers');
 const {
-  getMultiBotService,
-  createWorkerUnavailableResponse,
-  createErrorResponse,
-} = require('../utils/commandHelpers');
+  replySuccess,
+  replyError,
+  replyNotInVoice,
+  replyWorkerUnavailable,
+} = require('../utils/responseBuilder');
 
 const log = createLogger('PAUSE');
 
@@ -20,15 +22,12 @@ module.exports = {
     const guildId = interaction.guildId;
     const service = await getMultiBotService();
     if (!service) {
-      return interaction.reply(createWorkerUnavailableResponse());
+      return interaction.reply(replyWorkerUnavailable());
     }
 
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
-      return interaction.reply({
-        content: "❌ I'm not in a voice channel! Use `/join` first.",
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(replyNotInVoice());
     }
 
     try {
@@ -38,19 +37,15 @@ module.exports = {
 
       if (result.paused) {
         log.info(`Paused by ${interaction.user.tag}`);
-        await interaction.reply(`⏸️ Paused playback${trackInfo}.`);
+        await interaction.reply(replySuccess(`⏸️ Paused playback${trackInfo}.`));
       } else {
         log.info(`Resumed by ${interaction.user.tag}`);
-        await interaction.reply(`â–¶ï¸ Resumed playback${trackInfo}.`);
+        await interaction.reply(replySuccess(`▶️ Resumed playback${trackInfo}.`));
       }
     } catch (error) {
       log.error(`Pause error: ${error.message}`);
       await interaction.reply(
-        createErrorResponse(
-          error,
-          '',
-          'ðŸ’¡ **Tip:** Make sure something is playing before trying to pause.'
-        )
+        replyError(error, '', '💡 **Tip:** Make sure something is playing before trying to pause.')
       );
     }
   },

@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+env:
+  NODE_VERSION: '22.12.0'
+  TURBO_CACHE_DIR: .turbo
+
 jobs:
   auto-merge:
     name: Auto-merge Dependabot PRs
@@ -13,43 +17,50 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack (Yarn 4.6.0)
+        run: |
+          corepack enable
+          corepack prepare yarn@4.6.0 --activate
 
-      - name: Get Yarn cache directory
-        id: yarn-cache
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-
-      - name: Cache Yarn
+      - name: Cache Yarn + Turbo
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarn-cache.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          path: |
+            .yarn/cache
+            .yarn/unplugged
+            .pnp.cjs
+            .turbo
+          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
 
-      - name: Install backend dependencies
+      - name: Install
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable
+        run: yarn install --immutable --check-cache
 
-      - name: Run backend lint
-        run: yarn lint
+      - name: Format check
+        run: yarn format:check
 
-      - name: Run frontend lint
-        run: yarn workspace @rainbot/ui lint
+      - name: Type check
+        run: yarn type-check
 
-      - name: Build TypeScript
-        run: yarn build:ts
+      - name: Test
+        run: yarn test
 
-      - name: Build frontend
-        run: yarn workspace @rainbot/ui build
+      - name: Build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: yarn build
 
       - name: Auto-merge PR
         if: success()

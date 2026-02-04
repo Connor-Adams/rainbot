@@ -1,13 +1,16 @@
-﻿/**
+/**
  * Volume command - Multi-bot architecture version
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
+const { getMultiBotService } = require('../utils/commandHelpers');
 const {
-  getMultiBotService,
-  createWorkerUnavailableResponse,
-  createErrorResponse,
-} = require('../utils/commandHelpers');
+  replySuccess,
+  replyError,
+  replyNotInVoice,
+  replyWorkerUnavailable,
+  replyPayload,
+} = require('../utils/responseBuilder');
 
 const log = createLogger('VOLUME');
 
@@ -16,11 +19,7 @@ module.exports = {
     .setName('vol')
     .setDescription('Get or set the playback volume')
     .addIntegerOption((option) =>
-      option
-        .setName('level')
-        .setDescription('Volume level (1â€“100)')
-        .setMinValue(1)
-        .setMaxValue(100)
+      option.setName('level').setDescription('Volume level (1–100)').setMinValue(1).setMaxValue(100)
     ),
 
   async execute(interaction) {
@@ -29,23 +28,21 @@ module.exports = {
     const user = interaction.user.tag;
     const service = await getMultiBotService();
     if (!service) {
-      return interaction.reply(createWorkerUnavailableResponse());
+      return interaction.reply(replyWorkerUnavailable());
     }
 
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
-      return interaction.reply({
-        content: "❌ I'm not in a voice channel! Use `/join` first.",
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(replyNotInVoice());
     }
 
     if (level === null) {
-      // Get current volume - not yet implemented in multi-bot
-      return interaction.reply({
-        content: `ðŸ”Š Volume controls are available. Use \`/vol <1-100>\` to set volume.`,
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(
+        replyPayload({
+          content: `🔊 Volume controls are available. Use \`/vol <1-100>\` to set volume.`,
+          ephemeral: true,
+        })
+      );
     }
 
     try {
@@ -53,18 +50,13 @@ module.exports = {
 
       if (result.success) {
         log.info(`Volume set to ${level}% by ${user}`);
-        await interaction.reply({
-          content: `ðŸ”Š Volume set to **${level}%**`,
-        });
+        await interaction.reply(replySuccess(`🔊 Volume set to **${level}%**`));
       } else {
-        await interaction.reply({
-          content: `❌ Failed to set volume: ${result.message}`,
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.reply(replyError(result.message || 'Failed to set volume'));
       }
     } catch (error) {
       log.error(`Failed to set volume: ${error.message}`);
-      await interaction.reply(createErrorResponse(error, 'Failed to set volume'));
+      await interaction.reply(replyError(error, 'Failed to set volume'));
     }
   },
 };
