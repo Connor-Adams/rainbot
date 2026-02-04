@@ -15,7 +15,7 @@ export function useQueueEvents(guildId: string | null): { connected: boolean } {
 
   useEffect(() => {
     if (!guildId) {
-      setConnected(false);
+      queueMicrotask(() => setConnected(false));
       return;
     }
 
