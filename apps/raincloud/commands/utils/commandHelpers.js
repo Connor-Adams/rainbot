@@ -5,6 +5,11 @@
 
 const { MessageFlags } = require('discord.js');
 const { getYouTubeThumbnailUrl } = require('@rainbot/shared');
+const {
+  createErrorResponse,
+  createWorkerUnavailableResponse,
+  NOT_IN_VOICE,
+} = require('./responseBuilder');
 
 /**
  * Get the initialized MultiBotService instance if available.
@@ -22,16 +27,6 @@ async function getMultiBotService() {
 }
 
 /**
- * Standard response when worker services are unavailable.
- */
-function createWorkerUnavailableResponse() {
-  return {
-    content: 'Error: worker services are not ready. Please try again in a moment.',
-    flags: MessageFlags.Ephemeral,
-  };
-}
-
-/**
  * Check if bot is connected to a voice channel in the guild
  * Returns an error response if not connected
  */
@@ -41,27 +36,12 @@ function validateVoiceConnection(interaction, voiceManager) {
     return {
       isValid: false,
       error: {
-        content:
-          "❌ I'm not in a voice channel! Use `/join` to connect me to your voice channel first.",
+        content: NOT_IN_VOICE,
         flags: MessageFlags.Ephemeral,
       },
     };
   }
   return { isValid: true };
-}
-
-/**
- * Standard error response handler for commands
- */
-function createErrorResponse(error, context = '', additionalTip = '') {
-  const message = error.message || 'An unknown error occurred';
-  const contextPrefix = context ? `${context}: ` : '';
-  const tipSuffix = additionalTip ? `\n\n${additionalTip}` : '';
-  const content = `❌ ${contextPrefix}${message}${tipSuffix}`;
-  return {
-    content,
-    flags: MessageFlags.Ephemeral,
-  };
 }
 
 /**

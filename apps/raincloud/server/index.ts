@@ -45,8 +45,6 @@ export async function createServer(): Promise<Application> {
 
   // Request logging
   app.use(requestLogger);
-  // Rate limit unauthenticated requests across all routers
-  app.use(unauthRateLimiter);
 
   if (enableCors) {
     app.use((req, res, next) => {
@@ -146,9 +144,11 @@ export async function createServer(): Promise<Application> {
       log.debug(`Connecting to Redis: ${maskedUrl}`);
 
       // Create Redis client using URL (works for both Railway REDIS_URL and constructed URLs)
+      const REDIS_CONNECT_TIMEOUT_MS = 10_000;
       const redisClient = redis.createClient({
         url: redisUrl,
         socket: {
+          connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
           reconnectStrategy: (retries: number) => {
             if (retries > 10) {
               log.error('Redis connection failed after 10 retries, falling back to memory store');
@@ -257,6 +257,9 @@ export async function createServer(): Promise<Application> {
   // Initialize Passport
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Rate limit unauthenticated requests (must run after session/passport so skip works)
+  app.use(unauthRateLimiter);
 
   // Middleware
   app.use(express.json());
