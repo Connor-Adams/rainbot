@@ -38,11 +38,11 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   const trackKey = `${currentTrack.title}-${currentTrack.url ?? ''}-${durationSec}`;
   const trackKeyRef = useRef(trackKey);
 
-  // Reset position when track changes
+  // Reset position when track changes (defer setState to avoid set-state-in-effect)
   useEffect(() => {
     trackKeyRef.current = trackKey;
-    setCurrentTime(initialPosition);
-  }, [trackKey]);
+    queueMicrotask(() => setCurrentTime(initialPosition));
+  }, [trackKey, initialPosition]);
 
   const pauseMutation = useMutation({
     mutationFn: () => playbackApi.pause(guildId),
@@ -71,10 +71,10 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   const isPaused = queueData.isPaused || false;
 
-  // Sync position when API sends new positionMs (e.g. after refetch or SSE)
+  // Sync position when API sends new positionMs (e.g. after refetch or SSE); defer setState to avoid set-state-in-effect
   useEffect(() => {
     if (queueData.positionMs != null && queueData.positionMs >= 0) {
-      setCurrentTime(queueData.positionMs / 1000);
+      queueMicrotask(() => setCurrentTime(queueData.positionMs! / 1000));
     }
   }, [queueData.positionMs, trackKey]);
 

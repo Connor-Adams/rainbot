@@ -10,6 +10,9 @@ export * from './stats';
 // Express server utilities
 export * from './express';
 
+// Auth middleware
+export * from './middleware';
+
 // Request validation
 export * from './validation';
 
@@ -21,3 +24,6 @@ export * from './client';
 
 // Voice state handlers
 export * from './voice-state';
+
+// Shared voice RPC handlers (join, leave, volume)
+export * from './voiceRpcHandlers';

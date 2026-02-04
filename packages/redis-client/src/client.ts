@@ -19,8 +19,22 @@ export class RedisClient {
     }
     const finalUrl = redisUrl || 'redis://localhost:6379';
 
+    const REDIS_CONNECT_TIMEOUT_MS = 10_000;
+
     try {
-      this.client = createClient({ url: finalUrl });
+      this.client = createClient({
+        url: finalUrl,
+        socket: {
+          connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+          reconnectStrategy: (retries: number) => {
+            if (retries > 10) {
+              log.error('Redis connection failed after 10 retries');
+              return false;
+            }
+            return Math.min(retries * 200, 5000);
+          },
+        },
+      });
 
       this.client.on('error', (err) => {
         log.error(`Redis error: ${err.message}`);
