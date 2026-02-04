@@ -27,7 +27,22 @@ export async function startTtsQueue(options: StartTtsQueueOptions): Promise<void
   if (!REDIS_URL) return;
 
   try {
-    const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+    const REDIS_CONNECT_TIMEOUT_MS = 10_000;
+    const REDIS_MAX_RETRIES = 5;
+    const connection = new IORedis(REDIS_URL, {
+      maxRetriesPerRequest: null,
+      connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+      retryStrategy: (times: number) => {
+        if (times > REDIS_MAX_RETRIES) {
+          logger.warn(`TTS queue Redis gave up after ${REDIS_MAX_RETRIES} connection attempts`);
+          return null;
+        }
+        return Math.min(1000 * 2 ** times, 10_000);
+      },
+    });
+    connection.on('error', (err: Error) => {
+      logger.warn(`TTS queue Redis error: ${err.message}`);
+    });
     redisClient = connection;
 
     const worker = new Worker(
