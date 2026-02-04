@@ -31,7 +31,7 @@ function PlaceholderSvg() {
 export default function NowPlayingArtwork({ isPlaying, thumbnailUrl }: NowPlayingArtworkProps) {
   const [imageError, setImageError] = useState(false);
   useEffect(() => {
-    setImageError(false);
+    queueMicrotask(() => setImageError(false));
   }, [thumbnailUrl]);
   const showThumbnail = thumbnailUrl && !imageError;
 
