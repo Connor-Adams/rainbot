@@ -1,3 +1,10 @@
+---
+name: ""
+overview: ""
+todos: []
+isProject: false
+---
+
 # Discord commands: consistent structure and importable components
 
 ## Overview
@@ -43,14 +50,16 @@ All live under [apps/raincloud/commands/utils/](apps/raincloud/commands/utils/).
 
 A single module that returns reply payloads. Every command imports from here (and optionally from `commandHelpers.js` for service/validation).
 
-| Export | Purpose | Returns |
-|--------|---------|--------|
-| `replySuccess(content, options?)` | Public success message | `{ content, components? }` |
-| `replyError(message, context?, tip?)` | Error (ephemeral); same as current `createErrorResponse` | `{ content, flags: Ephemeral }` |
-| `replyNotInVoice()` | Standard "not in voice" | `{ content, flags: Ephemeral }` |
-| `replyWorkerUnavailable()` | Workers not ready | `{ content, flags: Ephemeral }` |
-| `replyConfirm(content, components)` | Confirmation dialog (ephemeral) | `{ content, components, flags: Ephemeral }` |
-| `replyPayload({ content?, embeds?, components?, ephemeral? })` | Generic builder; ephemeral → `flags` | Single shape for all replies |
+
+| Export                                                         | Purpose                                                  | Returns                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------- |
+| `replySuccess(content, options?)`                              | Public success message                                   | `{ content, components? }`                  |
+| `replyError(message, context?, tip?)`                          | Error (ephemeral); same as current `createErrorResponse` | `{ content, flags: Ephemeral }`             |
+| `replyNotInVoice()`                                            | Standard "not in voice"                                  | `{ content, flags: Ephemeral }`             |
+| `replyWorkerUnavailable()`                                     | Workers not ready                                        | `{ content, flags: Ephemeral }`             |
+| `replyConfirm(content, components)`                            | Confirmation dialog (ephemeral)                          | `{ content, components, flags: Ephemeral }` |
+| `replyPayload({ content?, embeds?, components?, ephemeral? })` | Generic builder; ephemeral → `flags`                     | Single shape for all replies                |
+
 
 **Implementation notes:**
 

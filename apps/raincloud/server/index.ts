@@ -45,8 +45,6 @@ export async function createServer(): Promise<Application> {
 
   // Request logging
   app.use(requestLogger);
-  // Rate limit unauthenticated requests across all routers
-  app.use(unauthRateLimiter);
 
   if (enableCors) {
     app.use((req, res, next) => {
@@ -257,6 +255,9 @@ export async function createServer(): Promise<Application> {
   // Initialize Passport
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Rate limit unauthenticated requests (must run after session/passport so skip works)
+  app.use(unauthRateLimiter);
 
   // Middleware
   app.use(express.json());

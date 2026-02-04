@@ -1,9 +1,15 @@
-﻿/**
+/**
  * Now Playing command - Multi-bot architecture version
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
-const { getMultiBotService, createWorkerUnavailableResponse } = require('../utils/commandHelpers');
+const { getMultiBotService } = require('../utils/commandHelpers');
+const {
+  replyWorkerUnavailable,
+  replyNotInVoice,
+  replyPayload,
+  NOTHING_PLAYING,
+} = require('../utils/responseBuilder');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,23 +20,17 @@ module.exports = {
     const guildId = interaction.guildId;
     const service = await getMultiBotService();
     if (!service) {
-      return interaction.reply(createWorkerUnavailableResponse());
+      return interaction.reply(replyWorkerUnavailable());
     }
 
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
-      return interaction.reply({
-        content: "❌ I'm not in a voice channel! Use `/join` first.",
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(replyNotInVoice());
     }
 
     const nowPlaying = status.queue?.nowPlaying?.title ?? null;
     if (!nowPlaying) {
-      return interaction.reply({
-        content: '❌ Nothing is playing right now. Use `/play` to start playing music.',
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(replyPayload({ content: NOTHING_PLAYING, ephemeral: true }));
     }
 
     const queueResult = await service.getQueueInfo(guildId);

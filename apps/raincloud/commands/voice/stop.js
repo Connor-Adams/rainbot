@@ -1,13 +1,17 @@
-﻿/**
+/**
  * Stop command - Multi-bot architecture version
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { createLogger } = require('../../dist/utils/logger');
+const { getMultiBotService } = require('../utils/commandHelpers');
 const {
-  getMultiBotService,
-  createWorkerUnavailableResponse,
-  createErrorResponse,
-} = require('../utils/commandHelpers');
+  replySuccess,
+  replyError,
+  replyNotInVoice,
+  replyWorkerUnavailable,
+  replyPayload,
+  NOTHING_PLAYING,
+} = require('../utils/responseBuilder');
 
 const log = createLogger('STOP');
 
@@ -22,15 +26,12 @@ module.exports = {
     const guildId = interaction.guildId;
     const service = await getMultiBotService();
     if (!service) {
-      return interaction.reply(createWorkerUnavailableResponse());
+      return interaction.reply(replyWorkerUnavailable());
     }
 
     const status = await service.getStatus(guildId);
     if (!status || !status.connected) {
-      return interaction.reply({
-        content: "❌ I'm not in a voice channel! Use `/join` first.",
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(replyNotInVoice());
     }
 
     try {
@@ -38,16 +39,13 @@ module.exports = {
 
       if (stopped) {
         log.info(`Stopped by ${interaction.user.tag}`);
-        await interaction.reply('⏹️ Stopped playback and cleared the queue.');
+        await interaction.reply(replySuccess('⏹️ Stopped playback and cleared the queue.'));
       } else {
-        await interaction.reply({
-          content: '❌ Nothing is playing. Use `/play` to start playback.',
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.reply(replyPayload({ content: NOTHING_PLAYING, ephemeral: true }));
       }
     } catch (error) {
       log.error(`Stop error: ${error.message}`);
-      await interaction.reply(createErrorResponse(error));
+      await interaction.reply(replyError(error));
     }
   },
 };
