@@ -224,7 +224,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
 
       if (chunk.length < 100) {
-        log.warn(`Very small audio chunk: ${chunk.length} bytes`);
+        log.debug(`Very small audio chunk: ${chunk.length} bytes`);
       }
 
       const audioChunk: AudioChunk = {
