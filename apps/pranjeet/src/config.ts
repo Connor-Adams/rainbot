@@ -16,6 +16,9 @@ export const WORKER_VERSION =
   process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
 export const VOICE_INTERACTION_ENABLED = process.env['VOICE_INTERACTION_ENABLED'] === 'true';
 export const VOICE_TRIGGER_WORD = process.env['VOICE_TRIGGER_WORD']?.trim() || 'evan';
+export const GROK_API_KEY = process.env['GROK_API_KEY'] || process.env['XAI_API_KEY'];
+export const GROK_MODEL = process.env['GROK_MODEL'] || 'grok-4-1-fast-reasoning';
+export const GROK_ENABLED = process.env['GROK_ENABLED'] === 'true';
 
 export const log = createLogger('PRANJEET');
 export const hasToken = !!TOKEN;

@@ -181,4 +181,30 @@ export class VoiceStateManager {
     const data = await this.redis.get(key);
     return data === '1'; // Default false if not set
   }
+
+  /**
+   * Set conversation mode (Grok chat) for a user in a guild.
+   * When disabling, also clears the Grok response_id so the next session starts fresh.
+   */
+  async setConversationMode(guildId: string, userId: string, enabled: boolean): Promise<void> {
+    const key = `conversation:${guildId}:${userId}`;
+    if (enabled) {
+      await this.redis.set(key, '1');
+      log.debug(`Set conversation mode on for user ${userId} in guild ${guildId}`);
+    } else {
+      await this.redis.del(key);
+      const grokKey = `grok:response_id:${guildId}:${userId}`;
+      await this.redis.del(grokKey);
+      log.debug(`Set conversation mode off for user ${userId} in guild ${guildId}`);
+    }
+  }
+
+  /**
+   * Get conversation mode for a user in a guild
+   */
+  async getConversationMode(guildId: string, userId: string): Promise<boolean> {
+    const key = `conversation:${guildId}:${userId}`;
+    const data = await this.redis.get(key);
+    return data === '1';
+  }
 }
