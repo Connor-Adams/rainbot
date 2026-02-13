@@ -75,8 +75,20 @@ export default function AdminTab() {
     queryKey: ['sounds'],
     queryFn: () => soundsApi.list().then((res) => res.data),
   });
+  const { data: conversationMode } = useQuery({
+    queryKey: ['conversation-mode', runGuildId],
+    queryFn: () => adminApi.getConversationMode(runGuildId!).then((res) => res.data),
+    enabled: !!runGuildId,
+  });
   const guilds = botStatus?.guilds ?? [];
   const sounds = soundsData ?? [];
+  const conversationModeMutation = useMutation({
+    mutationFn: ({ guildId, enabled }: { guildId: string; enabled: boolean }) =>
+      adminApi.setConversationMode(guildId, enabled),
+    onSuccess: (_data, { guildId }) => {
+      queryClient.invalidateQueries({ queryKey: ['conversation-mode', guildId] });
+    },
+  });
 
   const runCommandMutation = useMutation({
     mutationFn: async () => {
@@ -315,6 +327,65 @@ export default function AdminTab() {
             {runError && <div className="text-xs text-danger-light">{runError}</div>}
             {runResult && <div className="text-xs text-text-secondary">{runResult}</div>}
           </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">
+            Grok conversation mode (voice)
+          </div>
+          <div className="text-xs text-text-secondary mb-4">
+            For the server selected in Run commands: when on, your voice in that server is sent to
+            Grok in real time (Voice Agent). Turn off to use normal voice commands.
+          </div>
+          {runGuildId ? (
+            <div className="space-y-2">
+              <div className="text-xs text-text-secondary">
+                Currently:{' '}
+                <strong>
+                  {conversationMode === undefined ? '…' : conversationMode.enabled ? 'On' : 'Off'}
+                </strong>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={
+                    conversationMode === undefined ||
+                    conversationModeMutation.isPending ||
+                    conversationMode.enabled === true
+                  }
+                  onClick={() =>
+                    conversationModeMutation.mutate({ guildId: runGuildId, enabled: true })
+                  }
+                >
+                  {conversationModeMutation.isPending ? '…' : 'Turn on'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={
+                    conversationMode === undefined ||
+                    conversationModeMutation.isPending ||
+                    conversationMode.enabled === false
+                  }
+                  onClick={() =>
+                    conversationModeMutation.mutate({ guildId: runGuildId, enabled: false })
+                  }
+                >
+                  {conversationModeMutation.isPending ? '…' : 'Turn off'}
+                </button>
+              </div>
+              {conversationModeMutation.isError && (
+                <div className="text-xs text-danger-light">
+                  {(conversationModeMutation.error as Error)?.message ?? 'Failed to update'}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-text-secondary">
+              Select a server in Run commands above to turn Grok conversation on or off.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-border bg-surface-input p-4">
