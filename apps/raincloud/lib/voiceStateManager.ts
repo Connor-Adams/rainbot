@@ -193,8 +193,10 @@ export class VoiceStateManager {
       log.debug(`Set conversation mode on for user ${userId} in guild ${guildId}`);
     } else {
       await this.redis.del(key);
-      const grokKey = `grok:response_id:${guildId}:${userId}`;
-      await this.redis.del(grokKey);
+      const grokResponseKey = `grok:response_id:${guildId}:${userId}`;
+      const grokHistoryKey = `grok:history:${guildId}:${userId}`;
+      await this.redis.del(grokResponseKey);
+      await this.redis.del(grokHistoryKey);
       log.debug(`Set conversation mode off for user ${userId} in guild ${guildId}`);
     }
   }

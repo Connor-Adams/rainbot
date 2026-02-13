@@ -27,6 +27,61 @@ function getClient(): IORedis | null {
 
 const CONVERSATION_KEY_PREFIX = 'conversation:';
 const GROK_RESPONSE_ID_KEY_PREFIX = 'grok:response_id:';
+const GROK_HISTORY_KEY_PREFIX = 'grok:history:';
+
+/** Max conversation messages to keep (user + assistant pairs). Trimmed from the front. */
+const GROK_HISTORY_MAX_MESSAGES = 20;
+
+export type GrokMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+
+export async function getGrokHistory(guildId: string, userId: string): Promise<GrokMessage[]> {
+  const c = getClient();
+  if (!c) return [];
+  try {
+    const key = `${GROK_HISTORY_KEY_PREFIX}${guildId}:${userId}`;
+    const raw = await c.get(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function appendGrokHistory(
+  guildId: string,
+  userId: string,
+  userContent: string,
+  assistantContent: string
+): Promise<void> {
+  const c = getClient();
+  if (!c) return;
+  try {
+    const key = `${GROK_HISTORY_KEY_PREFIX}${guildId}:${userId}`;
+    const prev = await getGrokHistory(guildId, userId);
+    const next: GrokMessage[] = [
+      ...prev,
+      { role: 'user', content: userContent },
+      { role: 'assistant', content: assistantContent },
+    ];
+    const trimmed =
+      next.length > GROK_HISTORY_MAX_MESSAGES ? next.slice(-GROK_HISTORY_MAX_MESSAGES) : next;
+    await c.set(key, JSON.stringify(trimmed));
+  } catch {
+    // ignore
+  }
+}
+
+export async function clearGrokHistory(guildId: string, userId: string): Promise<void> {
+  const c = getClient();
+  if (!c) return;
+  try {
+    const key = `${GROK_HISTORY_KEY_PREFIX}${guildId}:${userId}`;
+    await c.del(key);
+  } catch {
+    // ignore
+  }
+}
 
 export async function getConversationMode(guildId: string, userId: string): Promise<boolean> {
   const c = getClient();

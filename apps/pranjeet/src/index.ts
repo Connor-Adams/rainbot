@@ -39,6 +39,9 @@ import { speakInGuild } from './speak';
 import { startTtsQueue } from './queue/tts-worker';
 import { getConversationMode } from './redis';
 import { getGrokReply } from './chat/grok';
+import { createGrokVoiceAgentClient } from './voice-agent/grokVoiceAgent';
+import { playVoiceAgentAudio } from './voice-agent/playVoiceAgentAudio';
+import type { VoiceConnection } from '@discordjs/voice';
 
 setupProcessErrorHandlers(log);
 
@@ -92,6 +95,14 @@ setupDiscordClientReadyHandler(client, {
     initVoiceInteractionManager(client, {
       enabled: VOICE_INTERACTION_ENABLED,
       triggerWord: VOICE_TRIGGER_WORD,
+      getConversationMode,
+      createVoiceAgentClient: (session) => {
+        const connection = (session as { connection?: VoiceConnection }).connection;
+        if (!connection) return null;
+        return createGrokVoiceAgentClient(session.guildId, session.userId, {
+          onAudioDone: (pcm) => playVoiceAgentAudio(session.guildId, connection, pcm),
+        });
+      },
       ttsHandler: async (guildId: string, text: string, userId?: string) => {
         if (!userId) return;
         try {
