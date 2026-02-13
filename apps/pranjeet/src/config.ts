@@ -2,6 +2,7 @@ import { createLogger } from '@rainbot/shared';
 
 export const PORT = parseInt(process.env['PORT'] || process.env['PRANJEET_PORT'] || '3002', 10);
 export const TOKEN = process.env['PRANJEET_TOKEN'];
+export const STT_API_KEY = process.env['STT_API_KEY'] || process.env['OPENAI_API_KEY'];
 export const TTS_API_KEY = process.env['TTS_API_KEY'] || process.env['OPENAI_API_KEY'];
 export const TTS_PROVIDER = process.env['TTS_PROVIDER'] || 'openai';
 export const TTS_VOICE = process.env['TTS_VOICE_NAME'] || 'alloy';

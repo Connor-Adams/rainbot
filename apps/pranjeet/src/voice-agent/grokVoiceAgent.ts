@@ -49,7 +49,7 @@ export function createGrokVoiceAgentClient(
   callbacks: GrokVoiceAgentCallbacks
 ): GrokVoiceAgentClient | null {
   if (!GROK_ENABLED || !GROK_API_KEY) {
-    log.debug('Voice Agent skipped: Grok not configured');
+    log.info('Voice Agent skipped: Grok not configured (set GROK_API_KEY or XAI_API_KEY)');
     return null;
   }
 
