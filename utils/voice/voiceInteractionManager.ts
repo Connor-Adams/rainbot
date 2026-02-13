@@ -66,7 +66,7 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   ttsProvider: 'openai',
   language: 'en-US',
   maxAudioDuration: 10, // 10 seconds max
-  minAudioDuration: 0.1, // 0.1 second min (Whisper's absolute minimum)
+  minAudioDuration: 0.1, // 0.1 second min (Whisper's absolute minimum) :()
   confidenceThreshold: 0.6,
   recordAudio: false, // Default to opt-in recording
   rateLimit: {
