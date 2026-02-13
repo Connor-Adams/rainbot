@@ -34,6 +34,8 @@ export interface VoiceRpcHandlerOptions {
   log: ReturnType<typeof createLogger>;
   /** Called on leave before destroying connection (e.g. Hungerbot stops player) */
   onBeforeLeave?: (state: GuildState) => void;
+  /** Called after volume state is updated; use to apply volume to current playback (e.g. TTS) */
+  onVolumeChange?: (state: GuildState, volume: number) => void;
 }
 
 export function createJoinHandler(options: VoiceRpcHandlerOptions) {
@@ -132,7 +134,7 @@ export function createLeaveHandler(options: VoiceRpcHandlerOptions) {
 }
 
 export function createVolumeHandler(options: VoiceRpcHandlerOptions) {
-  const { requestCache, getOrCreateGuildState } = options;
+  const { requestCache, getOrCreateGuildState, onVolumeChange } = options;
 
   return async function handleVolume(input: VolumeRequest): Promise<VolumeResponse> {
     if (input.volume < 0 || input.volume > 1) {
@@ -144,6 +146,7 @@ export function createVolumeHandler(options: VoiceRpcHandlerOptions) {
     }
     const state = getOrCreateGuildState(input.guildId);
     state['volume'] = input.volume;
+    onVolumeChange?.(state, input.volume);
     const response: VolumeResponse = { status: 'success', volume: input.volume };
     requestCache.set(cacheKey, response);
     return response;

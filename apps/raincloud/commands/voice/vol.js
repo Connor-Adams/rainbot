@@ -46,7 +46,7 @@ module.exports = {
     }
 
     try {
-      const result = await service.setVolume(guildId, level);
+      const result = await service.setVolumeForConnectedWorkers(guildId, level);
 
       if (result.success) {
         log.info(`Volume set to ${level}% by ${user}`);

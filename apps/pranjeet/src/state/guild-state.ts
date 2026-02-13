@@ -1,4 +1,9 @@
-import { createAudioPlayer, AudioPlayerStatus, VoiceConnectionStatus } from '@discordjs/voice';
+import {
+  createAudioPlayer,
+  AudioPlayerStatus,
+  VoiceConnectionStatus,
+  type AudioResource,
+} from '@discordjs/voice';
 import type { StatusResponse } from '@rainbot/worker-protocol';
 import type { PlaybackState } from '@rainbot/types/media';
 import { logErrorWithStack } from '@rainbot/worker-shared';
@@ -10,6 +15,8 @@ export interface PranjeetGuildState extends GuildState {
   speakQueue: Promise<void>;
   lastSpeakAt: number;
   lastSpeakKey: string;
+  /** Current TTS resource so volume changes apply to live playback */
+  currentResource?: AudioResource<unknown> | null;
 }
 
 export const guildStates = new Map<string, PranjeetGuildState>();
