@@ -135,6 +135,7 @@ export const playbackApi = {
   volume: (guildId: string, level: number, botType?: 'rainbot' | 'pranjeet' | 'hungerbot') =>
     api.post('/volume', { guildId, level, botType }),
   speak: (guildId: string, text: string) => api.post('/speak', { guildId, text }),
+  replay: (guildId: string) => api.post('/replay', { guildId }),
 };
 
 // Sounds API
@@ -169,6 +170,12 @@ export const soundsApi = {
 export const adminApi = {
   deployCommands: () =>
     api.post<{ message: string; count: number; guildId: string | null }>('/deploy-commands'),
+  grokChat: (guildId: string, text: string, speakReply?: boolean) =>
+    api.post<{ reply: string; message?: string }>('/grok-chat', {
+      guildId,
+      text,
+      speak: !!speakReply,
+    }),
 };
 
 // Stats API

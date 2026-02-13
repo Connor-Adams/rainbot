@@ -306,6 +306,29 @@ export class MultiBotService {
   }
 
   /**
+   * Get a Grok chat reply. Optionally speak the reply in the user's voice channel (Pranjeet).
+   */
+  async grokChat(
+    guildId: string,
+    userId: string,
+    text: string,
+    options?: { speakReply?: boolean }
+  ): Promise<{ success: boolean; reply?: string; message?: string }> {
+    const result = await this.coordinator.grokChat(guildId, userId, text);
+    if (!result.success || !result.reply) {
+      return result;
+    }
+    if (options?.speakReply) {
+      const channelResult = await this.channelResolver.resolveTargetChannel(guildId, userId);
+      if (!channelResult.error && channelResult.channelId) {
+        await this.coordinator.ensureWorkerConnected('pranjeet', guildId, channelResult.channelId);
+        await this.coordinator.speakTTS(guildId, result.reply, undefined, userId);
+      }
+    }
+    return result;
+  }
+
+  /**
    * Play soundboard effect via HungerBot worker
    */
   async playSoundboard(

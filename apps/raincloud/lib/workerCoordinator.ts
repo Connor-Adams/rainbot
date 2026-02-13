@@ -544,6 +544,32 @@ export class WorkerCoordinator {
   }
 
   /**
+   * Get a Grok chat reply (Pranjeet). Does not speak; use speakTTS to speak the reply.
+   */
+  async grokChat(
+    guildId: string,
+    userId: string,
+    text: string
+  ): Promise<{ success: boolean; reply?: string; message?: string }> {
+    const guard = this.guardWorker('pranjeet');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
+    try {
+      const result = await this.requestWithRetry(
+        'pranjeet',
+        () => pranjeetClient.grokChat.mutate({ guildId, userId, text }),
+        true
+      );
+      return { success: true, reply: result.reply };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Grok chat failed: ${message}`);
+      return { success: false, message };
+    }
+  }
+
+  /**
    * Play sound effect (HungerBot)
    */
   async playSound(

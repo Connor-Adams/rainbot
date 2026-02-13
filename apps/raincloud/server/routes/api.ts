@@ -803,6 +803,42 @@ router.post(
   }
 );
 
+// POST /api/grok-chat - Send text to Grok and get (optionally speak) reply
+router.post(
+  '/grok-chat',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, text, speak: speakReply } = req.body;
+
+    if (!guildId || text == null || String(text).trim() === '') {
+      res.status(400).json({ error: 'guildId and text are required' });
+      return;
+    }
+
+    try {
+      const { id: userId } = getAuthUser(req);
+      const effectiveUserId = userId || 'unknown';
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+
+      const result = await multiBot.grokChat(
+        guildId,
+        effectiveUserId,
+        String(text).trim(),
+        { speakReply: !!speakReply }
+      );
+      if (!result.success) {
+        throw new Error(result.message || 'Grok chat failed');
+      }
+      res.json({ reply: result.reply ?? '', message: result.reply ? 'OK' : result.message });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',
