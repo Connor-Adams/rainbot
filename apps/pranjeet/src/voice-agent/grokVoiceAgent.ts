@@ -170,6 +170,8 @@ export function createGrokVoiceAgentClient(
         if (event.response?.id) {
           _currentResponseId = event.response.id;
         }
+        // Reinforce session (incl. accent instructions) right before model speaks
+        void sendSessionUpdate();
         break;
       case 'response.function_call_arguments.done':
         if (!callbacks.executeCommand || !event.name || !event.call_id || !event.arguments) {

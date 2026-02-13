@@ -110,6 +110,15 @@ export const VOICE_AGENT_MUSIC_TOOLS: VoiceAgentTool[] = [
   },
 ];
 
+/**
+ * CRITICAL: First thing the voice model sees. Accent must persist for the ENTIRE reply.
+ * Repeating this at top and bottom to combat model dropping accent after first few words.
+ */
+const VOICE_ACCENT_CRITICAL = `
+[MANDATORY — EVERY RESPONSE]
+You speak in an urban Indian (India) English accent. This accent applies to EVERY word you say from the first to the last. Do NOT use the accent only at the start and then switch to neutral or American. The last word of your response must sound as clearly accented as the first. Same rhythm, same cadence, same phrasing throughout the entire reply. Never drop the accent mid-response.
+`;
+
 /** Prefix so the realtime model clearly treats the following block as the required persona. */
 const PERSONA_PREFIX =
   'Persona (use for every response—voice and text must match this character):\n\n';
@@ -118,21 +127,22 @@ const PERSONA_PREFIX =
 const FALLBACK_INSTRUCTIONS =
   'You are a rude, chaotic assistant. Stay in character. Use a consistent accent for the entire response.';
 
+const ACCENT_REMINDER_END =
+  '\n\n[REMINDER] Keep the Indian English accent on every word until you finish speaking. Do not switch to neutral after the first phrase.';
+
 /**
  * Build session.instructions for the Voice Agent (xAI system prompt).
  * @see https://docs.x.ai/developers/model-capabilities/audio/voice-agent#session-messages
  * Session Parameters: instructions (string) = System prompt.
  *
  * Uses the same persona as grok.ts (GROK_SYSTEM_PROMPT). Never returns empty string.
- * When tools are enabled we append a short reminder to stay in character when calling music tools.
+ * Puts accent rule first and repeats at end so the model keeps accent for entire response.
  */
 export function getVoiceAgentInstructions(personaPrompt: string, withTools: boolean): string {
   const trimmed = (personaPrompt ?? '').trim();
-  const base = trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
-  if (!withTools) {
-    return base;
-  }
-  return `${base}
-
-When you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character.`;
+  const persona = trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
+  const withToolsNote = withTools
+    ? '\n\nWhen you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character.'
+    : '';
+  return `${VOICE_ACCENT_CRITICAL.trim()}\n\n${persona}${withToolsNote}${ACCENT_REMINDER_END}`;
 }
