@@ -1,10 +1,13 @@
 /**
  * Grok conversation via xAI stateful Responses API.
  * Uses previous_response_id stored in Redis to continue threads.
+ * Set LOG_LEVEL=debug (or DEBUG=1) for verbose Grok request/response logging.
  */
-import { GROK_API_KEY, GROK_MODEL, GROK_ENABLED, log } from '../config';
+import { createLogger } from '@rainbot/shared';
+import { GROK_API_KEY, GROK_MODEL, GROK_ENABLED } from '../config';
 import { getGrokResponseId, setGrokResponseId, clearGrokResponseId } from '../redis';
 
+const log = createLogger('GROK');
 const XAI_BASE = 'https://api.x.ai/v1';
 
 const SYSTEM_PROMPT =
@@ -41,16 +44,24 @@ export async function getGrokReply(
   userId: string,
   userMessage: string
 ): Promise<string> {
+  const hasKey = !!GROK_API_KEY;
+  log.debug(`getGrokReply called: guildId=${guildId} userId=${userId} GROK_ENABLED=${GROK_ENABLED} hasApiKey=${hasKey} messageLength=${userMessage?.length ?? 0}`);
+
   if (!GROK_ENABLED || !GROK_API_KEY) {
+    log.info(
+      `Grok not configured: GROK_ENABLED=${GROK_ENABLED} hasApiKey=${hasKey}. Set GROK_API_KEY (or XAI_API_KEY) and ensure GROK_ENABLED is not "false".`
+    );
     return "I can't chat right now; Grok isn't configured.";
   }
 
   const trimmed = userMessage.trim();
   if (!trimmed) {
+    log.debug('Empty message after trim');
     return "I didn't catch that. Say something and I'll reply.";
   }
 
   const previousResponseId = await getGrokResponseId(guildId, userId);
+  log.debug(`Redis previous_response_id: ${previousResponseId ? `${previousResponseId.slice(0, 12)}...` : 'none (new thread)'}`);
 
   try {
     const url = `${XAI_BASE}/responses`;
@@ -66,6 +77,7 @@ export async function getGrokReply(
         previous_response_id: previousResponseId,
         input: [{ role: 'user', content: trimmed }],
       };
+      log.debug(`POST ${url} model=${GROK_MODEL} continuing thread`);
     } else {
       body = {
         model: GROK_MODEL,
@@ -74,6 +86,7 @@ export async function getGrokReply(
           { role: 'user', content: trimmed } as { role: string; content: string },
         ],
       };
+      log.debug(`POST ${url} model=${GROK_MODEL} new thread inputLen=${trimmed.length}`);
     }
 
     const res = await fetch(url, {
@@ -87,6 +100,7 @@ export async function getGrokReply(
       log.warn(`Grok API error ${res.status}: ${errText}`);
       if (res.status === 404 || res.status === 400) {
         await clearGrokResponseId(guildId, userId);
+        log.debug('Cleared Redis response_id after API error');
       }
       return 'I had trouble thinking of a reply. Try again in a moment.';
     }
@@ -97,10 +111,13 @@ export async function getGrokReply(
 
     if (responseId && reply) {
       await setGrokResponseId(guildId, userId, responseId);
+      log.debug(`Stored response_id replyLen=${reply.length}`);
     }
     if (!reply) {
+      log.warn('Grok response had no output_text in output');
       return "I didn't get a clear reply. Want to try again?";
     }
+    log.debug(`Grok reply success len=${reply.length}`);
     return reply;
   } catch (error) {
     log.warn(`Grok request failed: ${(error as Error).message}`);
