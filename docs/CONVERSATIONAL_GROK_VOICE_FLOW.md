@@ -17,7 +17,7 @@ Step-by-step flow to get **realtime** voice (Voice Agent WebSocket; no STT/TTS w
 - **REDIS_URL** – must be set so Pranjeet can read:
   - `voice:interaction:enabled:{guildId}` (voice on for server)
   - `conversation:{guildId}:{userId}` (conversation mode on for you)  
-  Without REDIS_URL, conversation mode and voice state are not shared with Raincloud.
+    Without REDIS_URL, conversation mode and voice state are not shared with Raincloud.
 - **GROK_API_KEY** or **XAI_API_KEY** – required for Grok (realtime Voice Agent and text chat).
 - **VOICE_INTERACTION_ENABLED** – set to `true` if you want voice interaction on by default; otherwise it’s controlled per-guild via Redis (see below).
 - **For the STT → Grok text → TTS path** (when the realtime Voice Agent isn’t used): set **OPENAI_API_KEY** or **STT_API_KEY** and **TTS_API_KEY** so speech-to-text and text-to-speech work instead of mock. If unset, you’ll see “Falling back to mock STT/TTS provider” and transcription/playback may be wrong or missing.
@@ -94,28 +94,28 @@ If nothing happens:
 
 ## Quick checklist
 
-| Step | What | Where |
-|------|------|--------|
-| 1 | Set **REDIS_URL** (Raincloud + Pranjeet) | Env |
-| 2 | Set **GROK_API_KEY** or **XAI_API_KEY** (Pranjeet) | Env |
-| 3 | Deploy slash commands | Discord or Admin → Redeploy commands |
-| 4 | Enable voice for the server | `/voice-control enable` **or** Turn on Grok conversation in Admin (turns on voice for that server) |
-| 5 | Turn on conversation mode for you | `/chat on` **or** Admin → select server → Grok conversation → **Turn on** |
-| 6 | Join VC with Pranjeet and speak | Discord |
+| Step | What                                               | Where                                                                                              |
+| ---- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1    | Set **REDIS_URL** (Raincloud + Pranjeet)           | Env                                                                                                |
+| 2    | Set **GROK_API_KEY** or **XAI_API_KEY** (Pranjeet) | Env                                                                                                |
+| 3    | Deploy slash commands                              | Discord or Admin → Redeploy commands                                                               |
+| 4    | Enable voice for the server                        | `/voice-control enable` **or** Turn on Grok conversation in Admin (turns on voice for that server) |
+| 5    | Turn on conversation mode for you                  | `/chat on` **or** Admin → select server → Grok conversation → **Turn on**                          |
+| 6    | Join VC with Pranjeet and speak                    | Discord                                                                                            |
 
 ---
 
 ## Commands reference
 
-| Command | Description |
-|--------|-------------|
-| **/voice-control enable** | Enable voice commands / voice listening for this server (Manage Server). |
-| **/voice-control disable** | Disable voice for this server. |
-| **/voice-control status** | Show whether voice is enabled. |
-| **/chat on** | Turn on Grok conversation mode for you in this server. |
-| **/chat off** | Turn off Grok conversation mode. |
-| **/chat toggle** | Toggle conversation mode. |
-| **/chat status** | Show whether conversation mode is on. |
+| Command                    | Description                                                              |
+| -------------------------- | ------------------------------------------------------------------------ |
+| **/voice-control enable**  | Enable voice commands / voice listening for this server (Manage Server). |
+| **/voice-control disable** | Disable voice for this server.                                           |
+| **/voice-control status**  | Show whether voice is enabled.                                           |
+| **/chat on**               | Turn on Grok conversation mode for you in this server.                   |
+| **/chat off**              | Turn off Grok conversation mode.                                         |
+| **/chat toggle**           | Toggle conversation mode.                                                |
+| **/chat status**           | Show whether conversation mode is on.                                    |
 
 Admin UI (Dashboard → Admin):
 
