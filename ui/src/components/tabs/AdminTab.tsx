@@ -334,8 +334,10 @@ export default function AdminTab() {
             Grok conversation mode (voice)
           </div>
           <div className="text-xs text-text-secondary mb-4">
-            For the server selected in Run commands: when on, your voice in that server is sent to
-            Grok in real time (Voice Agent). Turn off to use normal voice commands.
+            For the server selected in Run commands: when on, your voice is sent to Grok in real
+            time (Voice Agent). Turning on also enables voice listening for this server. Join a
+            voice channel with the bot and speak; ensure GROK_API_KEY is set on the voice worker. If
+            nothing happens, try turning off then on again.
           </div>
           {runGuildId ? (
             <div className="space-y-2">

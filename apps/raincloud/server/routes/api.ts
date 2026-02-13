@@ -883,7 +883,13 @@ router.post(
       }
       const multiBot = requireMultiBot(res);
       if (!multiBot) return;
-      await multiBot.getVoiceStateManager().setConversationMode(guildId, userId, enabled);
+      const voiceStateManager = multiBot.getVoiceStateManager();
+      await voiceStateManager.setConversationMode(guildId, userId, enabled);
+      // When turning on Grok conversation, enable voice interaction for this guild so the bot
+      // actually starts listening when you join the VC (otherwise nothing happens).
+      if (enabled) {
+        await voiceStateManager.setVoiceInteractionEnabled(guildId, true);
+      }
       res.json({ enabled });
     } catch (error) {
       const err = error as Error;

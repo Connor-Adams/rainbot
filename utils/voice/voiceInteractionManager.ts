@@ -85,6 +85,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private voiceManager: VoiceManagerLazy | null;
   private commandMutex: Mutex;
   private voiceAgentClients: Map<string, { sendAudio(chunk: Buffer): void; close(): void }>;
+  private voiceAgentWarnedKeys: Set<string>;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -92,6 +93,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     this.voiceManager = null;
     this.commandMutex = new Mutex();
     this.voiceAgentClients = new Map();
+    this.voiceAgentWarnedKeys = new Set();
 
     // Initialize STT and TTS
     this.speechRecognition = new SpeechRecognitionManager(this.config);
@@ -394,6 +396,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     if (voiceAgent) {
       voiceAgent.close();
       this.voiceAgentClients.delete(key);
+      this.voiceAgentWarnedKeys.delete(key);
     }
 
     const state = this.states.get(guildId);
@@ -432,6 +435,14 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         if (newClient) {
           this.voiceAgentClients.set(key, newClient);
           client = newClient;
+          log.info(`Voice Agent client created for ${chunk.guildId}:${chunk.userId}`);
+        } else {
+          if (!this.voiceAgentWarnedKeys.has(key)) {
+            this.voiceAgentWarnedKeys.add(key);
+            log.warn(
+              `Conversation mode on but Voice Agent client is null (check GROK_API_KEY and that the voice bot is in the channel)`
+            );
+          }
         }
       }
       if (client) {
