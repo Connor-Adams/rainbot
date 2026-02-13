@@ -352,6 +352,31 @@ export class MultiBotService {
   }
 
   /**
+   * Set volume for every worker currently connected in the guild.
+   * Used by /vol so that volume applies to whichever bot(s) are in voice.
+   */
+  async setVolumeForConnectedWorkers(
+    guildId: string,
+    volume: number
+  ): Promise<{ success: boolean; message?: string }> {
+    const status = await this.getStatus(guildId);
+    if (!status?.workers) {
+      return { success: false, message: 'Not in voice' };
+    }
+    const botTypes: BotType[] = ['rainbot', 'pranjeet', 'hungerbot'];
+    let lastResult: { success: boolean; message?: string } = { success: false, message: '' };
+    let anySuccess = false;
+    for (const botType of botTypes) {
+      if (status.workers[botType]?.connected) {
+        lastResult = await this.setVolume(guildId, volume, botType);
+        if (lastResult.success) anySuccess = true;
+        else return lastResult;
+      }
+    }
+    return anySuccess ? { success: true } : { success: false, message: 'No worker connected' };
+  }
+
+  /**
    * Get status for all workers in a guild
    */
   async getStatus(guildId: string): Promise<VoiceStatus | null> {
@@ -380,11 +405,17 @@ export class MultiBotService {
       const playback = rainbotStatus?.playback ?? buildPlaybackState(false, undefined);
       const queue: QueueState = rainbotStatus?.queue ?? { queue: [] };
 
+      // Consider connected if any worker (rainbot, pranjeet, hungerbot) is in voice
+      const anyConnected =
+        rainbotStatus?.connected ||
+        workerStatuses.pranjeet?.connected ||
+        workerStatuses.hungerbot?.connected;
+
       return {
         guildId,
         channelId: session.channelId,
         channelName,
-        connected: rainbotStatus?.connected || false,
+        connected: anyConnected || false,
         kind: 'music',
         playback,
         queue,

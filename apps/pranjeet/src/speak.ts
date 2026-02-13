@@ -49,8 +49,10 @@ export async function speakInGuild(
       });
 
       if (resource.volume) resource.volume.setVolume(state.volume);
+      state.currentResource = resource;
       state.player.play(resource);
       await waitForPlaybackEnd(state.player, 60_000);
+      state.currentResource = null;
     });
 
   return { status: 'success', message: 'TTS queued' };

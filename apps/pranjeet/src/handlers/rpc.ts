@@ -25,6 +25,12 @@ export function createRpcHandlers(deps: PranjeetRpcDeps) {
       getOrCreateGuildState(guildId) as import('@rainbot/worker-shared').GuildState,
     guildStates: guildStates as unknown as Map<string, import('@rainbot/worker-shared').GuildState>,
     log,
+    onVolumeChange: (state: import('@rainbot/worker-shared').GuildState, volume: number) => {
+      const s = state as {
+        currentResource?: { volume?: { setVolume: (n: number) => void } } | null;
+      };
+      if (s.currentResource?.volume) s.currentResource.volume.setVolume(volume);
+    },
   };
 
   const join = createJoinHandler(sharedOptions);

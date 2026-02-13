@@ -36,6 +36,8 @@ import { registerVoiceStateHandlers } from './events/voice-state';
 import { initTTS } from './tts';
 import { speakInGuild } from './speak';
 import { startTtsQueue } from './queue/tts-worker';
+import { getConversationMode } from './redis';
+import { getGrokReply } from './chat/grok';
 
 setupProcessErrorHandlers(log);
 
@@ -98,6 +100,12 @@ setupDiscordClientReadyHandler(client, {
         session: VoiceInteractionSession,
         command: ParsedVoiceCommand
       ): Promise<VoiceCommandResult | null> => {
+        const inConversationMode = await getConversationMode(session.guildId, session.userId);
+        if (inConversationMode) {
+          const reply = await getGrokReply(session.guildId, session.userId, command.rawText);
+          return { success: true, command, response: reply };
+        }
+
         const baseUrl = getOrchestratorBaseUrl();
         if (!baseUrl || !WORKER_SECRET) {
           log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');
