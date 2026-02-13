@@ -3,10 +3,11 @@
  * https://docs.x.ai/developers/model-capabilities/audio/voice-agent
  *
  * Connects via WebSocket to wss://api.x.ai/v1/realtime, streams Discord
- * audio (resampled to 24kHz PCM), receives Grok's voice response and plays it.
+ * audio (resampled to 24kHz mono), receives Grok's voice response and plays it.
  */
 import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
+import { resample48kStereoTo24kMono } from '../audio/utils';
 import { GROK_API_KEY, GROK_ENABLED } from '../config';
 
 const log = createLogger('GROK_VOICE_AGENT');
@@ -14,18 +15,6 @@ const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
 
 const VOICE_AGENT_INSTRUCTIONS =
   'You are a helpful, concise voice assistant in a Discord voice channel. Keep replies short and natural for spoken conversation.';
-
-/** Resample 48kHz mono s16le to 24kHz by taking every other sample. */
-function resample48kTo24k(buffer: Buffer): Buffer {
-  const numSamples48 = Math.floor(buffer.length / 2);
-  const numSamples24 = Math.floor(numSamples48 / 2);
-  const out = Buffer.alloc(numSamples24 * 2);
-  for (let i = 0; i < numSamples24; i++) {
-    const srcByteOffset = i * 2 * 2;
-    out.writeInt16LE(buffer.readInt16LE(srcByteOffset), i * 2);
-  }
-  return out;
-}
 
 export interface GrokVoiceAgentCallbacks {
   /** Called when Grok's response audio is complete (PCM 24kHz mono s16le). */
@@ -167,7 +156,7 @@ export function createGrokVoiceAgentClient(
     sendAudio(chunk: Buffer) {
       if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
       if (chunk.length <= 10) return;
-      const resampled = resample48kTo24k(chunk);
+      const resampled = resample48kStereoTo24kMono(chunk);
       const b64 = resampled.toString('base64');
       send({ type: 'input_audio_buffer.append', audio: b64 });
     },
