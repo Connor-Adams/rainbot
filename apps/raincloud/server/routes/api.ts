@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import * as voiceManager from '@utils/voiceManager';
 import * as storage from '@utils/storage';
 import { query } from '@utils/database';
+import { deployCommands } from '@utils/deployCommands';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '@utils/statistics';
@@ -558,6 +559,38 @@ router.post(
         limit: Number.isFinite(limit) ? limit : 0,
       });
       res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/deploy-commands - Redeploy Discord slash commands
+router.post(
+  '/deploy-commands',
+  requireAuth,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const { loadConfig } = require('@utils/config');
+      const config = loadConfig();
+      if (!config.token || !config.clientId) {
+        res.status(503).json({
+          error:
+            'Bot token or client ID not configured. Set DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID.',
+        });
+        return;
+      }
+      const data = await deployCommands(config.token, config.clientId, config.guildId ?? null);
+      if (!data) {
+        res.status(500).json({ error: 'No commands found to deploy' });
+        return;
+      }
+      res.json({
+        message: `Successfully deployed ${data.length} command(s)`,
+        count: data.length,
+        guildId: config.guildId ?? null,
+      });
     } catch (error) {
       const err = error as Error;
       res.status(500).json({ error: err.message });

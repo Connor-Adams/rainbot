@@ -1,6 +1,6 @@
 ---
-name: ""
-overview: ""
+name: ''
+overview: ''
 todos: []
 isProject: false
 ---
@@ -45,19 +45,17 @@ sequenceDiagram
   Note over User,Pranjeet: Next voice input is treated as normal (music/unknown)
 ```
 
-
-
 ## 1. Conversation mode state (Redis)
 
-- **Key**: `conversation:{guildId}:{userId}`  
-- **Value**: `"1"` = on, `"0"` or missing = off  
+- **Key**: `conversation:{guildId}:{userId}`
+- **Value**: `"1"` = on, `"0"` or missing = off
 - **Rationale**: Same Redis as raincloud voice state and pranjeet TTS so both apps see the same state; works with multiple pranjeet instances.
 
 **Raincloud**
 
 - In [apps/raincloud/lib/voiceStateManager.ts](apps/raincloud/lib/voiceStateManager.ts) add:
   - `setConversationMode(guildId: string, userId: string, enabled: boolean): Promise<void>`  
-  When `enabled === false`, also delete `grok:response_id:{guildId}:{userId}` so the next `/chat on` starts a fresh thread.
+    When `enabled === false`, also delete `grok:response_id:{guildId}:{userId}` so the next `/chat on` starts a fresh thread.
   - `getConversationMode(guildId: string, userId: string): Promise<boolean>`
 
 **Pranjeet**
@@ -93,8 +91,8 @@ sequenceDiagram
 - **File**: [apps/pranjeet/src/index.ts](apps/pranjeet/src/index.ts).
 - In the existing `commandHandler`:
   1. **If** conversation mode is **on** for `session.guildId` + `session.userId` (via Redis helper) **and** Grok is enabled and has an API key:
-    - Call `getGrokReply(session.guildId, session.userId, command.rawText)`.
-    - Return `{ success: true, command, response: grokReply }` (so the manager speaks it via TTS).
+  - Call `getGrokReply(session.guildId, session.userId, command.rawText)`.
+  - Return `{ success: true, command, response: grokReply }` (so the manager speaks it via TTS).
   2. **Else**: keep current behavior (music commands → proxy to raincloud; non-music → return `null` so manager uses default “unknown” handling).
 
 Optional: In conversation mode, allow a voice phrase like “exit” or “stop chatting” to clear conversation mode (pranjeet would call Redis to set the key to 0). That requires pranjeet to be able to **write** Redis for this key (same helper, add `setConversationMode`).
@@ -114,4 +112,3 @@ Optional: In conversation mode, allow a voice phrase like “exit” or “stop 
 
 - Text-based chat (e.g. slash command that sends one message to Grok and replies in channel).
 - Streaming TTS while Grok streams.
-

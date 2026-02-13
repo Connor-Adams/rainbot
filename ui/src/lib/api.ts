@@ -165,6 +165,12 @@ export const soundsApi = {
   previewUrl: (name: string) => buildApiUrl(`/sounds/${encodeURIComponent(name)}/preview`),
 };
 
+// Admin API
+export const adminApi = {
+  deployCommands: () =>
+    api.post<{ message: string; count: number; guildId: string | null }>('/deploy-commands'),
+};
+
 // Stats API
 export const statsApi = {
   summary: () => api.get('/stats/summary'),
