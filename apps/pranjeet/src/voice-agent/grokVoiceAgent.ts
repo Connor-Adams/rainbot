@@ -20,6 +20,8 @@ export interface GrokVoiceAgentCallbacks {
   onAudioDone: (pcmBuffer: Buffer) => void | Promise<void>;
   /** Called on connection close or error. */
   onClose?: () => void;
+  /** Execute a music command and return the result. */
+  executeCommand?: (command: string, args: Record<string, unknown>) => Promise<string>;
 }
 
 export interface GrokVoiceAgentClient {
@@ -45,6 +47,7 @@ export function createGrokVoiceAgentClient(
   let sessionConfigured = false;
   let audioDeltas: string[] = [];
   let closed = false;
+  let currentResponseId: string | null = null;
 
   function send(event: object): void {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -87,25 +90,131 @@ export function createGrokVoiceAgentClient(
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
     const voice = (await getGrokVoice(guildId, userId)) || GROK_VOICE;
+    const tools = callbacks.executeCommand
+      ? [
+          {
+            type: 'function',
+            name: 'play_music',
+            description:
+              'Play music or add to queue. Use this when the user wants to play a song, artist, or playlist.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'Song name, artist name, YouTube URL, Spotify URL, or search query',
+                },
+              },
+              required: ['query'],
+            },
+          },
+          {
+            type: 'function',
+            name: 'skip_song',
+            description:
+              'Skip the current song or multiple songs. Use when user says skip, next, skip song, etc.',
+            parameters: {
+              type: 'object',
+              properties: {
+                count: {
+                  type: 'number',
+                  description: 'Number of songs to skip (default: 1)',
+                },
+              },
+              required: [],
+            },
+          },
+          {
+            type: 'function',
+            name: 'pause_music',
+            description:
+              'Pause the currently playing music. Use when user says pause, stop playing, hold on, etc.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              required: [],
+            },
+          },
+          {
+            type: 'function',
+            name: 'resume_music',
+            description:
+              'Resume paused music. Use when user says resume, continue, unpause, keep going, etc.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              required: [],
+            },
+          },
+          {
+            type: 'function',
+            name: 'stop_music',
+            description:
+              'Stop playback and clear the queue. Use when user says stop, stop music, clear queue, etc.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              required: [],
+            },
+          },
+          {
+            type: 'function',
+            name: 'set_volume',
+            description: 'Set the playback volume. Use when user wants to change volume.',
+            parameters: {
+              type: 'object',
+              properties: {
+                volume: {
+                  type: 'number',
+                  description: 'Volume level from 0 to 100',
+                },
+              },
+              required: ['volume'],
+            },
+          },
+          {
+            type: 'function',
+            name: 'clear_queue',
+            description:
+              'Clear the music queue. Use when user says clear queue, clear, empty queue, etc.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              required: [],
+            },
+          },
+        ]
+      : [];
+    const instructions = `${GROK_SYSTEM_PROMPT}
+
+CRITICAL: Stay in character at all times. When you execute music commands (play, skip, pause, etc.), respond to the user in your persona—do not become a generic helpful assistant. Announce what you did in character.`;
     send({
       type: 'session.update',
       session: {
         voice,
-        instructions: GROK_SYSTEM_PROMPT,
+        instructions,
         turn_detection: { type: 'server_vad' },
         audio: {
           input: { format: { type: 'audio/pcm', rate: 24000 } },
           output: { format: { type: 'audio/pcm', rate: 24000 } },
         },
+        ...(tools.length > 0 ? { tools } : {}),
       },
     });
   });
 
-  ws.on('message', (data: Buffer | string) => {
+  ws.on('message', async (data: Buffer | string) => {
     if (closed) return;
-    let event: { type?: string; delta?: string };
+    let event: {
+      type?: string;
+      delta?: string;
+      response?: { id?: string };
+      name?: string;
+      call_id?: string;
+      arguments?: string;
+    };
     try {
-      event = JSON.parse(data.toString()) as { type?: string; delta?: string };
+      event = JSON.parse(data.toString()) as typeof event;
     } catch {
       return;
     }
@@ -113,6 +222,48 @@ export function createGrokVoiceAgentClient(
       case 'session.updated':
         sessionConfigured = true;
         log.debug('Voice Agent session.updated');
+        break;
+      case 'response.created':
+        if (event.response?.id) {
+          currentResponseId = event.response.id;
+        }
+        break;
+      case 'response.function_call_arguments.done':
+        if (!callbacks.executeCommand || !event.name || !event.call_id || !event.arguments) {
+          log.warn('Function call received but executeCommand not provided or missing fields');
+          break;
+        }
+        try {
+          const args = JSON.parse(event.arguments) as Record<string, unknown> | undefined;
+          log.info(`Executing function: ${event.name} with args:`, args ?? {});
+          const result = await callbacks.executeCommand(
+            event.name,
+            (args as Record<string, unknown>) ?? {}
+          );
+          // Send function result back to Grok
+          send({
+            type: 'conversation.item.create',
+            item: {
+              type: 'function_call_output',
+              call_id: event.call_id,
+              output: JSON.stringify({ success: true, result }),
+            },
+          });
+          // Request Grok to continue with the result
+          send({ type: 'response.create' });
+        } catch (error) {
+          const errorMsg = (error as Error).message || 'Unknown error';
+          log.error(`Error executing function ${event.name}: ${errorMsg}`);
+          send({
+            type: 'conversation.item.create',
+            item: {
+              type: 'function_call_output',
+              call_id: event.call_id!,
+              output: JSON.stringify({ success: false, error: errorMsg }),
+            },
+          });
+          send({ type: 'response.create' });
+        }
         break;
       case 'response.output_audio.delta':
         if (typeof event.delta === 'string') {
@@ -134,6 +285,7 @@ export function createGrokVoiceAgentClient(
         }
         break;
       case 'response.done':
+        currentResponseId = null;
         break;
       case 'error':
         log.warn('Voice Agent server error:', event);

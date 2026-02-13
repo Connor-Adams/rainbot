@@ -122,8 +122,66 @@ setupDiscordClientReadyHandler(client, {
           log.warn('Voice Agent: no connection on session (ensure you are in a VC with the bot)');
           return null;
         }
+        const baseUrl = getOrchestratorBaseUrl();
+        const executeCommand = async (
+          commandName: string,
+          args: Record<string, unknown>
+        ): Promise<string> => {
+          if (!baseUrl || !WORKER_SECRET) {
+            throw new Error(
+              'Cannot execute command: Raincloud URL or Worker Secret not configured'
+            );
+          }
+          // Map function names to internal endpoints
+          const commandMap: Record<string, string> = {
+            play_music: 'play',
+            skip_song: 'skip',
+            pause_music: 'pause',
+            resume_music: 'resume',
+            stop_music: 'stop',
+            set_volume: 'volume',
+            clear_queue: 'clear',
+          };
+          const endpoint = commandMap[commandName];
+          if (!endpoint) {
+            throw new Error(`Unknown command: ${commandName}`);
+          }
+          try {
+            const body: Record<string, unknown> = {
+              guildId: session.guildId,
+              userId: session.userId,
+              username: session.username,
+            };
+            if (commandName === 'play_music' && args['query']) {
+              body['source'] = args['query'];
+            } else if (commandName === 'skip_song') {
+              body['count'] = args['count'] ?? 1;
+            } else if (commandName === 'set_volume') {
+              body['volume'] = args['volume'];
+            }
+            const response = await fetch(`${baseUrl}/internal/${endpoint}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-worker-secret': WORKER_SECRET,
+              },
+              body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+              const text = await response.text();
+              throw new Error(`Command failed: ${text}`);
+            }
+            const result = (await response.json()) as { success?: boolean; message?: string };
+            return result.message || 'Command executed successfully';
+          } catch (error) {
+            const err = error as Error;
+            log.error(`Error executing ${commandName}: ${err.message}`);
+            throw err;
+          }
+        };
         return createGrokVoiceAgentClient(session.guildId, session.userId, {
           onAudioDone: (pcm) => playVoiceAgentAudio(session.guildId, connection, pcm),
+          executeCommand,
         });
       },
       ttsHandler: async (guildId: string, text: string, userId?: string) => {
