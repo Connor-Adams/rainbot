@@ -1,6 +1,7 @@
 /**
  * xAI Voice Agent API client (real-time voice with Grok).
- * https://docs.x.ai/developers/model-capabilities/audio/voice-agent
+ * @see https://docs.x.ai/developers/model-capabilities/audio/voice-agent
+ * @see https://docs.x.ai/developers/model-capabilities/audio/voice-agent#message-types (client/server events)
  *
  * Connects via WebSocket to wss://api.x.ai/v1/realtime, streams Discord
  * audio (resampled to 24kHz mono), receives Grok's voice response and plays it.
@@ -11,6 +12,7 @@ import { resample48kStereoTo24kMono } from '../audio/utils';
 import { GROK_SYSTEM_PROMPT } from '../chat/grok';
 import { getGrokVoice } from '../redis';
 import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE, GROK_VOICE_AGENT_TOOLS } from '../config';
+import { getVoiceAgentInstructions, VOICE_AGENT_MUSIC_TOOLS } from './tools';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
@@ -47,7 +49,7 @@ export function createGrokVoiceAgentClient(
   let sessionConfigured = false;
   let audioDeltas: string[] = [];
   let closed = false;
-  let currentResponseId: string | null = null;
+  let _currentResponseId: string | null = null;
 
   function send(event: object): void {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -89,112 +91,16 @@ export function createGrokVoiceAgentClient(
   ws.on('open', () => {
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
-    // Send session.update synchronously so instructions apply before conversation starts.
-    // Voice preference is fetched async; we send a follow-up session.update when it resolves.
-    const tools =
-      GROK_VOICE_AGENT_TOOLS && callbacks.executeCommand
-        ? [
-            {
-              type: 'function',
-              name: 'play_music',
-              description:
-                'Play music or add to queue. Use this when the user wants to play a song, artist, or playlist.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  query: {
-                    type: 'string',
-                    description:
-                      'Song name, artist name, YouTube URL, Spotify URL, or search query',
-                  },
-                },
-                required: ['query'],
-              },
-            },
-            {
-              type: 'function',
-              name: 'skip_song',
-              description:
-                'Skip the current song or multiple songs. Use when user says skip, next, skip song, etc.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  count: {
-                    type: 'number',
-                    description: 'Number of songs to skip (default: 1)',
-                  },
-                },
-                required: [],
-              },
-            },
-            {
-              type: 'function',
-              name: 'pause_music',
-              description:
-                'Pause the currently playing music. Use when user says pause, stop playing, hold on, etc.',
-              parameters: {
-                type: 'object',
-                properties: {},
-                required: [],
-              },
-            },
-            {
-              type: 'function',
-              name: 'resume_music',
-              description:
-                'Resume paused music. Use when user says resume, continue, unpause, keep going, etc.',
-              parameters: {
-                type: 'object',
-                properties: {},
-                required: [],
-              },
-            },
-            {
-              type: 'function',
-              name: 'stop_music',
-              description:
-                'Stop playback and clear the queue. Use when user says stop, stop music, clear queue, etc.',
-              parameters: {
-                type: 'object',
-                properties: {},
-                required: [],
-              },
-            },
-            {
-              type: 'function',
-              name: 'set_volume',
-              description: 'Set the playback volume. Use when user wants to change volume.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  volume: {
-                    type: 'number',
-                    description: 'Volume level from 0 to 100',
-                  },
-                },
-                required: ['volume'],
-              },
-            },
-            {
-              type: 'function',
-              name: 'clear_queue',
-              description:
-                'Clear the music queue. Use when user says clear queue, clear, empty queue, etc.',
-              parameters: {
-                type: 'object',
-                properties: {},
-                required: [],
-              },
-            },
-          ]
-        : [];
-    const instructions =
-      tools.length > 0
-        ? `${GROK_SYSTEM_PROMPT}
-
-CRITICAL: Stay in character at all times. When you execute music commands (play, skip, pause, etc.), respond to the user in your persona—do not become a generic helpful assistant. Announce what you did in character.`
-        : GROK_SYSTEM_PROMPT;
-    // xAI docs: instructions (system prompt) first in session object
+    // session.update per xAI: session.instructions = system prompt (required).
+    // https://docs.x.ai/developers/model-capabilities/audio/voice-agent#session-messages
+    const toolsEnabled = GROK_VOICE_AGENT_TOOLS && !!callbacks.executeCommand;
+    const tools = toolsEnabled ? VOICE_AGENT_MUSIC_TOOLS : [];
+    const instructions = getVoiceAgentInstructions(GROK_SYSTEM_PROMPT, tools.length > 0);
+    if (!instructions || instructions.length === 0) {
+      log.warn('Voice Agent session.instructions would be empty; skipping session.update');
+      doClose();
+      return;
+    }
     const session = {
       instructions,
       voice: GROK_VOICE,
@@ -205,7 +111,9 @@ CRITICAL: Stay in character at all times. When you execute music commands (play,
       },
       ...(tools.length > 0 ? { tools } : {}),
     };
-    log.debug(`Voice Agent session.update instructions=${instructions.length} chars`);
+    log.debug(
+      `Voice Agent session.update instructions=${instructions.length} chars tools=${tools.length}`
+    );
     send({ type: 'session.update', session });
     // Update voice when Redis returns user preference
     getGrokVoice(guildId, userId).then((userVoice) => {
@@ -239,7 +147,7 @@ CRITICAL: Stay in character at all times. When you execute music commands (play,
         break;
       case 'response.created':
         if (event.response?.id) {
-          currentResponseId = event.response.id;
+          _currentResponseId = event.response.id;
         }
         break;
       case 'response.function_call_arguments.done':
@@ -299,7 +207,7 @@ CRITICAL: Stay in character at all times. When you execute music commands (play,
         }
         break;
       case 'response.done':
-        currentResponseId = null;
+        _currentResponseId = null;
         break;
       case 'error':
         log.warn('Voice Agent server error:', event);
