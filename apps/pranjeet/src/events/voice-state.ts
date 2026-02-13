@@ -10,8 +10,7 @@ export function registerVoiceStateHandlers(client: Client): void {
     const guildId = newState.guild?.id || oldState.guild?.id;
     const user = newState.member?.user || oldState.member?.user;
 
-    if (!userId || !guildId || user?.bot) return;
-    if (userId === ORCHESTRATOR_BOT_ID) return;
+    if (!userId || !guildId) return;
 
     const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
     const voiceInteractionMgr = getVoiceInteractionManager();
@@ -20,6 +19,34 @@ export function registerVoiceStateHandlers(client: Client): void {
     if (!state || !state.connection) return;
 
     const botChannelId = state.connection.joinConfig.channelId;
+
+    // When our bot joins a channel, start listening for all members already in that channel
+    // (they never get a "user joined" event because they were there first)
+    if (userId === client.user?.id && newState.channelId === botChannelId) {
+      const enabled = await isVoiceInteractionEnabled(guildId);
+      if (enabled && voiceInteractionMgr) {
+        const channel = newState.channel ?? newState.guild?.channels.cache.get(newState.channelId!);
+        if (channel?.isVoiceBased() && 'members' in channel) {
+          for (const [memberId, member] of channel.members) {
+            if (member.user.bot) continue;
+            try {
+              await voiceInteractionMgr.startListening(memberId, guildId, state.connection);
+              log.info(
+                `✅ Started voice listening for existing user ${member.user.tag ?? memberId}`
+              );
+            } catch (error) {
+              log.debug(
+                `Failed to start voice listening for ${memberId}: ${(error as Error).message}`
+              );
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    if (user?.bot) return;
+    if (userId === ORCHESTRATOR_BOT_ID) return;
 
     if (oldState.channelId === botChannelId && newState.channelId !== botChannelId) {
       if (voiceInteractionMgr) {

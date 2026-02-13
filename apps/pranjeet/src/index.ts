@@ -64,6 +64,8 @@ if (!REDIS_URL) {
   log.warn(
     'REDIS_URL not set on Pranjeet — conversation mode and voice state will not sync with Raincloud; set REDIS_URL to use realtime Voice Agent'
   );
+} else {
+  log.info('REDIS_URL set — conversation mode and voice state will sync with Raincloud');
 }
 console.log(`[PRANJEET] Worker registration target: ${getOrchestratorBaseUrl() || 'unset'}`);
 

@@ -435,7 +435,9 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         if (newClient) {
           this.voiceAgentClients.set(key, newClient);
           client = newClient;
-          log.info(`Voice Agent client created for ${chunk.guildId}:${chunk.userId} (realtime path)`);
+          log.info(
+            `Voice Agent client created for ${chunk.guildId}:${chunk.userId} (realtime path)`
+          );
         } else {
           if (!this.voiceAgentWarnedKeys.has(key)) {
             this.voiceAgentWarnedKeys.add(key);
