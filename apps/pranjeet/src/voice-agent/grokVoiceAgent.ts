@@ -50,6 +50,16 @@ export function createGrokVoiceAgentClient(
   let audioDeltas: string[] = [];
   let closed = false;
   let _currentResponseId: string | null = null;
+  let sessionConfig: {
+    instructions: string;
+    voice: string;
+    turn_detection: { type: 'server_vad' };
+    audio: {
+      input: { format: { type: 'audio/pcm'; rate: number } };
+      output: { format: { type: 'audio/pcm'; rate: number } };
+    };
+    tools?: typeof VOICE_AGENT_MUSIC_TOOLS;
+  } | null = null;
 
   function send(event: object): void {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -58,6 +68,11 @@ export function createGrokVoiceAgentClient(
     } catch (e) {
       log.warn(`Voice Agent send error: ${(e as Error).message}`);
     }
+  }
+
+  function sendSessionUpdate(): void {
+    if (!sessionConfig) return;
+    send({ type: 'session.update', session: sessionConfig });
   }
 
   function doClose(): void {
@@ -111,16 +126,18 @@ export function createGrokVoiceAgentClient(
       },
       ...(tools.length > 0 ? { tools } : {}),
     };
+    sessionConfig = session; // Store for re-sending each turn
     log.debug(
       `Voice Agent session.update instructions=${instructions.length} chars tools=${tools.length}`
     );
-    send({ type: 'session.update', session });
+    sendSessionUpdate();
     // Update voice when Redis returns user preference
     getGrokVoice(guildId, userId).then((userVoice) => {
       if (closed || !ws || ws.readyState !== WebSocket.OPEN) return;
       const v = userVoice || GROK_VOICE;
-      if (v !== GROK_VOICE) {
-        send({ type: 'session.update', session: { ...session, voice: v } });
+      if (v !== GROK_VOICE && sessionConfig) {
+        sessionConfig.voice = v;
+        sendSessionUpdate();
       }
     });
   });
@@ -208,6 +225,8 @@ export function createGrokVoiceAgentClient(
         break;
       case 'response.done':
         _currentResponseId = null;
+        // Re-send session.update after each turn to reinforce persona/accent
+        sendSessionUpdate();
         break;
       case 'error':
         log.warn('Voice Agent server error:', event);
