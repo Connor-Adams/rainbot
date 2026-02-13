@@ -9,10 +9,10 @@
 import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
-import { GROK_SYSTEM_PROMPT } from '../chat/grok';
 import { getGrokVoice } from '../redis';
 import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE, GROK_VOICE_AGENT_TOOLS } from '../config';
-import { getVoiceAgentInstructions, VOICE_AGENT_MUSIC_TOOLS } from './tools';
+import { getVoiceAgentInstructions } from '../prompts';
+import { VOICE_AGENT_MUSIC_TOOLS } from './tools';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
@@ -122,7 +122,7 @@ export function createGrokVoiceAgentClient(
     // https://docs.x.ai/developers/model-capabilities/audio/voice-agent#session-messages
     const toolsEnabled = GROK_VOICE_AGENT_TOOLS && !!callbacks.executeCommand;
     const tools = toolsEnabled ? VOICE_AGENT_MUSIC_TOOLS : [];
-    const instructions = getVoiceAgentInstructions(GROK_SYSTEM_PROMPT, tools.length > 0);
+    const instructions = getVoiceAgentInstructions(undefined, tools.length > 0);
     if (!instructions || instructions.length === 0) {
       log.warn('Voice Agent session.instructions would be empty; skipping session.update');
       doClose();
