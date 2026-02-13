@@ -239,4 +239,58 @@ export class VoiceStateManager {
     await this.redis.set(key, voice);
     log.debug(`Set Grok voice for user ${userId} in guild ${guildId}: ${voice}`);
   }
+
+  /** Redis key for selected Grok persona per user per guild. */
+  private static grokPersonaKey(guildId: string, userId: string): string {
+    return `grok:persona:${guildId}:${userId}`;
+  }
+
+  /**
+   * Get selected Grok persona id for a user in a guild.
+   * Returns null if not set (caller uses default).
+   */
+  async getGrokPersona(guildId: string, userId: string): Promise<string | null> {
+    return await this.redis.get(VoiceStateManager.grokPersonaKey(guildId, userId));
+  }
+
+  /**
+   * Set selected Grok persona id for a user in a guild.
+   * Use empty string to clear (revert to default).
+   */
+  async setGrokPersona(guildId: string, userId: string, personaId: string): Promise<void> {
+    const key = VoiceStateManager.grokPersonaKey(guildId, userId);
+    if (personaId.trim() === '') {
+      await this.redis.del(key);
+    } else {
+      await this.redis.set(key, personaId.trim());
+    }
+    log.debug(
+      `Set Grok persona for user ${userId} in guild ${guildId}: ${personaId.trim() || '(default)'}`
+    );
+  }
+
+  /** Redis key for custom persona payload (so Pranjeet can resolve without DB). */
+  private static customPersonaKey(id: string): string {
+    return `persona:custom:${id}`;
+  }
+
+  /**
+   * Write custom persona to Redis cache so Pranjeet can resolve it by id.
+   */
+  async setCustomPersonaCache(
+    id: string,
+    data: { id: string; name: string; systemPrompt: string }
+  ): Promise<void> {
+    const key = VoiceStateManager.customPersonaKey(id);
+    await this.redis.set(key, JSON.stringify(data));
+    log.debug(`Cached custom persona ${id} in Redis`);
+  }
+
+  /**
+   * Remove custom persona from Redis cache (e.g. when deleted).
+   */
+  async deleteCustomPersonaCache(id: string): Promise<void> {
+    await this.redis.del(VoiceStateManager.customPersonaKey(id));
+    log.debug(`Removed custom persona cache ${id} from Redis`);
+  }
 }

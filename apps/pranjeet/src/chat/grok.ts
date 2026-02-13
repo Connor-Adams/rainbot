@@ -64,7 +64,7 @@ export async function getGrokReply(
     return "I didn't catch that. Say something and I'll reply.";
   }
 
-  const systemPrompt = getSystemPromptForChat(personaId);
+  const systemPrompt = await getSystemPromptForChat(personaId);
   const history = await getGrokHistory(guildId, userId);
   log.debug(`History messages: ${history.length}`);
 

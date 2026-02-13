@@ -184,6 +184,27 @@ export const adminApi = {
     api.get<{ voice: string | null }>(`/grok-voice/${encodeURIComponent(guildId)}`),
   setGrokVoice: (guildId: string, voice: string) =>
     api.post<{ voice: string }>('/grok-voice', { guildId, voice }),
+  getGrokPersona: (guildId: string) =>
+    api.get<{ personaId: string | null }>(`/grok-persona/${encodeURIComponent(guildId)}`),
+  setGrokPersona: (guildId: string, personaId: string | null) =>
+    api.post<{ personaId: string | null }>('/grok-persona', {
+      guildId,
+      personaId: personaId ?? '',
+    }),
+  getPersonas: () =>
+    api.get<{ personas: { id: string; name: string; isBuiltIn: boolean }[] }>('/personas'),
+  getPersona: (id: string) =>
+    api.get<{
+      id: string;
+      name: string;
+      isBuiltIn: boolean;
+      systemPrompt: string | null;
+    }>(`/personas/${encodeURIComponent(id)}`),
+  createPersona: (data: { name: string; systemPrompt: string }) =>
+    api.post<{ id: string; name: string }>('/personas', data),
+  updatePersona: (id: string, data: { name?: string; systemPrompt?: string }) =>
+    api.put<{ id: string; name: string }>(`/personas/${encodeURIComponent(id)}`, data),
+  deletePersona: (id: string) => api.delete(`/personas/${encodeURIComponent(id)}`),
 };
 
 // Stats API

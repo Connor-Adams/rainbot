@@ -9,7 +9,7 @@
 import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
-import { getGrokVoice } from '../redis';
+import { getGrokPersona, getGrokVoice } from '../redis';
 import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE, GROK_VOICE_AGENT_TOOLS } from '../config';
 import { getVoiceAgentInstructions } from '../prompts';
 import { VOICE_AGENT_MUSIC_TOOLS } from './tools';
@@ -118,32 +118,37 @@ export function createGrokVoiceAgentClient(
   ws.on('open', () => {
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
-    // session.update per xAI: session.instructions = system prompt (required).
-    // https://docs.x.ai/developers/model-capabilities/audio/voice-agent#session-messages
     const toolsEnabled = GROK_VOICE_AGENT_TOOLS && !!callbacks.executeCommand;
     const tools = toolsEnabled ? VOICE_AGENT_MUSIC_TOOLS : [];
-    const instructions = getVoiceAgentInstructions(undefined, tools.length > 0);
-    if (!instructions || instructions.length === 0) {
-      log.warn('Voice Agent session.instructions would be empty; skipping session.update');
-      doClose();
-      return;
-    }
-    const session = {
-      instructions,
-      voice: GROK_VOICE,
-      turn_detection: { type: 'server_vad' as const },
-      audio: {
-        input: { format: { type: 'audio/pcm' as const, rate: 24000 } },
-        output: { format: { type: 'audio/pcm' as const, rate: 24000 } },
-      },
-      ...(tools.length > 0 ? { tools } : {}),
-    };
-    sessionConfig = session; // Store for re-sending each turn
-    log.debug(
-      `Voice Agent session.update instructions=${instructions.length} chars tools=${tools.length}`
-    );
-    // sendSessionUpdate now checks Redis for voice preference automatically
-    void sendSessionUpdate();
+    void (async () => {
+      if (closed) return;
+      const personaId = await getGrokPersona(guildId, userId);
+      const instructions = await getVoiceAgentInstructions(
+        personaId ?? undefined,
+        tools.length > 0
+      );
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!instructions || instructions.length === 0) {
+        log.warn('Voice Agent session.instructions would be empty; skipping session.update');
+        doClose();
+        return;
+      }
+      const session = {
+        instructions,
+        voice: GROK_VOICE,
+        turn_detection: { type: 'server_vad' as const },
+        audio: {
+          input: { format: { type: 'audio/pcm' as const, rate: 24000 } },
+          output: { format: { type: 'audio/pcm' as const, rate: 24000 } },
+        },
+        ...(tools.length > 0 ? { tools } : {}),
+      };
+      sessionConfig = session;
+      log.debug(
+        `Voice Agent session.update instructions=${instructions.length} chars tools=${tools.length}`
+      );
+      void sendSessionUpdate();
+    })();
   });
 
   ws.on('message', async (data: Buffer | string) => {

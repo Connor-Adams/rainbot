@@ -190,6 +190,16 @@ export async function initializeSchema(): Promise<boolean> {
         `);
 
     await pool.query(`
+            CREATE TABLE IF NOT EXISTS grok_personas (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id VARCHAR(20) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                system_prompt TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS listening_history (
                 id SERIAL PRIMARY KEY,
                 user_id VARCHAR(20) NOT NULL,

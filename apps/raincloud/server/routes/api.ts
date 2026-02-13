@@ -954,6 +954,300 @@ router.post(
   }
 );
 
+// Built-in Grok personas (id and name for list; full content lives in Pranjeet).
+const BUILT_IN_PERSONAS = [
+  { id: 'default', name: 'Convenience store philosopher', isBuiltIn: true as const },
+];
+
+const PERSONA_NAME_MAX = 100;
+const PERSONA_SYSTEM_PROMPT_MAX = 20_000;
+
+// GET /api/grok-persona/:guildId - Get selected Grok persona for the current user in the guild
+router.get(
+  '/grok-persona/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const personaId = await multiBot.getVoiceStateManager().getGrokPersona(guildId, userId);
+      res.json({ personaId: personaId ?? null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/grok-persona - Set selected Grok persona for the current user in the guild
+router.post(
+  '/grok-persona',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, personaId } = req.body;
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const value = typeof personaId === 'string' ? personaId : '';
+      await multiBot.getVoiceStateManager().setGrokPersona(guildId, userId, value);
+      res.json({ personaId: value || null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/personas - List built-in + current user's custom personas
+router.get('/personas', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const customResult = await query(
+      `SELECT id, name FROM grok_personas WHERE user_id = $1 ORDER BY created_at ASC`,
+      [userId]
+    );
+    const custom = (customResult?.rows ?? []).map((r: { id: string; name: string }) => ({
+      id: r.id,
+      name: r.name,
+      isBuiltIn: false as const,
+    }));
+    res.json({
+      personas: [...BUILT_IN_PERSONAS, ...custom],
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/personas/:id - Get one persona (built-in or custom owned by user)
+router.get('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const builtIn = BUILT_IN_PERSONAS.find((p) => p.id === id);
+    if (builtIn) {
+      res.json({ id: builtIn.id, name: builtIn.name, isBuiltIn: true, systemPrompt: null });
+      return;
+    }
+    const result = await query(
+      `SELECT id, name, system_prompt FROM grok_personas WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+    const row = result?.rows?.[0] as
+      | { id: string; name: string; system_prompt: string }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    res.json({
+      id: row.id,
+      name: row.name,
+      isBuiltIn: false,
+      systemPrompt: row.system_prompt,
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/personas - Create custom persona
+router.post('/personas', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { name, systemPrompt } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+  if (!systemPrompt || typeof systemPrompt !== 'string') {
+    res.status(400).json({ error: 'systemPrompt is required' });
+    return;
+  }
+  const trimmedName = name.trim();
+  const trimmedPrompt = systemPrompt.trim();
+  if (trimmedName.length > PERSONA_NAME_MAX) {
+    res.status(400).json({ error: `name must be at most ${PERSONA_NAME_MAX} characters` });
+    return;
+  }
+  if (trimmedPrompt.length > PERSONA_SYSTEM_PROMPT_MAX) {
+    res.status(400).json({
+      error: `systemPrompt must be at most ${PERSONA_SYSTEM_PROMPT_MAX} characters`,
+    });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const insertResult = await query(
+      `INSERT INTO grok_personas (user_id, name, system_prompt) VALUES ($1, $2, $3) RETURNING id, name`,
+      [userId, trimmedName, trimmedPrompt]
+    );
+    const row = insertResult?.rows?.[0] as { id: string; name: string } | undefined;
+    if (!row) {
+      res.status(500).json({ error: 'Failed to create persona' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().setCustomPersonaCache(row.id, {
+        id: row.id,
+        name: row.name,
+        systemPrompt: trimmedPrompt,
+      });
+    }
+    res.status(201).json({ id: row.id, name: row.name });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /api/personas/:id - Update custom persona
+router.put('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { name, systemPrompt } = req.body;
+  const trimmedName = name != null && typeof name === 'string' ? name.trim() : undefined;
+  const trimmedPrompt =
+    systemPrompt != null && typeof systemPrompt === 'string' ? systemPrompt.trim() : undefined;
+  if (trimmedName !== undefined && trimmedName.length > PERSONA_NAME_MAX) {
+    res.status(400).json({ error: `name must be at most ${PERSONA_NAME_MAX} characters` });
+    return;
+  }
+  if (trimmedPrompt !== undefined && trimmedPrompt.length > PERSONA_SYSTEM_PROMPT_MAX) {
+    res.status(400).json({
+      error: `systemPrompt must be at most ${PERSONA_SYSTEM_PROMPT_MAX} characters`,
+    });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    if (BUILT_IN_PERSONAS.some((p) => p.id === id)) {
+      res.status(403).json({ error: 'Cannot edit built-in persona' });
+      return;
+    }
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+    if (trimmedName !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      params.push(trimmedName);
+    }
+    if (trimmedPrompt !== undefined) {
+      updates.push(`system_prompt = $${paramIndex++}`);
+      params.push(trimmedPrompt);
+    }
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'Provide name or systemPrompt to update' });
+      return;
+    }
+    params.push(id, userId);
+    const result = await query(
+      `UPDATE grok_personas SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex} RETURNING id, name, system_prompt`,
+      params
+    );
+    const row = result?.rows?.[0] as
+      | { id: string; name: string; system_prompt: string }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().setCustomPersonaCache(row.id, {
+        id: row.id,
+        name: row.name,
+        systemPrompt: row.system_prompt,
+      });
+    }
+    res.json({ id: row.id, name: row.name });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /api/personas/:id - Delete custom persona
+router.delete('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    if (BUILT_IN_PERSONAS.some((p) => p.id === id)) {
+      res.status(403).json({ error: 'Cannot delete built-in persona' });
+      return;
+    }
+    const result = await query(
+      `DELETE FROM grok_personas WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [id, userId]
+    );
+    if (!result || result.rowCount === 0) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().deleteCustomPersonaCache(id);
+    }
+    res.status(204).send();
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',

@@ -10,6 +10,7 @@ import { log } from '../config';
 import { getOrCreateGuildState, getStateForRpc, guildStates } from '../state/guild-state';
 import { speakInGuild } from '../speak';
 import { getGrokReply } from '../chat/grok';
+import { getGrokPersona } from '../redis';
 
 export interface PranjeetRpcDeps {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -48,7 +49,13 @@ export function createRpcHandlers(deps: PranjeetRpcDeps) {
     userId: string;
     text: string;
   }): Promise<{ reply: string }> {
-    const reply = await getGrokReply(input.guildId, input.userId, input.text);
+    const personaId = await getGrokPersona(input.guildId, input.userId);
+    const reply = await getGrokReply(
+      input.guildId,
+      input.userId,
+      input.text,
+      personaId ?? undefined
+    );
     return { reply };
   }
 

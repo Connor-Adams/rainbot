@@ -41,7 +41,7 @@ import { registerVoiceStateHandlers } from './events/voice-state';
 import { initTTS } from './tts';
 import { speakInGuild } from './speak';
 import { startTtsQueue } from './queue/tts-worker';
-import { getConversationMode } from './redis';
+import { getConversationMode, getGrokPersona } from './redis';
 import { getGrokReply } from './chat/grok';
 import { createGrokVoiceAgentClient } from './voice-agent/grokVoiceAgent';
 import { playVoiceAgentAudio } from './voice-agent/playVoiceAgentAudio';
@@ -229,7 +229,13 @@ setupDiscordClientReadyHandler(client, {
       ): Promise<VoiceCommandResult | null> => {
         const inConversationMode = await getConversationMode(session.guildId, session.userId);
         if (inConversationMode) {
-          const reply = await getGrokReply(session.guildId, session.userId, command.rawText);
+          const personaId = await getGrokPersona(session.guildId, session.userId);
+          const reply = await getGrokReply(
+            session.guildId,
+            session.userId,
+            command.rawText,
+            personaId ?? undefined
+          );
           return { success: true, command, response: reply };
         }
 

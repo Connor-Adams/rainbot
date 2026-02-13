@@ -29,6 +29,8 @@ const CONVERSATION_KEY_PREFIX = 'conversation:';
 const GROK_RESPONSE_ID_KEY_PREFIX = 'grok:response_id:';
 const GROK_HISTORY_KEY_PREFIX = 'grok:history:';
 const GROK_VOICE_KEY_PREFIX = 'grok:voice:';
+const GROK_PERSONA_KEY_PREFIX = 'grok:persona:';
+const PERSONA_CUSTOM_KEY_PREFIX = 'persona:custom:';
 
 /** Max conversation messages to keep (user + assistant pairs). Trimmed from the front. */
 const GROK_HISTORY_MAX_MESSAGES = 20;
@@ -93,6 +95,50 @@ export async function getGrokVoice(guildId: string, userId: string): Promise<str
   try {
     const key = `${GROK_VOICE_KEY_PREFIX}${guildId}:${userId}`;
     return await c.get(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get selected Grok persona id for a user in a guild. Returns null if not set (use default).
+ */
+export async function getGrokPersona(guildId: string, userId: string): Promise<string | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    const key = `${GROK_PERSONA_KEY_PREFIX}${guildId}:${userId}`;
+    const value = await c.get(key);
+    return value && value.trim() !== '' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get custom persona payload from Redis (written by Raincloud when creating/updating).
+ * Returns null if not found or Redis unavailable.
+ */
+export async function getCustomPersona(
+  id: string
+): Promise<{ id: string; name: string; systemPrompt: string } | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    const key = `${PERSONA_CUSTOM_KEY_PREFIX}${id}`;
+    const raw = await c.get(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'id' in parsed &&
+      'name' in parsed &&
+      'systemPrompt' in parsed
+    ) {
+      return parsed as { id: string; name: string; systemPrompt: string };
+    }
+    return null;
   } catch {
     return null;
   }
