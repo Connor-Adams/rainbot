@@ -85,6 +85,22 @@ export function resample24to48(pcm24k: Buffer): Buffer {
   return out;
 }
 
+/**
+ * Resample 48kHz stereo 16-bit PCM → 24kHz mono 16-bit PCM.
+ * Discord voice receiver outputs 48kHz stereo; xAI Voice Agent expects 24kHz mono.
+ */
+export function resample48kStereoTo24kMono(pcm48kStereo: Buffer): Buffer {
+  const numSamples = Math.floor(pcm48kStereo.length / 2);
+  const numStereoFrames = Math.floor(numSamples / 2);
+  const numOutSamples = Math.floor(numStereoFrames / 2); // left channel, every other frame
+  const out = Buffer.alloc(numOutSamples * 2);
+  for (let i = 0; i < numOutSamples; i++) {
+    const srcIdx = i * 4; // every 4th sample (L0, L2, L4...) = left channel at 24k
+    out.writeInt16LE(pcm48kStereo.readInt16LE(srcIdx * 2), i * 2);
+  }
+  return out;
+}
+
 export function monoToStereoPcm(pcmMono: Buffer): Buffer {
   const validLength = Math.floor(pcmMono.length / 2) * 2;
   const trimmed = validLength < pcmMono.length ? pcmMono.subarray(0, validLength) : pcmMono;

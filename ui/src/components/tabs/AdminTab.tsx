@@ -43,7 +43,7 @@ export default function AdminTab() {
   const [playSource, setPlaySource] = useState('');
   const [speakText, setSpeakText] = useState('');
   const [grokText, setGrokText] = useState('');
-  const [grokSpeakReply, setGrokSpeakReply] = useState(false);
+  const [grokSpeakReply, setGrokSpeakReply] = useState(true);
   const [soundboardSound, setSoundboardSound] = useState('');
   const [runResult, setRunResult] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
