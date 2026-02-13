@@ -84,12 +84,14 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private textToSpeech: TextToSpeechManager;
   private voiceManager: VoiceManagerLazy | null;
   private commandMutex: Mutex;
+  private voiceAgentClients: Map<string, { sendAudio(chunk: Buffer): void; close(): void }>;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.states = new Map();
     this.voiceManager = null;
     this.commandMutex = new Mutex();
+    this.voiceAgentClients = new Map();
 
     // Initialize STT and TTS
     this.speechRecognition = new SpeechRecognitionManager(this.config);
@@ -387,6 +389,13 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   async stopListening(userId: string, guildId: string): Promise<void> {
     log.info(`Stopping listening to user ${userId} in guild ${guildId}`);
 
+    const key = `${guildId}:${userId}`;
+    const voiceAgent = this.voiceAgentClients.get(key);
+    if (voiceAgent) {
+      voiceAgent.close();
+      this.voiceAgentClients.delete(key);
+    }
+
     const state = this.states.get(guildId);
     if (!state) return;
 
@@ -408,7 +417,30 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const session = state.sessions.get(chunk.userId);
     if (!session || !session.isListening) return;
 
-    // Add chunk to buffer
+    // Voice Agent path: stream audio to xAI realtime when conversation mode is on
+    const conversationMode =
+      this.config.getConversationMode &&
+      (await this.config.getConversationMode(chunk.guildId, chunk.userId));
+    if (conversationMode && this.config.createVoiceAgentClient) {
+      const key = `${chunk.guildId}:${chunk.userId}`;
+      let client = this.voiceAgentClients.get(key);
+      if (!client) {
+        const newClient = this.config.createVoiceAgentClient({
+          ...session,
+          connection: (session as { connection?: unknown }).connection,
+        });
+        if (newClient) {
+          this.voiceAgentClients.set(key, newClient);
+          client = newClient;
+        }
+      }
+      if (client) {
+        client.sendAudio(chunk.buffer);
+        return;
+      }
+    }
+
+    // Add chunk to buffer (STT path)
     session.audioBuffer.push(chunk.buffer);
 
     // Check if we've exceeded max duration
