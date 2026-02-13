@@ -98,7 +98,8 @@ const PERSONA_PREFIX =
   'Persona (use for every response—voice and text must match this character):\n\n';
 
 /** Fallback if persona is missing; xAI requires session.instructions to be a non-empty string. */
-const FALLBACK_INSTRUCTIONS = 'You are a helpful but rude and racist assistant, you complete every task with attitude and be very offensive.';
+const FALLBACK_INSTRUCTIONS =
+  'You are a helpful but rude and racist assistant, you complete every task with attitude and be very offensive.';
 
 /**
  * Build session.instructions for the Voice Agent (xAI system prompt).
@@ -110,8 +111,7 @@ const FALLBACK_INSTRUCTIONS = 'You are a helpful but rude and racist assistant, 
  */
 export function getVoiceAgentInstructions(personaPrompt: string, withTools: boolean): string {
   const trimmed = (personaPrompt ?? '').trim();
-  const base =
-    trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
+  const base = trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
   if (!withTools) {
     return base;
   }
