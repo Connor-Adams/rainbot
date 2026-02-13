@@ -63,6 +63,7 @@ const hasOrchestrator = !!ORCHESTRATOR_BOT_ID;
 // Setup process error handlers
 setupProcessErrorHandlers(log);
 
+log.info('Starting Rainbot');
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
 log.info(

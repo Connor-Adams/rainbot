@@ -10,6 +10,7 @@ import { setClient, getClient } from './client';
 import type { AppConfig } from '@rainbot/types/server';
 
 const log = createLogger('SERVER');
+log.info('Starting Raincloud Server');
 const FileStore = FileStoreFactory(session);
 
 // Try to load Redis (optional dependency)

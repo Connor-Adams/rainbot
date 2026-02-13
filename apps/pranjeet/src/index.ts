@@ -49,6 +49,7 @@ import type { VoiceConnection } from '@discordjs/voice';
 
 setupProcessErrorHandlers(log);
 
+log.info('Starting Pranjeet');
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
 log.info(
