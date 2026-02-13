@@ -19,6 +19,8 @@ export const VOICE_INTERACTION_ENABLED = process.env['VOICE_INTERACTION_ENABLED'
 export const VOICE_TRIGGER_WORD = process.env['VOICE_TRIGGER_WORD']?.trim() || 'evan';
 export const GROK_API_KEY = process.env['GROK_API_KEY'] || process.env['XAI_API_KEY'];
 export const GROK_MODEL = process.env['GROK_MODEL'] || 'grok-4-1-fast-reasoning';
+/** Voice Agent voice: Ara, Rex, Sal, Eve, Leo (default: Ara) */
+export const GROK_VOICE = process.env['GROK_VOICE']?.trim() || 'Ara';
 // Grok is enabled when an API key is set, unless explicitly disabled with GROK_ENABLED=false
 const hasGrokKey = !!GROK_API_KEY;
 export const GROK_ENABLED = process.env['GROK_ENABLED'] === 'false' ? false : hasGrokKey;

@@ -9,7 +9,7 @@ import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
 import { GROK_SYSTEM_PROMPT } from '../chat/grok';
-import { GROK_API_KEY, GROK_ENABLED } from '../config';
+import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE } from '../config';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
@@ -88,7 +88,7 @@ export function createGrokVoiceAgentClient(
     send({
       type: 'session.update',
       session: {
-        voice: 'Ara',
+        voice: GROK_VOICE,
         instructions: GROK_SYSTEM_PROMPT,
         turn_detection: { type: 'server_vad' },
         audio: {
