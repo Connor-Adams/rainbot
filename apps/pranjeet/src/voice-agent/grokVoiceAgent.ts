@@ -8,13 +8,11 @@
 import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
+import { GROK_SYSTEM_PROMPT } from '../chat/grok';
 import { GROK_API_KEY, GROK_ENABLED } from '../config';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
-
-const VOICE_AGENT_INSTRUCTIONS =
-  'You are a helpful, concise voice assistant in a Discord voice channel. Keep replies short and natural for spoken conversation.';
 
 export interface GrokVoiceAgentCallbacks {
   /** Called when Grok's response audio is complete (PCM 24kHz mono s16le). */
@@ -91,7 +89,7 @@ export function createGrokVoiceAgentClient(
       type: 'session.update',
       session: {
         voice: 'Ara',
-        instructions: VOICE_AGENT_INSTRUCTIONS,
+        instructions: GROK_SYSTEM_PROMPT,
         turn_detection: { type: 'server_vad' },
         audio: {
           input: { format: { type: 'audio/pcm', rate: 24000 } },
