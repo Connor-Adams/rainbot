@@ -2,13 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [".env", "utils/**", "db/**"],
   "tasks": {
-    "build": {"dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "build/**"]},
-    "build:ts": {"dependsOn": ["^build:ts"], "outputs": ["dist/**"]},
-    "prettier": {"outputs": []},
-    "prettier:check": {"outputs": []},
-    "type-check": {"dependsOn": ["^build"], "outputs": []},
-    "test": {"dependsOn": ["build:ts"], "outputs": []},
-    "dev": {"cache": false, "persistent": true},
-    "start": {"dependsOn": ["build"], "cache": false, "persistent": true}
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "build/**"] },
+    "build:ts": { "dependsOn": ["^build:ts"], "outputs": ["dist/**"] },
+    "prettier": { "outputs": [] },
+    "prettier:check": { "outputs": [] },
+    "type-check": { "dependsOn": ["^build"], "outputs": [] },
+    "test": { "dependsOn": ["build:ts"], "outputs": [] },
+    "dev": { "cache": false, "persistent": true },
+    "start": { "dependsOn": ["build"], "cache": false, "persistent": true }
   }
 }

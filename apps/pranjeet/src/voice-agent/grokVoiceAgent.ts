@@ -10,7 +10,7 @@ import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
 import { GROK_SYSTEM_PROMPT } from '../chat/grok';
 import { getGrokVoice } from '../redis';
-import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE } from '../config';
+import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE, GROK_VOICE_AGENT_TOOLS } from '../config';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
@@ -90,104 +90,109 @@ export function createGrokVoiceAgentClient(
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
     const voice = (await getGrokVoice(guildId, userId)) || GROK_VOICE;
-    const tools = callbacks.executeCommand
-      ? [
-          {
-            type: 'function',
-            name: 'play_music',
-            description:
-              'Play music or add to queue. Use this when the user wants to play a song, artist, or playlist.',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'Song name, artist name, YouTube URL, Spotify URL, or search query',
+    const tools =
+      GROK_VOICE_AGENT_TOOLS && callbacks.executeCommand
+        ? [
+            {
+              type: 'function',
+              name: 'play_music',
+              description:
+                'Play music or add to queue. Use this when the user wants to play a song, artist, or playlist.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description:
+                      'Song name, artist name, YouTube URL, Spotify URL, or search query',
+                  },
                 },
+                required: ['query'],
               },
-              required: ['query'],
             },
-          },
-          {
-            type: 'function',
-            name: 'skip_song',
-            description:
-              'Skip the current song or multiple songs. Use when user says skip, next, skip song, etc.',
-            parameters: {
-              type: 'object',
-              properties: {
-                count: {
-                  type: 'number',
-                  description: 'Number of songs to skip (default: 1)',
+            {
+              type: 'function',
+              name: 'skip_song',
+              description:
+                'Skip the current song or multiple songs. Use when user says skip, next, skip song, etc.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  count: {
+                    type: 'number',
+                    description: 'Number of songs to skip (default: 1)',
+                  },
                 },
+                required: [],
               },
-              required: [],
             },
-          },
-          {
-            type: 'function',
-            name: 'pause_music',
-            description:
-              'Pause the currently playing music. Use when user says pause, stop playing, hold on, etc.',
-            parameters: {
-              type: 'object',
-              properties: {},
-              required: [],
+            {
+              type: 'function',
+              name: 'pause_music',
+              description:
+                'Pause the currently playing music. Use when user says pause, stop playing, hold on, etc.',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
             },
-          },
-          {
-            type: 'function',
-            name: 'resume_music',
-            description:
-              'Resume paused music. Use when user says resume, continue, unpause, keep going, etc.',
-            parameters: {
-              type: 'object',
-              properties: {},
-              required: [],
+            {
+              type: 'function',
+              name: 'resume_music',
+              description:
+                'Resume paused music. Use when user says resume, continue, unpause, keep going, etc.',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
             },
-          },
-          {
-            type: 'function',
-            name: 'stop_music',
-            description:
-              'Stop playback and clear the queue. Use when user says stop, stop music, clear queue, etc.',
-            parameters: {
-              type: 'object',
-              properties: {},
-              required: [],
+            {
+              type: 'function',
+              name: 'stop_music',
+              description:
+                'Stop playback and clear the queue. Use when user says stop, stop music, clear queue, etc.',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
             },
-          },
-          {
-            type: 'function',
-            name: 'set_volume',
-            description: 'Set the playback volume. Use when user wants to change volume.',
-            parameters: {
-              type: 'object',
-              properties: {
-                volume: {
-                  type: 'number',
-                  description: 'Volume level from 0 to 100',
+            {
+              type: 'function',
+              name: 'set_volume',
+              description: 'Set the playback volume. Use when user wants to change volume.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  volume: {
+                    type: 'number',
+                    description: 'Volume level from 0 to 100',
+                  },
                 },
+                required: ['volume'],
               },
-              required: ['volume'],
             },
-          },
-          {
-            type: 'function',
-            name: 'clear_queue',
-            description:
-              'Clear the music queue. Use when user says clear queue, clear, empty queue, etc.',
-            parameters: {
-              type: 'object',
-              properties: {},
-              required: [],
+            {
+              type: 'function',
+              name: 'clear_queue',
+              description:
+                'Clear the music queue. Use when user says clear queue, clear, empty queue, etc.',
+              parameters: {
+                type: 'object',
+                properties: {},
+                required: [],
+              },
             },
-          },
-        ]
-      : [];
-    const instructions = `${GROK_SYSTEM_PROMPT}
+          ]
+        : [];
+    const instructions =
+      tools.length > 0
+        ? `${GROK_SYSTEM_PROMPT}
 
-CRITICAL: Stay in character at all times. When you execute music commands (play, skip, pause, etc.), respond to the user in your persona—do not become a generic helpful assistant. Announce what you did in character.`;
+CRITICAL: Stay in character at all times. When you execute music commands (play, skip, pause, etc.), respond to the user in your persona—do not become a generic helpful assistant. Announce what you did in character.`
+        : GROK_SYSTEM_PROMPT;
     send({
       type: 'session.update',
       session: {
