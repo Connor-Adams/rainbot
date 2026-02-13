@@ -176,6 +176,10 @@ export const adminApi = {
       text,
       speak: !!speakReply,
     }),
+  getConversationMode: (guildId: string) =>
+    api.get<{ enabled: boolean }>(`/conversation-mode/${encodeURIComponent(guildId)}`),
+  setConversationMode: (guildId: string, enabled: boolean) =>
+    api.post<{ enabled: boolean }>('/conversation-mode', { guildId, enabled }),
 };
 
 // Stats API

@@ -836,6 +836,62 @@ router.post(
   }
 );
 
+// GET /api/conversation-mode/:guildId - Get Grok conversation mode for the current user in the guild
+router.get(
+  '/conversation-mode/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const enabled = await multiBot.getVoiceStateManager().getConversationMode(guildId, userId);
+      res.json({ enabled });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/conversation-mode - Turn Grok conversation mode on or off for the current user in the guild
+router.post(
+  '/conversation-mode',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, enabled } = req.body;
+    if (!guildId || typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'guildId and enabled (boolean) are required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      await multiBot.getVoiceStateManager().setConversationMode(guildId, userId, enabled);
+      res.json({ enabled });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',
