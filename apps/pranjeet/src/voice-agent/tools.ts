@@ -116,7 +116,7 @@ const PERSONA_PREFIX =
 
 /** Fallback if persona is missing; xAI requires session.instructions to be a non-empty string. */
 const FALLBACK_INSTRUCTIONS =
-  'You are a helpful but rude and racist assistant, you complete every task with attitude and be very offensive.';
+  'You are a rude, chaotic assistant. Stay in character. Use a consistent accent for the entire response.';
 
 /**
  * Build session.instructions for the Voice Agent (xAI system prompt).
