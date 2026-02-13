@@ -45,7 +45,9 @@ export async function getGrokReply(
   userMessage: string
 ): Promise<string> {
   const hasKey = !!GROK_API_KEY;
-  log.debug(`getGrokReply called: guildId=${guildId} userId=${userId} GROK_ENABLED=${GROK_ENABLED} hasApiKey=${hasKey} messageLength=${userMessage?.length ?? 0}`);
+  log.debug(
+    `getGrokReply called: guildId=${guildId} userId=${userId} GROK_ENABLED=${GROK_ENABLED} hasApiKey=${hasKey} messageLength=${userMessage?.length ?? 0}`
+  );
 
   if (!GROK_ENABLED || !GROK_API_KEY) {
     log.info(
@@ -61,7 +63,9 @@ export async function getGrokReply(
   }
 
   const previousResponseId = await getGrokResponseId(guildId, userId);
-  log.debug(`Redis previous_response_id: ${previousResponseId ? `${previousResponseId.slice(0, 12)}...` : 'none (new thread)'}`);
+  log.debug(
+    `Redis previous_response_id: ${previousResponseId ? `${previousResponseId.slice(0, 12)}...` : 'none (new thread)'}`
+  );
 
   try {
     const url = `${XAI_BASE}/responses`;

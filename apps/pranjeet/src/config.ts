@@ -20,8 +20,7 @@ export const GROK_API_KEY = process.env['GROK_API_KEY'] || process.env['XAI_API_
 export const GROK_MODEL = process.env['GROK_MODEL'] || 'grok-4-1-fast-reasoning';
 // Grok is enabled when an API key is set, unless explicitly disabled with GROK_ENABLED=false
 const hasGrokKey = !!GROK_API_KEY;
-export const GROK_ENABLED =
-  process.env['GROK_ENABLED'] === 'false' ? false : hasGrokKey;
+export const GROK_ENABLED = process.env['GROK_ENABLED'] === 'false' ? false : hasGrokKey;
 
 export const log = createLogger('PRANJEET');
 export const hasToken = !!TOKEN;
