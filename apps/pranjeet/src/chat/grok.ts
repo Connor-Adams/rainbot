@@ -80,9 +80,13 @@ export async function getGrokReply(
   const history = await getGrokHistory(guildId, userId);
   log.debug(`History messages: ${history.length}`);
 
+  // Filter out any system messages from history (we always add our own fresh system prompt)
+  // and ensure we only include user/assistant pairs
+  const filteredHistory = history.filter((m) => m.role !== 'system');
+
   const messages: Array<{ role: string; content: string }> = [
     { role: 'system', content: GROK_SYSTEM_PROMPT },
-    ...history.map((m) => ({ role: m.role, content: m.content })),
+    ...filteredHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: trimmed },
   ];
 
@@ -98,7 +102,10 @@ export async function getGrokReply(
       stream: false,
     };
 
-    log.debug(`POST ${url} model=${GROK_MODEL} messages=${messages.length}`);
+    log.debug(
+      `POST ${url} model=${GROK_MODEL} messages=${messages.length} systemPromptLength=${GROK_SYSTEM_PROMPT.length}`
+    );
+    log.debug(`System prompt preview: ${GROK_SYSTEM_PROMPT.substring(0, 100)}...`);
 
     const res = await fetch(url, {
       method: 'POST',
