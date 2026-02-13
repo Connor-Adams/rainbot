@@ -9,6 +9,7 @@ import type { RequestCache } from '@rainbot/worker-shared';
 import { log } from '../config';
 import { getOrCreateGuildState, getStateForRpc, guildStates } from '../state/guild-state';
 import { speakInGuild } from '../speak';
+import { getGrokReply } from '../chat/grok';
 
 export interface PranjeetRpcDeps {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -42,11 +43,21 @@ export function createRpcHandlers(deps: PranjeetRpcDeps) {
     speakInGuild: (guildId, text, voice) => speakInGuild(guildId, text, voice),
   });
 
+  async function grokChat(input: {
+    guildId: string;
+    userId: string;
+    text: string;
+  }): Promise<{ reply: string }> {
+    const reply = await getGrokReply(input.guildId, input.userId, input.text);
+    return { reply };
+  }
+
   return {
     getState: getStateForRpc,
     join,
     leave,
     volume,
     speak,
+    grokChat,
   };
 }
