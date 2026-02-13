@@ -70,8 +70,20 @@ export function createGrokVoiceAgentClient(
     }
   }
 
-  function sendSessionUpdate(): void {
+  async function sendSessionUpdate(): Promise<void> {
     if (!sessionConfig) return;
+    // Check Redis for voice preference changes before each update
+    try {
+      const userVoice = await getGrokVoice(guildId, userId);
+      const newVoice = userVoice || GROK_VOICE;
+      if (newVoice !== sessionConfig.voice) {
+        sessionConfig.voice = newVoice;
+        log.debug(`Voice Agent voice updated to: ${newVoice}`);
+      }
+    } catch (e) {
+      log.debug(`Voice Agent failed to check voice preference: ${(e as Error).message}`);
+      // Continue with current voice if Redis check fails
+    }
     send({ type: 'session.update', session: sessionConfig });
   }
 
@@ -130,16 +142,8 @@ export function createGrokVoiceAgentClient(
     log.debug(
       `Voice Agent session.update instructions=${instructions.length} chars tools=${tools.length}`
     );
-    sendSessionUpdate();
-    // Update voice when Redis returns user preference
-    getGrokVoice(guildId, userId).then((userVoice) => {
-      if (closed || !ws || ws.readyState !== WebSocket.OPEN) return;
-      const v = userVoice || GROK_VOICE;
-      if (v !== GROK_VOICE && sessionConfig) {
-        sessionConfig.voice = v;
-        sendSessionUpdate();
-      }
-    });
+    // sendSessionUpdate now checks Redis for voice preference automatically
+    void sendSessionUpdate();
   });
 
   ws.on('message', async (data: Buffer | string) => {
@@ -226,7 +230,8 @@ export function createGrokVoiceAgentClient(
       case 'response.done':
         _currentResponseId = null;
         // Re-send session.update after each turn to reinforce persona/accent
-        sendSessionUpdate();
+        // This also checks Redis for voice preference changes
+        void sendSessionUpdate();
         break;
       case 'error':
         log.warn('Voice Agent server error:', event);

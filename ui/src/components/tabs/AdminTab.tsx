@@ -103,8 +103,21 @@ export default function AdminTab() {
     },
   });
   const grokVoiceMutation = useMutation({
-    mutationFn: ({ guildId, voice }: { guildId: string; voice: string }) =>
-      adminApi.setGrokVoice(guildId, voice),
+    mutationFn: ({ guildId, voice }: { guildId: string; voice: string }) => {
+      if (!guildId) return Promise.reject(new Error('Select a server first.'));
+      return adminApi.setGrokVoice(guildId, voice);
+    },
+    onMutate: async ({ guildId, voice }) => {
+      await queryClient.cancelQueries({ queryKey: ['grok-voice', guildId] });
+      const previous = queryClient.getQueryData<{ voice: string | null }>(['grok-voice', guildId]);
+      queryClient.setQueryData(['grok-voice', guildId], { voice });
+      return { previous };
+    },
+    onError: (_err, { guildId }, context) => {
+      if (context?.previous != null) {
+        queryClient.setQueryData(['grok-voice', guildId], context.previous);
+      }
+    },
     onSuccess: (_data, { guildId }) => {
       queryClient.invalidateQueries({ queryKey: ['grok-voice', guildId] });
     },
@@ -427,7 +440,14 @@ export default function AdminTab() {
                 </div>
                 {grokVoiceMutation.isError && (
                   <div className="text-xs text-danger-light mt-1">
-                    {(grokVoiceMutation.error as Error)?.message ?? 'Failed to update voice'}
+                    {(
+                      grokVoiceMutation.error as {
+                        response?: { data?: { error?: string } };
+                        message?: string;
+                      }
+                    )?.response?.data?.error ??
+                      (grokVoiceMutation.error as Error)?.message ??
+                      'Failed to update voice'}
                   </div>
                 )}
               </div>
