@@ -6,6 +6,7 @@
 
 import { VoiceConnection, VoiceConnectionStatus, EndBehaviorType } from '@discordjs/voice';
 import type { Client } from 'discord.js';
+import prism from 'prism-media';
 import { createLogger } from '../logger';
 import * as storage from '../storage';
 import { promisify } from 'util';
@@ -189,21 +190,29 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const userId = session.userId;
     const guildId = session.guildId;
 
-    const audioStream = receiver.subscribe(userId, {
+    const opusStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
         duration: 3000, // 3 seconds of silence ends the stream
       },
     });
 
-    log.debug(`Subscribed to audio from user ${userId}`);
+    // Discord sends raw Opus packets; decode to PCM for STT and Voice Agent
+    const opusDecoder = new prism.opus.Decoder({
+      rate: 48000,
+      channels: 2,
+      frameSize: 960,
+    });
+    opusStream.pipe(opusDecoder);
+
+    log.debug(`Subscribed to audio from user ${userId} (Opus → PCM)`);
 
     let firstChunkReceived = false;
     let chunkSequence = 0;
     let lastLogTime = Date.now();
     let totalBytesReceived = 0;
 
-    audioStream.on('data', (chunk: Buffer) => {
+    opusDecoder.on('data', (chunk: Buffer) => {
       if (!session.isListening) return;
 
       if (!firstChunkReceived) {
@@ -244,7 +253,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       });
     });
 
-    audioStream.on('end', async () => {
+    opusDecoder.on('end', async () => {
       log.info(
         `Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
       );
@@ -265,7 +274,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
     });
 
-    audioStream.on('error', (error) => {
+    opusDecoder.on('error', (error) => {
       const errorMsg = error.message;
       log.error(`Audio stream error for user ${userId}: ${errorMsg}`);
 
