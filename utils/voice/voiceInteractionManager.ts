@@ -435,14 +435,16 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
         if (newClient) {
           this.voiceAgentClients.set(key, newClient);
           client = newClient;
-          log.info(`Voice Agent client created for ${chunk.guildId}:${chunk.userId}`);
+          log.info(`Voice Agent client created for ${chunk.guildId}:${chunk.userId} (realtime path)`);
         } else {
           if (!this.voiceAgentWarnedKeys.has(key)) {
             this.voiceAgentWarnedKeys.add(key);
             log.warn(
-              `Conversation mode on but Voice Agent client is null (check GROK_API_KEY and that the voice bot is in the channel)`
+              `Conversation mode on but Voice Agent client is null — realtime path unavailable. Set REDIS_URL and GROK_API_KEY on Pranjeet; ensure you are in a VC with the voice bot. Audio will not be sent to STT.`
             );
           }
+          // Realtime path intended: do not fall back to STT when conversation mode is on
+          return;
         }
       }
       if (client) {
@@ -451,7 +453,7 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       }
     }
 
-    // Add chunk to buffer (STT path)
+    // Add chunk to buffer (STT path — only when conversation mode is off)
     session.audioBuffer.push(chunk.buffer);
 
     // Check if we've exceeded max duration

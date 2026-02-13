@@ -1,6 +1,6 @@
 # Enabling conversational speaking (Grok Voice Agent)
 
-Step-by-step flow to get real-time voice with Grok in Discord: your voice → Grok Voice Agent → Grok’s voice in the channel.
+Step-by-step flow to get **realtime** voice (Voice Agent WebSocket; no STT/TTS when this path is used) with Grok in Discord: your voice → Grok Voice Agent → Grok’s voice in the channel.
 
 ---
 
@@ -16,9 +16,11 @@ Step-by-step flow to get real-time voice with Grok in Discord: your voice → Gr
 - **PRANJEET_TOKEN** – Discord bot token for the voice worker.
 - **REDIS_URL** – must be set so Pranjeet can read:
   - `voice:interaction:enabled:{guildId}` (voice on for server)
-  - `conversation:{guildId}:{userId}` (conversation mode on for you)
-- **GROK_API_KEY** or **XAI_API_KEY** – required for Grok Voice Agent (and text Grok).
+  - `conversation:{guildId}:{userId}` (conversation mode on for you)  
+  Without REDIS_URL, conversation mode and voice state are not shared with Raincloud.
+- **GROK_API_KEY** or **XAI_API_KEY** – required for Grok (realtime Voice Agent and text chat).
 - **VOICE_INTERACTION_ENABLED** – set to `true` if you want voice interaction on by default; otherwise it’s controlled per-guild via Redis (see below).
+- **For the STT → Grok text → TTS path** (when the realtime Voice Agent isn’t used): set **OPENAI_API_KEY** or **STT_API_KEY** and **TTS_API_KEY** so speech-to-text and text-to-speech work instead of mock. If unset, you’ll see “Falling back to mock STT/TTS provider” and transcription/playback may be wrong or missing.
 - Optional: **ORCHESTRATOR_BOT_ID** / **RAINCLOUD_URL** / **WORKER_SECRET** for multi-bot / auto-follow.
 
 Pranjeet must be the bot that joins the voice channel where you want to talk to Grok (the one that runs voice/TTS and the Voice Agent).
@@ -83,7 +85,10 @@ If nothing happens:
 - Ensure **REDIS_URL** is set for Pranjeet and that the TTS queue has started (so Redis is read for `voice:interaction:enabled`).
 - Ensure **GROK_API_KEY** (or **XAI_API_KEY**) is set for Pranjeet.
 - Try **Turn off** then **Turn on** again in the Admin UI for that server (to re-enable voice for the guild).
-- Check Pranjeet logs for: `Voice Agent client created for ...` or the one-time warning about client being null.
+- Check Pranjeet logs:
+  - **Voice Agent path (realtime):** `Voice Agent client created for guildId:userId` → you’re on the realtime path; no STT/TTS keys needed for that path.
+  - **Text path (STT → Grok → TTS):** `getGrokReply called` and `Generating TTS for:` → you’re on the text path; set **OPENAI_API_KEY** (or STT_API_KEY + TTS_API_KEY) to fix “OpenAI API key required” and mock STT/TTS.
+  - **Voice Agent skipped:** `Voice Agent skipped: Grok not configured` → set GROK_API_KEY. `Voice Agent: no connection on session` → you’re not in a VC with the bot or the connection wasn’t ready.
 
 ---
 

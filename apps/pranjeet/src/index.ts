@@ -29,6 +29,10 @@ import {
   VOICE_INTERACTION_ENABLED,
   VOICE_TRIGGER_WORD,
   GROK_ENABLED,
+  GROK_API_KEY,
+  STT_API_KEY,
+  TTS_API_KEY,
+  TTS_VOICE,
 } from './config';
 import { createApp } from './app';
 import { getOrCreateGuildState, guildStates } from './state/guild-state';
@@ -53,6 +57,14 @@ log.info(
 log.info(
   `Grok chat: ${GROK_ENABLED ? 'enabled' : 'disabled'} (set GROK_API_KEY and LOG_LEVEL=debug for details)`
 );
+log.info(
+  `Realtime Voice Agent: ${GROK_ENABLED && !!GROK_API_KEY ? 'available (use when conversation mode is on)' : 'disabled (set GROK_API_KEY or XAI_API_KEY)'}`
+);
+if (!REDIS_URL) {
+  log.warn(
+    'REDIS_URL not set on Pranjeet — conversation mode and voice state will not sync with Raincloud; set REDIS_URL to use realtime Voice Agent'
+  );
+}
 console.log(`[PRANJEET] Worker registration target: ${getOrchestratorBaseUrl() || 'unset'}`);
 
 if (!hasToken) {
@@ -95,10 +107,18 @@ setupDiscordClientReadyHandler(client, {
     initVoiceInteractionManager(client, {
       enabled: VOICE_INTERACTION_ENABLED,
       triggerWord: VOICE_TRIGGER_WORD,
+      sttProvider: 'openai',
+      ttsProvider: 'openai',
+      sttApiKey: STT_API_KEY ?? undefined,
+      ttsApiKey: TTS_API_KEY ?? undefined,
+      voiceName: TTS_VOICE,
       getConversationMode,
       createVoiceAgentClient: (session) => {
         const connection = (session as { connection?: VoiceConnection }).connection;
-        if (!connection) return null;
+        if (!connection) {
+          log.warn('Voice Agent: no connection on session (ensure you are in a VC with the bot)');
+          return null;
+        }
         return createGrokVoiceAgentClient(session.guildId, session.userId, {
           onAudioDone: (pcm) => playVoiceAgentAudio(session.guildId, connection, pcm),
         });
