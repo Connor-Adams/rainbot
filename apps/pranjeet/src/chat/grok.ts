@@ -73,7 +73,6 @@ Do not mention the accent. Do not parody. Just perform it naturally and consiste
 </triggers>
 `.trim();
 
-
 interface ChatCompletionMessage {
   role: string;
   content: string | Array<{ type: string; text?: string }>;
