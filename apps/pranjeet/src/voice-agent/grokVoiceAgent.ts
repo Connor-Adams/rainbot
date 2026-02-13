@@ -86,10 +86,11 @@ export function createGrokVoiceAgentClient(
     return null;
   }
 
-  ws.on('open', async () => {
+  ws.on('open', () => {
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
-    const voice = (await getGrokVoice(guildId, userId)) || GROK_VOICE;
+    // Send session.update synchronously so instructions apply before conversation starts.
+    // Voice preference is fetched async; we send a follow-up session.update when it resolves.
     const tools =
       GROK_VOICE_AGENT_TOOLS && callbacks.executeCommand
         ? [
@@ -193,18 +194,26 @@ export function createGrokVoiceAgentClient(
 
 CRITICAL: Stay in character at all times. When you execute music commands (play, skip, pause, etc.), respond to the user in your persona—do not become a generic helpful assistant. Announce what you did in character.`
         : GROK_SYSTEM_PROMPT;
-    send({
-      type: 'session.update',
-      session: {
-        voice,
-        instructions,
-        turn_detection: { type: 'server_vad' },
-        audio: {
-          input: { format: { type: 'audio/pcm', rate: 24000 } },
-          output: { format: { type: 'audio/pcm', rate: 24000 } },
-        },
-        ...(tools.length > 0 ? { tools } : {}),
+    // xAI docs: instructions (system prompt) first in session object
+    const session = {
+      instructions,
+      voice: GROK_VOICE,
+      turn_detection: { type: 'server_vad' as const },
+      audio: {
+        input: { format: { type: 'audio/pcm' as const, rate: 24000 } },
+        output: { format: { type: 'audio/pcm' as const, rate: 24000 } },
       },
+      ...(tools.length > 0 ? { tools } : {}),
+    };
+    log.debug(`Voice Agent session.update instructions=${instructions.length} chars`);
+    send({ type: 'session.update', session });
+    // Update voice when Redis returns user preference
+    getGrokVoice(guildId, userId).then((userVoice) => {
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const v = userVoice || GROK_VOICE;
+      if (v !== GROK_VOICE) {
+        send({ type: 'session.update', session: { ...session, voice: v } });
+      }
     });
   });
 
