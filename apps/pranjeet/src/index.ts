@@ -28,6 +28,7 @@ import {
   WORKER_SECRET,
   VOICE_INTERACTION_ENABLED,
   VOICE_TRIGGER_WORD,
+  GROK_ENABLED,
 } from './config';
 import { createApp } from './app';
 import { getOrCreateGuildState, guildStates } from './state/guild-state';
@@ -45,6 +46,9 @@ log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
 log.info(
   `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
+);
+log.info(
+  `Grok chat: ${GROK_ENABLED ? 'enabled' : 'disabled'} (set GROK_API_KEY and LOG_LEVEL=debug for details)`
 );
 console.log(`[PRANJEET] Worker registration target: ${getOrchestratorBaseUrl() || 'unset'}`);
 
