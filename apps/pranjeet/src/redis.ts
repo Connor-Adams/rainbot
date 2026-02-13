@@ -28,6 +28,7 @@ function getClient(): IORedis | null {
 const CONVERSATION_KEY_PREFIX = 'conversation:';
 const GROK_RESPONSE_ID_KEY_PREFIX = 'grok:response_id:';
 const GROK_HISTORY_KEY_PREFIX = 'grok:history:';
+const GROK_VOICE_KEY_PREFIX = 'grok:voice:';
 
 /** Max conversation messages to keep (user + assistant pairs). Trimmed from the front. */
 const GROK_HISTORY_MAX_MESSAGES = 20;
@@ -80,6 +81,20 @@ export async function clearGrokHistory(guildId: string, userId: string): Promise
     await c.del(key);
   } catch {
     // ignore
+  }
+}
+
+/** Valid xAI Voice Agent voices. */
+export const GROK_VOICES = ['Ara', 'Rex', 'Sal', 'Eve', 'Leo'] as const;
+
+export async function getGrokVoice(guildId: string, userId: string): Promise<string | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    const key = `${GROK_VOICE_KEY_PREFIX}${guildId}:${userId}`;
+    return await c.get(key);
+  } catch {
+    return null;
   }
 }
 

@@ -9,6 +9,7 @@ import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
 import { GROK_SYSTEM_PROMPT } from '../chat/grok';
+import { getGrokVoice } from '../redis';
 import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE } from '../config';
 
 const log = createLogger('GROK_VOICE_AGENT');
@@ -82,13 +83,14 @@ export function createGrokVoiceAgentClient(
     return null;
   }
 
-  ws.on('open', () => {
+  ws.on('open', async () => {
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
+    const voice = (await getGrokVoice(guildId, userId)) || GROK_VOICE;
     send({
       type: 'session.update',
       session: {
-        voice: GROK_VOICE,
+        voice,
         instructions: GROK_SYSTEM_PROMPT,
         turn_detection: { type: 'server_vad' },
         audio: {

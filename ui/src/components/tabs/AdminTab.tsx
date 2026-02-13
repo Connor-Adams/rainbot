@@ -22,6 +22,14 @@ type RunCommandType =
   | 'clear'
   | 'replay';
 
+const GROK_VOICES = [
+  { value: 'Ara', label: 'Ara (female, warm)' },
+  { value: 'Rex', label: 'Rex (male, professional)' },
+  { value: 'Sal', label: 'Sal (neutral, smooth)' },
+  { value: 'Eve', label: 'Eve (female, energetic)' },
+  { value: 'Leo', label: 'Leo (male, authoritative)' },
+] as const;
+
 const RUN_COMMAND_LABELS: Record<RunCommandType, string> = {
   play: 'Play (URL or query)',
   soundboard: 'Soundboard',
@@ -80,6 +88,11 @@ export default function AdminTab() {
     queryFn: () => adminApi.getConversationMode(runGuildId!).then((res) => res.data),
     enabled: !!runGuildId,
   });
+  const { data: grokVoice } = useQuery({
+    queryKey: ['grok-voice', runGuildId],
+    queryFn: () => adminApi.getGrokVoice(runGuildId!).then((res) => res.data),
+    enabled: !!runGuildId,
+  });
   const guilds = botStatus?.guilds ?? [];
   const sounds = soundsData ?? [];
   const conversationModeMutation = useMutation({
@@ -87,6 +100,13 @@ export default function AdminTab() {
       adminApi.setConversationMode(guildId, enabled),
     onSuccess: (_data, { guildId }) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-mode', guildId] });
+    },
+  });
+  const grokVoiceMutation = useMutation({
+    mutationFn: ({ guildId, voice }: { guildId: string; voice: string }) =>
+      adminApi.setGrokVoice(guildId, voice),
+    onSuccess: (_data, { guildId }) => {
+      queryClient.invalidateQueries({ queryKey: ['grok-voice', guildId] });
     },
   });
 
@@ -340,48 +360,77 @@ export default function AdminTab() {
             nothing happens, try turning off then on again.
           </div>
           {runGuildId ? (
-            <div className="space-y-2">
-              <div className="text-xs text-text-secondary">
-                Currently:{' '}
-                <strong>
-                  {conversationMode === undefined ? '…' : conversationMode.enabled ? 'On' : 'Off'}
-                </strong>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={
-                    conversationMode === undefined ||
-                    conversationModeMutation.isPending ||
-                    conversationMode.enabled === true
-                  }
-                  onClick={() =>
-                    conversationModeMutation.mutate({ guildId: runGuildId, enabled: true })
-                  }
-                >
-                  {conversationModeMutation.isPending ? '…' : 'Turn on'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={
-                    conversationMode === undefined ||
-                    conversationModeMutation.isPending ||
-                    conversationMode.enabled === false
-                  }
-                  onClick={() =>
-                    conversationModeMutation.mutate({ guildId: runGuildId, enabled: false })
-                  }
-                >
-                  {conversationModeMutation.isPending ? '…' : 'Turn off'}
-                </button>
-              </div>
-              {conversationModeMutation.isError && (
-                <div className="text-xs text-danger-light">
-                  {(conversationModeMutation.error as Error)?.message ?? 'Failed to update'}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="text-xs text-text-secondary">
+                  Currently:{' '}
+                  <strong>
+                    {conversationMode === undefined ? '…' : conversationMode.enabled ? 'On' : 'Off'}
+                  </strong>
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={
+                      conversationMode === undefined ||
+                      conversationModeMutation.isPending ||
+                      conversationMode.enabled === true
+                    }
+                    onClick={() =>
+                      conversationModeMutation.mutate({ guildId: runGuildId, enabled: true })
+                    }
+                  >
+                    {conversationModeMutation.isPending ? '…' : 'Turn on'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={
+                      conversationMode === undefined ||
+                      conversationModeMutation.isPending ||
+                      conversationMode.enabled === false
+                    }
+                    onClick={() =>
+                      conversationModeMutation.mutate({ guildId: runGuildId, enabled: false })
+                    }
+                  >
+                    {conversationModeMutation.isPending ? '…' : 'Turn off'}
+                  </button>
+                </div>
+                {conversationModeMutation.isError && (
+                  <div className="text-xs text-danger-light">
+                    {(conversationModeMutation.error as Error)?.message ?? 'Failed to update'}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">
+                  Grok voice
+                </label>
+                <select
+                  value={grokVoice?.voice ?? 'Ara'}
+                  onChange={(e) =>
+                    grokVoiceMutation.mutate({ guildId: runGuildId, voice: e.target.value })
+                  }
+                  disabled={grokVoiceMutation.isPending}
+                  className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  {GROK_VOICES.map((v) => (
+                    <option key={v.value} value={v.value}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-xs text-text-secondary mt-1">
+                  Voice for the Grok Voice Agent. Takes effect on your next conversation.
+                </div>
+                {grokVoiceMutation.isError && (
+                  <div className="text-xs text-danger-light mt-1">
+                    {(grokVoiceMutation.error as Error)?.message ?? 'Failed to update voice'}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-xs text-text-secondary">

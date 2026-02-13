@@ -209,4 +209,34 @@ export class VoiceStateManager {
     const data = await this.redis.get(key);
     return data === '1';
   }
+
+  /** Valid xAI Voice Agent voices. */
+  static readonly GROK_VOICES = ['Ara', 'Rex', 'Sal', 'Eve', 'Leo'] as const;
+
+  /**
+   * Get Grok Voice Agent voice preference for a user in a guild.
+   * Returns null if not set (caller should use config default).
+   */
+  async getGrokVoice(guildId: string, userId: string): Promise<string | null> {
+    const key = `grok:voice:${guildId}:${userId}`;
+    return await this.redis.get(key);
+  }
+
+  /**
+   * Set Grok Voice Agent voice preference for a user in a guild.
+   * Voice must be one of: Ara, Rex, Sal, Eve, Leo.
+   */
+  async setGrokVoice(guildId: string, userId: string, voice: string): Promise<void> {
+    const valid = VoiceStateManager.GROK_VOICES.includes(
+      voice as (typeof VoiceStateManager.GROK_VOICES)[number]
+    );
+    if (!valid) {
+      throw new Error(
+        `Invalid Grok voice. Must be one of: ${VoiceStateManager.GROK_VOICES.join(', ')}`
+      );
+    }
+    const key = `grok:voice:${guildId}:${userId}`;
+    await this.redis.set(key, voice);
+    log.debug(`Set Grok voice for user ${userId} in guild ${guildId}: ${voice}`);
+  }
 }

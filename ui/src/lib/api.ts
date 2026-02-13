@@ -180,6 +180,10 @@ export const adminApi = {
     api.get<{ enabled: boolean }>(`/conversation-mode/${encodeURIComponent(guildId)}`),
   setConversationMode: (guildId: string, enabled: boolean) =>
     api.post<{ enabled: boolean }>('/conversation-mode', { guildId, enabled }),
+  getGrokVoice: (guildId: string) =>
+    api.get<{ voice: string | null }>(`/grok-voice/${encodeURIComponent(guildId)}`),
+  setGrokVoice: (guildId: string, voice: string) =>
+    api.post<{ voice: string }>('/grok-voice', { guildId, voice }),
 };
 
 // Stats API

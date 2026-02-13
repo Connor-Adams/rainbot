@@ -898,6 +898,62 @@ router.post(
   }
 );
 
+// GET /api/grok-voice/:guildId - Get Grok Voice Agent voice for the current user in the guild
+router.get(
+  '/grok-voice/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const voice = await multiBot.getVoiceStateManager().getGrokVoice(guildId, userId);
+      res.json({ voice: voice ?? null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/grok-voice - Set Grok Voice Agent voice for the current user in the guild
+router.post(
+  '/grok-voice',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, voice } = req.body;
+    if (!guildId || typeof voice !== 'string' || !voice.trim()) {
+      res.status(400).json({ error: 'guildId and voice (string) are required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      await multiBot.getVoiceStateManager().setGrokVoice(guildId, userId, voice.trim());
+      res.json({ voice: voice.trim() });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',
