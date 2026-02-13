@@ -114,7 +114,7 @@ export default function AdminTab() {
       const msg =
         runCommand === 'grok' && data.reply
           ? `Grok: ${data.reply}`
-          : data.message ?? 'Command sent.';
+          : (data.message ?? 'Command sent.');
       setRunResult(msg);
       queryClient.invalidateQueries({ queryKey: ['queue', runGuildId] });
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
@@ -312,12 +312,8 @@ export default function AdminTab() {
             >
               {runCommandMutation.isPending ? 'Running...' : 'Run command'}
             </button>
-            {runError && (
-              <div className="text-xs text-danger-light">{runError}</div>
-            )}
-            {runResult && (
-              <div className="text-xs text-text-secondary">{runResult}</div>
-            )}
+            {runError && <div className="text-xs text-danger-light">{runError}</div>}
+            {runResult && <div className="text-xs text-text-secondary">{runResult}</div>}
           </div>
         </div>
 

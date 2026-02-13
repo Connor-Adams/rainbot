@@ -79,9 +79,9 @@ export function createPranjeetRouter(handlers: PranjeetHandlers) {
       .mutation(({ input }) => handlers.speak?.(input) ?? notImplemented()),
     grokChat: internalProcedure
       .input(grokChatInputSchema)
-      .mutation(({ input }) =>
-        handlers.grokChat?.(input) ??
-        Promise.resolve({ reply: 'Grok chat is not available.' })
+      .mutation(
+        ({ input }) =>
+          handlers.grokChat?.(input) ?? Promise.resolve({ reply: 'Grok chat is not available.' })
       ),
   });
 }

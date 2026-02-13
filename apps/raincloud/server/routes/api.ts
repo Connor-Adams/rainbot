@@ -822,12 +822,9 @@ router.post(
       const multiBot = requireMultiBot(res);
       if (!multiBot) return;
 
-      const result = await multiBot.grokChat(
-        guildId,
-        effectiveUserId,
-        String(text).trim(),
-        { speakReply: !!speakReply }
-      );
+      const result = await multiBot.grokChat(guildId, effectiveUserId, String(text).trim(), {
+        speakReply: !!speakReply,
+      });
       if (!result.success) {
         throw new Error(result.message || 'Grok chat failed');
       }
