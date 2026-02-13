@@ -2,14 +2,14 @@
 name: Fix NowPlayingCard setState-in-effect
 overview: Resolve react-hooks/set-state-in-effect lint errors and missing dependency in NowPlayingCard by replacing prop-syncing effects with the "adjusting state when props change" pattern during render, and ensure yarn validate passes.
 todos:
-  - id: "1"
-    content: "Replace two useEffects with during-render state adjustment (trackKey + positionMs)"
+  - id: '1'
+    content: 'Replace two useEffects with during-render state adjustment (trackKey + positionMs)'
     status: pending
-  - id: "2"
-    content: "Run yarn validate and fix any failures (type-check, format, tests)"
+  - id: '2'
+    content: 'Run yarn validate and fix any failures (type-check, format, tests)'
     status: pending
-  - id: "3"
-    content: "Run yarn workspace @rainbot/ui lint and fix any remaining lint issues"
+  - id: '3'
+    content: 'Run yarn workspace @rainbot/ui lint and fix any remaining lint issues'
     status: pending
 isProject: false
 ---
