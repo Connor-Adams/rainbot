@@ -132,26 +132,60 @@ setupDiscordClientReadyHandler(client, {
               'Cannot execute command: Raincloud URL or Worker Secret not configured'
             );
           }
-          // Map function names to internal endpoints
-          const commandMap: Record<string, string> = {
-            play_music: 'play',
-            skip_song: 'skip',
-            pause_music: 'pause',
-            resume_music: 'resume',
-            stop_music: 'stop',
-            set_volume: 'volume',
-            clear_queue: 'clear',
+          const headers = {
+            'Content-Type': 'application/json',
+            'x-worker-secret': WORKER_SECRET,
           };
-          const endpoint = commandMap[commandName];
-          if (!endpoint) {
-            throw new Error(`Unknown command: ${commandName}`);
-          }
+          const baseBody = {
+            guildId: session.guildId,
+            userId: session.userId,
+            username: session.username,
+          };
+
           try {
-            const body: Record<string, unknown> = {
-              guildId: session.guildId,
-              userId: session.userId,
-              username: session.username,
+            // skip_and_play: skip first (so current track is removed even when paused), then play if query provided
+            if (commandName === 'skip_and_play') {
+              const skipRes = await fetch(`${baseUrl}/internal/skip`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ ...baseBody, count: 1 }),
+              });
+              if (!skipRes.ok) {
+                const text = await skipRes.text();
+                throw new Error(`Skip failed: ${text}`);
+              }
+              const query = typeof args['query'] === 'string' ? args['query'].trim() : '';
+              if (query) {
+                const playRes = await fetch(`${baseUrl}/internal/play`, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({ ...baseBody, source: query }),
+                });
+                if (!playRes.ok) {
+                  const text = await playRes.text();
+                  throw new Error(`Play failed: ${text}`);
+                }
+                const playResult = (await playRes.json()) as { message?: string };
+                return playResult.message ?? 'Skipped and playing.';
+              }
+              return 'Skipped.';
+            }
+
+            // Map other function names to internal endpoints
+            const commandMap: Record<string, string> = {
+              play_music: 'play',
+              skip_song: 'skip',
+              pause_music: 'pause',
+              resume_music: 'resume',
+              stop_music: 'stop',
+              set_volume: 'volume',
+              clear_queue: 'clear',
             };
+            const endpoint = commandMap[commandName];
+            if (!endpoint) {
+              throw new Error(`Unknown command: ${commandName}`);
+            }
+            const body: Record<string, unknown> = { ...baseBody };
             if (commandName === 'play_music' && args['query']) {
               body['source'] = args['query'];
             } else if (commandName === 'skip_song') {
@@ -161,10 +195,7 @@ setupDiscordClientReadyHandler(client, {
             }
             const response = await fetch(`${baseUrl}/internal/${endpoint}`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-worker-secret': WORKER_SECRET,
-              },
+              headers,
               body: JSON.stringify(body),
             });
             if (!response.ok) {

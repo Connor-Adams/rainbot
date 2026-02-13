@@ -21,7 +21,7 @@ export const VOICE_AGENT_MUSIC_TOOLS: VoiceAgentTool[] = [
     type: 'function',
     name: 'play_music',
     description:
-      'Play music or add to queue. Use this when the user wants to play a song, artist, or playlist.',
+      'Play music or add to queue. Use when the user wants to play a song, artist, or playlist. Do NOT use for "skip and play" or "skip and add to queue"—use skip_and_play instead so the current track is skipped first.',
     parameters: {
       type: 'object',
       properties: {
@@ -35,9 +35,26 @@ export const VOICE_AGENT_MUSIC_TOOLS: VoiceAgentTool[] = [
   },
   {
     type: 'function',
+    name: 'skip_and_play',
+    description:
+      'Skip the current track (works even when paused—removes it and starts the next) and optionally play or add a new song. Use when the user says skip and play X, skip and add to queue, next and play something, etc. Always prefer this over calling skip_song then play_music so the current track is removed first. Pass query when they want to play/add something after skipping; omit query to just skip.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Optional. Song/artist/URL to play or add after skipping. Omit if user only wants to skip.',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    type: 'function',
     name: 'skip_song',
     description:
-      'Skip the current song or multiple songs. Use when user says skip, next, skip song, etc.',
+      'Skip the current song or multiple songs (works when paused—current track is removed and next plays). Use when user says only skip, next, skip song (no "and play" or "and add"). For "skip and play X" use skip_and_play instead.',
     parameters: {
       type: 'object',
       properties: {
