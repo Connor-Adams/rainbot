@@ -57,7 +57,6 @@ Keep it natural and confident.
 </triggers>
 `.trim();
 
-
 interface ChatCompletionMessage {
   role: string;
   content: string | Array<{ type: string; text?: string }>;
