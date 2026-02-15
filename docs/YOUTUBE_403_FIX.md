@@ -22,9 +22,18 @@ pip install -U yt-dlp
 # Or use system package / nixpkgs that provides a recent build
 ```
 
-## 2. Optional: YouTube cookies (reduces 403 for fetch path)
+## 2. Optional: YouTube cookies (reduces 403 / "Sign in to confirm" errors)
 
-If the **async fetch** path is used and returns 403, cookies from a logged-in browser can help:
+Cookies from a logged-in browser fix both 403 and "Sign in to confirm you're not a bot" errors.
+
+### Option A: Upload via Dashboard (recommended)
+
+1. In the dashboard, go to **Admin** tab.
+2. Under **YouTube cookies**, export cookies from your browser (extension like "Get cookies.txt LOCALLY").
+3. Upload the `.txt` file.
+4. Rainbot fetches cookies from raincloud automatically; restart rainbot to pick up new cookies immediately.
+
+### Option B: Environment variable
 
 1. Export cookies (browser extension like "Get cookies.txt" or similar).
 2. Save as a file (e.g. `youtube_cookies.txt`).

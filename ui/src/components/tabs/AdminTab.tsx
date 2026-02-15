@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { soundsApi, adminApi, botApi, playbackApi } from '@/lib/api';
+import { soundsApi, adminApi, botApi, playbackApi, settingsApi } from '@/lib/api';
 import type { Guild } from '@/types';
 import CustomDropdown from '../CustomDropdown';
 import DisplayCard from '../Displaycard';
@@ -106,6 +106,10 @@ export default function AdminTab() {
     queryFn: () => adminApi.getGrokPersona(runGuildId!).then((res) => res.data),
     enabled: !!runGuildId,
   });
+  const { data: youtubeCookies } = useQuery({
+    queryKey: ['youtube-cookies'],
+    queryFn: () => settingsApi.getYoutubeCookies().then((res) => res.data),
+  });
   const guilds = botStatus?.guilds ?? [];
   const sounds = soundsData ?? [];
   const personas = personasData?.personas ?? [];
@@ -190,6 +194,20 @@ export default function AdminTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personas'] });
       queryClient.invalidateQueries({ queryKey: ['grok-persona'] });
+    },
+  });
+
+  const cookiesFileRef = useRef<HTMLInputElement>(null);
+  const uploadCookiesMutation = useMutation({
+    mutationFn: (file: File) => settingsApi.uploadYoutubeCookies(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['youtube-cookies'] });
+    },
+  });
+  const deleteCookiesMutation = useMutation({
+    mutationFn: () => settingsApi.deleteYoutubeCookies(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['youtube-cookies'] });
     },
   });
 
@@ -303,6 +321,75 @@ export default function AdminTab() {
           )}
           {deployCommandsMutation.isSuccess && deployMessage && (
             <div className="mt-3 text-xs text-text-secondary">{deployMessage}</div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">YouTube cookies</div>
+          <div className="text-xs text-text-secondary mb-4">
+            Fixes &quot;Sign in to confirm you&apos;re not a bot&quot; errors when playing YouTube.
+            Export cookies from your browser (extension like &quot;Get cookies.txt LOCALLY&quot;)
+            while logged into YouTube, then upload the .txt file. Cookies last a few weeks—re-upload
+            when playback fails again.
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={cookiesFileRef}
+              type="file"
+              accept=".txt"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  uploadCookiesMutation.mutate(file);
+                  e.target.value = '';
+                }
+              }}
+              aria-label="Upload cookies file"
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => cookiesFileRef.current?.click()}
+              disabled={uploadCookiesMutation.isPending}
+            >
+              {uploadCookiesMutation.isPending ? 'Uploading...' : 'Upload cookies (.txt)'}
+            </button>
+            {youtubeCookies?.hasCookies && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => deleteCookiesMutation.mutate()}
+                disabled={deleteCookiesMutation.isPending}
+              >
+                {deleteCookiesMutation.isPending ? 'Removing...' : 'Remove cookies'}
+              </button>
+            )}
+            <span className="text-xs text-text-secondary">
+              {youtubeCookies?.hasCookies ? '✓ Cookies configured' : 'No cookies set'}
+            </span>
+          </div>
+          {uploadCookiesMutation.isSuccess && (
+            <div className="mt-2 text-xs text-text-secondary">
+              Cookies saved. Rainbot will use them on next startup or fetch.
+            </div>
+          )}
+          {uploadCookiesMutation.isError && (
+            <div className="mt-2 text-xs text-danger-light">
+              {(
+                uploadCookiesMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (uploadCookiesMutation.error as Error)?.message ??
+                'Upload failed'}
+            </div>
+          )}
+          {deleteCookiesMutation.isError && (
+            <div className="mt-2 text-xs text-danger-light">
+              {(deleteCookiesMutation.error as Error)?.message ?? 'Delete failed'}
+            </div>
           )}
         </div>
 

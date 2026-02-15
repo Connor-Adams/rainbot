@@ -48,6 +48,7 @@ import {
   loginDiscordClient,
 } from '@rainbot/worker-shared';
 import { setupAutoFollowVoiceStateHandler, type GuildState } from '@rainbot/worker-shared';
+import { fetchAndSetYtCookies } from './voice/ytCookies';
 
 const PORT = parseInt(process.env['PORT'] || process.env['RAINBOT_PORT'] || '3001', 10);
 const TOKEN = process.env['RAINBOT_TOKEN'];
@@ -708,6 +709,10 @@ app.get('/health/ready', (req: Request, res: Response) => {
     timestamp: Date.now(),
   });
 });
+
+// Fetch YouTube cookies from raincloud (if configured via UI) before setup
+// Runs early so cookies are available before first play
+void fetchAndSetYtCookies();
 
 // Discord client - initialize here (declared earlier for use in routes)
 client = createWorkerDiscordClient();

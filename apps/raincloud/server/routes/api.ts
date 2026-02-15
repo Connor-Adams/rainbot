@@ -323,6 +323,19 @@ const upload = multer({
   },
 });
 
+// Multer for YouTube cookies (single .txt file, max 256KB)
+const cookiesUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 256 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.txt$/i.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error('YouTube cookies must be a .txt file (Netscape format)'));
+    }
+  },
+});
+
 // GET /api/sounds - List all sounds
 router.get('/sounds', requireAuth, async (_req, res: Response) => {
   try {
@@ -481,6 +494,55 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
     res.status(404).json({ error: err.message });
   }
 });
+
+// GET /api/settings/youtube-cookies - Check if YouTube cookies are configured
+router.get('/settings/youtube-cookies', requireAuth, async (_req, res: Response): Promise<void> => {
+  try {
+    const hasCookies = await storage.hasYoutubeCookies();
+    res.json({ hasCookies });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/youtube-cookies - Upload YouTube cookies (Netscape format)
+router.post(
+  '/settings/youtube-cookies',
+  requireAuth,
+  cookiesUpload.single('cookies'),
+  async (req: Request, res: Response): Promise<void> => {
+    const file = req.file;
+    if (!file || !file.buffer) {
+      res
+        .status(400)
+        .json({ error: 'No cookies file uploaded. Upload a .txt file (Netscape format).' });
+      return;
+    }
+    try {
+      await storage.uploadYoutubeCookies(file.buffer);
+      res.json({ message: 'YouTube cookies saved. Rainbot will use them on next fetch.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// DELETE /api/settings/youtube-cookies - Remove stored YouTube cookies
+router.delete(
+  '/settings/youtube-cookies',
+  requireAuth,
+  async (_req, res: Response): Promise<void> => {
+    try {
+      await storage.deleteYoutubeCookies();
+      res.json({ message: 'YouTube cookies removed.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // PUT /api/sounds/:name/customization - Set display name/emoji for a sound
 router.put(

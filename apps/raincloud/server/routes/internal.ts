@@ -3,6 +3,7 @@ import { createLogger } from '@utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
 import * as stats from '@utils/statistics';
+import * as storage from '@utils/storage';
 import type { SourceType } from '@rainbot/types/media';
 
 const log = createLogger('INTERNAL-ROUTES');
@@ -26,6 +27,24 @@ function requireWorkerSecret(req: Request, res: Response): boolean {
 
   return true;
 }
+
+router.get('/cookies/youtube', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+
+  try {
+    const buf = await storage.getYoutubeCookies();
+    if (!buf) {
+      res.status(404).json({ error: 'No YouTube cookies configured' });
+      return;
+    }
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(buf);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to get YouTube cookies: ${err.message}`);
+    res.status(500).json({ error: 'Failed to retrieve cookies' });
+  }
+});
 
 router.post('/workers/register', (req: Request, res: Response) => {
   if (!requireWorkerSecret(req, res)) return;

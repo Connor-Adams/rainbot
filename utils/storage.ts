@@ -590,6 +590,135 @@ function getContentType(filename: string): string {
   return types[ext] || 'application/octet-stream';
 }
 
+const YOUTUBE_COOKIES_KEY = 'cookies/youtube_cookies.txt';
+
+/**
+ * Upload YouTube cookies (Netscape format) for yt-dlp authentication.
+ * Stores in S3 under cookies/ or local fallback when S3 is not configured.
+ */
+export async function uploadYoutubeCookies(buffer: Buffer): Promise<void> {
+  if (s3Client && bucketName) {
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: YOUTUBE_COOKIES_KEY,
+      Body: buffer,
+      ContentType: 'text/plain',
+    });
+    await s3Client.send(command);
+    log.info('Uploaded YouTube cookies to S3');
+    return;
+  }
+
+  const fs = await import('fs/promises');
+  const cookiesDir = process.env['COOKIES_DIR'] || path.join(process.cwd(), 'data', 'cookies');
+  await fs.mkdir(cookiesDir, { recursive: true });
+  const filePath = path.join(cookiesDir, 'youtube_cookies.txt');
+  await fs.writeFile(filePath, buffer);
+  log.info(`Uploaded YouTube cookies to local: ${filePath}`);
+}
+
+/**
+ * Get YouTube cookies content. Returns null if not stored.
+ */
+export async function getYoutubeCookies(): Promise<Buffer | null> {
+  if (s3Client && bucketName) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: YOUTUBE_COOKIES_KEY,
+      });
+      const response = await s3Client.send(command);
+      const buf = await bodyToBuffer(response.Body);
+      return buf;
+    } catch (error) {
+      const err = error as S3Error;
+      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  const fs = await import('fs/promises');
+  const cookiesDir = process.env['COOKIES_DIR'] || path.join(process.cwd(), 'data', 'cookies');
+  const filePath = path.join(cookiesDir, 'youtube_cookies.txt');
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/**
+ * Check if YouTube cookies are stored.
+ */
+export async function hasYoutubeCookies(): Promise<boolean> {
+  if (s3Client && bucketName) {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: bucketName,
+        Key: YOUTUBE_COOKIES_KEY,
+      });
+      await s3Client.send(command);
+      return true;
+    } catch (error) {
+      const err = error as S3Error;
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  const fs = await import('fs/promises');
+  const cookiesDir = process.env['COOKIES_DIR'] || path.join(process.cwd(), 'data', 'cookies');
+  const filePath = path.join(cookiesDir, 'youtube_cookies.txt');
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete stored YouTube cookies.
+ */
+export async function deleteYoutubeCookies(): Promise<boolean> {
+  if (s3Client && bucketName) {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: YOUTUBE_COOKIES_KEY,
+      });
+      await s3Client.send(command);
+      log.info('Deleted YouTube cookies from S3');
+      return true;
+    } catch (error) {
+      const err = error as S3Error;
+      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  const fs = await import('fs/promises');
+  const cookiesDir = process.env['COOKIES_DIR'] || path.join(process.cwd(), 'data', 'cookies');
+  const filePath = path.join(cookiesDir, 'youtube_cookies.txt');
+  try {
+    await fs.unlink(filePath);
+    log.info('Deleted YouTube cookies from local');
+    return true;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') return true;
+    throw error;
+  }
+}
+
 /**
  * Check if storage is configured and available
  */

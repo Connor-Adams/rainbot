@@ -207,6 +207,19 @@ export const adminApi = {
   deletePersona: (id: string) => api.delete(`/personas/${encodeURIComponent(id)}`),
 };
 
+// Settings API
+export const settingsApi = {
+  getYoutubeCookies: () => api.get<{ hasCookies: boolean }>('/settings/youtube-cookies'),
+  uploadYoutubeCookies: (file: File) => {
+    const formData = new FormData();
+    formData.append('cookies', file);
+    return api.post<{ message: string }>('/settings/youtube-cookies', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteYoutubeCookies: () => api.delete<{ message: string }>('/settings/youtube-cookies'),
+};
+
 // Stats API
 export const statsApi = {
   summary: () => api.get('/stats/summary'),

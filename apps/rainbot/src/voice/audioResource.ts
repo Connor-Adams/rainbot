@@ -7,12 +7,12 @@ import { createLogger } from '@rainbot/shared';
 
 // Use system yt-dlp if available, otherwise fall back to bundled.
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
-const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 const log = createLogger('RAINBOT-AUDIO');
 
 /**
  * yt-dlp options for YouTube. Multiple player_client fallbacks improve
  * reliability when YouTube changes; pipe avoids 403 from direct URL fetch.
+ * Reads YTDLP_COOKIES at call time so cookies fetched from raincloud can be used.
  * Exported for use in trackFetcher metadata fallback.
  */
 export function getYtdlpOptions(): Record<string, unknown> {
@@ -27,8 +27,9 @@ export function getYtdlpOptions(): Record<string, unknown> {
     extractorArgs,
   };
 
-  if (COOKIES_FILE) {
-    options['cookies'] = COOKIES_FILE;
+  const cookiesPath = process.env['YTDLP_COOKIES'] || '';
+  if (cookiesPath) {
+    options['cookies'] = cookiesPath;
   }
 
   return options;

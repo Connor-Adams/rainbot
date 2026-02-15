@@ -36,6 +36,7 @@ sessions/
 cookies.txt
 youtube-cookies.txt
 *.cookies.txt
+data/cookies/
 
 # OS files
 .DS_Store
