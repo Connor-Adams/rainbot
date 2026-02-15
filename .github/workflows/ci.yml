@@ -13,8 +13,6 @@ concurrency:
 env:
   NODE_VERSION: '22.12.0'
   TURBO_CACHE_DIR: .turbo
-
-  # Optional (Turbo Remote Cache). Put these in GitHub Secrets.
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
@@ -26,35 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-monorepo
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack (Yarn 4.6.0)
-        run: |
-          corepack enable
-          corepack prepare yarn@4.6.0 --activate
-
-      # Turbo cache: local cache in .turbo (restored/saved here). Optional TURBO_TEAM + TURBO_TOKEN enable Vercel remote cache.
-      - name: Cache Yarn + Turbo
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/unplugged
-            .pnp.cjs
-            .turbo
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
-
-      - name: Install
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable --check-cache
-
       - name: Formatting Check (Turbo - Prettier)
         run: yarn format:check
 
@@ -65,34 +37,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-monorepo
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack (Yarn 4.6.0)
-        run: |
-          corepack enable
-          corepack prepare yarn@4.6.0 --activate
-
-      - name: Cache Yarn + Turbo
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/unplugged
-            .pnp.cjs
-            .turbo
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
-
-      - name: Install
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable --check-cache
-
       - name: Type check (turbo)
         run: yarn type-check
 
@@ -103,34 +50,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-monorepo
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack (Yarn 4.6.0)
-        run: |
-          corepack enable
-          corepack prepare yarn@4.6.0 --activate
-
-      - name: Cache Yarn + Turbo
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/unplugged
-            .pnp.cjs
-            .turbo
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
-
-      - name: Install
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable --check-cache
-
       - name: Test (turbo)
         run: yarn test
 
@@ -141,34 +63,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-monorepo
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Enable Corepack (Yarn 4.6.0)
-        run: |
-          corepack enable
-          corepack prepare yarn@4.6.0 --activate
-
-      - name: Cache Yarn + Turbo
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/unplugged
-            .pnp.cjs
-            .turbo
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
-
-      - name: Install
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable --check-cache
-
       - name: Build (turbo)
         env:
           NODE_OPTIONS: --max-old-space-size=4096

@@ -63,48 +63,12 @@ jobs:
             });
             core.setOutput('sha', tagRef.object.sha);
 
-      - name: Verify tag on default branch (unless force)
-        if: ${{ inputs.force != true }}
-        run: |
-          set -euo pipefail
-          git fetch origin "${{ steps.repo.outputs.default_branch }}" --depth=200
-          if ! git merge-base --is-ancestor "${{ steps.tag.outputs.sha }}" "origin/${{ steps.repo.outputs.default_branch }}"; then
-            echo "Tag commit is not on default branch (${{
-              steps.repo.outputs.default_branch
-            }}). Refusing to build."
-            exit 1
-          fi
-
-      - name: Verify CI status for tag (unless force)
-        if: ${{ inputs.force != true }}
-        uses: actions/github-script@v7
+      - name: Verify release tag (branch + CI)
+        uses: ./.github/actions/verify-release-tag
         with:
-          script: |
-            const sha = '${{ steps.tag.outputs.sha }}';
-            const { data: status } = await github.rest.repos.getCombinedStatusForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: sha,
-            });
-            const { data: checks } = await github.rest.checks.listSuitesForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: sha,
-            });
-            const hasChecks = checks.total_count > 0;
-            const hasStatuses = status.total_count > 0;
-            if (!hasChecks && !hasStatuses) {
-              core.warning(`No CI status or check suites found for ${sha}; continuing build.`);
-              return;
-            }
-            const failedChecks = checks.check_suites.filter((s) => s.conclusion && s.conclusion !== 'success');
-            if (failedChecks.length > 0) {
-              core.setFailed(`CI checks not successful for ${sha}: ${failedChecks.map((s) => s.conclusion).join(', ')}`);
-              return;
-            }
-            if (hasStatuses && status.state !== 'success') {
-              core.setFailed(`Commit status is ${status.state} for ${sha}`);
-            }
+          sha: ${{ steps.tag.outputs.sha }}
+          default_branch: ${{ steps.repo.outputs.default_branch }}
+          force: ${{ inputs.force }}
 
       - name: Compute changed services
         id: set-matrix
@@ -211,44 +175,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify CI status for tag
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const tagName = context.payload.release.tag_name;
-            const ref = `tags/${tagName}`;
-            const { data: tagRef } = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref,
-            });
-            const sha = tagRef.object.sha;
-            const { data: status } = await github.rest.repos.getCombinedStatusForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: sha,
-            });
-            const { data: checks } = await github.rest.checks.listSuitesForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: sha,
-            });
-            const hasChecks = checks.total_count > 0;
-            const hasStatuses = status.total_count > 0;
-            if (!hasChecks && !hasStatuses) {
-              core.warning(`No CI status or check suites found for ${sha}; continuing build.`);
-              return;
-            }
-            const failedChecks = checks.check_suites.filter((s) => s.conclusion && s.conclusion !== 'success');
-            if (failedChecks.length > 0) {
-              core.setFailed(`CI checks not successful for ${sha}: ${failedChecks.map((s) => s.conclusion).join(', ')}`);
-              return;
-            }
-            if (hasStatuses && status.state !== 'success') {
-              core.setFailed(`Commit status is ${status.state} for ${sha}`);
-            }
-
+      # CI and tag verification already done in plan job
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

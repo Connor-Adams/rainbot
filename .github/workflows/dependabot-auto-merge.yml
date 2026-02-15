@@ -15,48 +15,19 @@ jobs:
     if: github.actor == 'dependabot[bot]'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-monorepo
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Enable Corepack (Yarn 4.6.0)
-        run: |
-          corepack enable
-          corepack prepare yarn@4.6.0 --activate
-
-      - name: Cache Yarn + Turbo
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/unplugged
-            .pnp.cjs
-            .turbo
-          key: ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-${{ hashFiles('yarn.lock') }}-
-            ${{ runner.os }}-node${{ env.NODE_VERSION }}-yarn-
-
-      - name: Install
-        env:
-          YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
-        run: yarn install --immutable --check-cache
-
       - name: Format check
         run: yarn format:check
-
       - name: Type check
         run: yarn type-check
-
       - name: Test
         run: yarn test
-
       - name: Build
         env:
           NODE_OPTIONS: --max-old-space-size=4096

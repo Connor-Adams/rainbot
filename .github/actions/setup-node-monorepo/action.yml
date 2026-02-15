@@ -1,0 +1,41 @@
+# Composite action: Node + Yarn 4 + Turbo cache + install for this monorepo.
+# Caller must run actions/checkout first.
+name: Setup Node monorepo
+description: Setup Node, Corepack (Yarn 4), cache (Yarn + Turbo), and run yarn install
+inputs:
+  node-version:
+    description: Node.js version
+    required: false
+    default: '22.12.0'
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Enable Corepack (Yarn 4.6.0)
+      run: |
+        corepack enable
+        corepack prepare yarn@4.6.0 --activate
+      shell: bash
+
+    - name: Cache Yarn + Turbo
+      uses: actions/cache@v4
+      with:
+        path: |
+          .yarn/cache
+          .yarn/unplugged
+          .pnp.cjs
+          .turbo
+        key: ${{ runner.os }}-node${{ inputs.node-version }}-yarn-${{ hashFiles('yarn.lock') }}-turbo-${{ hashFiles('turbo.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node${{ inputs.node-version }}-yarn-${{ hashFiles('yarn.lock') }}-
+          ${{ runner.os }}-node${{ inputs.node-version }}-yarn-
+
+    - name: Install
+      env:
+        YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
+      run: yarn install --immutable --check-cache
+      shell: bash
