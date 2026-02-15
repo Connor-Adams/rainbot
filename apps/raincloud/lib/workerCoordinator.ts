@@ -122,6 +122,9 @@ function normalizeWorkerStatus(data: unknown, botType: BotType, guildId: string)
     record['playback'] && typeof record['playback'] === 'object'
       ? (record['playback'] as PlaybackState)
       : buildLegacyPlayback(record);
+  if (typeof record['lastPlaybackError'] === 'string' && record['lastPlaybackError']) {
+    playback.error = record['lastPlaybackError'];
+  }
 
   const queue =
     record['queue'] && typeof record['queue'] === 'object'
@@ -680,6 +683,7 @@ export class WorkerCoordinator {
             playing: state.playing,
             volume: state.volume,
             queue,
+            lastPlaybackError: state.lastPlaybackError,
           };
           statuses[botType] = normalizeWorkerStatus(record, botType, guildId);
         } else if (botType === 'pranjeet') {

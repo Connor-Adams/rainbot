@@ -143,6 +143,43 @@ setupDiscordClientReadyHandler(client, {
           };
 
           try {
+            if (commandName === 'get_playback_status') {
+              const res = await fetch(`${baseUrl}/internal/playback-status`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ guildId: session.guildId }),
+              });
+              if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Playback status failed: ${text}`);
+              }
+              const data = (await res.json()) as {
+                playback?: { status?: string; volume?: number; error?: string };
+                nowPlaying?: string | null;
+                queueLength?: number;
+              };
+              const status = data.playback?.status ?? 'idle';
+              const nowPlaying = data.nowPlaying ?? null;
+              const err = data.playback?.error;
+              const parts: string[] = [];
+              if (status === 'playing' && nowPlaying) {
+                parts.push(`Playing "${nowPlaying}".`);
+              } else if (status === 'paused' && nowPlaying) {
+                parts.push(`Paused on "${nowPlaying}".`);
+              } else {
+                parts.push('Nothing playing.');
+              }
+              if (data.queueLength != null && data.queueLength > 0) {
+                parts.push(`${data.queueLength} in queue.`);
+              }
+              if (err) {
+                parts.push(`Last error: ${err}`);
+              } else {
+                parts.push('No recent errors.');
+              }
+              return parts.join(' ');
+            }
+
             // skip_and_play: skip first (so current track is removed even when paused), then play if query provided
             if (commandName === 'skip_and_play') {
               const skipRes = await fetch(`${baseUrl}/internal/skip`, {
@@ -182,7 +219,7 @@ setupDiscordClientReadyHandler(client, {
               clear_queue: 'clear',
             };
             const endpoint = commandMap[commandName];
-            if (!endpoint) {
+            if (endpoint === undefined) {
               throw new Error(`Unknown command: ${commandName}`);
             }
             const body: Record<string, unknown> = { ...baseBody };

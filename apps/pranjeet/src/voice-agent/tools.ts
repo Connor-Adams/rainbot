@@ -108,4 +108,11 @@ export const VOICE_AGENT_MUSIC_TOOLS: VoiceAgentTool[] = [
     description: 'Clear the music queue. Use when user says clear queue, clear, empty queue, etc.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
+  {
+    type: 'function',
+    name: 'get_playback_status',
+    description:
+      'Get the current music playback status (e.g. playing, paused, idle), what is currently playing, and the last playback error if something recently failed.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
 ];

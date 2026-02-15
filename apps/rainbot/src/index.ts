@@ -93,6 +93,7 @@ interface RainbotGuildState extends GuildState {
   totalPausedTime: number;
   autoplay: boolean;
   volume: number;
+  lastPlaybackError: string | null;
 }
 
 const guildStates = new Map<string, RainbotGuildState>();
@@ -129,6 +130,7 @@ function getStateForRpc(input?: { guildId?: string }): StatusResponse {
       channelId: channelId ?? undefined,
       queueLength: state.queue.length,
       volume: state.volume / 100,
+      lastPlaybackError: state.lastPlaybackError ?? undefined,
     };
   }
   return { connected: false, playing: false };
@@ -512,6 +514,8 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
     });
 
     player.on('error', (error) => {
+      const state = guildStates.get(guildId);
+      if (state) state.lastPlaybackError = error.message;
       log.error(`Player error in guild ${guildId}: ${error.message}`);
       if (error.stack) {
         log.debug(error.stack);
@@ -531,6 +535,7 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
       pauseStartTime: null,
       totalPausedTime: 0,
       autoplay: false,
+      lastPlaybackError: null,
     });
   }
   return guildStates.get(guildId)!;
@@ -640,6 +645,7 @@ async function playNext(guildId: string): Promise<void> {
 
     state.currentResource = resource;
     resetPlaybackTiming(state);
+    state.lastPlaybackError = null;
     state.player.play(resource);
     log.info(`Playing: ${track.title} in guild ${guildId}`);
     if (track.userId) {
@@ -659,6 +665,7 @@ async function playNext(guildId: string): Promise<void> {
       );
     }
   } catch (error) {
+    state.lastPlaybackError = (error as Error).message;
     logErrorWithStack(log, 'Error playing track', error);
     // Skip to next track on error
     await playNext(guildId);

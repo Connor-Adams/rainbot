@@ -64,6 +64,7 @@ export interface StatusResponse {
   playing: boolean;
   queueLength?: number;
   volume?: number;
+  lastPlaybackError?: string;
 }
 
 /**

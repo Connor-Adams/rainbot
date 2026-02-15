@@ -232,4 +232,40 @@ router.post('/clear', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/playback-status', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const status = await multiBot.getStatus(guildId);
+    if (!status) {
+      res.json({
+        playback: { status: 'idle' },
+        nowPlaying: null,
+        queueLength: 0,
+      });
+      return;
+    }
+    const playback = status.playback ?? { status: 'idle' };
+    const queue = status.queue ?? { queue: [] };
+    res.json({
+      playback: {
+        status: playback.status,
+        volume: playback.volume,
+        error: playback.error,
+        positionMs: playback.positionMs,
+        durationMs: playback.durationMs,
+      },
+      nowPlaying: queue.nowPlaying?.title ?? null,
+      queueLength: queue.queue?.length ?? 0,
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 export default router;
