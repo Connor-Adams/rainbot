@@ -226,9 +226,8 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
 
   const subprocess = youtubedl.exec(track.url, {
     ...getYtdlpOptions(),
-    format: 'bestaudio[acodec=opus]/bestaudio',
+    format: 'bestaudio[acodec=opus]/bestaudio/best',
     output: '-',
-    preferFreeFormats: true,
     bufferSize: '16K',
   });
 
