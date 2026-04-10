@@ -26,6 +26,8 @@ function getClient(): IORedis | null {
 }
 
 const CONVERSATION_KEY_PREFIX = 'conversation:';
+/** Mirrors raincloud VoiceStateManager: number of members with conversation mode on in this guild. */
+const CONVERSATION_ACTIVE_COUNT_PREFIX = 'conversation:active_count:';
 const GROK_RESPONSE_ID_KEY_PREFIX = 'grok:response_id:';
 const GROK_HISTORY_KEY_PREFIX = 'grok:history:';
 const GROK_VOICE_KEY_PREFIX = 'grok:voice:';
@@ -151,6 +153,31 @@ export async function getConversationMode(guildId: string, userId: string): Prom
     const key = `${CONVERSATION_KEY_PREFIX}${guildId}:${userId}`;
     const value = await c.get(key);
     return value === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True if anyone in the guild has conversation mode on — voice routing uses this so all speakers
+ * in VC get realtime Grok when at least one person opted in.
+ */
+export async function isGuildConversationModeActive(guildId: string): Promise<boolean> {
+  const c = getClient();
+  if (!c) return false;
+  try {
+    const countKey = `${CONVERSATION_ACTIVE_COUNT_PREFIX}${guildId}`;
+    const raw = await c.get(countKey);
+    if (raw !== null) {
+      const n = parseInt(raw, 10);
+      return !Number.isNaN(n) && n > 0;
+    }
+    const pattern = `${CONVERSATION_KEY_PREFIX}${guildId}:*`;
+    const keys = await c.keys(pattern);
+    if (keys.length > 0) {
+      await c.set(countKey, String(keys.length));
+    }
+    return keys.length > 0;
   } catch {
     return false;
   }

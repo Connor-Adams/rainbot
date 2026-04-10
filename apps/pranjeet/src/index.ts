@@ -41,7 +41,7 @@ import { registerVoiceStateHandlers } from './events/voice-state';
 import { initTTS } from './tts';
 import { speakInGuild } from './speak';
 import { startTtsQueue } from './queue/tts-worker';
-import { getConversationMode, getGrokPersona } from './redis';
+import { getGrokPersona, isGuildConversationModeActive } from './redis';
 import { getGrokReply } from './chat/grok';
 import { createGrokVoiceAgentClient } from './voice-agent/grokVoiceAgent';
 import { playVoiceAgentAudio } from './voice-agent/playVoiceAgentAudio';
@@ -115,7 +115,8 @@ setupDiscordClientReadyHandler(client, {
       sttApiKey: STT_API_KEY ?? undefined,
       ttsApiKey: TTS_API_KEY ?? undefined,
       voiceName: TTS_VOICE,
-      getConversationMode,
+      getConversationMode: async (guildId: string, _userId: string) =>
+        isGuildConversationModeActive(guildId),
       createVoiceAgentClient: (session) => {
         const connection = (session as { connection?: VoiceConnection }).connection;
         if (!connection) {
@@ -264,7 +265,7 @@ setupDiscordClientReadyHandler(client, {
         session: VoiceInteractionSession,
         command: ParsedVoiceCommand
       ): Promise<VoiceCommandResult | null> => {
-        const inConversationMode = await getConversationMode(session.guildId, session.userId);
+        const inConversationMode = await isGuildConversationModeActive(session.guildId);
         if (inConversationMode) {
           const personaId = await getGrokPersona(session.guildId, session.userId);
           const reply = await getGrokReply(
