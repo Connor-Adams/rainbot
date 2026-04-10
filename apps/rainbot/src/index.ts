@@ -471,6 +471,15 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
     state.pauseStartTime = null;
     state.totalPausedTime = 0;
     state.player.play(resource);
+    // Wait until Playing so any Idle from stop() is handled while isSeeking is still true.
+    // If we clear isSeeking in finally before a deferred Idle runs, Idle would treat stop as track end.
+    try {
+      await entersState(state.player, AudioPlayerStatus.Playing, 20_000);
+    } catch (e) {
+      log.warn(
+        `Seek: player did not reach Playing within timeout: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
     log.info(`Seeked to ${positionSeconds}s in "${track.title}" in guild ${input.guildId}`);
     const response: SeekResponse = { status: 'success' };
     requestCache.set(cacheKey, response);
@@ -509,6 +518,10 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
     player.on(AudioPlayerStatus.Idle, () => {
       const state = guildStates.get(guildId);
       if (!state) return;
+      // Drop stale Idle deliveries (e.g. after seek: stop() Idles, then play(); a late Idle must not advance queue).
+      if (state.player.state.status !== AudioPlayerStatus.Idle) {
+        return;
+      }
       if (state.isSeeking) {
         return;
       }

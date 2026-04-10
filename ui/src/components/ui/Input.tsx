@@ -17,7 +17,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             text-text-primary placeholder:text-text-muted
             font-sans text-base
             transition-all duration-200
-            focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary
             hover:border-border-hover
             disabled:opacity-50 disabled:cursor-not-allowed
             ${error ? 'border-danger focus:ring-danger' : ''}

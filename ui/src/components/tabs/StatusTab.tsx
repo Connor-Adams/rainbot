@@ -46,11 +46,11 @@ export default function StatusTab() {
   const guildNameById = new Map(guilds.map((g) => [g.id, g.name]));
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
+    <section className="panel surface-panel p-4 sm:p-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-text-primary">Service Status</h2>
-          <p className="text-sm text-text-secondary">
+          <h2 className="text-page-title">Service status</h2>
+          <p className="mt-1 text-sm text-text-secondary">
             {status?.online ? 'Online' : 'Offline'}{' '}
             {status?.username ? `as ${status.username}` : ''}
           </p>

@@ -1,12 +1,43 @@
 @import 'tailwindcss';
 @config "../tailwind.config.js";
 
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-icon {
+    @apply text-base leading-none opacity-90;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary to-primary-dark text-text-primary shadow-sm hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-elevated text-text-primary border border-border hover:bg-surface-hover hover:border-border-hover;
+  }
+
+  .btn-danger {
+    @apply bg-gradient-to-r from-danger to-danger-dark text-text-primary shadow-sm hover:shadow-glow-danger hover:-translate-y-0.5 active:translate-y-0;
+  }
+}
+
 @layer base {
   /* Global Resets and Base Styles */
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+  }
+
+  input[type='range'] {
+    @apply w-full h-2 rounded-full appearance-none cursor-pointer accent-primary;
+    background: linear-gradient(to right, rgb(59 130 246 / 0.35) 0%, rgb(37 99 235 / 0.25) 100%);
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 rounded-full bg-primary border-2 border-primary-light shadow-sm;
   }
 
   body {
@@ -57,5 +88,23 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /** Page typography — use across dashboard tabs */
+  .text-page-title {
+    @apply text-xl sm:text-2xl font-bold tracking-tight text-text-primary;
+  }
+
+  .text-section-title {
+    @apply text-base font-semibold text-text-primary tracking-tight;
+  }
+
+  .text-caption {
+    @apply text-xs text-text-muted;
+  }
+
+  /** Standard elevated surface (cards, panels) */
+  .surface-panel {
+    @apply rounded-2xl border border-border bg-surface shadow-sm;
   }
 }
