@@ -94,6 +94,8 @@ interface RainbotGuildState extends GuildState {
   autoplay: boolean;
   volume: number;
   lastPlaybackError: string | null;
+  /** True while seek is replacing the stream — Idle must not run playNext or clear now playing. */
+  isSeeking: boolean;
 }
 
 const guildStates = new Map<string, RainbotGuildState>();
@@ -455,6 +457,7 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
   if (track.duration != null && track.duration > 0) {
     positionSeconds = Math.min(positionSeconds, track.duration);
   }
+  state.isSeeking = true;
   try {
     state.player.stop();
     const resource = await createTrackResourceForAny(track, positionSeconds);
@@ -462,6 +465,8 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
       resource.volume.setVolume(state.volume / 100);
     }
     state.currentResource = resource;
+    state.currentTrack = track;
+    state.nowPlaying = track.title ?? null;
     state.playbackStartTime = Date.now() - positionSeconds * 1000;
     state.pauseStartTime = null;
     state.totalPausedTime = 0;
@@ -476,6 +481,8 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
     const response: SeekResponse = { status: 'error', message: err.message };
     requestCache.set(cacheKey, response);
     return response;
+  } finally {
+    state.isSeeking = false;
   }
 }
 
@@ -501,9 +508,13 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
 
     player.on(AudioPlayerStatus.Idle, () => {
       const state = guildStates.get(guildId);
-      if (state && state.queue.length > 0) {
+      if (!state) return;
+      if (state.isSeeking) {
+        return;
+      }
+      if (state.queue.length > 0) {
         playNext(guildId);
-      } else if (state) {
+      } else {
         state.nowPlaying = null;
         state.currentTrack = null;
         state.currentResource = null;
@@ -536,6 +547,7 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
       totalPausedTime: 0,
       autoplay: false,
       lastPlaybackError: null,
+      isSeeking: false,
     });
   }
   return guildStates.get(guildId)!;
