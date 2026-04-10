@@ -14,10 +14,8 @@ export default function ChartContainer({
   className = '',
 }: ChartContainerProps) {
   return (
-    <div
-      className={`stats-section bg-surface border border-border rounded-xl p-4 sm:p-6 mb-6 ${className}`}
-    >
-      <h3 className="text-lg sm:text-xl text-text-primary mb-4">{title}</h3>
+    <div className={`stats-section surface-panel p-4 sm:p-6 mb-6 ${className}`}>
+      <h3 className="text-section-title text-base sm:text-lg mb-4">{title}</h3>
       <div style={{ maxHeight }}>{children}</div>
     </div>
   );

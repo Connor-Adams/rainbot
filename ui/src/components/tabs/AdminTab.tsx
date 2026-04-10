@@ -289,12 +289,12 @@ export default function AdminTab() {
       : true);
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
+    <section className="panel surface-panel p-4 sm:p-6 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-text-primary">Admin Tasks</h2>
-          <p className="text-sm text-text-secondary">
-            Maintenance actions that affect shared storage.
+          <h2 className="text-page-title">Admin</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Maintenance actions that affect shared storage and bot behavior.
           </p>
         </div>
       </div>

@@ -83,29 +83,37 @@ export default function RecordingsTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-text-secondary">Loading recordings...</div>
+      <div className="surface-panel flex items-center justify-center min-h-[16rem] p-8">
+        <div className="text-text-secondary">Loading recordings…</div>
       </div>
     );
   }
 
   if (recordings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-text-secondary">
-        <div className="text-4xl mb-4">🎙️</div>
-        <div className="text-lg">No voice recordings yet</div>
-        <div className="text-sm mt-2">Enable voice commands and speak to create recordings</div>
+      <div className="surface-panel flex flex-col items-center justify-center min-h-[16rem] p-8 text-center text-text-secondary">
+        <div className="text-4xl mb-4" aria-hidden>
+          🎙️
+        </div>
+        <div className="text-lg font-medium text-text-primary">No voice recordings yet</div>
+        <div className="text-sm mt-2 max-w-sm">
+          Enable voice commands and speak to create recordings.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Voice Recordings</h2>
+        <div>
+          <h2 className="text-page-title">Voice recordings</h2>
+          <p className="mt-1 text-sm text-text-secondary">Play, download, or delete saved clips.</p>
+        </div>
         <button
+          type="button"
           onClick={loadRecordings}
-          className="px-4 py-2 bg-surface-light text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
+          className="btn btn-secondary w-full sm:w-auto"
         >
           Refresh
         </button>
@@ -115,7 +123,7 @@ export default function RecordingsTab() {
         {recordings.map((recording) => (
           <div
             key={recording.name}
-            className="bg-surface-light rounded-lg p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-surface-lighter transition-colors"
+            className="surface-panel p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-colors hover:border-border-hover"
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -129,21 +137,24 @@ export default function RecordingsTab() {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:ml-4">
               <button
+                type="button"
                 onClick={() => playRecording(recording.name)}
                 disabled={playing === recording.name}
-                className="px-3 py-2 bg-primary text-text-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors w-full sm:w-auto"
+                className="btn btn-primary w-full sm:w-auto disabled:opacity-50"
               >
-                {playing === recording.name ? 'Playing...' : 'Play'}
+                {playing === recording.name ? 'Playing…' : 'Play'}
               </button>
               <button
+                type="button"
                 onClick={() => downloadRecording(recording.name)}
-                className="px-3 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
+                className="btn btn-secondary w-full sm:w-auto"
               >
                 Download
               </button>
               <button
+                type="button"
                 onClick={() => deleteRecording(recording.name)}
-                className="px-3 py-2 bg-danger/10 text-danger-light rounded-lg hover:bg-danger/20 transition-colors w-full sm:w-auto"
+                className="btn btn-danger w-full sm:w-auto"
               >
                 Delete
               </button>

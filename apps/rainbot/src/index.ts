@@ -94,6 +94,8 @@ interface RainbotGuildState extends GuildState {
   autoplay: boolean;
   volume: number;
   lastPlaybackError: string | null;
+  /** True while seek is replacing the stream — Idle must not run playNext or clear now playing. */
+  isSeeking: boolean;
 }
 
 const guildStates = new Map<string, RainbotGuildState>();
@@ -455,6 +457,7 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
   if (track.duration != null && track.duration > 0) {
     positionSeconds = Math.min(positionSeconds, track.duration);
   }
+  state.isSeeking = true;
   try {
     state.player.stop();
     const resource = await createTrackResourceForAny(track, positionSeconds);
@@ -462,10 +465,21 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
       resource.volume.setVolume(state.volume / 100);
     }
     state.currentResource = resource;
+    state.currentTrack = track;
+    state.nowPlaying = track.title ?? null;
     state.playbackStartTime = Date.now() - positionSeconds * 1000;
     state.pauseStartTime = null;
     state.totalPausedTime = 0;
     state.player.play(resource);
+    // Wait until Playing so any Idle from stop() is handled while isSeeking is still true.
+    // If we clear isSeeking in finally before a deferred Idle runs, Idle would treat stop as track end.
+    try {
+      await entersState(state.player, AudioPlayerStatus.Playing, 20_000);
+    } catch (e) {
+      log.warn(
+        `Seek: player did not reach Playing within timeout: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
     log.info(`Seeked to ${positionSeconds}s in "${track.title}" in guild ${input.guildId}`);
     const response: SeekResponse = { status: 'success' };
     requestCache.set(cacheKey, response);
@@ -476,6 +490,8 @@ async function handleSeek(input: SeekRequest): Promise<SeekResponse> {
     const response: SeekResponse = { status: 'error', message: err.message };
     requestCache.set(cacheKey, response);
     return response;
+  } finally {
+    state.isSeeking = false;
   }
 }
 
@@ -501,9 +517,17 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
 
     player.on(AudioPlayerStatus.Idle, () => {
       const state = guildStates.get(guildId);
-      if (state && state.queue.length > 0) {
+      if (!state) return;
+      // Drop stale Idle deliveries (e.g. after seek: stop() Idles, then play(); a late Idle must not advance queue).
+      if (state.player.state.status !== AudioPlayerStatus.Idle) {
+        return;
+      }
+      if (state.isSeeking) {
+        return;
+      }
+      if (state.queue.length > 0) {
         playNext(guildId);
-      } else if (state) {
+      } else {
         state.nowPlaying = null;
         state.currentTrack = null;
         state.currentResource = null;
@@ -536,6 +560,7 @@ function getOrCreateGuildState(guildId: string): RainbotGuildState {
       totalPausedTime: 0,
       autoplay: false,
       lastPlaybackError: null,
+      isSeeking: false,
     });
   }
   return guildStates.get(guildId)!;

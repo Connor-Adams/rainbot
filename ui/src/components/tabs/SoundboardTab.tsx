@@ -209,18 +209,23 @@ export default function SoundboardTab() {
   );
 
   return (
-    <section className="panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
+    <section className="panel surface-panel p-4 sm:p-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-          <span className="w-1 h-5 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
-          Soundboard
-          {visibleSounds.length > 0 && (
-            <span className="text-sm text-text-secondary font-normal">
-              ({visibleSounds.length})
-            </span>
-          )}
-        </h2>
+        <div>
+          <h2 className="text-page-title flex flex-wrap items-center gap-2">
+            <span className="w-1 h-6 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
+            Soundboard
+            {visibleSounds.length > 0 && (
+              <span className="text-sm font-normal text-text-secondary">
+                ({visibleSounds.length})
+              </span>
+            )}
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Upload, trim, and play sounds in voice.
+          </p>
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <button
             type="button"
