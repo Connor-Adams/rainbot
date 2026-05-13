@@ -910,14 +910,9 @@ router.get(
       return;
     }
     try {
-      const { id: userId } = getAuthUser(req);
-      if (!userId) {
-        res.status(401).json({ error: 'Authentication required' });
-        return;
-      }
       const multiBot = requireMultiBot(res);
       if (!multiBot) return;
-      const enabled = await multiBot.getVoiceStateManager().getConversationMode(guildId, userId);
+      const enabled = await multiBot.getVoiceStateManager().getConversationMode(guildId);
       res.json({ enabled });
     } catch (error) {
       const err = error as Error;

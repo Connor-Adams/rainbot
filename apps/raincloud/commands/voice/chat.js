@@ -51,65 +51,63 @@ module.exports = {
       });
     }
 
+    const guildName = interaction.guild?.name ?? guildId;
+    const requesterTag = interaction.user.tag;
+    const replyEphemeral = (content) =>
+      interaction.reply({
+        content,
+        flags: MessageFlags.Ephemeral,
+      });
+    const setModeAndReply = async (enabled, message) => {
+      await voiceStateManager.setConversationMode(guildId, userId, enabled);
+      log.info(
+        `Conversation mode ${enabled ? 'on' : 'off'} for guild ${guildName} (requested by ${requesterTag})`
+      );
+      await replyEphemeral(message);
+    };
+
     try {
       switch (subcommand) {
         case 'on': {
-          await voiceStateManager.setConversationMode(guildId, userId, true);
-          log.info(
-            `Conversation mode on for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
+          await setModeAndReply(
+            true,
+            '✅ **Conversation mode on.** Everyone in the active voice channel can talk to Grok until it is turned off. Use `/chat off` or `/chat toggle` to exit.'
           );
-          await interaction.reply({
-            content:
-              '✅ **Conversation mode on.** Everyone in the active voice channel can talk to Grok until it is turned off. Use `/chat off` or `/chat toggle` to exit.',
-            flags: MessageFlags.Ephemeral,
-          });
           break;
         }
 
         case 'off': {
-          await voiceStateManager.setConversationMode(guildId, userId, false);
-          log.info(
-            `Conversation mode off for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
+          await setModeAndReply(
+            false,
+            '✅ **Conversation mode off.** Everyone is back to normal voice commands.'
           );
-          await interaction.reply({
-            content: '✅ **Conversation mode off.** Everyone is back to normal voice commands.',
-            flags: MessageFlags.Ephemeral,
-          });
           break;
         }
 
         case 'toggle': {
-          const current = await voiceStateManager.getConversationMode(guildId, userId);
+          const current = await voiceStateManager.getConversationMode(guildId);
           const next = !current;
-          await voiceStateManager.setConversationMode(guildId, userId, next);
-          log.info(
-            `Conversation mode toggled to ${next} for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
-          );
-          await interaction.reply({
-            content: next
+          await setModeAndReply(
+            next,
+            next
               ? '✅ **Conversation mode on.** Everyone in the active voice channel can talk to Grok. Use `/chat toggle` again to turn off.'
-              : '✅ **Conversation mode off.** Everyone is back to normal voice commands.',
-            flags: MessageFlags.Ephemeral,
-          });
+              : '✅ **Conversation mode off.** Everyone is back to normal voice commands.'
+          );
           break;
         }
 
         case 'status': {
-          const isOn = await voiceStateManager.getConversationMode(guildId, userId);
-          await interaction.reply({
-            content: isOn
+          const isOn = await voiceStateManager.getConversationMode(guildId);
+          await replyEphemeral(
+            isOn
               ? '✅ **Conversation mode is on.** Everyone in the active voice channel can talk to Grok.'
-              : '❌ **Conversation mode is off.** Use `/chat on` to start chatting.',
-            flags: MessageFlags.Ephemeral,
-          });
+              : '❌ **Conversation mode is off.** Use `/chat on` to start chatting.'
+          );
           break;
         }
 
         default:
-          await interaction.reply({
-            content: '❌ Unknown subcommand.',
-            flags: MessageFlags.Ephemeral,
-          });
+          await replyEphemeral('❌ Unknown subcommand.');
       }
     } catch (error) {
       log.error(`Error executing chat command: ${error.message}`);
