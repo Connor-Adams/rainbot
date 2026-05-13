@@ -22,12 +22,14 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName('on')
-        .setDescription('Turn on conversation mode — your voice will be sent to Grok')
+        .setDescription(
+          'Turn on conversation mode — everyone in the voice channel can talk to Grok'
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName('off')
-        .setDescription('Turn off conversation mode — voice commands work as usual')
+        .setDescription('Turn off conversation mode — everyone returns to normal voice commands')
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('toggle').setDescription('Toggle conversation mode on or off')
@@ -54,11 +56,11 @@ module.exports = {
         case 'on': {
           await voiceStateManager.setConversationMode(guildId, userId, true);
           log.info(
-            `Conversation mode on for user ${interaction.user.tag} in guild ${interaction.guild?.name}`
+            `Conversation mode on for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
           );
           await interaction.reply({
             content:
-              '✅ **Conversation mode on.** Your voice will be sent to Grok until you turn it off. Use `/chat off` or `/chat toggle` to exit.',
+              '✅ **Conversation mode on.** Everyone in the active voice channel can talk to Grok until it is turned off. Use `/chat off` or `/chat toggle` to exit.',
             flags: MessageFlags.Ephemeral,
           });
           break;
@@ -67,10 +69,10 @@ module.exports = {
         case 'off': {
           await voiceStateManager.setConversationMode(guildId, userId, false);
           log.info(
-            `Conversation mode off for user ${interaction.user.tag} in guild ${interaction.guild?.name}`
+            `Conversation mode off for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
           );
           await interaction.reply({
-            content: '✅ **Conversation mode off.** Voice commands work as usual.',
+            content: '✅ **Conversation mode off.** Everyone is back to normal voice commands.',
             flags: MessageFlags.Ephemeral,
           });
           break;
@@ -81,12 +83,12 @@ module.exports = {
           const next = !current;
           await voiceStateManager.setConversationMode(guildId, userId, next);
           log.info(
-            `Conversation mode toggled to ${next} for user ${interaction.user.tag} in guild ${interaction.guild?.name}`
+            `Conversation mode toggled to ${next} for guild ${interaction.guild?.name} (requested by ${interaction.user.tag})`
           );
           await interaction.reply({
             content: next
-              ? '✅ **Conversation mode on.** Your voice will be sent to Grok. Use `/chat toggle` again to turn off.'
-              : '✅ **Conversation mode off.** Voice commands work as usual.',
+              ? '✅ **Conversation mode on.** Everyone in the active voice channel can talk to Grok. Use `/chat toggle` again to turn off.'
+              : '✅ **Conversation mode off.** Everyone is back to normal voice commands.',
             flags: MessageFlags.Ephemeral,
           });
           break;
@@ -96,7 +98,7 @@ module.exports = {
           const isOn = await voiceStateManager.getConversationMode(guildId, userId);
           await interaction.reply({
             content: isOn
-              ? '✅ **Conversation mode is on.** Your voice is being sent to Grok.'
+              ? '✅ **Conversation mode is on.** Everyone in the active voice channel can talk to Grok.'
               : '❌ **Conversation mode is off.** Use `/chat on` to start chatting.',
             flags: MessageFlags.Ephemeral,
           });

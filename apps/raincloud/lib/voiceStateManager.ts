@@ -183,31 +183,42 @@ export class VoiceStateManager {
   }
 
   /**
-   * Set conversation mode (Grok chat) for a user in a guild.
-   * When disabling, also clears the Grok response_id so the next session starts fresh.
+   * Set conversation mode (Grok chat) for a guild.
+   * userId is retained for backward compatibility and actor-specific cleanup.
+   * When disabling, also clears this actor's Grok response/history so their next session starts fresh.
    */
   async setConversationMode(guildId: string, userId: string, enabled: boolean): Promise<void> {
-    const key = `conversation:${guildId}:${userId}`;
+    const guildKey = `conversation:${guildId}`;
+    const userKey = `conversation:${guildId}:${userId}`;
     if (enabled) {
-      await this.redis.set(key, '1');
-      log.debug(`Set conversation mode on for user ${userId} in guild ${guildId}`);
+      // Guild-wide switch: once on, everyone in the active voice channel can talk to Grok.
+      await this.redis.set(guildKey, '1');
+      // Legacy compatibility for any older readers that still look up user-scoped keys.
+      await this.redis.set(userKey, '1');
+      log.debug(`Set conversation mode on for guild ${guildId} (requested by user ${userId})`);
     } else {
-      await this.redis.del(key);
+      await this.redis.del(guildKey);
+      await this.redis.del(userKey);
       const grokResponseKey = `grok:response_id:${guildId}:${userId}`;
       const grokHistoryKey = `grok:history:${guildId}:${userId}`;
       await this.redis.del(grokResponseKey);
       await this.redis.del(grokHistoryKey);
-      log.debug(`Set conversation mode off for user ${userId} in guild ${guildId}`);
+      log.debug(`Set conversation mode off for guild ${guildId} (requested by user ${userId})`);
     }
   }
 
   /**
-   * Get conversation mode for a user in a guild
+   * Get conversation mode for a guild.
+   * Falls back to the legacy user-scoped key for compatibility with older persisted state.
    */
   async getConversationMode(guildId: string, userId: string): Promise<boolean> {
-    const key = `conversation:${guildId}:${userId}`;
-    const data = await this.redis.get(key);
-    return data === '1';
+    const guildData = await this.redis.get(`conversation:${guildId}`);
+    if (guildData === '1') {
+      return true;
+    }
+
+    const userData = await this.redis.get(`conversation:${guildId}:${userId}`);
+    return userData === '1';
   }
 
   /** Valid xAI Voice Agent voices. */

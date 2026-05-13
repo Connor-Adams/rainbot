@@ -524,10 +524,10 @@ export default function AdminTab() {
             Grok conversation mode (voice)
           </div>
           <div className="text-xs text-text-secondary mb-4">
-            For the server selected in Run commands: when on, your voice is sent to Grok in real
-            time (Voice Agent). Turning on also enables voice listening for this server. Join a
-            voice channel with the bot and speak; ensure GROK_API_KEY is set on the voice worker. If
-            nothing happens, try turning off then on again.
+            For the server selected in Run commands: when on, everyone in the active voice channel
+            can talk to Grok in real time (Voice Agent). Turning on also enables voice listening for
+            this server. Join a voice channel with the bot and speak; ensure GROK_API_KEY is set on
+            the voice worker. If nothing happens, try turning off then on again.
           </div>
           {runGuildId ? (
             <div className="space-y-3">
@@ -593,7 +593,7 @@ export default function AdminTab() {
                   ))}
                 </select>
                 <div className="text-xs text-text-secondary mt-1">
-                  Voice for the Grok Voice Agent. Takes effect on your next conversation.
+                  Voice for the Grok Voice Agent. Takes effect for your next conversation.
                 </div>
                 {grokVoiceMutation.isError && (
                   <div className="text-xs text-danger-light mt-1">
