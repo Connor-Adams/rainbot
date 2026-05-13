@@ -182,43 +182,85 @@ export class VoiceStateManager {
     return data === '1'; // Default false if not set
   }
 
+  /** How many members in this guild have personal conversation mode enabled (for guild-wide voice routing). */
+  private conversationActiveCountKey(guildId: string): string {
+    return `conversation:active_count:${guildId}`;
+  }
+
   /**
-   * Set conversation mode (Grok chat) for a guild.
-   * userId is retained for backward compatibility and actor-specific cleanup.
-   * When disabling, also clears this actor's Grok response/history so their next session starts fresh.
+   * Set conversation mode (Grok chat) for a user in a guild.
+   * When disabling, also clears the Grok response_id so the next session starts fresh.
+   * Maintains `conversation:active_count:{guildId}` so voice can treat "anyone on" as on for everyone.
    */
   async setConversationMode(guildId: string, userId: string, enabled: boolean): Promise<void> {
-    const guildKey = `conversation:${guildId}`;
     const userKey = `conversation:${guildId}:${userId}`;
+
     if (enabled) {
-      // Guild-wide switch: once on, everyone in the active voice channel can talk to Grok.
-      await this.redis.set(guildKey, '1');
-      // Legacy compatibility for any older readers that still look up user-scoped keys.
+      const prev = await this.redis.get(userKey);
+      if (prev === '1') {
+        return;
+      }
       await this.redis.set(userKey, '1');
-      log.debug(`Set conversation mode on for guild ${guildId} (requested by user ${userId})`);
+      log.debug(`Set conversation mode on for user ${userId} in guild ${guildId}`);
     } else {
-      await this.redis.del(guildKey);
+      const prev = await this.redis.get(userKey);
+      if (prev !== '1') {
+        return;
+      }
       await this.redis.del(userKey);
       const grokResponseKey = `grok:response_id:${guildId}:${userId}`;
       const grokHistoryKey = `grok:history:${guildId}:${userId}`;
       await this.redis.del(grokResponseKey);
       await this.redis.del(grokHistoryKey);
-      log.debug(`Set conversation mode off for guild ${guildId} (requested by user ${userId})`);
+      log.debug(`Set conversation mode off for user ${userId} in guild ${guildId}`);
+    }
+    await this.syncConversationActiveCount(guildId);
+  }
+
+  /** Recompute member count from `conversation:{guildId}:*` user keys (excludes unrelated keys). */
+  private async syncConversationActiveCount(guildId: string): Promise<void> {
+    const pattern = `conversation:${guildId}:*`;
+    const keys = await this.redis.keys(pattern);
+    const countKey = this.conversationActiveCountKey(guildId);
+    if (keys.length === 0) {
+      await this.redis.del(countKey);
+    } else {
+      await this.redis.set(countKey, String(keys.length));
     }
   }
 
   /**
-   * Get conversation mode for a guild.
-   * Falls back to the legacy user-scoped key for compatibility with older persisted state.
+   * Get conversation mode for the guild-scoped behavior expected by chat controls.
+   * Returns true if any member has conversation mode on. Falls back to legacy keys.
    */
   async getConversationMode(guildId: string, userId: string): Promise<boolean> {
+    if (await this.isGuildConversationModeActive(guildId)) {
+      return true;
+    }
+
     const guildData = await this.redis.get(`conversation:${guildId}`);
     if (guildData === '1') {
       return true;
     }
-
     const userData = await this.redis.get(`conversation:${guildId}:${userId}`);
     return userData === '1';
+  }
+
+  /**
+   * True if at least one member has conversation mode on — voice uses this so everyone in VC
+   * gets realtime/Grok routing when anyone opted in.
+   */
+  async isGuildConversationModeActive(guildId: string): Promise<boolean> {
+    const countKey = this.conversationActiveCountKey(guildId);
+    const raw = await this.redis.get(countKey);
+    if (raw !== null) {
+      const n = parseInt(raw, 10);
+      return !Number.isNaN(n) && n > 0;
+    }
+    await this.syncConversationActiveCount(guildId);
+    const again = await this.redis.get(countKey);
+    const n = again ? parseInt(again, 10) : 0;
+    return !Number.isNaN(n) && n > 0;
   }
 
   /** Valid xAI Voice Agent voices. */

@@ -70,7 +70,10 @@ export interface VoiceInteractionConfig {
     session: VoiceInteractionSession,
     command: ParsedVoiceCommand
   ) => Promise<VoiceCommandResult | null>;
-  /** When true, stream user audio to xAI Voice Agent instead of STT → command. */
+  /**
+   * When true, stream user audio to xAI Voice Agent instead of STT → command.
+   * Implementations may ignore userId and treat "any member in this guild has conversation mode on" as true for everyone.
+   */
   getConversationMode?: (guildId: string, userId: string) => Promise<boolean>;
   /** Create a Voice Agent client for this session (xAI realtime WebSocket). Called when first chunk arrives and conversation mode is on. */
   createVoiceAgentClient?: (
