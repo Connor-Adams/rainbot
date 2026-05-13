@@ -230,12 +230,20 @@ export class VoiceStateManager {
   }
 
   /**
-   * Get conversation mode for a user in a guild
+   * Get conversation mode for the guild-scoped behavior expected by chat controls.
+   * Returns true if any member has conversation mode on. Falls back to legacy keys.
    */
   async getConversationMode(guildId: string, userId: string): Promise<boolean> {
-    const key = `conversation:${guildId}:${userId}`;
-    const data = await this.redis.get(key);
-    return data === '1';
+    if (await this.isGuildConversationModeActive(guildId)) {
+      return true;
+    }
+
+    const guildData = await this.redis.get(`conversation:${guildId}`);
+    if (guildData === '1') {
+      return true;
+    }
+    const userData = await this.redis.get(`conversation:${guildId}:${userId}`);
+    return userData === '1';
   }
 
   /**

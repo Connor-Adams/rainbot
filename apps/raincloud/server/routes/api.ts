@@ -898,7 +898,7 @@ router.post(
   }
 );
 
-// GET /api/conversation-mode/:guildId - Get Grok conversation mode for the current user in the guild
+// GET /api/conversation-mode/:guildId - Get Grok conversation mode for the guild
 router.get(
   '/conversation-mode/:guildId',
   requireAuth,
@@ -926,7 +926,7 @@ router.get(
   }
 );
 
-// POST /api/conversation-mode - Turn Grok conversation mode on or off for the current user in the guild
+// POST /api/conversation-mode - Turn Grok conversation mode on or off for the guild
 router.post(
   '/conversation-mode',
   requireAuth,

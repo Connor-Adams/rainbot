@@ -150,9 +150,15 @@ export async function getConversationMode(guildId: string, userId: string): Prom
   const c = getClient();
   if (!c) return false;
   try {
-    const key = `${CONVERSATION_KEY_PREFIX}${guildId}:${userId}`;
-    const value = await c.get(key);
-    return value === '1';
+    // Preferred key: guild-wide conversation mode.
+    const guildKey = `${CONVERSATION_KEY_PREFIX}${guildId}`;
+    const guildValue = await c.get(guildKey);
+    if (guildValue === '1') return true;
+
+    // Backward compatibility with older user-scoped key.
+    const userKey = `${CONVERSATION_KEY_PREFIX}${guildId}:${userId}`;
+    const userValue = await c.get(userKey);
+    return userValue === '1';
   } catch {
     return false;
   }
