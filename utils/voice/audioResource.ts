@@ -110,7 +110,7 @@ export async function getStreamUrl(videoUrl: string): Promise<string> {
   // Get direct URL from yt-dlp
   const result = (await youtubedl(videoUrl, {
     ...getYtdlpOptions(),
-    format: 'bestaudio[acodec=opus]/bestaudio/best',
+    format: 'bestaudio[acodec=opus]/bestaudio/ba/wa',
     getUrl: true,
   })) as unknown as string;
 
@@ -226,7 +226,7 @@ export function createTrackResource(track: Track): TrackResourceResult | null {
 
   const subprocess = youtubedl.exec(track.url, {
     ...getYtdlpOptions(),
-    format: 'bestaudio[acodec=opus]/bestaudio/best',
+    format: 'bestaudio[acodec=opus]/bestaudio/ba/wa',
     output: '-',
     bufferSize: '16K',
   });

@@ -62,7 +62,8 @@ async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> 
 
   const options: Record<string, unknown> = {
     ...getYtdlpOptions(),
-    format: 'bestaudio[acodec=opus]/bestaudio/best',
+    // `ba` = best audio only; avoid plain `best` which can mux video and break stream decode.
+    format: 'bestaudio[acodec=opus]/bestaudio/ba/wa',
     getUrl: true,
   };
   if (seekSeconds > 0) {
@@ -162,9 +163,8 @@ async function createTrackResourcePipe(
   log.debug(`stream yt-dlp pipe title="${track.title}" url="${track.url}" seek=${seekSeconds}`);
   const pipeOptions: Record<string, unknown> = {
     ...getYtdlpOptions(),
-    // Match getStreamUrl: /best fallback when opus-only / pure bestaudio aren't exposed for this video.
-    // Omit preferFreeFormats — it can narrow formats until nothing matches (pipe then errors while get-url works).
-    format: 'bestaudio[acodec=opus]/bestaudio/best',
+    // Match getStreamUrl: ba/wa when narrower selectors miss. Omit preferFreeFormats (too narrow).
+    format: 'bestaudio[acodec=opus]/bestaudio/ba/wa',
     output: '-',
     bufferSize: '16K',
   };

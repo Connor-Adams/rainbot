@@ -128,16 +128,24 @@ export default function PlayerTab() {
   };
 
   return (
-    <>
+    <div className="space-y-6 animate-fade-in">
+      <header>
+        <h1 className="text-page-title">Player</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Queue tracks, TTS, and per-bot volume for the selected server.
+        </p>
+      </header>
+
       {selectedGuildId && queueData?.nowPlaying && (
         <NowPlayingCard queueData={queueData} guildId={selectedGuildId} />
       )}
 
-      <section className="panel player-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-gradient-to-b from-primary to-secondary rounded shadow-glow"></span>
-          Add to Queue
+      <section className="panel player-panel surface-panel p-4 sm:p-6">
+        <h2 className="text-section-title mb-1 flex items-center gap-2">
+          <span className="w-1 h-4 bg-gradient-to-b from-primary to-secondary rounded shadow-glow" />
+          Add to queue
         </h2>
+        <p className="text-caption mb-4">Paste a URL or use the soundboard from the sidebar.</p>
         <div className="url-player space-y-4">
           <div className="input-group flex flex-col sm:flex-row gap-3">
             <input
@@ -145,7 +153,7 @@ export default function PlayerTab() {
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-text-muted"
+              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-xl text-text-primary text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary transition-colors placeholder:text-text-muted"
               placeholder="YouTube, Spotify, SoundCloud, or direct URL..."
             />
           </div>
@@ -169,10 +177,8 @@ export default function PlayerTab() {
 
         {/* Say (TTS) - Pranjeet speaks whatever you type */}
         <div className="tts-speak mt-6 pt-6 border-t border-border">
-          <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">
-            Say (TTS)
-          </h3>
-          <p className="text-xs text-text-muted mb-3">
+          <h3 className="text-section-title mb-2">Say (TTS)</h3>
+          <p className="text-caption mb-3">
             Type something and Pranjeet will say it in your voice channel. You must be in a voice
             channel.
           </p>
@@ -188,7 +194,7 @@ export default function PlayerTab() {
                   if (t && selectedGuildId) speakMutation.mutate(t);
                 }
               }}
-              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-text-muted"
+              className="flex-1 px-4 py-3 bg-surface-input border border-border rounded-xl text-text-primary text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary transition-colors placeholder:text-text-muted"
               placeholder="Type what you want the bot to say..."
               disabled={!selectedGuildId}
             />
@@ -269,6 +275,6 @@ export default function PlayerTab() {
           </div>
         </div>
       </section>
-    </>
+    </div>
   );
 }

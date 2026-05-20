@@ -126,7 +126,7 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   };
 
   return (
-    <section className="panel now-playing-card bg-surface rounded-2xl border border-border overflow-hidden">
+    <section className="panel now-playing-card surface-panel overflow-hidden shadow-md shadow-black/10">
       <div className="now-playing-content flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 items-center lg:items-start">
         <NowPlayingArtwork isPlaying={!isPaused} thumbnailUrl={thumbnailUrl} />
 

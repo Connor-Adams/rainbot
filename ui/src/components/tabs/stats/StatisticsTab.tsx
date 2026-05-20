@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
 import StatsSummary from './components/StatsSummary';
 import CommandsStats from './components/CommandsStats';
 import SoundsStats from './components/SoundsStats';
@@ -22,146 +22,59 @@ import WebAnalyticsStats from './components/WebAnalyticsStats';
 import GuildEventsStats from './components/GuildEventsStats';
 import ApiLatencyStats from './components/ApiLatencyStats';
 import { StatsErrorBoundary } from '@/components/ErrorBoundary';
+import { isStatsSectionId, type StatsSectionId } from './statsNavConfig';
+import StatsSubNav from './StatsSubNav';
 
-type StatsTab =
-  | 'summary'
-  | 'commands'
-  | 'sounds'
-  | 'users'
-  | 'guilds'
-  | 'queue'
-  | 'time'
-  | 'history'
-  | 'sessions'
-  | 'performance'
-  | 'errors'
-  | 'retention'
-  | 'search'
-  | 'user-sessions'
-  | 'user-tracks'
-  | 'engagement'
-  | 'interactions'
-  | 'playback-states'
-  | 'web-analytics'
-  | 'guild-events'
-  | 'api-latency';
+function StatsContent({ section }: { section: StatsSectionId }) {
+  return (
+    <StatsErrorBoundary>
+      {section === 'summary' && <StatsSummary key="summary" />}
+      {section === 'commands' && <CommandsStats key="commands" />}
+      {section === 'sounds' && <SoundsStats key="sounds" />}
+      {section === 'users' && <UsersStats key="users" />}
+      {section === 'guilds' && <GuildsStats key="guilds" />}
+      {section === 'queue' && <QueueStats key="queue" />}
+      {section === 'time' && <TimeStats key="time" />}
+      {section === 'history' && <HistoryStats key="history" />}
+      {section === 'sessions' && <SessionsStats key="sessions" />}
+      {section === 'performance' && <PerformanceStats key="performance" />}
+      {section === 'errors' && <ErrorsStats key="errors" />}
+      {section === 'retention' && <RetentionStats key="retention" />}
+      {section === 'search' && <SearchStats key="search" />}
+      {section === 'user-sessions' && <UserSessionsStats key="user-sessions" />}
+      {section === 'user-tracks' && <UserTracksStats key="user-tracks" />}
+      {section === 'engagement' && <EngagementStats key="engagement" />}
+      {section === 'interactions' && <InteractionsStats key="interactions" />}
+      {section === 'playback-states' && <PlaybackStatesStats key="playback-states" />}
+      {section === 'web-analytics' && <WebAnalyticsStats key="web-analytics" />}
+      {section === 'guild-events' && <GuildEventsStats key="guild-events" />}
+      {section === 'api-latency' && <ApiLatencyStats key="api-latency" />}
+    </StatsErrorBoundary>
+  );
+}
 
 export default function StatisticsTab() {
-  const [activeTab, setActiveTab] = useState<StatsTab>('summary');
-  const tabClass = (tab: StatsTab) =>
-    [
-      'px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all whitespace-nowrap',
-      activeTab === tab
-        ? 'text-primary border-primary/60 bg-primary/10'
-        : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border',
-    ].join(' ');
+  const { section } = useParams<{ section: string }>();
+
+  if (!section || !isStatsSectionId(section)) {
+    return <Navigate to="/stats/summary" replace />;
+  }
+
+  const activeSection: StatsSectionId = section;
 
   return (
-    <section className="panel stats-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
+    <section className="panel stats-panel surface-panel p-4 sm:p-6 animate-fade-in">
       <StatsSSE />
-      <div className="stats-header mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-4">
-          Statistics Dashboard
-        </h2>
-        <div className="stats-tabs flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          <button className={tabClass('summary')} onClick={() => setActiveTab('summary')}>
-            Summary
-          </button>
-          <button className={tabClass('commands')} onClick={() => setActiveTab('commands')}>
-            Commands
-          </button>
-          <button className={tabClass('sounds')} onClick={() => setActiveTab('sounds')}>
-            Sounds
-          </button>
-          <button className={tabClass('users')} onClick={() => setActiveTab('users')}>
-            Users
-          </button>
-          <button className={tabClass('guilds')} onClick={() => setActiveTab('guilds')}>
-            Guilds
-          </button>
-          <button className={tabClass('queue')} onClick={() => setActiveTab('queue')}>
-            Queue
-          </button>
-          <button className={tabClass('time')} onClick={() => setActiveTab('time')}>
-            Time Trends
-          </button>
-          <button className={tabClass('history')} onClick={() => setActiveTab('history')}>
-            History
-          </button>
-          <button className={tabClass('sessions')} onClick={() => setActiveTab('sessions')}>
-            Sessions
-          </button>
-          <button className={tabClass('performance')} onClick={() => setActiveTab('performance')}>
-            Performance
-          </button>
-          <button className={tabClass('errors')} onClick={() => setActiveTab('errors')}>
-            Errors
-          </button>
-          <button className={tabClass('retention')} onClick={() => setActiveTab('retention')}>
-            Retention
-          </button>
-          <button className={tabClass('search')} onClick={() => setActiveTab('search')}>
-            Search
-          </button>
-          <button
-            className={tabClass('user-sessions')}
-            onClick={() => setActiveTab('user-sessions')}
-          >
-            User Sessions
-          </button>
-          <button className={tabClass('user-tracks')} onClick={() => setActiveTab('user-tracks')}>
-            User Tracks
-          </button>
-          <button className={tabClass('engagement')} onClick={() => setActiveTab('engagement')}>
-            Engagement
-          </button>
-          <button className={tabClass('interactions')} onClick={() => setActiveTab('interactions')}>
-            Interactions
-          </button>
-          <button
-            className={tabClass('playback-states')}
-            onClick={() => setActiveTab('playback-states')}
-          >
-            Playback States
-          </button>
-          <button
-            className={tabClass('web-analytics')}
-            onClick={() => setActiveTab('web-analytics')}
-          >
-            Web Analytics
-          </button>
-          <button className={tabClass('guild-events')} onClick={() => setActiveTab('guild-events')}>
-            Guild Events
-          </button>
-          <button className={tabClass('api-latency')} onClick={() => setActiveTab('api-latency')}>
-            API Latency
-          </button>
-        </div>
+      <div className="mb-6">
+        <h2 className="text-page-title">Statistics</h2>
+        <p className="mt-1 text-sm text-text-secondary">Metrics and analytics for your bot</p>
       </div>
-      <div id="stats-content" className="space-y-6">
-        <StatsErrorBoundary>
-          {activeTab === 'summary' && <StatsSummary key="summary" />}
-          {activeTab === 'commands' && <CommandsStats key="commands" />}
-          {activeTab === 'sounds' && <SoundsStats key="sounds" />}
-          {activeTab === 'users' && <UsersStats key="users" />}
-          {activeTab === 'guilds' && <GuildsStats key="guilds" />}
-          {activeTab === 'queue' && <QueueStats key="queue" />}
-          {activeTab === 'time' && <TimeStats key="time" />}
-          {activeTab === 'history' && <HistoryStats key="history" />}
-          {activeTab === 'sessions' && <SessionsStats key="sessions" />}
-          {activeTab === 'performance' && <PerformanceStats key="performance" />}
-          {activeTab === 'errors' && <ErrorsStats key="errors" />}
-          {activeTab === 'retention' && <RetentionStats key="retention" />}
-          {activeTab === 'search' && <SearchStats key="search" />}
-          {activeTab === 'user-sessions' && <UserSessionsStats key="user-sessions" />}
-          {activeTab === 'user-tracks' && <UserTracksStats key="user-tracks" />}
-          {activeTab === 'engagement' && <EngagementStats key="engagement" />}
-          {activeTab === 'interactions' && <InteractionsStats key="interactions" />}
-          {activeTab === 'playback-states' && <PlaybackStatesStats key="playback-states" />}
-          {activeTab === 'web-analytics' && <WebAnalyticsStats key="web-analytics" />}
-          {activeTab === 'guild-events' && <GuildEventsStats key="guild-events" />}
-          {activeTab === 'api-latency' && <ApiLatencyStats key="api-latency" />}
-        </StatsErrorBoundary>
+
+      <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-10">
+        <StatsSubNav activeSection={activeSection} />
+        <div id="stats-content" className="flex-1 min-w-0 space-y-6">
+          <StatsContent section={activeSection} />
+        </div>
       </div>
     </section>
   );
