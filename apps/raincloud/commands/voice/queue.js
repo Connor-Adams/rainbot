@@ -8,7 +8,7 @@ const {
   getMultiBotService,
 } = require('../utils/commandHelpers');
 const { replyNotInVoice, replyWorkerUnavailable } = require('../utils/responseBuilder');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('QUEUE_CMD');
 
