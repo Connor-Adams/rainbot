@@ -6,8 +6,8 @@ import { AudioPlayerStatus } from '@discordjs/voice';
 import { createLogger } from '../logger';
 import * as stats from '../statistics';
 import { getVoiceState } from './connectionManager';
-import type { QueueState, MediaItem } from '@rainbot/types/media';
-import type { Track } from '@rainbot/types/voice';
+import type { QueueState, MediaItem } from '@rainbot/protocol';
+import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('QUEUE');
 

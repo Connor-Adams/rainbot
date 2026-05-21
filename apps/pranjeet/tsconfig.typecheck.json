@@ -9,7 +9,8 @@
       "@rainbot/shared": ["packages/shared/src/index.ts"],
       "@rainbot/shared/*": ["packages/shared/src/*"],
       "@utils/*": ["utils/*"],
-      "@voice/*": ["utils/voice/*"]
+      "@voice/*": ["utils/voice/*"],
+      "@components/*": ["components/*"]
     }
   },
   "include": ["src/**/*", "../../utils/**/*.ts"]

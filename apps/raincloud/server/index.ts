@@ -7,7 +7,7 @@ import * as storage from '@utils/storage';
 import requestLogger from './middleware/requestLogger';
 import { unauthRateLimiter } from './middleware/unauthRateLimit';
 import { setClient, getClient } from './client';
-import type { AppConfig } from '@rainbot/types/server';
+import type { AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('SERVER');
 log.info('Starting Raincloud Server');

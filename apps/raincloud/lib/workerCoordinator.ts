@@ -10,7 +10,7 @@ import {
   pranjeetClient,
   hungerbotClient,
 } from '../src/rpc/clients';
-import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
+import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/protocol';
 
 const log = createLogger('WORKER-COORDINATOR');
 

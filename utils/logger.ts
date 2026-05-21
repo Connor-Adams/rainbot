@@ -1,8 +1,8 @@
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
-import type { Logger } from '@rainbot/types/core';
-export type { Logger } from '@rainbot/types/core';
+import type { Logger } from '@rainbot/protocol';
+export type { Logger } from '@rainbot/protocol';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 

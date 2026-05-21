@@ -1,6 +1,6 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { MediaItem, MediaState, QueueState } from '@rainbot/types/media';
-import { createButtonId } from '../components/builders/buttonBuilder';
+import type { MediaItem, MediaState, QueueState } from '@rainbot/protocol';
+import { createButtonId } from '@components/builders/buttonBuilder';
 import { getYouTubeThumbnailUrl } from '@rainbot/shared';
 
 /**

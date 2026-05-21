@@ -4,7 +4,7 @@
 
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createSecondaryButton, createButtonId } from '../../builders/buttonBuilder';
-import type { PaginationState } from '@rainbot/types/buttons';
+import type { PaginationState } from '@rainbot/protocol';
 
 /**
  * Create previous page button

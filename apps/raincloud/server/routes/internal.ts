@@ -4,7 +4,7 @@ import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
 import * as stats from '@utils/statistics';
 import * as storage from '@utils/storage';
-import type { SourceType } from '@rainbot/types/media';
+import type { SourceType } from '@rainbot/protocol';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();

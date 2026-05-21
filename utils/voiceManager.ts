@@ -19,9 +19,9 @@ import type {
   PlaybackState,
   PlaybackStatus,
   MediaItem,
-} from '@rainbot/types/media';
-import type { Track, PlayResult } from '@rainbot/types/voice';
-import type { VoiceState } from '@rainbot/types/voice-modules';
+} from '@rainbot/protocol';
+import type { Track, PlayResult } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 
 const log = createLogger('VOICE');
 

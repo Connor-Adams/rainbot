@@ -2,7 +2,7 @@
  * Shared utility for detecting track source type
  */
 
-import type { SourceType } from '@rainbot/types/media';
+import type { SourceType } from '@rainbot/protocol';
 
 export interface TrackForSourceDetection {
   isLocal?: boolean;

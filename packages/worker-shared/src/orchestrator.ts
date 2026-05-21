@@ -1,6 +1,6 @@
 import { createLogger } from '@rainbot/shared';
 import { formatError } from './errors';
-import type { BotType } from '@rainbot/types/core';
+import type { BotType } from '@rainbot/protocol';
 
 export type { BotType };
 

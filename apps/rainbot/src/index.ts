@@ -9,8 +9,8 @@ import {
 } from '@discordjs/voice';
 import { fetchTracks } from './voice/trackFetcher';
 import { createTrackResourceForAny } from './voice/audioResource';
-import type { Track } from '@rainbot/types/voice';
-import type { PlaybackState, QueueState } from '@rainbot/types/media';
+import type { Track } from '@rainbot/protocol';
+import type { PlaybackState, QueueState } from '@rainbot/protocol';
 import { createRainbotRouter, createContext } from '@rainbot/rpc';
 import type {
   JoinRequest,

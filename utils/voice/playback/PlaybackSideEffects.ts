@@ -4,8 +4,8 @@ import { getDiscordClient } from '../discordClient';
 import { detectSourceType } from '@utils/sourceType';
 import * as stats from '@utils/statistics';
 import * as listeningHistory from '@utils/listeningHistory';
-import type { Track } from '@rainbot/types/voice';
-import type { VoiceState } from '@rainbot/types/voice-modules';
+import type { Track } from '@rainbot/protocol';
+import type { VoiceState } from '@rainbot/protocol';
 import type { VoiceChannel, TextChannel } from 'discord.js';
 import { getPlaybackPosition } from './PlaybackTiming';
 

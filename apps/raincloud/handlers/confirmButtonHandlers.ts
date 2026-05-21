@@ -3,7 +3,7 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import type { ButtonHandler } from '@rainbot/types/buttons';
+import type { ButtonHandler } from '@rainbot/protocol';
 import { createLogger } from '@utils/logger';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 

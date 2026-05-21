@@ -1,5 +1,5 @@
 import { formatDuration, getYouTubeThumbnail, createPlayerEmbed } from '../playerEmbed';
-import type { MediaItem, MediaState } from '@rainbot/types/media';
+import type { MediaItem, MediaState } from '@rainbot/protocol';
 
 function createMediaState(overrides: Partial<MediaState> = {}): MediaState {
   return {

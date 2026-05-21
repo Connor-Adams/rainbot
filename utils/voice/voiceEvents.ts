@@ -2,8 +2,8 @@
 import * as stats from '../statistics';
 import * as listeningHistory from '../listeningHistory';
 import { createLogger } from '../logger';
-import type { QueueState } from '@rainbot/types/media';
-import type { Track } from '@rainbot/types/voice';
+import type { QueueState } from '@rainbot/protocol';
+import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('VOICE_EVENTS');
 

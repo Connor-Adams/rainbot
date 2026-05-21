@@ -1,4 +1,4 @@
-import type { SourceType } from '@rainbot/types/media';
+import type { SourceType } from '@rainbot/protocol';
 
 export type { SourceType };
 

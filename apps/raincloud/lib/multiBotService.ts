@@ -16,8 +16,8 @@ import { createLogger } from '@utils/logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
 import * as voiceManager from '@utils/voiceManager';
 import * as storage from '@utils/storage';
-import type { BotType } from '@rainbot/types/core';
-import type { MediaState, QueueState, PlaybackState } from '@rainbot/types/media';
+import type { BotType } from '@rainbot/protocol';
+import type { MediaState, QueueState, PlaybackState } from '@rainbot/protocol';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
