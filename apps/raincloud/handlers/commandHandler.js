@@ -1,14 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const { Collection } = require('discord.js');
-const { createLogger } = require('../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('COMMANDS');
 
 module.exports = (client) => {
   client.commands = new Collection();
 
-  // Look in commands/ for JS command files (they require from dist/utils/)
+  // Look in commands/ for JS command files (they require @rainbot/utils at runtime)
   const commandsPath = path.join(__dirname, '..', 'commands');
   const commandFolders = fs.readdirSync(commandsPath);
 

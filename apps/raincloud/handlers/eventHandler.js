@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { createLogger } = require('../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('EVENTS');
 
