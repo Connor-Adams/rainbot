@@ -13,6 +13,7 @@ jest.mock('../logger', () => ({
 
 // Mock fs - return empty to simulate no commands
 jest.mock('fs', () => ({
+  existsSync: jest.fn(() => false),
   readdirSync: jest.fn(() => []),
   statSync: jest.fn(),
 }));
