@@ -4,34 +4,15 @@ type ClientGetter = () => Client | null;
 
 let clientGetter: ClientGetter | null = null;
 
+/**
+ * Inject the source of the Discord client. Hosts that consume @rainbot/utils
+ * MUST call this once their client is constructed (e.g. apps/raincloud/index.js
+ * calls it after server.setClient). Without it getDiscordClient returns null.
+ */
 export function setDiscordClientGetter(getter: ClientGetter): void {
   clientGetter = getter;
 }
 
 export function getDiscordClient(): Client | null {
-  if (clientGetter) {
-    return clientGetter();
-  }
-
-  try {
-    const serverClient = require('../../server/client') as { getClient?: ClientGetter };
-    if (serverClient?.getClient) {
-      return serverClient.getClient();
-    }
-  } catch {
-    // Ignore and try next fallback.
-  }
-
-  try {
-    const raincloudClient = require('../../apps/raincloud/server/client') as {
-      getClient?: ClientGetter;
-    };
-    if (raincloudClient?.getClient) {
-      return raincloudClient.getClient();
-    }
-  } catch {
-    // Ignore and fall through.
-  }
-
-  return null;
+  return clientGetter ? clientGetter() : null;
 }
