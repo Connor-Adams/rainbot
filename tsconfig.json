@@ -53,9 +53,7 @@
       "@rainbot/db/*": ["packages/db/src/*"],
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
-      "@commands/*": ["apps/raincloud/commands/*"],
       "@utils/*": ["utils/*"],
-      "@events/*": ["events/*"],
       "@components/*": ["components/*"]
     },
 
@@ -66,8 +64,6 @@
     "utils/**/*.ts",
     "packages/types/src/**/*.ts",
     "packages/types/src/**/*.d.ts",
-    "events/**/*.ts",
-    "scripts/**/*.ts",
     "components/**/*.ts"
   ],
   "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
