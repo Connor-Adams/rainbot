@@ -395,11 +395,12 @@ async function handleAutoplay(input: {
     return requestCache.get(cacheKey) as AutoplayResponse;
   }
   const state = getOrCreateGuildState(input.guildId);
-  state.autoplay = false;
+  if (input.enabled != null) {
+    state.autoplay = input.enabled;
+  }
   const response: AutoplayResponse = {
     status: 'success',
-    enabled: false,
-    message: 'Autoplay is disabled in the rainbot worker',
+    enabled: state.autoplay,
   };
   requestCache.set(cacheKey, response);
   return response;

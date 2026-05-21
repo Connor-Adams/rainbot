@@ -34,7 +34,7 @@
     "test": "turbo run test",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "prepare": "node -e \"const fs=require('fs'); if (fs.existsSync('.git')) { require('husky').install(); }\"",
+    "prepare": "husky || true",
     "validate": "yarn type-check && yarn format:check && yarn test"
   },
   "devDependencies": {
