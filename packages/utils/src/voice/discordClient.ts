@@ -14,7 +14,6 @@ export function getDiscordClient(): Client | null {
   }
 
   try {
-     
     const serverClient = require('../../server/client') as { getClient?: ClientGetter };
     if (serverClient?.getClient) {
       return serverClient.getClient();
@@ -24,7 +23,6 @@ export function getDiscordClient(): Client | null {
   }
 
   try {
-     
     const raincloudClient = require('../../apps/raincloud/server/client') as {
       getClient?: ClientGetter;
     };
