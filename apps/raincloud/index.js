@@ -145,6 +145,11 @@ server
 client.once(Events.ClientReady, async () => {
   log.info(`Discord client ready as ${client.user?.tag}`);
   server.setClient(client);
+  // Wire @rainbot/utils's discordClient getter so anything in utils/voice/* that
+  // calls getDiscordClient() resolves to the live raincloud client. Set after
+  // server.setClient so the getter immediately returns a non-null client.
+  const { setDiscordClientGetter } = require('@rainbot/utils/voice/discordClient');
+  setDiscordClientGetter(() => server.getClient());
   try {
     const MultiBotService = require('./dist/apps/raincloud/lib/multiBotService');
     const redisUrl = config.redisUrl || process.env['REDIS_URL'];
