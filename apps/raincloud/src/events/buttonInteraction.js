@@ -2,10 +2,10 @@ const { Events, MessageFlags } = require('discord.js');
 const path = require('path');
 
 const distRoot = path.join(__dirname, '..', '..', 'dist');
-const { createPlayerMessage } = require(path.join(distRoot, 'utils', 'playerEmbed'));
-const { createLogger } = require(path.join(distRoot, 'utils', 'logger'));
-const listeningHistory = require(path.join(distRoot, 'utils', 'listeningHistory'));
-const stats = require(path.join(distRoot, 'utils', 'statistics'));
+const { createPlayerMessage } = require('@rainbot/utils/playerEmbed');
+const { createLogger } = require('@rainbot/utils/logger');
+const listeningHistory = require('@rainbot/utils/listeningHistory');
+const stats = require('@rainbot/utils/statistics');
 const { MultiBotService } = require(
   path.join(distRoot, 'apps', 'raincloud', 'lib', 'multiBotService')
 );
