@@ -15,7 +15,7 @@ import {
   setupAutoFollowVoiceStateHandler,
   type GuildState,
 } from '@rainbot/worker-shared';
-import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
+import { initVoiceInteractionManager } from '@rainbot/utils/voice/voiceInteractionInstance';
 import {
   log,
   PORT,

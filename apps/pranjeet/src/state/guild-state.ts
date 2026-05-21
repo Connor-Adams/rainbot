@@ -5,7 +5,7 @@ import {
   type AudioResource,
 } from '@discordjs/voice';
 import type { StatusResponse } from '@rainbot/worker-protocol';
-import type { PlaybackState } from '@rainbot/types/media';
+import type { PlaybackState } from '@rainbot/protocol';
 import { logErrorWithStack } from '@rainbot/worker-shared';
 import type { GuildState } from '@rainbot/worker-shared';
 import { log } from '../config';

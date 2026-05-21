@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
-import * as stats from '@utils/statistics';
-import * as storage from '@utils/storage';
-import type { SourceType } from '@rainbot/types/media';
+import * as stats from '@rainbot/utils/statistics';
+import * as storage from '@rainbot/utils/storage';
+import type { SourceType } from '@rainbot/protocol';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();

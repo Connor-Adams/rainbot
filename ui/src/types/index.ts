@@ -1,11 +1,11 @@
-// Canonical types from @rainbot/types (queue/now-playing from API)
-export type { MediaItem, QueueState } from '@rainbot/types/media';
+// Canonical types from @rainbot/protocol (queue/now-playing from API)
+export type { MediaItem, QueueState } from '@rainbot/protocol';
 
 /** Queue response from GET /api/queue/:guildId (canonical QueueState) */
-export type QueueData = import('@rainbot/types/media').QueueState;
+export type QueueData = import('@rainbot/protocol').QueueState;
 
 /** Current-track / media item (canonical MediaItem) */
-export type Track = import('@rainbot/types/media').MediaItem;
+export type Track = import('@rainbot/protocol').MediaItem;
 
 // API Response Types (UI-specific or API response shapes)
 export interface Guild {

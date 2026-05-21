@@ -4,8 +4,8 @@
  */
 
 import type { Response } from 'express';
-import type { QueueState } from '@rainbot/types/media';
-import { createLogger } from '@utils/logger';
+import type { QueueState } from '@rainbot/protocol';
+import { createLogger } from '@rainbot/utils/logger';
 
 const log = createLogger('SSE-QUEUE');
 

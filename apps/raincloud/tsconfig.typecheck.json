@@ -3,17 +3,18 @@
   "compilerOptions": {
     "rootDir": "../../",
     "paths": {
-      "@rainbot/db": ["../../packages/db/src/index.ts"],
-      "@rainbot/db/*": ["../../packages/db/src/*"],
-      "@rainbot/protocol": ["../../packages/protocol/src/index.ts"],
-      "@rainbot/protocol/*": ["../../packages/protocol/src/*"],
-      "@commands/*": ["commands/*"],
-      "@utils/*": ["utils/*"],
-      "@server/*": ["server/*"],
-      "@handlers/*": ["handlers/*"],
-      "@events/*": ["src/events/*"],
-      "@components/*": ["components/*"],
-      "@lib/*": ["lib/*"]
+      "@rainbot/db": ["packages/db/src/index.ts"],
+      "@rainbot/db/*": ["packages/db/src/*"],
+      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
+      "@rainbot/protocol/*": ["packages/protocol/src/*"],
+      "@rainbot/utils": ["packages/utils/src/index.ts"],
+      "@rainbot/utils/*": ["packages/utils/src/*"],
+      "@commands/*": ["apps/raincloud/commands/*"],
+      "@server/*": ["apps/raincloud/server/*"],
+      "@handlers/*": ["apps/raincloud/handlers/*"],
+      "@events/*": ["apps/raincloud/src/events/*"],
+      "@components/*": ["apps/raincloud/components/*"],
+      "@lib/*": ["apps/raincloud/lib/*"]
     }
   }
 }

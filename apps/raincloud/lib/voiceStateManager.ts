@@ -1,5 +1,5 @@
 import { RedisClient } from '@rainbot/redis-client';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 
 const log = createLogger('VOICE-STATE');
 

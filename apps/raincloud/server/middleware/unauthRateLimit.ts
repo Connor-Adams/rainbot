@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 
 const log = createLogger('UNAUTH_RATE_LIMIT');
 

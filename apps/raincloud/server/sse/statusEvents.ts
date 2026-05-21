@@ -4,7 +4,7 @@
  */
 
 import type { Response } from 'express';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 
 const log = createLogger('SSE-STATUS');
 

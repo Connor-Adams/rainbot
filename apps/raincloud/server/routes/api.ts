@@ -2,13 +2,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { Readable } from 'stream';
 import { spawn } from 'child_process';
-import * as voiceManager from '@utils/voiceManager';
-import * as storage from '@utils/storage';
-import { query } from '@utils/database';
-import { deployCommands } from '@utils/deployCommands';
+import * as voiceManager from '@rainbot/utils/voiceManager';
+import * as storage from '@rainbot/utils/storage';
+import { query } from '@rainbot/utils/database';
+import { deployCommands } from '@rainbot/utils/deployCommands';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
-import * as stats from '@utils/statistics';
+import * as stats from '@rainbot/utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
 import {
   addQueueSubscriber,
@@ -339,7 +339,7 @@ const cookiesUpload = multer({
 // GET /api/sounds - List all sounds
 router.get('/sounds', requireAuth, async (_req, res: Response) => {
   try {
-    const sounds = await voiceManager.listSounds();
+    const sounds = await storage.listSounds();
     res.json(sounds);
   } catch (error) {
     const err = error as Error;
@@ -482,7 +482,7 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
       res.status(400).json({ error: 'Sound name is required' });
       return;
     }
-    await voiceManager.deleteSound(filename);
+    await storage.deleteSound(filename);
     try {
       await deleteSoundCustomization(filename);
     } catch {
@@ -634,7 +634,7 @@ router.post(
   requireAuth,
   async (_req: Request, res: Response): Promise<void> => {
     try {
-      const { loadConfig } = require('@utils/config');
+      const { loadConfig } = require('@rainbot/utils/config');
       const config = loadConfig();
       if (!config.token || !config.clientId) {
         res.status(503).json({

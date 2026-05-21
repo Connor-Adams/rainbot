@@ -6,7 +6,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomBytes } from 'crypto';
 import type { VoiceConnection } from '@discordjs/voice';
-import { playTTSAudio } from '@voice/ttsPlayer';
+import { playTTSAudio } from '@rainbot/utils/voice/ttsPlayer';
 import { createLogger } from '@rainbot/shared';
 
 const log = createLogger('VOICE_AGENT_PLAY');

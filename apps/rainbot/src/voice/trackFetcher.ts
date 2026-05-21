@@ -7,7 +7,7 @@ import type {
   SpotifyTrack,
 } from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
-import type { Track } from '@rainbot/types/voice';
+import type { Track } from '@rainbot/protocol';
 import { createLogger, extractYouTubeVideoId, toCanonicalYouTubeUrl } from '@rainbot/shared';
 import { getYtdlpOptions } from './audioResource';
 

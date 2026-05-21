@@ -12,7 +12,7 @@ export function registerVoiceStateHandlers(client: Client): void {
 
     if (!userId || !guildId) return;
 
-    const { getVoiceInteractionManager } = require('@voice/voiceInteractionInstance');
+    const { getVoiceInteractionManager } = require('@rainbot/utils/voice/voiceInteractionInstance');
     const voiceInteractionMgr = getVoiceInteractionManager();
 
     const state = guildStates.get(guildId);

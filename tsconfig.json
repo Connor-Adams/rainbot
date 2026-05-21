@@ -51,24 +51,16 @@
     "paths": {
       "@rainbot/db": ["packages/db/src/index.ts"],
       "@rainbot/db/*": ["packages/db/src/*"],
-      "@rainbot/protocol": ["packages/protocol/src/index.ts"],
-      "@rainbot/protocol/*": ["packages/protocol/src/*"],
-      "@commands/*": ["apps/raincloud/commands/*"],
-      "@utils/*": ["utils/*"],
-      "@events/*": ["events/*"],
+      "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
+      "@rainbot/protocol/*": ["packages/protocol/dist/*"],
+      "@rainbot/utils": ["packages/utils/dist/index.d.ts"],
+      "@rainbot/utils/*": ["packages/utils/dist/*"],
       "@components/*": ["components/*"]
     },
 
     /* Types */
     "types": ["node", "jest"]
   },
-  "include": [
-    "utils/**/*.ts",
-    "packages/types/src/**/*.ts",
-    "packages/types/src/**/*.d.ts",
-    "events/**/*.ts",
-    "scripts/**/*.ts",
-    "components/**/*.ts"
-  ],
+  "include": ["components/**/*.ts"],
   "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }
