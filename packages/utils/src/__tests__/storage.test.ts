@@ -10,7 +10,7 @@ const mockLogger = {
   http: jest.fn(),
 };
 
-jest.mock('@utils/logger', () => ({
+jest.mock('@rainbot/utils/logger', () => ({
   createLogger: jest.fn(() => mockLogger),
 }));
 
@@ -23,7 +23,7 @@ const mockConfig = {
   storageRegion: 'us-east-1',
 };
 
-jest.mock('@utils/config', () => ({
+jest.mock('@rainbot/utils/config', () => ({
   loadConfig: jest.fn(() => mockConfig),
 }));
 
@@ -55,7 +55,7 @@ describe('storage', () => {
   describe('listSounds', () => {
     it('returns empty array when storage is not configured', async () => {
       (mockConfig as any).storageBucketName = undefined;
-      const { listSounds } = require('@utils/storage');
+      const { listSounds } = require('@rainbot/utils/storage');
 
       const sounds = await listSounds();
 
@@ -79,7 +79,7 @@ describe('storage', () => {
         ],
       });
 
-      const { listSounds } = require('@utils/storage');
+      const { listSounds } = require('@rainbot/utils/storage');
       const sounds = await listSounds();
 
       expect(sounds).toHaveLength(2);
@@ -104,7 +104,7 @@ describe('storage', () => {
         ],
       });
 
-      const { listSounds } = require('@utils/storage');
+      const { listSounds } = require('@rainbot/utils/storage');
       const sounds = await listSounds();
 
       expect(sounds).toHaveLength(2);
@@ -114,7 +114,7 @@ describe('storage', () => {
     it('handles S3 errors', async () => {
       mockSend.mockRejectedValueOnce(new Error('S3 Error'));
 
-      const { listSounds } = require('@utils/storage');
+      const { listSounds } = require('@rainbot/utils/storage');
 
       await expect(listSounds()).rejects.toThrow('S3 Error');
       expect(mockLogger.error).toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('storage', () => {
   describe('getSoundStream', () => {
     it('throws error when storage is not configured', async () => {
       (mockConfig as any).storageBucketName = undefined;
-      const { getSoundStream } = require('@utils/storage');
+      const { getSoundStream } = require('@rainbot/utils/storage');
 
       await expect(getSoundStream('test.mp3')).rejects.toThrow('Storage not configured');
     });
@@ -135,7 +135,7 @@ describe('storage', () => {
         Body: mockStream,
       });
 
-      const { getSoundStream } = require('@utils/storage');
+      const { getSoundStream } = require('@rainbot/utils/storage');
       const stream = await getSoundStream('test.mp3');
 
       expect(stream).toBeInstanceOf(Readable);
@@ -146,7 +146,7 @@ describe('storage', () => {
       error.name = 'NoSuchKey';
       mockSend.mockRejectedValueOnce(error);
 
-      const { getSoundStream } = require('@utils/storage');
+      const { getSoundStream } = require('@rainbot/utils/storage');
 
       await expect(getSoundStream('missing.mp3')).rejects.toThrow('Sound not found: missing.mp3');
     });
@@ -156,7 +156,7 @@ describe('storage', () => {
       error.$metadata = { httpStatusCode: 404 };
       mockSend.mockRejectedValueOnce(error);
 
-      const { getSoundStream } = require('@utils/storage');
+      const { getSoundStream } = require('@rainbot/utils/storage');
 
       await expect(getSoundStream('missing.mp3')).rejects.toThrow('Sound not found: missing.mp3');
     });
@@ -165,7 +165,7 @@ describe('storage', () => {
   describe('uploadSound', () => {
     it('throws error when storage is not configured', async () => {
       (mockConfig as any).storageBucketName = undefined;
-      const { uploadSound } = require('@utils/storage');
+      const { uploadSound } = require('@rainbot/utils/storage');
 
       const mockStream = (async function* () {
         yield Buffer.from('test');
@@ -177,7 +177,7 @@ describe('storage', () => {
     it('uploads sound file to S3', async () => {
       mockSend.mockResolvedValueOnce({});
 
-      const { uploadSound } = require('@utils/storage');
+      const { uploadSound } = require('@rainbot/utils/storage');
 
       const mockStream = (async function* () {
         yield Buffer.from('test data');
@@ -192,7 +192,7 @@ describe('storage', () => {
     it('handles upload errors', async () => {
       mockSend.mockRejectedValueOnce(new Error('Upload failed'));
 
-      const { uploadSound } = require('@utils/storage');
+      const { uploadSound } = require('@rainbot/utils/storage');
 
       const mockStream = (async function* () {
         yield Buffer.from('test');
@@ -205,7 +205,7 @@ describe('storage', () => {
   describe('deleteSound', () => {
     it('throws error when storage is not configured', async () => {
       (mockConfig as any).storageBucketName = undefined;
-      const { deleteSound } = require('@utils/storage');
+      const { deleteSound } = require('@rainbot/utils/storage');
 
       await expect(deleteSound('test.mp3')).rejects.toThrow('Storage not configured');
     });
@@ -213,7 +213,7 @@ describe('storage', () => {
     it('deletes sound file from S3', async () => {
       mockSend.mockResolvedValueOnce({});
 
-      const { deleteSound } = require('@utils/storage');
+      const { deleteSound } = require('@rainbot/utils/storage');
       await deleteSound('test.mp3');
 
       expect(mockSend).toHaveBeenCalled();
@@ -223,7 +223,7 @@ describe('storage', () => {
     it('handles delete errors', async () => {
       mockSend.mockRejectedValueOnce(new Error('Delete failed'));
 
-      const { deleteSound } = require('@utils/storage');
+      const { deleteSound } = require('@rainbot/utils/storage');
 
       await expect(deleteSound('test.mp3')).rejects.toThrow('Delete failed');
     });
@@ -232,7 +232,7 @@ describe('storage', () => {
   describe('soundExists', () => {
     it('returns false when storage is not configured', async () => {
       (mockConfig as any).storageBucketName = undefined;
-      const { soundExists } = require('@utils/storage');
+      const { soundExists } = require('@rainbot/utils/storage');
 
       const exists = await soundExists('test.mp3');
 
@@ -242,7 +242,7 @@ describe('storage', () => {
     it('returns true when sound exists', async () => {
       mockSend.mockResolvedValueOnce({});
 
-      const { soundExists } = require('@utils/storage');
+      const { soundExists } = require('@rainbot/utils/storage');
       const exists = await soundExists('test.mp3');
 
       expect(exists).toBe(true);
@@ -253,7 +253,7 @@ describe('storage', () => {
       error.name = 'NotFound';
       mockSend.mockRejectedValueOnce(error);
 
-      const { soundExists } = require('@utils/storage');
+      const { soundExists } = require('@rainbot/utils/storage');
       const exists = await soundExists('missing.mp3');
 
       expect(exists).toBe(false);
@@ -264,7 +264,7 @@ describe('storage', () => {
       error.$metadata = { httpStatusCode: 404 };
       mockSend.mockRejectedValueOnce(error);
 
-      const { soundExists } = require('@utils/storage');
+      const { soundExists } = require('@rainbot/utils/storage');
       const exists = await soundExists('missing.mp3');
 
       expect(exists).toBe(false);
@@ -273,7 +273,7 @@ describe('storage', () => {
     it('throws on other errors', async () => {
       mockSend.mockRejectedValueOnce(new Error('Network error'));
 
-      const { soundExists } = require('@utils/storage');
+      const { soundExists } = require('@rainbot/utils/storage');
 
       await expect(soundExists('test.mp3')).rejects.toThrow('Network error');
     });

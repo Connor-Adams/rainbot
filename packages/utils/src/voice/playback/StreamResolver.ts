@@ -2,7 +2,7 @@
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '../../logger';
 import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('STREAM_RESOLVER');

@@ -1,5 +1,5 @@
-import { saveHistory, getHistory, clearHistory } from '@utils/listeningHistory';
-import type { Track } from '@utils/listeningHistory';
+import { saveHistory, getHistory, clearHistory } from '@rainbot/utils/listeningHistory';
+import type { Track } from '@rainbot/utils/listeningHistory';
 
 describe('listeningHistory', () => {
   beforeEach(() => {

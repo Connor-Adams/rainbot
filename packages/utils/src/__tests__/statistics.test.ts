@@ -5,10 +5,10 @@ import {
   trackVoiceEvent,
   trackSearch,
   flushAll,
-} from '@utils/statistics';
+} from '@rainbot/utils/statistics';
 
 // Mock logger
-jest.mock('@utils/logger', () => ({
+jest.mock('@rainbot/utils/logger', () => ({
   createLogger: () => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -19,7 +19,7 @@ jest.mock('@utils/logger', () => ({
 }));
 
 // Mock database
-jest.mock('@utils/database', () => ({
+jest.mock('@rainbot/utils/database', () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 

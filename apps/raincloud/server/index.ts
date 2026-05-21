@@ -2,8 +2,8 @@ import express, { Application, Request, Response } from 'express';
 import session from 'express-session';
 import FileStoreFactory = require('session-file-store');
 import passport from 'passport';
-import { createLogger } from '@utils/logger';
-import * as storage from '@utils/storage';
+import { createLogger } from '@rainbot/utils/logger';
+import * as storage from '@rainbot/utils/storage';
 import requestLogger from './middleware/requestLogger';
 import { unauthRateLimiter } from './middleware/unauthRateLimit';
 import { setClient, getClient } from './client';
@@ -27,7 +27,7 @@ try {
 
 export async function createServer(): Promise<Application> {
   const app = express();
-  const { loadConfig } = require('@utils/config');
+  const { loadConfig } = require('@rainbot/utils/config');
   const config: AppConfig = loadConfig();
   // In dev, allow Vite UI origin by default so login works without setting DASHBOARD_ORIGIN
   const dashboardOrigin =

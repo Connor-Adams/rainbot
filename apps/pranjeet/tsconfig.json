@@ -12,11 +12,11 @@
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@rainbot/shared": ["packages/shared/src/index.ts"],
       "@rainbot/shared/*": ["packages/shared/src/*"],
-      "@utils/*": ["utils/*"],
-      "@voice/*": ["utils/voice/*"],
+      "@rainbot/utils": ["packages/utils/dist/index.d.ts"],
+      "@rainbot/utils/*": ["packages/utils/dist/*"],
       "@components/*": ["components/*"]
     }
   },
-  "include": ["src/**/*", "../../utils/**/*.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts", "**/__tests__/**"]
 }

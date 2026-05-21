@@ -14,7 +14,7 @@ export function getDiscordClient(): Client | null {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const serverClient = require('../../server/client') as { getClient?: ClientGetter };
     if (serverClient?.getClient) {
       return serverClient.getClient();
@@ -24,7 +24,7 @@ export function getDiscordClient(): Client | null {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const raincloudClient = require('../../apps/raincloud/server/client') as {
       getClient?: ClientGetter;
     };

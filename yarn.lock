@@ -2672,6 +2672,7 @@ __metadata:
     "@rainbot/protocol": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/utils": "npm:*"
     "@rainbot/worker-shared": "npm:*"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
@@ -2741,6 +2742,7 @@ __metadata:
     "@rainbot/redis-client": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
+    "@rainbot/utils": "npm:*"
     "@rainbot/worker-protocol": "npm:*"
     "@types/express": "npm:^5.0.0"
     "@types/express-session": "npm:^1.18.0"
@@ -2859,6 +2861,44 @@ __metadata:
     typescript-eslint: "npm:^8.51.0"
     vite: "npm:^7.2.4"
     zustand: "npm:^5.0.9"
+  languageName: unknown
+  linkType: soft
+
+"@rainbot/utils@npm:*, @rainbot/utils@workspace:packages/utils":
+  version: 0.0.0-use.local
+  resolution: "@rainbot/utils@workspace:packages/utils"
+  dependencies:
+    "@discordjs/voice": "npm:^0.19.0"
+    "@google-cloud/speech": "npm:^6.7.0"
+    "@google-cloud/text-to-speech": "npm:^5.7.0"
+    "@rainbot/db": "npm:*"
+    "@rainbot/protocol": "npm:*"
+    "@rainbot/shared": "npm:*"
+    "@rainbot/worker-shared": "npm:*"
+    "@trpc/server": "npm:^10.45.2"
+    "@types/jest": "npm:^29.5.14"
+    "@types/node": "npm:^25.0.3"
+    "@types/pg": "npm:^8.11.10"
+    "@types/uuid": "npm:^9.0.8"
+    axios: "npm:^1.13.2"
+    discord.js: "npm:^14.25.1"
+    jest: "npm:^29.7.0"
+    openai: "npm:^4.104.0"
+    pg: "npm:^8.11.3"
+    play-dl: "npm:^1.9.7"
+    ts-jest: "npm:^29.2.5"
+    typescript: "npm:^5.9.3"
+    uuid: "npm:^9.0.1"
+    winston: "npm:^3.19.0"
+    ws: "npm:^8.18.0"
+    youtube-dl-exec: "npm:^3.0.28"
+  dependenciesMeta:
+    "@google-cloud/speech":
+      optional: true
+    "@google-cloud/text-to-speech":
+      optional: true
+    openai:
+      optional: true
   languageName: unknown
   linkType: soft
 

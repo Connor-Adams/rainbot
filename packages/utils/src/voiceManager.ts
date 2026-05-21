@@ -606,20 +606,6 @@ export function getAllConnections(): connectionManager.ConnectionInfo[] {
 }
 
 /**
- * List all available sounds
- */
-export async function listSounds(): Promise<storage.SoundFile[]> {
-  return await storage.listSounds();
-}
-
-/**
- * Delete a sound file
- */
-export async function deleteSound(filename: string): Promise<boolean> {
-  return await storage.deleteSound(filename);
-}
-
-/**
  * Resume listening history for a user
  */
 export async function resumeHistory(

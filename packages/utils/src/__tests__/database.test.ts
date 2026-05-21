@@ -1,7 +1,7 @@
 import type { QueryResult } from 'pg';
 
 // Mock the logger
-jest.mock('@utils/logger', () => ({
+jest.mock('@rainbot/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
     warn: jest.fn(),
@@ -16,7 +16,7 @@ const mockLoadConfig = jest.fn(() => ({
   databaseUrl: 'postgresql://localhost/testdb',
 }));
 
-jest.mock('@utils/config', () => ({
+jest.mock('@rainbot/utils/config', () => ({
   loadConfig: mockLoadConfig,
 }));
 
@@ -47,7 +47,7 @@ describe('database', () => {
     it('returns null when DATABASE_URL is not configured', () => {
       mockLoadConfig.mockReturnValue({ databaseUrl: undefined as unknown as string });
 
-      const { initDatabase } = require('@utils/database');
+      const { initDatabase } = require('@rainbot/utils/database');
       const pool = initDatabase();
 
       expect(pool).toBeNull();
@@ -55,7 +55,7 @@ describe('database', () => {
 
     it('creates a Pool with correct configuration', () => {
       const { Pool } = require('pg');
-      const { initDatabase } = require('@utils/database');
+      const { initDatabase } = require('@rainbot/utils/database');
       initDatabase();
 
       expect(Pool).toHaveBeenCalledWith(
@@ -162,7 +162,7 @@ describe('database', () => {
 
   describe('getPool', () => {
     it('returns null when database is not initialized', () => {
-      const { getPool } = require('@utils/database');
+      const { getPool } = require('@rainbot/utils/database');
       const pool = getPool();
 
       expect(pool).toBeNull();
@@ -171,7 +171,7 @@ describe('database', () => {
     it('returns the pool after initialization', () => {
       mockQuery.mockResolvedValue({ rows: [{ now: new Date() }] });
 
-      const { initDatabase, getPool } = require('@utils/database');
+      const { initDatabase, getPool } = require('@rainbot/utils/database');
       initDatabase();
       const pool = getPool();
 
@@ -182,7 +182,7 @@ describe('database', () => {
 
   describe('isSchemaInitialized', () => {
     it('returns false before schema initialization', () => {
-      const { isSchemaInitialized } = require('@utils/database');
+      const { isSchemaInitialized } = require('@rainbot/utils/database');
       const initialized = isSchemaInitialized();
 
       expect(initialized).toBe(false);
@@ -193,7 +193,7 @@ describe('database', () => {
     it('returns true immediately if schema is already initialized', async () => {
       mockQuery.mockResolvedValue({ rows: [] } as unknown as QueryResult);
 
-      const { initDatabase, initializeSchema, waitForSchema } = require('@utils/database');
+      const { initDatabase, initializeSchema, waitForSchema } = require('@rainbot/utils/database');
       initDatabase();
       await initializeSchema();
 
@@ -203,7 +203,7 @@ describe('database', () => {
     });
 
     it('returns false if pool is not initialized', async () => {
-      const { waitForSchema } = require('@utils/database');
+      const { waitForSchema } = require('@rainbot/utils/database');
       const result = await waitForSchema();
 
       expect(result).toBe(false);
@@ -212,7 +212,7 @@ describe('database', () => {
     it('times out when waiting for schema that never initializes', async () => {
       mockQuery.mockResolvedValue({ rows: [{ now: new Date() }] });
 
-      const { initDatabase, waitForSchema } = require('@utils/database');
+      const { initDatabase, waitForSchema } = require('@rainbot/utils/database');
       initDatabase();
 
       // Wait with a short timeout - schema won't be initialized
@@ -226,7 +226,7 @@ describe('database', () => {
 
   describe('query', () => {
     it('returns null when pool is not available', async () => {
-      const { query } = require('@utils/database');
+      const { query } = require('@rainbot/utils/database');
       const result = await query('SELECT 1');
 
       expect(result).toBeNull();
@@ -235,7 +235,7 @@ describe('database', () => {
     it('executes query successfully when pool is available', async () => {
       mockQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 } as unknown as QueryResult);
 
-      const { initDatabase, query } = require('@utils/database');
+      const { initDatabase, query } = require('@rainbot/utils/database');
       initDatabase();
       const result = await query('SELECT 1');
 
@@ -246,7 +246,7 @@ describe('database', () => {
     it('executes query with parameters', async () => {
       mockQuery.mockResolvedValue({ rows: [{ id: 1 }], rowCount: 1 } as unknown as QueryResult);
 
-      const { initDatabase, query } = require('@utils/database');
+      const { initDatabase, query } = require('@rainbot/utils/database');
       initDatabase();
       const result = await query('SELECT * FROM users WHERE id = $1', [123]);
 
@@ -257,7 +257,7 @@ describe('database', () => {
     it('returns null and logs error on query failure', async () => {
       mockQuery.mockRejectedValue(new Error('Query failed'));
 
-      const { initDatabase, query } = require('@utils/database');
+      const { initDatabase, query } = require('@rainbot/utils/database');
       initDatabase();
       const result = await query('SELECT * FROM nonexistent');
 
@@ -267,7 +267,7 @@ describe('database', () => {
     it('handles empty result sets', async () => {
       mockQuery.mockResolvedValue({ rows: [], rowCount: 0 } as unknown as QueryResult);
 
-      const { initDatabase, query } = require('@utils/database');
+      const { initDatabase, query } = require('@rainbot/utils/database');
       initDatabase();
       const result = await query('SELECT * FROM empty_table');
 
@@ -277,7 +277,7 @@ describe('database', () => {
 
   describe('initializeSchema', () => {
     it('returns false when pool is not available', async () => {
-      const { initializeSchema } = require('@utils/database');
+      const { initializeSchema } = require('@rainbot/utils/database');
       const result = await initializeSchema();
 
       expect(result).toBe(false);
@@ -286,7 +286,7 @@ describe('database', () => {
     it('returns true if schema is already initialized', async () => {
       mockQuery.mockResolvedValue({ rows: [] } as unknown as QueryResult);
 
-      const { initDatabase, initializeSchema } = require('@utils/database');
+      const { initDatabase, initializeSchema } = require('@rainbot/utils/database');
       initDatabase();
 
       // First call
@@ -303,7 +303,7 @@ describe('database', () => {
     it('creates tables when initializing schema', async () => {
       mockQuery.mockResolvedValue({ rows: [] } as unknown as QueryResult);
 
-      const { initDatabase, initializeSchema } = require('@utils/database');
+      const { initDatabase, initializeSchema } = require('@rainbot/utils/database');
       initDatabase();
       await initializeSchema();
 

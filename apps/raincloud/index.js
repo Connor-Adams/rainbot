@@ -19,7 +19,6 @@ const Module = require('module');
 const originalResolveFilename = Module._resolveFilename;
 const aliasRoot = path.join(__dirname, 'dist');
 const aliasMap = {
-  '@utils': path.join(aliasRoot, 'utils'),
   '@server': path.join(aliasRoot, 'apps', 'raincloud', 'server'),
   '@handlers': path.join(aliasRoot, 'apps', 'raincloud', 'handlers'),
   '@events': path.join(aliasRoot, 'apps', 'raincloud', 'src', 'events'),
@@ -41,8 +40,7 @@ Module._resolveFilename = function (request, parent, isMain, options) {
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const server = require('./dist/apps/raincloud/server');
-const { loadConfig } = require('./dist/utils/config');
-const { createLogger } = require('./dist/utils/logger');
+const { loadConfig, createLogger } = require('@rainbot/utils');
 
 const log = createLogger('MAIN');
 
@@ -110,7 +108,7 @@ if (config.spotifyClientId && config.spotifyClientSecret) {
 }
 
 // Initialize database (non-blocking, handles errors gracefully)
-const { initDatabase } = require('./dist/utils/database');
+const { initDatabase } = require('@rainbot/utils');
 initDatabase();
 
 const client = new Client({
@@ -177,7 +175,7 @@ if (!config.token) {
 async function gracefulShutdown(signal) {
   log.info(`Received ${signal}, shutting down gracefully...`);
 
-  const { saveAllQueueSnapshots, stopAutoSave } = require('./dist/utils/voiceManager');
+  const { saveAllQueueSnapshots, stopAutoSave, flushAll, close } = require('@rainbot/utils');
 
   // Stop auto-save interval
   stopAutoSave();
@@ -186,11 +184,9 @@ async function gracefulShutdown(signal) {
   await saveAllQueueSnapshots();
 
   // Flush statistics buffers
-  const { flushAll } = require('./dist/utils/statistics');
   await flushAll();
 
   // Close database connection
-  const { close } = require('./dist/utils/database');
   await close();
 
   log.info('Shutdown complete');

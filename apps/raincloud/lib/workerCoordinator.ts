@@ -1,4 +1,4 @@
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { VoiceStateManager } from './voiceStateManager';
 import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';

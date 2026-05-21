@@ -1,7 +1,18 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import type { MediaItem, MediaState, QueueState } from '@rainbot/protocol';
-import { createButtonId } from '@components/builders/buttonBuilder';
+import type { ButtonMetadata, MediaItem, MediaState, QueueState } from '@rainbot/protocol';
 import { getYouTubeThumbnailUrl } from '@rainbot/shared';
+
+// Inlined from components/builders/buttonBuilder.ts to avoid utils -> components
+// coupling. If both copies need to stay in sync, factor into a shared module.
+function createButtonId(prefix: string, metadata: ButtonMetadata): string {
+  const parts = [prefix];
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== undefined && value !== null) {
+      parts.push(`${key}:${value}`);
+    }
+  }
+  return parts.join('_');
+}
 
 /**
  * Format duration in seconds to MM:SS or HH:MM:SS

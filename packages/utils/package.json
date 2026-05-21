@@ -1,0 +1,55 @@
+{
+  "name": "@rainbot/utils",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:ts": "tsc",
+    "prettier": "prettier --write .",
+    "prettier:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.19.0",
+    "@rainbot/db": "*",
+    "@rainbot/protocol": "*",
+    "@rainbot/shared": "*",
+    "@rainbot/worker-shared": "*",
+    "@trpc/server": "^10.45.2",
+    "axios": "^1.13.2",
+    "discord.js": "^14.25.1",
+    "pg": "^8.11.3",
+    "play-dl": "^1.9.7",
+    "uuid": "^9.0.1",
+    "winston": "^3.19.0",
+    "ws": "^8.18.0",
+    "youtube-dl-exec": "^3.0.28"
+  },
+  "optionalDependencies": {
+    "@google-cloud/speech": "^6.7.0",
+    "@google-cloud/text-to-speech": "^5.7.0",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^25.0.3",
+    "@types/pg": "^8.11.10",
+    "@types/uuid": "^9.0.8",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.9.3"
+  }
+}

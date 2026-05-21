@@ -21,6 +21,7 @@
     "@rainbot/protocol": "*",
     "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
+    "@rainbot/utils": "*",
     "@rainbot/worker-shared": "*",
     "@trpc/server": "^10.45.2",
     "bullmq": "^5.17.0",

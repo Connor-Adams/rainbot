@@ -1,6 +1,6 @@
 // util-category: audio
 import { AudioPlayerStatus, AudioResource } from '@discordjs/voice';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '../../logger';
 import type { VoiceState } from '@rainbot/protocol';
 import type { Track } from '@rainbot/protocol';
 import { resetPlaybackTiming, markPaused, markResumed } from './PlaybackTiming';
