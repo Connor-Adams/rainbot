@@ -22,6 +22,7 @@
     "@aws-sdk/client-s3": "^3.970.0",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.0",
+    "@rainbot/db": "*",
     "@rainbot/protocol": "*",
     "@rainbot/redis-client": "*",
     "@rainbot/rpc": "*",

@@ -2627,7 +2627,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rainbot/db@workspace:packages/db":
+"@rainbot/db@npm:*, @rainbot/db@workspace:packages/db":
   version: 0.0.0-use.local
   resolution: "@rainbot/db@workspace:packages/db"
   dependencies:
@@ -2668,6 +2668,7 @@ __metadata:
     "@discordjs/opus": "npm:^0.10.0"
     "@discordjs/voice": "npm:^0.19.0"
     "@google-cloud/text-to-speech": "npm:^5.8.0"
+    "@rainbot/db": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/rpc": "npm:*"
     "@rainbot/shared": "npm:*"
@@ -2735,6 +2736,7 @@ __metadata:
     "@discordjs/voice": "npm:^0.19.0"
     "@google-cloud/speech": "npm:^6.7.0"
     "@google-cloud/text-to-speech": "npm:^5.7.0"
+    "@rainbot/db": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/redis-client": "npm:*"
     "@rainbot/rpc": "npm:*"
