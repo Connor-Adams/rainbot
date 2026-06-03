@@ -54,13 +54,12 @@
       "@rainbot/protocol": ["packages/protocol/dist/index.d.ts"],
       "@rainbot/protocol/*": ["packages/protocol/dist/*"],
       "@rainbot/utils": ["packages/utils/dist/index.d.ts"],
-      "@rainbot/utils/*": ["packages/utils/dist/*"],
-      "@components/*": ["components/*"]
+      "@rainbot/utils/*": ["packages/utils/dist/*"]
     },
 
     /* Types */
     "types": ["node", "jest"]
   },
-  "include": ["components/**/*.ts"],
+  "files": [],
   "exclude": ["node_modules", "ui", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

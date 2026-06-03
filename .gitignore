@@ -66,6 +66,9 @@ build/
 # Turbo
 .turbo/
 
+# Archived legacy docs (superseded by CLAUDE.md; kept out of git)
+.archive/
+
 # TypeScript compiled output
 
 utils/playerEmbed.js
