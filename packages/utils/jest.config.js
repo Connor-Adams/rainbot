@@ -12,7 +12,6 @@ module.exports = {
     '^@rainbot/utils/(.*)$': '<rootDir>/src/$1',
     '^@rainbot/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@rainbot/protocol/(.*)$': '<rootDir>/../protocol/src/$1',
-    '^@components/(.*)$': '<rootDir>/../../components/$1',
   },
   modulePathIgnorePatterns: ['<rootDir>/dist/'],
   passWithNoTests: true,
