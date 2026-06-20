@@ -38,6 +38,10 @@ const grokChatInputSchema = z.object({
   userId: z.string(),
   text: z.string(),
 });
+const setConversationListeningInputSchema = z.object({
+  guildId: z.string(),
+  enabled: z.boolean(),
+});
 
 export type GetStateInput = z.infer<typeof getStateInputSchema>;
 export type PranjeetGetStateFn = (input?: GetStateInput) => StatusResponse;
@@ -53,6 +57,11 @@ export interface PranjeetHandlers {
   volume?: (input: VolumeRequest) => Promise<VolumeResponse>;
   speak?: (input: SpeakRequest) => Promise<SpeakResponse>;
   grokChat?: (input: { guildId: string; userId: string; text: string }) => Promise<GrokChatResult>;
+  /** Enable/disable conversation listening and (when enabling) start listening to current members. */
+  setConversationListening?: (input: {
+    guildId: string;
+    enabled: boolean;
+  }) => Promise<{ success: boolean }>;
 }
 
 const notImplemented = (): Promise<{ status: 'error'; message: string }> =>
@@ -82,6 +91,12 @@ export function createPranjeetRouter(handlers: PranjeetHandlers) {
       .mutation(
         ({ input }) =>
           handlers.grokChat?.(input) ?? Promise.resolve({ reply: 'Grok chat is not available.' })
+      ),
+    setConversationListening: internalProcedure
+      .input(setConversationListeningInputSchema)
+      .mutation(
+        ({ input }) =>
+          handlers.setConversationListening?.(input) ?? Promise.resolve({ success: false })
       ),
   });
 }

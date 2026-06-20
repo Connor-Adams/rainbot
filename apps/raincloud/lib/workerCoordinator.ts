@@ -573,6 +573,32 @@ export class WorkerCoordinator {
   }
 
   /**
+   * Toggle conversation listening on Pranjeet. On enable, Pranjeet starts
+   * listening to everyone currently in the voice channel (no rejoin needed).
+   */
+  async setConversationListening(
+    guildId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; message?: string }> {
+    const guard = this.guardWorker('pranjeet');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
+    try {
+      const result = await this.requestWithRetry(
+        'pranjeet',
+        () => pranjeetClient.setConversationListening.mutate({ guildId, enabled }),
+        true
+      );
+      return { success: result.success };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`setConversationListening failed: ${message}`);
+      return { success: false, message };
+    }
+  }
+
+  /**
    * Play sound effect (HungerBot)
    */
   async playSound(
