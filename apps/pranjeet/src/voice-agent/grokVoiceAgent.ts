@@ -16,6 +16,15 @@ import { VOICE_AGENT_MUSIC_TOOLS } from './tools';
 
 const log = createLogger('GROK_VOICE_AGENT');
 const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
+/**
+ * ws-level heartbeat. A half-open TCP connection (peer/network dies without a
+ * close frame) never fires 'close'/'error', so readyState stays OPEN and the
+ * client zombies — sendAudio() writes into the void, no onClose eviction. We
+ * ping every PING_INTERVAL_MS; if no pong arrives before the next tick the
+ * client is considered dead and doClose() runs (triggers the manager eviction
+ * wired in apps/pranjeet/src/index.ts). Worst-case detection ~2x interval.
+ */
+const PING_INTERVAL_MS = 15_000;
 
 export interface GrokVoiceAgentCallbacks {
   /** Called when Grok's response audio is complete (PCM 24kHz mono s16le). */
@@ -49,6 +58,8 @@ export function createGrokVoiceAgentClient(
   let sessionConfigured = false;
   let audioDeltas: string[] = [];
   let closed = false;
+  let isAlive = true;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
   let _currentResponseId: string | null = null;
   let sessionConfig: {
     instructions: string;
@@ -91,6 +102,10 @@ export function createGrokVoiceAgentClient(
     if (closed) return;
     closed = true;
     audioDeltas = [];
+    if (heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = null;
+    }
     if (ws) {
       try {
         ws.removeAllListeners();
@@ -118,6 +133,25 @@ export function createGrokVoiceAgentClient(
   ws.on('open', () => {
     if (closed) return;
     log.debug(`Voice Agent connected for ${guildId}:${userId}`);
+    // Start ws-level heartbeat to detect half-open connections (see PING_INTERVAL_MS).
+    isAlive = true;
+    heartbeat = setInterval(() => {
+      if (closed || !ws) return;
+      if (!isAlive) {
+        log.warn(
+          `Voice Agent no pong within ${PING_INTERVAL_MS}ms for ${guildId}:${userId}; closing zombie connection`
+        );
+        doClose();
+        return;
+      }
+      isAlive = false;
+      try {
+        ws.ping();
+      } catch (e) {
+        log.warn(`Voice Agent ping failed: ${(e as Error).message}`);
+        doClose();
+      }
+    }, PING_INTERVAL_MS);
     const toolsEnabled = GROK_VOICE_AGENT_TOOLS && !!callbacks.executeCommand;
     const tools = toolsEnabled ? VOICE_AGENT_MUSIC_TOOLS : [];
     void (async () => {
@@ -246,6 +280,10 @@ export function createGrokVoiceAgentClient(
       default:
         break;
     }
+  });
+
+  ws.on('pong', () => {
+    isAlive = true;
   });
 
   ws.on('error', (err) => {
