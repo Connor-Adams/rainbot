@@ -395,11 +395,12 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   }
 
   /**
-   * Stop listening to a user
+   * Evict and close a cached Voice Agent client (e.g. after its realtime socket
+   * closed). Without this, a dropped socket leaves a dead client in the map and
+   * all later audio is silently swallowed by its closed sendAudio(). After
+   * eviction the next audio chunk lazily creates a fresh client + socket.
    */
-  async stopListening(userId: string, guildId: string): Promise<void> {
-    log.info(`Stopping listening to user ${userId} in guild ${guildId}`);
-
+  removeVoiceAgentClient(guildId: string, userId: string): void {
     const key = `${guildId}:${userId}`;
     const voiceAgent = this.voiceAgentClients.get(key);
     if (voiceAgent) {
@@ -407,6 +408,15 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       this.voiceAgentClients.delete(key);
       this.voiceAgentWarnedKeys.delete(key);
     }
+  }
+
+  /**
+   * Stop listening to a user
+   */
+  async stopListening(userId: string, guildId: string): Promise<void> {
+    log.info(`Stopping listening to user ${userId} in guild ${guildId}`);
+
+    this.removeVoiceAgentClient(guildId, userId);
 
     const state = this.states.get(guildId);
     if (!state) return;

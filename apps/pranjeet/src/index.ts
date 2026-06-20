@@ -15,7 +15,10 @@ import {
   setupAutoFollowVoiceStateHandler,
   type GuildState,
 } from '@rainbot/worker-shared';
-import { initVoiceInteractionManager } from '@rainbot/utils/voice/voiceInteractionInstance';
+import {
+  getVoiceInteractionManager,
+  initVoiceInteractionManager,
+} from '@rainbot/utils/voice/voiceInteractionInstance';
 import {
   log,
   PORT,
@@ -251,6 +254,11 @@ setupDiscordClientReadyHandler(client, {
         return createGrokVoiceAgentClient(session.guildId, session.userId, {
           onAudioDone: (pcm) => playVoiceAgentAudio(session.guildId, connection, pcm),
           executeCommand,
+          // Socket dropped (idle timeout / blip / server close): evict the dead
+          // client so the next utterance recreates a fresh one. Without this the
+          // zombie client stays cached and swallows all later audio → silence.
+          onClose: () =>
+            getVoiceInteractionManager()?.removeVoiceAgentClient(session.guildId, session.userId),
         });
       },
       ttsHandler: async (guildId: string, text: string, userId?: string) => {
