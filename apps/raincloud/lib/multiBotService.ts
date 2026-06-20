@@ -329,6 +329,21 @@ export class MultiBotService {
   }
 
   /**
+   * Turn conversation mode listening on/off. On enable, also flips the voice-
+   * interaction flag and tells Pranjeet to start listening to everyone already
+   * in the channel so the user does not have to rejoin.
+   */
+  async setConversationListening(
+    guildId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; message?: string }> {
+    if (enabled) {
+      await this.voiceStateManager.setVoiceInteractionEnabled(guildId, true);
+    }
+    return this.coordinator.setConversationListening(guildId, enabled);
+  }
+
+  /**
    * Play soundboard effect via HungerBot worker
    */
   async playSoundboard(

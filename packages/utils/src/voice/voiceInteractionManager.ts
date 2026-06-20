@@ -177,6 +177,11 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     return state?.enabled ?? false;
   }
 
+  /** Whether there is already an active listening session for this user. */
+  isListeningToUser(guildId: string, userId: string): boolean {
+    return this.states.get(guildId)?.sessions.get(userId)?.isListening ?? false;
+  }
+
   /**
    * Subscribe to a user's audio stream and attach data/end/error handlers.
    * On stream end, processes the utterance then resubscribes so the next utterance is captured.

@@ -3,16 +3,20 @@ const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('CHAT_CMD');
 
-function getVoiceStateManager() {
+function getMultiBotService() {
   try {
     const { MultiBotService } = require('../../dist/apps/raincloud/lib/multiBotService');
     if (MultiBotService.isInitialized()) {
-      return MultiBotService.getInstance().getVoiceStateManager();
+      return MultiBotService.getInstance();
     }
   } catch (error) {
     log.debug(`MultiBotService not available: ${error.message}`);
   }
   return null;
+}
+
+function getVoiceStateManager() {
+  return getMultiBotService()?.getVoiceStateManager() ?? null;
 }
 
 module.exports = {
@@ -60,6 +64,21 @@ module.exports = {
       });
     const setModeAndReply = async (enabled, message) => {
       await voiceStateManager.setConversationMode(guildId, userId, enabled);
+      // On enable, make Pranjeet actually listen: enabling conversation routing
+      // alone is not enough — voice interaction must be on and the bot must
+      // subscribe to current channel members (otherwise: joined, mode on, but
+      // total silence). On disable we leave voice-control/listening as-is.
+      if (enabled) {
+        const service = getMultiBotService();
+        if (service) {
+          const result = await service.setConversationListening(guildId, true);
+          if (!result?.success) {
+            log.warn(
+              `setConversationListening failed for guild ${guildId}: ${result?.message ?? 'unknown'}`
+            );
+          }
+        }
+      }
       log.info(
         `Conversation mode ${enabled ? 'on' : 'off'} for guild ${guildName} (requested by ${requesterTag})`
       );
