@@ -47,7 +47,7 @@ export function createGrokVoiceAgentClient(
 
   let ws: WebSocket | null = null;
   let sessionConfigured = false;
-  let audioDeltas: string[] = [];
+  let audioDeltas: Buffer[] = [];
   let closed = false;
   let _currentResponseId: string | null = null;
   let sessionConfig: {
@@ -217,21 +217,21 @@ export function createGrokVoiceAgentClient(
         break;
       case 'response.output_audio.delta':
         if (typeof event.delta === 'string') {
-          audioDeltas.push(event.delta);
+          // Decode each delta independently. xAI base64-encodes every delta on
+          // its own, so joining the base64 strings and decoding once corrupts
+          // audio: a non-final delta whose byte length isn't a multiple of 3
+          // ends in '=' padding, and Node's base64 decoder halts at the first
+          // embedded '=', silently truncating later deltas → garbled output.
+          audioDeltas.push(Buffer.from(event.delta, 'base64'));
         }
         break;
       case 'response.output_audio.done':
         if (audioDeltas.length > 0) {
-          const b64 = audioDeltas.join('');
+          const pcm = Buffer.concat(audioDeltas);
           audioDeltas = [];
-          try {
-            const pcm = Buffer.from(b64, 'base64');
-            void Promise.resolve(callbacks.onAudioDone(pcm)).catch((e) => {
-              log.warn(`Voice Agent onAudioDone error: ${(e as Error).message}`);
-            });
-          } catch (e) {
-            log.warn(`Voice Agent decode audio failed: ${(e as Error).message}`);
-          }
+          void Promise.resolve(callbacks.onAudioDone(pcm)).catch((e) => {
+            log.warn(`Voice Agent onAudioDone error: ${(e as Error).message}`);
+          });
         }
         break;
       case 'response.done':
