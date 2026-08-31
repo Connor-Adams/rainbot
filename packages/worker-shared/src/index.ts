@@ -25,5 +25,8 @@ export * from './client';
 // Voice state handlers
 export * from './voice-state';
 
+// Soundboard audio resource construction
+export * from './soundResource';
+
 // Shared voice RPC handlers (join, leave, volume)
 export * from './voiceRpcHandlers';

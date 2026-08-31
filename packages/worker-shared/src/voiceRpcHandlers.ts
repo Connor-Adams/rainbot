@@ -1,10 +1,5 @@
-import {
-  joinVoiceChannel,
-  VoiceConnectionStatus,
-  entersState,
-  createAudioResource,
-  StreamType,
-} from '@discordjs/voice';
+import { joinVoiceChannel, VoiceConnectionStatus, entersState } from '@discordjs/voice';
+import type { StreamType } from '@discordjs/voice';
 import type { Readable } from 'stream';
 import type {
   JoinRequest,
@@ -25,6 +20,7 @@ import { logErrorWithStack } from './errors';
 import type { RequestCache } from './idempotency';
 import { createWorkerDiscordClient } from './client';
 import type { GuildState } from './voice-state';
+import { createSoundAudioResource } from './soundResource';
 
 export interface VoiceRpcHandlerOptions {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -84,6 +80,22 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
       });
       connection.subscribe(state.player);
       state.connection = connection;
+      // VoiceConnection is an EventEmitter: without an 'error' listener a voice
+      // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
+      // exception and takes the whole worker down.
+      connection.on('error', (error: Error) => {
+        log.warn(`Voice connection error in guild ${input.guildId}: ${error.message}`);
+        try {
+          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+            connection.destroy();
+          }
+        } catch {
+          // connection was already torn down
+        }
+        if (state.connection === connection) {
+          state.connection = null;
+        }
+      });
       connection.on(VoiceConnectionStatus.Disconnected, async () => {
         try {
           await Promise.race([
@@ -227,14 +239,8 @@ export function createPlaySoundHandler(options: PlaySoundHandlerOptions) {
         return response;
       }
       const { stream, inputType } = await createSoundResource(input);
-      const resource = createAudioResource(stream, {
-        inputType,
-        inlineVolume: true,
-      });
       const effectiveVolume = input.volume ?? (state['volume'] as number | undefined) ?? 1;
-      if (resource.volume) {
-        resource.volume.setVolume(effectiveVolume);
-      }
+      const resource = createSoundAudioResource(stream, inputType, effectiveVolume);
       log.debug(
         `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
       );
