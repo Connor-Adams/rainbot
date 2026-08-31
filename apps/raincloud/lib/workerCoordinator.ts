@@ -210,8 +210,15 @@ export class WorkerCoordinator {
 
       for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
         const rpcResult = rpcResults?.[botType];
+        // Log only on transitions. A worker that is simply switched off would
+        // otherwise emit a warning every HEALTH_POLL_MS forever and bury every
+        // other line in the orchestrator's logs.
+        const wasReady = this.health.get(botType)?.ready ?? true;
         if (rpcResult && rpcResult.status === 'fulfilled') {
           this.health.set(botType, { ready: true, lastChecked: Date.now() });
+          if (!wasReady) {
+            log.info(`${botType} health check recovered`);
+          }
         } else {
           const message =
             rpcResult && rpcResult.status === 'rejected'
@@ -222,7 +229,9 @@ export class WorkerCoordinator {
             lastChecked: Date.now(),
             lastError: message,
           });
-          log.warn(`${botType} health check failed: ${message}`);
+          if (wasReady) {
+            log.warn(`${botType} health check failed: ${message}`);
+          }
         }
       }
     };
