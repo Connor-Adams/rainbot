@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createLogger } from '@rainbot/shared';
+import { getOrchestratorBaseUrl } from '@rainbot/worker-shared';
 
 const log = createLogger('RAINBOT-COOKIES');
 
@@ -31,7 +32,14 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     return;
   }
 
-  const baseUrl = raincloudUrl.replace(/\/$/, '');
+  // RAINCLOUD_URL is host-only on Railway ("raincloud.railway.internal"), which
+  // fetch rejects as a relative URL. Reuse the same normalization (scheme +
+  // port) that worker registration and stats reporting already go through.
+  const baseUrl = getOrchestratorBaseUrl(raincloudUrl);
+  if (!baseUrl) {
+    log.debug('RAINCLOUD_URL could not be resolved, skipping cookie fetch');
+    return;
+  }
   const url = `${baseUrl}/internal/cookies/youtube`;
 
   try {
