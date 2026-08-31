@@ -24,7 +24,7 @@ import { createApp } from './app';
 import { getOrCreateGuildState, guildStates } from './state/guild-state';
 import { createRpcHandlers } from './handlers/rpc';
 import { registerVoiceStateHandlers } from './events/voice-state';
-import { fetchAndSetYtCookies } from './voice/ytCookies';
+import { fetchAndSetYtCookies, startYtCookieRefresh } from './voice/ytCookies';
 
 setupProcessErrorHandlers(log);
 
@@ -68,8 +68,10 @@ if (ORCHESTRATOR_BOT_ID) {
 registerVoiceStateHandlers(client);
 
 // Fetch YouTube cookies from raincloud (if configured via UI) before setup runs
-// so cookies are available before first play.
+// so cookies are available before first play, then keep them fresh so a
+// dashboard upload lands without restarting this worker.
 void fetchAndSetYtCookies();
+startYtCookieRefresh();
 
 setupDiscordClientReadyHandler(client, {
   orchestratorBotId: ORCHESTRATOR_BOT_ID,

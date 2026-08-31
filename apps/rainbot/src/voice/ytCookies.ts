@@ -12,6 +12,12 @@ const log = createLogger('RAINBOT-COOKIES');
 
 const CACHE_FILE_NAME = 'rainbot_yt_cookies.txt';
 
+/** Cookies expire, and the dashboard can replace them at any time. */
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/** Path of the cookie file this module wrote, so refreshes can replace it. */
+let managedCookiesPath: string | null = null;
+
 /**
  * Fetch cookies from raincloud internal API and write to a temp file.
  * Sets process.env.YTDLP_COOKIES to the file path on success.
@@ -21,8 +27,10 @@ export async function fetchAndSetYtCookies(): Promise<void> {
   const raincloudUrl = process.env['RAINCLOUD_URL'];
   const workerSecret = process.env['WORKER_SECRET'];
 
-  // YTDLP_COOKIES env takes precedence (manual config)
-  if (process.env['YTDLP_COOKIES']) {
+  // YTDLP_COOKIES env takes precedence (manual config), but a file this module
+  // wrote earlier must not block a refresh.
+  const configuredCookies = process.env['YTDLP_COOKIES'];
+  if (configuredCookies && configuredCookies !== managedCookiesPath) {
     log.debug('YTDLP_COOKIES already set, skipping fetch');
     return;
   }
@@ -66,10 +74,23 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     const tmpDir = os.tmpdir();
     const cookiesPath = path.join(tmpDir, CACHE_FILE_NAME);
     fs.writeFileSync(cookiesPath, body, 'utf8');
+    managedCookiesPath = cookiesPath;
     process.env['YTDLP_COOKIES'] = cookiesPath;
     log.info('YouTube cookies loaded from raincloud');
   } catch (error) {
     const err = error as Error;
     log.warn(`Failed to fetch YouTube cookies: ${err.message}`);
   }
+}
+
+/**
+ * Re-fetch cookies periodically. Without this, cookies uploaded through the
+ * dashboard only reach this worker on its next restart.
+ */
+export function startYtCookieRefresh(intervalMs: number = REFRESH_INTERVAL_MS): NodeJS.Timeout {
+  const timer = setInterval(() => {
+    void fetchAndSetYtCookies();
+  }, intervalMs);
+  timer.unref();
+  return timer;
 }
