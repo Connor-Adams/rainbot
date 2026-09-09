@@ -13,6 +13,9 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 // Cookie file path for YouTube authentication
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 
+// Optional yt-dlp extractor-args override (e.g. to pin player clients)
+const EXTRACTOR_ARGS = process.env['YTDLP_EXTRACTOR_ARGS'] || '';
+
 // Cache settings
 const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000;
 const MAX_CACHE_SIZE = 500;
@@ -27,14 +30,22 @@ const urlCache = new Map<string, CacheEntry>();
 
 const YOUTUBE_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 
+/**
+ * No player_client override by default: a pinned list rots (android/ios are
+ * PO-token gated, tv_embedded is age-gate-only) and stops returning audio-only
+ * formats. Set YTDLP_EXTRACTOR_ARGS to pin clients around a regression.
+ */
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
+
+  if (EXTRACTOR_ARGS) {
+    options['extractorArgs'] = EXTRACTOR_ARGS;
+  }
 
   if (COOKIES_FILE) {
     options['cookies'] = COOKIES_FILE;

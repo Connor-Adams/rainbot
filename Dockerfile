@@ -21,7 +21,6 @@ RUN apt-get update && \
     ffmpeg \
     curl \
     ca-certificates && \
-    pip3 install --no-cache-dir --break-system-packages yt-dlp && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -31,6 +30,12 @@ WORKDIR /app
 
 # Copy everything
 COPY . .
+
+# yt-dlp goes stale fast — YouTube breaks extraction within weeks of a release.
+# This must stay AFTER the COPY so the layer is invalidated by every commit;
+# in the apt layer above it was cached indefinitely and prod ran a build-day
+# binary for months.
+RUN pip3 install --no-cache-dir --break-system-packages --upgrade yt-dlp
 
 # Install dependencies (native modules compile here)
 RUN yarn install --immutable
