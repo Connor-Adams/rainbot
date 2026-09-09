@@ -7,6 +7,7 @@ import {
   AudioPlayer,
 } from '@discordjs/voice';
 import { createLogger } from '@rainbot/shared';
+import { logVoiceConnectionState } from './voiceDiagnostics';
 
 export interface GuildState {
   connection: VoiceConnection | null;
@@ -51,6 +52,9 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
       logger.info(`Orchestrator left voice in guild ${guildId}, following...`);
       const state = guildStates.get(guildId);
       if (state?.connection) {
+        logger.info(
+          `follow-leave guild=${guildId} destroying connection status=${state.connection.state.status} player=${state.player.state.status}`
+        );
         state.connection.destroy();
         state.connection = null;
       }
@@ -67,6 +71,11 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       // Disconnect from old channel if moving
       if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+        logger.info(
+          `follow-join guild=${guildId} destroying existing connection status=${state.connection.state.status} joinedChannel=${
+            state.connection.joinConfig.channelId
+          } targetChannel=${channelId}`
+        );
         state.connection.destroy();
       }
 
@@ -79,6 +88,7 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       connection.subscribe(state.player);
       state.connection = connection;
+      logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
 
       // Auto-rejoin on disconnect (network issues only)
       connection.on(VoiceConnectionStatus.Disconnected, async () => {
