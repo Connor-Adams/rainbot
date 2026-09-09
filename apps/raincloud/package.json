@@ -29,6 +29,7 @@
     "@rainbot/shared": "*",
     "@rainbot/utils": "*",
     "@rainbot/worker-protocol": "*",
+    "@snazzah/davey": "^0.1.12",
     "async-mutex": "^0.5.0",
     "bullmq": "^5.17.0",
     "connect-redis": "^7.1.1",
