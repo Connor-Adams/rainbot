@@ -51,6 +51,19 @@ export async function joinChannel(
     selfMute: false,
   });
 
+  // A connection that never leaves `signalling` never received the gateway's
+  // VOICE_SERVER_UPDATE. The bot still appears in the channel and playback
+  // reports success, so the transition trace is the only signal that no audio
+  // is being transmitted.
+  const joinStartedAt = Date.now();
+  connection.on('stateChange', (oldState, newState) => {
+    log.info(
+      `voice-state guild=${guildId} ${oldState.status} -> ${newState.status} (+${
+        Date.now() - joinStartedAt
+      }ms)`
+    );
+  });
+
   // Wait for connection to be ready before receiving audio
   try {
     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
