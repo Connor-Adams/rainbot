@@ -22,6 +22,7 @@
     "@rainbot/rpc": "*",
     "@rainbot/shared": "*",
     "@rainbot/worker-shared": "*",
+    "@snazzah/davey": "^0.1.12",
     "@trpc/server": "^10.45.2",
     "discord.js": "^14.25.1",
     "dotenv": "^16.4.5",
