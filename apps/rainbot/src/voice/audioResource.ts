@@ -17,9 +17,16 @@ const log = createLogger('RAINBOT-AUDIO');
 export function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
     noPlaylist: true,
-    noWarnings: true,
+    // Warnings stay on: they are the only signal that a JS runtime or PO token
+    // provider is missing, and --no-warnings hid that for months while
+    // playback failed with an unrelated-looking error.
     quiet: true,
     noCheckCertificates: true,
+    // yt-dlp enables only deno by default and calls YouTube extraction without
+    // a JS runtime deprecated ("some formats may be missing"). Node is already
+    // in the image, so point yt-dlp at it rather than shipping a second
+    // runtime.
+    jsRuntimes: process.env['YTDLP_JS_RUNTIME'] || 'node',
   };
 
   // No player_client override by default. A pinned list rots: tv_embedded is

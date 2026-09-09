@@ -30,6 +30,8 @@ function getYtdlpOptions(): Record<string, unknown> {
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
+    // yt-dlp enables only deno by default; node is what the image ships.
+    jsRuntimes: process.env['YTDLP_JS_RUNTIME'] || 'node',
   };
 
   if (EXTRACTOR_ARGS) {
