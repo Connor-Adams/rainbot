@@ -7,7 +7,7 @@ import {
   AudioPlayer,
 } from '@discordjs/voice';
 import { createLogger } from '@rainbot/shared';
-import { attachVoiceConnectionDebug, logVoiceConnectionState } from './voiceDiagnostics';
+import { logVoiceConnectionState } from './voiceDiagnostics';
 
 export interface GuildState {
   connection: VoiceConnection | null;
@@ -84,13 +84,11 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
         guildId: guild!.id,
         adapterCreator: guild!.voiceAdapterCreator as any,
         selfDeaf: false,
-        debug: true,
       });
 
       connection.subscribe(state.player);
       state.connection = connection;
       logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
-      attachVoiceConnectionDebug(connection, logger, `follow guild=${guildId}`);
 
       // Auto-rejoin on disconnect (network issues only)
       connection.on(VoiceConnectionStatus.Disconnected, async () => {

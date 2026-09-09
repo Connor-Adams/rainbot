@@ -34,7 +34,8 @@ export function logVoiceConnectionState(
  *
  * VoiceConnection.onNetworkingClose turns every close code except 4014 into a
  * silent fall back to `signalling`, discarding the code — which is the only
- * thing that distinguishes a rejected identify (4004/4006) from a network drop.
+ * thing that distinguishes a rejected identify (4017 when Discord requires the
+ * DAVE protocol, 4004/4006 for auth and session problems) from a network drop.
  * The Networking instance hangs off the connection state and emits the code, so
  * listen there. A new instance is created per connection attempt, hence the
  * WeakSet.
@@ -55,27 +56,4 @@ function logNetworkingClose(
       log.warn(`voice-ws-close ${context} code=${code}`);
     }
   );
-}
-
-/**
- * Forwards @discordjs/voice's own websocket/UDP debug output to our logger.
- *
- * The voice websocket close code is not exposed on any VoiceConnection state,
- * so a connection that opens and immediately falls back to `signalling` gives
- * no indication of why. Requires `debug: true` on the joinVoiceChannel call.
- *
- * Voice identify payloads carry a session token, so they are redacted.
- */
-export function attachVoiceConnectionDebug(
-  connection: VoiceConnection,
-  log: ReturnType<typeof createLogger>,
-  context: string
-): void {
-  connection.on('debug', (message: string) => {
-    log.debug(`voice-debug ${context} ${redactTokens(message)}`);
-  });
-}
-
-function redactTokens(message: string): string {
-  return message.replace(/("token"\s*:\s*")[^"]*(")/g, '$1<redacted>$2');
 }

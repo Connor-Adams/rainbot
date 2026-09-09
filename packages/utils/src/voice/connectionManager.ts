@@ -49,29 +49,21 @@ export async function joinChannel(
     adapterCreator: channel.guild.voiceAdapterCreator,
     selfDeaf: false, // Required to receive audio for voice commands
     selfMute: false,
-    debug: true,
   });
 
   // A connection that never leaves `signalling` never received the gateway's
-  // VOICE_SERVER_UPDATE. The bot still appears in the channel and playback
-  // reports success, so the transition trace is the only signal that no audio
-  // is being transmitted.
+  // VOICE_SERVER_UPDATE, and VoiceConnection.onNetworkingClose discards every
+  // websocket close code except 4014 on the way there. The bot still appears in
+  // the channel and playback still reports success, so without this trace a
+  // rejected connection is indistinguishable from a working one.
   const joinStartedAt = Date.now();
+  const instrumentedNetworking = new WeakSet<object>();
   connection.on('stateChange', (oldState, newState) => {
     log.info(
       `voice-state guild=${guildId} ${oldState.status} -> ${newState.status} (+${
         Date.now() - joinStartedAt
       }ms)`
     );
-  });
-
-  // The voice websocket close code is not exposed on any connection state, so
-  // forward the library's own debug output. Identify payloads carry a session
-  // token, so redact it.
-  const instrumentedNetworking = new WeakSet<object>();
-  connection.on('stateChange', (_oldState, newState) => {
-    // VoiceConnection.onNetworkingClose discards every close code except 4014,
-    // so read it off the Networking instance that hangs on the state instead.
     const networking = (newState as { networking?: { on?: unknown } }).networking;
     if (!networking || typeof networking.on !== 'function') return;
     if (instrumentedNetworking.has(networking)) return;
@@ -79,12 +71,6 @@ export async function joinChannel(
     (networking as { on: (event: string, listener: (code: number) => void) => void }).on(
       'close',
       (code: number) => log.warn(`voice-ws-close guild=${guildId} code=${code}`)
-    );
-  });
-
-  connection.on('debug', (message: string) => {
-    log.debug(
-      `voice-debug guild=${guildId} ${message.replace(/("token"\s*:\s*")[^"]*(")/g, '$1<redacted>$2')}`
     );
   });
 
