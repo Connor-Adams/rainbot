@@ -10,22 +10,27 @@ const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 const log = createLogger('RAINBOT-AUDIO');
 
 /**
- * yt-dlp options for YouTube. Multiple player_client fallbacks improve
- * reliability when YouTube changes; pipe avoids 403 from direct URL fetch.
+ * yt-dlp options for YouTube. Pipe avoids 403 from direct URL fetch.
  * Reads YTDLP_COOKIES at call time so cookies fetched from raincloud can be used.
  * Exported for use in trackFetcher metadata fallback.
  */
 export function getYtdlpOptions(): Record<string, unknown> {
-  // Try clients in order: tv_embedded/android often work without PO token; ios/web as fallback
-  const extractorArgs =
-    process.env['YTDLP_EXTRACTOR_ARGS'] || 'youtube:player_client=tv_embedded,android,ios,web';
   const options: Record<string, unknown> = {
     noPlaylist: true,
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-    extractorArgs,
   };
+
+  // No player_client override by default. A pinned list rots: tv_embedded is
+  // age-gate-only and android/ios are PO-token gated, so that set returned no
+  // audio-only formats at all and yt-dlp failed with "Requested format is not
+  // available". yt-dlp's own default client list tracks YouTube's changes.
+  // YTDLP_EXTRACTOR_ARGS stays available to pin clients around a regression.
+  const extractorArgs = process.env['YTDLP_EXTRACTOR_ARGS'] || '';
+  if (extractorArgs) {
+    options['extractorArgs'] = extractorArgs;
+  }
 
   const cookiesPath = process.env['YTDLP_COOKIES'] || '';
   if (cookiesPath) {

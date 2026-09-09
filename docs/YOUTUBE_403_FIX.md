@@ -47,14 +47,19 @@ On Railway, you can use a secret file or mount the cookies file and set `YTDLP_C
 
 ## 3. Optional: Override player client
 
-If a specific client works better for your region/YouTube version, override extractor args on the **Rainbot** worker:
+There is **no default override** — yt-dlp picks its own client list, which tracks
+YouTube's changes. Only pin clients to work around a regression, and remove the
+pin once yt-dlp catches up:
 
 ```env
-# Try mweb or other clients (comma-separated, tried in order)
-YTDLP_EXTRACTOR_ARGS=youtube:player_client=mweb,android,tv_embedded
+# Comma-separated, tried in order
+YTDLP_EXTRACTOR_ARGS=youtube:player_client=mweb,tv
 ```
 
-Default is `tv_embedded,android,ios,web`.
+A pinned list rots. `android`/`ios` are PO-token gated and `tv_embedded` is
+age-gate-only; the old `tv_embedded,android,ios,web` default eventually returned
+no audio-only formats at all, and playback failed with
+`ERROR: [youtube] <id>: Requested format is not available`.
 
 ## 4. Ensure yt-dlp is on PATH
 

@@ -28,8 +28,15 @@ const log = createLogger('PLAYBACK');
 // Cookie file path for YouTube authentication (fixes 403 errors)
 const COOKIES_FILE = process.env['YTDLP_COOKIES'] || '';
 
+// Optional yt-dlp extractor-args override (e.g. to pin player clients)
+const EXTRACTOR_ARGS = process.env['YTDLP_EXTRACTOR_ARGS'] || '';
+
 /**
- * Get common yt-dlp options. extractor-args prefer YouTube clients that work without PO token.
+ * Get common yt-dlp options.
+ *
+ * No player_client override by default: a pinned list rots (android/ios are
+ * PO-token gated, tv_embedded is age-gate-only) and stops returning audio-only
+ * formats. Set YTDLP_EXTRACTOR_ARGS to pin clients around a regression.
  */
 function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
@@ -37,8 +44,11 @@ function getYtdlpOptions(): Record<string, unknown> {
     noWarnings: true,
     quiet: true,
     noCheckCertificates: true,
-    extractorArgs: 'youtube:player_client=android,tv_embedded',
   };
+
+  if (EXTRACTOR_ARGS) {
+    options['extractorArgs'] = EXTRACTOR_ARGS;
+  }
 
   if (COOKIES_FILE) {
     options['cookies'] = COOKIES_FILE;
