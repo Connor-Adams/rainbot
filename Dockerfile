@@ -35,7 +35,10 @@ COPY . .
 # This must stay AFTER the COPY so the layer is invalidated by every commit;
 # in the apt layer above it was cached indefinitely and prod ran a build-day
 # binary for months.
-RUN pip3 install --no-cache-dir --break-system-packages --upgrade yt-dlp
+# yt-dlp-ejs is the JS extraction component; without it, plus a JS runtime,
+# yt-dlp reports YouTube extraction as deprecated and loses formats. The runtime
+# is the image's own node, selected per-call with --js-runtimes.
+RUN pip3 install --no-cache-dir --break-system-packages --upgrade yt-dlp yt-dlp-ejs
 
 # Install dependencies (native modules compile here)
 RUN yarn install --immutable
