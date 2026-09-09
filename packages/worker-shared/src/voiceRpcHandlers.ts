@@ -21,7 +21,7 @@ import type { RequestCache } from './idempotency';
 import { createWorkerDiscordClient } from './client';
 import type { GuildState } from './voice-state';
 import { createSoundAudioResource } from './soundResource';
-import { logVoiceConnectionState } from './voiceDiagnostics';
+import { attachVoiceConnectionDebug, logVoiceConnectionState } from './voiceDiagnostics';
 
 export interface VoiceRpcHandlerOptions {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -78,10 +78,12 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
           typeof joinVoiceChannel
         >[0]['adapterCreator'],
         selfDeaf: false,
+        debug: true,
       });
       connection.subscribe(state.player);
       state.connection = connection;
       logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
+      attachVoiceConnectionDebug(connection, log, `join guild=${input.guildId}`);
       // VoiceConnection is an EventEmitter: without an 'error' listener a voice
       // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
       // exception and takes the whole worker down.

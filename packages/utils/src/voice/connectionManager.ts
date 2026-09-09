@@ -49,6 +49,7 @@ export async function joinChannel(
     adapterCreator: channel.guild.voiceAdapterCreator,
     selfDeaf: false, // Required to receive audio for voice commands
     selfMute: false,
+    debug: true,
   });
 
   // A connection that never leaves `signalling` never received the gateway's
@@ -61,6 +62,15 @@ export async function joinChannel(
       `voice-state guild=${guildId} ${oldState.status} -> ${newState.status} (+${
         Date.now() - joinStartedAt
       }ms)`
+    );
+  });
+
+  // The voice websocket close code is not exposed on any connection state, so
+  // forward the library's own debug output. Identify payloads carry a session
+  // token, so redact it.
+  connection.on('debug', (message: string) => {
+    log.debug(
+      `voice-debug guild=${guildId} ${message.replace(/("token"\s*:\s*")[^"]*(")/g, '$1<redacted>$2')}`
     );
   });
 
