@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import play from 'play-dl';
 import { createLogger } from '@rainbot/shared';
 import { getOrchestratorBaseUrl } from '@rainbot/worker-shared';
 
@@ -17,6 +18,71 @@ const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /** Path of the cookie file this module wrote, so refreshes can replace it. */
 let managedCookiesPath: string | null = null;
+
+/** Netscape cookie jars mark host-only entries with this prefix, not a comment. */
+const HTTP_ONLY_PREFIX = '#HttpOnly_';
+
+/** Netscape rows are domain, flag, path, secure, expiry, name, value. */
+const NETSCAPE_FIELD_COUNT = 7;
+
+function isYouTubeDomain(domain: string): boolean {
+  const host = domain.startsWith('.') ? domain.slice(1) : domain;
+  return host === 'youtube.com' || host.endsWith('.youtube.com');
+}
+
+/**
+ * Convert a Netscape cookie jar (what yt-dlp's --cookies wants) into the
+ * `name=value; ...` header play-dl's setToken wants. Only youtube.com entries
+ * go in; play-dl sends this header to YouTube alone.
+ */
+export function netscapeCookiesToHeader(text: string): string {
+  const pairs: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawLine of text.split('\n')) {
+    let line = rawLine.trim();
+    if (!line) continue;
+
+    if (line.startsWith(HTTP_ONLY_PREFIX)) {
+      line = line.slice(HTTP_ONLY_PREFIX.length);
+    } else if (line.startsWith('#')) {
+      continue;
+    }
+
+    const fields = line.split('\t');
+    if (fields.length < NETSCAPE_FIELD_COUNT) continue;
+    if (!isYouTubeDomain(fields[0] ?? '')) continue;
+
+    const name = (fields[5] ?? '').trim();
+    if (!name || seen.has(name)) continue;
+
+    seen.add(name);
+    pairs.push(`${name}=${(fields[6] ?? '').trim()}`);
+  }
+
+  return pairs.join('; ');
+}
+
+/**
+ * play-dl is the last fallback when yt-dlp fails, but it reads none of the
+ * yt-dlp cookie flags — unauthenticated it just returns "Sign in to confirm
+ * you're not a bot", which made the fallback chain one tier deep.
+ */
+async function applyPlayDlCookies(cookiesText: string): Promise<void> {
+  const cookie = netscapeCookiesToHeader(cookiesText);
+  if (!cookie) {
+    log.warn('No youtube.com cookies in jar; play-dl fallback stays unauthenticated');
+    return;
+  }
+
+  try {
+    await play.setToken({ youtube: { cookie } });
+    log.info('YouTube cookies applied to play-dl fallback');
+  } catch (error) {
+    const err = error as Error;
+    log.warn(`Failed to apply cookies to play-dl: ${err.message}`);
+  }
+}
 
 /**
  * Fetch cookies from raincloud internal API and write to a temp file.
@@ -77,6 +143,8 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     managedCookiesPath = cookiesPath;
     process.env['YTDLP_COOKIES'] = cookiesPath;
     log.info('YouTube cookies loaded from raincloud');
+
+    await applyPlayDlCookies(body);
   } catch (error) {
     const err = error as Error;
     log.warn(`Failed to fetch YouTube cookies: ${err.message}`);
