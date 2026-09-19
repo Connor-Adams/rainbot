@@ -26,6 +26,7 @@ export * from './client';
 export * from './voice-state';
 
 // Soundboard audio resource construction
+export * from './audioSniff';
 export * from './soundResource';
 export * from './voiceDiagnostics';
 
