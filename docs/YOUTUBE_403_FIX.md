@@ -22,7 +22,42 @@ pip install -U yt-dlp
 # Or use system package / nixpkgs that provides a recent build
 ```
 
-## 2. PO token provider (preferred over cookies)
+## 2. Outbound proxy (the actual fix for bot checks)
+
+YouTube refuses requests from datacenter IP ranges, which is what Railway runs
+on. This was confirmed directly in the rainbot container: with a PO token
+provider reachable and no cookies, one video was refused with
+`Sign in to confirm you're not a bot` across **six** player clients — `tv`,
+`default,tv`, `android_vr`, `web_embedded`, `tv_simply`, `mweb`. The verbose log
+shows yt-dlp's defaults (`visionos`, `web`) both returning
+`playability status: LOGIN_REQUIRED`, and the PO token provider is never even
+invoked, because a GVS token is only fetched once formats resolve and the
+_player_ request is refused before that.
+
+The identical command from a residential IP returns `251 opus` immediately.
+
+So: nothing client-side fixes this. Either the request comes from an acceptable
+IP, or it carries a signed-in session (cookies, which rot). Routing yt-dlp
+through a proxy with a residential or mobile IP is the durable answer.
+
+Set it in the dashboard under **Admin → YouTube proxy**. Accepted schemes are
+`http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`. Rainbot re-reads it
+every five minutes, so a change applies without a restart.
+
+The stored value normally contains credentials, so it is only ever returned to
+the dashboard with the password redacted. Workers read the real value from
+`/internal/proxy/youtube`, which is gated by `WORKER_SECRET`.
+
+`YTDLP_PROXY_OVERRIDE` on the rainbot service takes precedence over the
+dashboard, for pinning a proxy without touching the UI.
+
+**Known limitation:** only the yt-dlp path is proxied. The direct-fetch fallback
+and the play-dl fallback still go out over the datacenter IP — play-dl has no
+proxy support at all. Since yt-dlp piping is the primary path, that is usually
+invisible, but a failure that falls through those tiers will still hit the bot
+check.
+
+## 3. PO token provider (useful alongside a working IP)
 
 YouTube demands a proof-of-origin token from IPs it treats as suspicious, which
 includes essentially all datacenter ranges — so Railway trips the bot check even
@@ -67,7 +102,7 @@ WARNING: [youtube] [pot:bgutil:http] Error reaching GET http://127.0.0.1:4416/pi
 
 `TOKEN_TTL` (hours, default 6) on the provider service controls its token cache.
 
-## 3. YouTube cookies (fallback, and a treadmill)
+## 4. YouTube cookies (fallback, and a treadmill)
 
 Cookies from a logged-in browser also clear 403 and bot-check errors, but they
 expire and have to be re-exported. Prefer the PO token provider above.
@@ -91,7 +126,7 @@ expire and have to be re-exported. Prefer the PO token provider above.
 
 On Railway, you can use a secret file or mount the cookies file and set `YTDLP_COOKIES` to that path.
 
-## 4. Optional: Override player client
+## 5. Optional: Override player client
 
 There is **no default override** — yt-dlp picks its own client list, which tracks
 YouTube's changes. Only pin clients to work around a regression, and remove the
@@ -107,7 +142,7 @@ age-gate-only; the old `tv_embedded,android,ios,web` default eventually returned
 no audio-only formats at all, and playback failed with
 `ERROR: [youtube] <id>: Requested format is not available`.
 
-## 5. Ensure yt-dlp is on PATH
+## 6. Ensure yt-dlp is on PATH
 
 Rainbot uses `yt-dlp` (or `YTDLP_PATH` if set). On Railway, install yt-dlp in your build (e.g. nixpacks, Dockerfile, or apt). If piping fails with "command not found", set:
 
@@ -118,5 +153,6 @@ YTDLP_PATH=/full/path/to/yt-dlp
 ## Summary
 
 - **Pipe path** = no direct fetch, usually avoids 403; may be slightly slower to start.
-- **Update yt-dlp** and run a **PO token provider** (`BGUTIL_POT_BASE_URL`). That, not cookies, is the durable answer to a bot check from a datacenter IP.
+- **Set a proxy** (Admin -> YouTube proxy). A bot check from a datacenter IP is an IP problem; no client, cookie or PO token setting solves it.
+- A **PO token provider** (`BGUTIL_POT_BASE_URL`) helps once the IP is acceptable, but does nothing on its own.
 - **YTDLP_COOKIES** and **YTDLP_EXTRACTOR_ARGS** remain available if you still hit 403 or playback failures.

@@ -218,6 +218,13 @@ export const settingsApi = {
     });
   },
   deleteYoutubeCookies: () => api.delete<{ message: string }>('/settings/youtube-cookies'),
+  // proxyUrl comes back with its password redacted; the raw value never leaves
+  // the server.
+  getYoutubeProxy: () =>
+    api.get<{ hasProxy: boolean; proxyUrl: string | null }>('/settings/youtube-proxy'),
+  setYoutubeProxy: (proxyUrl: string) =>
+    api.put<{ message: string; proxyUrl: string }>('/settings/youtube-proxy', { proxyUrl }),
+  deleteYoutubeProxy: () => api.delete<{ message: string }>('/settings/youtube-proxy'),
 };
 
 // Stats API
