@@ -5,6 +5,7 @@ describe('getYtdlpOptions', () => {
     delete process.env['YTDLP_JS_RUNTIME'];
     delete process.env['YTDLP_EXTRACTOR_ARGS'];
     delete process.env['YTDLP_COOKIES'];
+    delete process.env['BGUTIL_POT_BASE_URL'];
   });
 
   it('points yt-dlp at node, since only deno is enabled by default', () => {
@@ -27,5 +28,37 @@ describe('getYtdlpOptions', () => {
     process.env['YTDLP_EXTRACTOR_ARGS'] = 'youtube:player_client=tv';
 
     expect(getYtdlpOptions()).toMatchObject({ extractorArgs: 'youtube:player_client=tv' });
+  });
+
+  it('leaves the PO token plugin on its bundled script when no server is set', () => {
+    expect(getYtdlpOptions()).not.toHaveProperty('extractorArgs');
+  });
+
+  it('points the PO token plugin at a provider server when one is configured', () => {
+    process.env['BGUTIL_POT_BASE_URL'] = 'http://bgutil.railway.internal:4416';
+
+    expect(getYtdlpOptions()).toMatchObject({
+      extractorArgs: 'youtubepot-bgutilhttp:base_url=http://bgutil.railway.internal:4416',
+    });
+  });
+
+  it('keeps a pinned player client alongside the PO token server', () => {
+    process.env['YTDLP_EXTRACTOR_ARGS'] = 'youtube:player_client=tv';
+    process.env['BGUTIL_POT_BASE_URL'] = 'http://bgutil.railway.internal:4416';
+
+    // dargs repeats the flag for an array, which is how yt-dlp takes more than
+    // one --extractor-args.
+    expect(getYtdlpOptions()).toMatchObject({
+      extractorArgs: [
+        'youtube:player_client=tv',
+        'youtubepot-bgutilhttp:base_url=http://bgutil.railway.internal:4416',
+      ],
+    });
+  });
+
+  it('ignores a blank or whitespace-only provider URL', () => {
+    process.env['BGUTIL_POT_BASE_URL'] = '   ';
+
+    expect(getYtdlpOptions()).not.toHaveProperty('extractorArgs');
   });
 });
