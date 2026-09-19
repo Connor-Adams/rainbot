@@ -11,3 +11,6 @@ export {
   YouTubeUrl,
 } from './youtubeUrl';
 export type { YouTubeVideoInfo } from './youtubeUrl';
+
+// Outbound proxy URL validation and redaction
+export { normalizeProxyUrl, maskProxyUrl, ProxyUrlError } from './proxyUrl';

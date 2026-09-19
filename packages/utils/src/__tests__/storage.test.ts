@@ -429,3 +429,79 @@ describe('readSoundHead', () => {
     await expect(readSoundHead('yougay.ogg')).resolves.toBeNull();
   });
 });
+
+describe('youtube proxy settings', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSend.mockReset();
+    mockConfig.storageBucketName = 'test-bucket';
+    mockConfig.storageAccessKey = 'test-access-key';
+    mockConfig.storageSecretKey = 'test-secret-key';
+    mockConfig.storageEndpoint = 'https://s3.example.com';
+    jest.resetModules();
+  });
+
+  it('stores the proxy URL as plain text under settings/', async () => {
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
+    mockSend.mockResolvedValueOnce({});
+
+    const { setYoutubeProxy } = require('@rainbot/utils/storage');
+    await setYoutubeProxy('socks5://user:pa55@proxy.example.com:1080');
+
+    expect(PutObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Bucket: 'test-bucket',
+        Key: 'settings/youtube_proxy.txt',
+        ContentType: 'text/plain',
+      })
+    );
+  });
+
+  it('never logs the proxy URL, which carries a password', async () => {
+    mockSend.mockResolvedValueOnce({});
+
+    const { setYoutubeProxy } = require('@rainbot/utils/storage');
+    await setYoutubeProxy('socks5://user:pa55@proxy.example.com:1080');
+
+    const logged = mockLogger.info.mock.calls.flat().join(' ');
+    expect(logged).not.toContain('pa55');
+  });
+
+  it('reads the stored proxy URL back, trimmed', async () => {
+    mockSend.mockResolvedValueOnce({ Body: Buffer.from('http://proxy.example.com:8080\n') });
+
+    const { getYoutubeProxy } = require('@rainbot/utils/storage');
+
+    await expect(getYoutubeProxy()).resolves.toBe('http://proxy.example.com:8080');
+  });
+
+  it('returns null when no proxy has been configured', async () => {
+    const error: any = new Error('NoSuchKey');
+    error.name = 'NoSuchKey';
+    mockSend.mockRejectedValueOnce(error);
+
+    const { getYoutubeProxy } = require('@rainbot/utils/storage');
+
+    await expect(getYoutubeProxy()).resolves.toBeNull();
+  });
+
+  it('treats a stored blank value as no proxy', async () => {
+    mockSend.mockResolvedValueOnce({ Body: Buffer.from('   \n') });
+
+    const { getYoutubeProxy } = require('@rainbot/utils/storage');
+
+    await expect(getYoutubeProxy()).resolves.toBeNull();
+  });
+
+  it('deletes the stored proxy URL', async () => {
+    const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    mockSend.mockResolvedValueOnce({});
+
+    const { deleteYoutubeProxy } = require('@rainbot/utils/storage');
+    await deleteYoutubeProxy();
+
+    expect(DeleteObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ Bucket: 'test-bucket', Key: 'settings/youtube_proxy.txt' })
+    );
+  });
+});

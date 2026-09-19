@@ -110,6 +110,10 @@ export default function AdminTab() {
     queryKey: ['youtube-cookies'],
     queryFn: () => settingsApi.getYoutubeCookies().then((res) => res.data),
   });
+  const { data: youtubeProxy } = useQuery({
+    queryKey: ['youtube-proxy'],
+    queryFn: () => settingsApi.getYoutubeProxy().then((res) => res.data),
+  });
   const guilds = botStatus?.guilds ?? [];
   const sounds = soundsData ?? [];
   const personas = personasData?.personas ?? [];
@@ -208,6 +212,21 @@ export default function AdminTab() {
     mutationFn: () => settingsApi.deleteYoutubeCookies(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['youtube-cookies'] });
+    },
+  });
+
+  const [proxyInput, setProxyInput] = useState('');
+  const saveProxyMutation = useMutation({
+    mutationFn: (url: string) => settingsApi.setYoutubeProxy(url),
+    onSuccess: () => {
+      setProxyInput('');
+      queryClient.invalidateQueries({ queryKey: ['youtube-proxy'] });
+    },
+  });
+  const deleteProxyMutation = useMutation({
+    mutationFn: () => settingsApi.deleteYoutubeProxy(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['youtube-proxy'] });
     },
   });
 
@@ -321,6 +340,64 @@ export default function AdminTab() {
           )}
           {deployCommandsMutation.isSuccess && deployMessage && (
             <div className="mt-3 text-xs text-text-secondary">{deployMessage}</div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">YouTube proxy</div>
+          <div className="text-xs text-text-secondary mb-4">
+            YouTube blocks requests from datacenter IPs, which is what Railway runs on—that is the
+            real cause of &quot;Sign in to confirm you&apos;re not a bot&quot;, and no cookie or
+            player setting gets around it. Point yt-dlp at a proxy with a residential or mobile IP
+            and the block goes away. Accepts <code>http</code>, <code>https</code>,{' '}
+            <code>socks4</code>, <code>socks4a</code>, <code>socks5</code> and <code>socks5h</code>.
+            Rainbot picks up a change within about five minutes.
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="password"
+              className="input flex-1 min-w-[18rem]"
+              placeholder="socks5://user:password@host:1080"
+              value={proxyInput}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setProxyInput(e.target.value)}
+              aria-label="Proxy URL"
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => saveProxyMutation.mutate(proxyInput)}
+              disabled={saveProxyMutation.isPending || proxyInput.trim().length === 0}
+            >
+              {saveProxyMutation.isPending ? 'Saving...' : 'Save proxy'}
+            </button>
+            {youtubeProxy?.hasProxy && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => deleteProxyMutation.mutate()}
+                disabled={deleteProxyMutation.isPending}
+              >
+                {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
+              </button>
+            )}
+          </div>
+          <div className="mt-2 text-xs text-text-secondary">
+            {youtubeProxy?.hasProxy
+              ? `✓ Using ${youtubeProxy.proxyUrl}`
+              : 'No proxy set — going direct'}
+          </div>
+          {saveProxyMutation.isError && (
+            <div className="mt-2 text-xs text-danger-light">
+              {(saveProxyMutation.error as { response?: { data?: { error?: string } } })?.response
+                ?.data?.error ?? 'Failed to save proxy'}
+            </div>
+          )}
+          {saveProxyMutation.isSuccess && (
+            <div className="mt-2 text-xs text-text-secondary">
+              Proxy saved. Rainbot applies it within a few minutes.
+            </div>
           )}
         </div>
 

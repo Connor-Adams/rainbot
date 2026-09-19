@@ -65,6 +65,14 @@ export function getYtdlpOptions(): Record<string, unknown> {
     options['cookies'] = cookiesPath;
   }
 
+  // Set from the dashboard via ytProxy. YouTube refuses Railway's datacenter
+  // ranges outright - no client or PO token changes that - so the proxy is what
+  // makes a cookie-less request possible at all.
+  const proxy = process.env['YTDLP_PROXY']?.trim() || '';
+  if (proxy) {
+    options['proxy'] = proxy;
+  }
+
   return options;
 }
 

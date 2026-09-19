@@ -25,6 +25,7 @@ import { getOrCreateGuildState, guildStates } from './state/guild-state';
 import { createRpcHandlers } from './handlers/rpc';
 import { registerVoiceStateHandlers } from './events/voice-state';
 import { fetchAndSetYtCookies, startYtCookieRefresh } from './voice/ytCookies';
+import { fetchAndSetYtProxy, startYtProxyRefresh } from './voice/ytProxy';
 
 setupProcessErrorHandlers(log);
 
@@ -72,6 +73,11 @@ registerVoiceStateHandlers(client);
 // dashboard upload lands without restarting this worker.
 void fetchAndSetYtCookies();
 startYtCookieRefresh();
+
+// Same story for the outbound proxy: load it before the first play, then keep
+// it current so a dashboard change applies without a restart.
+void fetchAndSetYtProxy();
+startYtProxyRefresh();
 
 setupDiscordClientReadyHandler(client, {
   orchestratorBotId: ORCHESTRATOR_BOT_ID,

@@ -6,6 +6,7 @@ describe('getYtdlpOptions', () => {
     delete process.env['YTDLP_EXTRACTOR_ARGS'];
     delete process.env['YTDLP_COOKIES'];
     delete process.env['BGUTIL_POT_BASE_URL'];
+    delete process.env['YTDLP_PROXY'];
   });
 
   it('points yt-dlp at node, since only deno is enabled by default', () => {
@@ -60,5 +61,23 @@ describe('getYtdlpOptions', () => {
     process.env['BGUTIL_POT_BASE_URL'] = '   ';
 
     expect(getYtdlpOptions()).not.toHaveProperty('extractorArgs');
+  });
+
+  it('goes direct when no proxy is configured', () => {
+    expect(getYtdlpOptions()).not.toHaveProperty('proxy');
+  });
+
+  it('routes yt-dlp through YTDLP_PROXY when the dashboard has set one', () => {
+    process.env['YTDLP_PROXY'] = 'socks5://user:pa55@proxy.example.com:1080';
+
+    expect(getYtdlpOptions()).toMatchObject({
+      proxy: 'socks5://user:pa55@proxy.example.com:1080',
+    });
+  });
+
+  it('ignores a blank proxy value', () => {
+    process.env['YTDLP_PROXY'] = '  ';
+
+    expect(getYtdlpOptions()).not.toHaveProperty('proxy');
   });
 });

@@ -6,6 +6,7 @@ import * as voiceManager from '@rainbot/utils/voiceManager';
 import * as storage from '@rainbot/utils/storage';
 import { query } from '@rainbot/utils/database';
 import { deployCommands } from '@rainbot/utils/deployCommands';
+import { normalizeProxyUrl, maskProxyUrl } from '@rainbot/shared';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '@rainbot/utils/statistics';
@@ -537,6 +538,66 @@ router.delete(
     try {
       await storage.deleteYoutubeCookies();
       res.json({ message: 'YouTube cookies removed.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/settings/youtube-proxy - Current outbound proxy, password redacted
+router.get('/settings/youtube-proxy', requireAuth, async (_req, res: Response): Promise<void> => {
+  try {
+    const proxyUrl = await storage.getYoutubeProxy();
+    // The stored value usually embeds credentials, so only the redacted form
+    // ever leaves the server.
+    res.json({
+      hasProxy: proxyUrl !== null,
+      proxyUrl: proxyUrl ? maskProxyUrl(proxyUrl) : null,
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/youtube-proxy - Set the outbound proxy used for YouTube
+router.put(
+  '/settings/youtube-proxy',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const raw = typeof req.body?.proxyUrl === 'string' ? req.body.proxyUrl : '';
+
+    let proxyUrl: string;
+    try {
+      proxyUrl = normalizeProxyUrl(raw);
+    } catch (error) {
+      // ProxyUrlError messages describe the problem without echoing the value.
+      res.status(400).json({ error: (error as Error).message });
+      return;
+    }
+
+    try {
+      await storage.setYoutubeProxy(proxyUrl);
+      res.json({
+        message: 'Proxy saved. Rainbot picks it up within a few minutes.',
+        proxyUrl: maskProxyUrl(proxyUrl),
+      });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// DELETE /api/settings/youtube-proxy - Stop proxying YouTube requests
+router.delete(
+  '/settings/youtube-proxy',
+  requireAuth,
+  async (_req, res: Response): Promise<void> => {
+    try {
+      await storage.deleteYoutubeProxy();
+      res.json({ message: 'Proxy removed. Rainbot goes direct within a few minutes.' });
     } catch (error) {
       const err = error as Error;
       res.status(500).json({ error: err.message });

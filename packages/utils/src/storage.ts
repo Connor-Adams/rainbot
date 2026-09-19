@@ -663,6 +663,89 @@ function getContentType(filename: string): string {
 }
 
 const YOUTUBE_COOKIES_KEY = 'cookies/youtube_cookies.txt';
+const YOUTUBE_PROXY_KEY = 'settings/youtube_proxy.txt';
+
+function proxySettingsPath(): string {
+  const dir = process.env['COOKIES_DIR'] || path.join(process.cwd(), 'data', 'cookies');
+  return path.join(dir, 'youtube_proxy.txt');
+}
+
+/**
+ * Store the outbound proxy URL used for YouTube requests.
+ *
+ * The value usually embeds credentials, so it is never written to the log -
+ * only the fact that it changed.
+ */
+export async function setYoutubeProxy(proxyUrl: string): Promise<void> {
+  const body = Buffer.from(proxyUrl, 'utf8');
+
+  if (s3Client && bucketName) {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucketName,
+        Key: YOUTUBE_PROXY_KEY,
+        Body: body,
+        ContentType: 'text/plain',
+      })
+    );
+    log.info('Stored YouTube proxy URL');
+    return;
+  }
+
+  const fs = await import('fs/promises');
+  const filePath = proxySettingsPath();
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, body);
+  log.info('Stored YouTube proxy URL locally');
+}
+
+/** Returns the configured proxy URL, or null when none is set. */
+export async function getYoutubeProxy(): Promise<string | null> {
+  let raw: Buffer | null = null;
+
+  if (s3Client && bucketName) {
+    try {
+      const response = await s3Client.send(
+        new GetObjectCommand({ Bucket: bucketName, Key: YOUTUBE_PROXY_KEY })
+      );
+      raw = await bodyToBuffer(response.Body);
+    } catch (error) {
+      const err = error as S3Error;
+      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) return null;
+      throw error;
+    }
+  } else {
+    const fs = await import('fs/promises');
+    try {
+      raw = await fs.readFile(proxySettingsPath());
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') return null;
+      throw error;
+    }
+  }
+
+  const value = raw?.toString('utf8').trim() ?? '';
+  return value.length > 0 ? value : null;
+}
+
+/** Remove the configured proxy URL. */
+export async function deleteYoutubeProxy(): Promise<void> {
+  if (s3Client && bucketName) {
+    await s3Client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: YOUTUBE_PROXY_KEY }));
+    log.info('Deleted YouTube proxy URL');
+    return;
+  }
+
+  const fs = await import('fs/promises');
+  try {
+    await fs.unlink(proxySettingsPath());
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== 'ENOENT') throw error;
+  }
+  log.info('Deleted local YouTube proxy URL');
+}
 
 /**
  * Upload YouTube cookies (Netscape format) for yt-dlp authentication.

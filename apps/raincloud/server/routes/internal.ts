@@ -46,6 +46,26 @@ router.get('/cookies/youtube', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/proxy/youtube', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+
+  try {
+    const proxyUrl = await storage.getYoutubeProxy();
+    if (!proxyUrl) {
+      res.status(404).json({ error: 'No proxy configured' });
+      return;
+    }
+    // Workers need the real URL, credentials included; the worker secret is what
+    // gates this. It is deliberately never echoed to the dashboard unredacted.
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(proxyUrl);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to get YouTube proxy: ${err.message}`);
+    res.status(500).json({ error: 'Failed to retrieve proxy' });
+  }
+});
+
 router.post('/workers/register', (req: Request, res: Response) => {
   if (!requireWorkerSecret(req, res)) return;
 
