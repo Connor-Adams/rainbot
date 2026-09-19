@@ -6,11 +6,12 @@ import {
   createVolumeHandler,
   createPlaySoundHandler,
   createCleanupUserHandler,
+  sniffSoundStream,
 } from '@rainbot/worker-shared';
 import type { RequestCache } from '@rainbot/worker-shared';
 import { log } from '../config';
 import { getOrCreateGuildState, getStateForRpc, guildStates } from '../state/guild-state';
-import { getSoundStream, getSoundInputType } from '../storage/sounds';
+import { getSoundStream } from '../storage/sounds';
 
 export interface HungerbotRpcDeps {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -40,10 +41,7 @@ export function createRpcHandlers(deps: HungerbotRpcDeps) {
     log,
     getOrCreateGuildState: (guildId) =>
       getOrCreateGuildState(guildId) as import('@rainbot/worker-shared').GuildState,
-    createSoundResource: async (input) => ({
-      stream: await getSoundStream(input.sfxId),
-      inputType: getSoundInputType(input.sfxId),
-    }),
+    createSoundResource: async (input) => sniffSoundStream(await getSoundStream(input.sfxId)),
     reportStat: (input, opts) => {
       void reportSoundStat(
         {

@@ -10,6 +10,7 @@ import {
   HeadObjectCommand,
   CopyObjectCommand,
 } from '@aws-sdk/client-s3';
+import { isOpusContainer } from '@rainbot/worker-shared';
 import { createLogger } from './logger';
 import { loadConfig } from './config';
 
@@ -27,6 +28,7 @@ export interface SoundFile {
 const TRANSCODE_ENABLED = process.env['NODE_ENV'] !== 'test';
 const RECORDS_PREFIX = 'records/';
 const ARCHIVE_PREFIX = 'archived/';
+const AUDIO_HEAD_BYTES = 8192;
 
 function isOpusFilename(filename: string): boolean {
   const ext = path.extname(filename).toLowerCase();
@@ -37,6 +39,38 @@ function toOggFilename(filename: string): string {
   const ext = path.extname(filename);
   if (!ext) return `${filename}.ogg`;
   return filename.slice(0, -ext.length) + '.ogg';
+}
+
+/**
+ * Decides whether a sound still needs converting to Ogg Opus, judged by the
+ * bytes already stored at the destination key rather than by its extension.
+ *
+ * A `.ogg` upload is just as likely to hold Vorbis as Opus, and the soundboard
+ * workers demux Opus directly - a Vorbis payload yields zero packets and plays
+ * as silence with no error. `destinationHead` is the head of the object at the
+ * Ogg key, or null when nothing is there yet.
+ */
+export function soundNeedsOpusConversion(name: string, destinationHead: Buffer | null): boolean {
+  if (name.startsWith(RECORDS_PREFIX)) return false;
+  if (destinationHead === null) return true;
+  return !isOpusContainer(destinationHead);
+}
+
+/** Reads the leading bytes of a stored sound, or null when unreadable. */
+async function fetchSoundHead(filename: string): Promise<Buffer | null> {
+  if (!s3Client || !bucketName) return null;
+  try {
+    const response = await s3Client.send(
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: `sounds/${filename}`,
+        Range: `bytes=0-${AUDIO_HEAD_BYTES - 1}`,
+      })
+    );
+    return await bodyToBuffer(response.Body);
+  } catch {
+    return null;
+  }
 }
 
 async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
@@ -109,8 +143,16 @@ async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBuffe
   });
 }
 
-async function ensureOggCopy(originalName: string, oggName: string): Promise<void> {
+async function ensureOggCopy(
+  originalName: string,
+  oggName: string,
+  options?: { force?: boolean }
+): Promise<void> {
   if (!s3Client || !bucketName) return;
+  if (options?.force) {
+    await writeOggCopy(originalName, oggName);
+    return;
+  }
   try {
     const head = new HeadObjectCommand({
       Bucket: bucketName,
@@ -121,6 +163,12 @@ async function ensureOggCopy(originalName: string, oggName: string): Promise<voi
   } catch {
     // Continue to attempt conversion.
   }
+
+  await writeOggCopy(originalName, oggName);
+}
+
+async function writeOggCopy(originalName: string, oggName: string): Promise<void> {
+  if (!s3Client || !bucketName) return;
 
   try {
     const getCommand = new GetObjectCommand({
@@ -319,17 +367,21 @@ export async function sweepTranscodeSounds(options?: {
     processed += 1;
 
     const name = sound.name;
-    if (name.startsWith(RECORDS_PREFIX) || isOpusFilename(name)) {
+    const oggName = toOggFilename(name);
+    const destinationHead = await fetchSoundHead(oggName);
+    if (!soundNeedsOpusConversion(name, destinationHead)) {
       skipped += 1;
       continue;
     }
 
-    const oggName = toOggFilename(name);
     try {
-      await ensureOggCopy(name, oggName);
+      await ensureOggCopy(name, oggName, { force: destinationHead !== null });
       if (await soundExists(oggName)) {
         converted += 1;
-        if (deleteOriginal) {
+        // A non-Opus `.ogg` is rewritten in place, so its source and its
+        // destination are the same key - archiving it would delete the
+        // conversion we just wrote.
+        if (deleteOriginal && name !== oggName) {
           await archiveSound(name);
           deleted += 1;
         }
@@ -475,7 +527,7 @@ export async function uploadSound(
   let uploadBuffer: Buffer<ArrayBufferLike> = buffer;
   let contentType = getContentType(uploadName);
   const isRecording = uploadName.startsWith(RECORDS_PREFIX);
-  if (!isRecording && TRANSCODE_ENABLED && !isOpusFilename(uploadName)) {
+  if (!isRecording && TRANSCODE_ENABLED && !isOpusContainer(buffer)) {
     try {
       uploadBuffer = await transcodeToOggOpus(buffer);
       uploadName = toOggFilename(uploadName);

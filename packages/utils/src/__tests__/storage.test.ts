@@ -279,3 +279,60 @@ describe('storage', () => {
     });
   });
 });
+
+/**
+ * Builds a structurally valid Ogg page wrapping `payload`, so these tests
+ * exercise real container parsing rather than a hand-waved byte blob.
+ */
+function oggPage(payload: Buffer): Buffer {
+  const segments: number[] = [];
+  let remaining = payload.length;
+  while (remaining >= 255) {
+    segments.push(255);
+    remaining -= 255;
+  }
+  segments.push(remaining);
+
+  const header = Buffer.alloc(27 + segments.length);
+  header.write('OggS', 0, 'latin1');
+  header[4] = 0;
+  header[5] = 2;
+  header[26] = segments.length;
+  Buffer.from(segments).copy(header, 27);
+
+  return Buffer.concat([header, payload]);
+}
+
+const oggOpusBytes = oggPage(
+  Buffer.concat([Buffer.from('OpusHead', 'latin1'), Buffer.from([1, 2, 0x38, 0x01, 0x80, 0xbb])])
+);
+const oggVorbisBytes = oggPage(
+  Buffer.concat([Buffer.from([0x01]), Buffer.from('vorbis', 'latin1'), Buffer.alloc(23)])
+);
+
+describe('soundNeedsOpusConversion', () => {
+  it('converts an .ogg that actually holds Vorbis, not Opus', () => {
+    const { soundNeedsOpusConversion } = require('@rainbot/utils/storage');
+
+    expect(soundNeedsOpusConversion('yougay.ogg', oggVorbisBytes)).toBe(true);
+  });
+
+  it('leaves a genuine Ogg Opus object alone', () => {
+    const { soundNeedsOpusConversion } = require('@rainbot/utils/storage');
+
+    expect(soundNeedsOpusConversion('airhorn.ogg', oggOpusBytes)).toBe(false);
+  });
+
+  it('converts when no object exists at the destination yet', () => {
+    const { soundNeedsOpusConversion } = require('@rainbot/utils/storage');
+
+    expect(soundNeedsOpusConversion('airhorn.ogg', null)).toBe(true);
+  });
+
+  it('never converts voice recordings', () => {
+    const { soundNeedsOpusConversion } = require('@rainbot/utils/storage');
+
+    expect(soundNeedsOpusConversion('records/123-456.raw', null)).toBe(false);
+    expect(soundNeedsOpusConversion('records/123-456.raw', oggVorbisBytes)).toBe(false);
+  });
+});
