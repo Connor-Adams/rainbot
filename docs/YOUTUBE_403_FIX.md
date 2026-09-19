@@ -22,9 +22,55 @@ pip install -U yt-dlp
 # Or use system package / nixpkgs that provides a recent build
 ```
 
-## 2. Optional: YouTube cookies (reduces 403 / "Sign in to confirm" errors)
+## 2. PO token provider (preferred over cookies)
 
-Cookies from a logged-in browser fix both 403 and "Sign in to confirm you're not a bot" errors.
+YouTube demands a proof-of-origin token from IPs it treats as suspicious, which
+includes essentially all datacenter ranges — so Railway trips the bot check even
+when nothing is wrong with the bot. Cookies paper over that, but they rot:
+YouTube rotates `__Secure-1PSIDTS`, so a jar exported from a browser you keep
+using is invalidated quickly. A PO token provider addresses the cause instead,
+with no account and no cookies.
+
+The image already installs the `bgutil-ytdlp-pot-provider` plugin. The plugin
+alone is **not** enough: a pip install gives you only its `http` provider,
+because the script providers look for a checked-out server build under
+`~/bgutil-ytdlp-pot-provider` that pip does not ship. `yt-dlp -v` shows exactly
+that:
+
+```
+PO Token Providers: bgutil:http-2.0.0 (external),
+                    bgutil:script-node-2.0.0 (external, unavailable),
+                    bgutil:script-deno-2.0.0 (external, unavailable)
+```
+
+So the provider server has to run somewhere, and rainbot has to be pointed at it:
+
+1. Add a Railway service from the Docker image
+   `brainicism/bgutil-ytdlp-pot-provider`. Match its tag to the plugin version in
+   the image (`pip show bgutil-ytdlp-pot-provider`) — plugin and server are
+   expected to be on the same version.
+2. It listens on port **4416**. Keep it on the private network; it needs no
+   public domain.
+3. On the **Rainbot** service:
+
+   ```env
+   BGUTIL_POT_BASE_URL=http://<provider-service>.railway.internal:4416
+   ```
+
+Leaving `BGUTIL_POT_BASE_URL` unset is safe — the plugin tries
+`http://127.0.0.1:4416`, cannot reach it, and yt-dlp warns and carries on. That
+same warning is how you spot a wrong value:
+
+```
+WARNING: [youtube] [pot:bgutil:http] Error reaching GET http://127.0.0.1:4416/ping
+```
+
+`TOKEN_TTL` (hours, default 6) on the provider service controls its token cache.
+
+## 3. YouTube cookies (fallback, and a treadmill)
+
+Cookies from a logged-in browser also clear 403 and bot-check errors, but they
+expire and have to be re-exported. Prefer the PO token provider above.
 
 ### Option A: Upload via Dashboard (recommended)
 
@@ -45,7 +91,7 @@ Cookies from a logged-in browser fix both 403 and "Sign in to confirm you're not
 
 On Railway, you can use a secret file or mount the cookies file and set `YTDLP_COOKIES` to that path.
 
-## 3. Optional: Override player client
+## 4. Optional: Override player client
 
 There is **no default override** — yt-dlp picks its own client list, which tracks
 YouTube's changes. Only pin clients to work around a regression, and remove the
@@ -61,7 +107,7 @@ age-gate-only; the old `tv_embedded,android,ios,web` default eventually returned
 no audio-only formats at all, and playback failed with
 `ERROR: [youtube] <id>: Requested format is not available`.
 
-## 4. Ensure yt-dlp is on PATH
+## 5. Ensure yt-dlp is on PATH
 
 Rainbot uses `yt-dlp` (or `YTDLP_PATH` if set). On Railway, install yt-dlp in your build (e.g. nixpacks, Dockerfile, or apt). If piping fails with "command not found", set:
 
@@ -72,4 +118,5 @@ YTDLP_PATH=/full/path/to/yt-dlp
 ## Summary
 
 - **Pipe path** = no direct fetch, usually avoids 403; may be slightly slower to start.
-- **Update yt-dlp** and optionally set **YTDLP_COOKIES** or **YTDLP_EXTRACTOR_ARGS** if you still hit 403 or playback failures.
+- **Update yt-dlp** and run a **PO token provider** (`BGUTIL_POT_BASE_URL`). That, not cookies, is the durable answer to a bot check from a datacenter IP.
+- **YTDLP_COOKIES** and **YTDLP_EXTRACTOR_ARGS** remain available if you still hit 403 or playback failures.

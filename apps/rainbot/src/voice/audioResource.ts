@@ -34,8 +34,29 @@ export function getYtdlpOptions(): Record<string, unknown> {
   // audio-only formats at all and yt-dlp failed with "Requested format is not
   // available". yt-dlp's own default client list tracks YouTube's changes.
   // YTDLP_EXTRACTOR_ARGS stays available to pin clients around a regression.
-  const extractorArgs = process.env['YTDLP_EXTRACTOR_ARGS'] || '';
-  if (extractorArgs) {
+  const extractorArgs: string[] = [];
+
+  const pinnedArgs = process.env['YTDLP_EXTRACTOR_ARGS']?.trim() || '';
+  if (pinnedArgs) {
+    extractorArgs.push(pinnedArgs);
+  }
+
+  // The bgutil PO token plugin answers YouTube's "Sign in to confirm you're not
+  // a bot" without an account, which is what a datacenter IP otherwise needs
+  // cookies for. Only its http provider works from a pip install - the script
+  // providers report "unavailable" without a checked-out server build - so this
+  // must point at a running provider server. Unset, the plugin tries
+  // http://127.0.0.1:4416, fails to reach it, and yt-dlp warns and carries on.
+  const potBaseUrl = process.env['BGUTIL_POT_BASE_URL']?.trim() || '';
+  if (potBaseUrl) {
+    extractorArgs.push(`youtubepot-bgutilhttp:base_url=${potBaseUrl}`);
+  }
+
+  // dargs repeats the flag for an array, which is how yt-dlp takes more than
+  // one --extractor-args. A lone string keeps the single-arg form.
+  if (extractorArgs.length === 1) {
+    options['extractorArgs'] = extractorArgs[0];
+  } else if (extractorArgs.length > 1) {
     options['extractorArgs'] = extractorArgs;
   }
 
