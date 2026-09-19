@@ -25,7 +25,10 @@ export interface SoundFile {
   createdAt: Date;
 }
 
-const TRANSCODE_ENABLED = process.env['NODE_ENV'] !== 'test';
+// Transcoding shells out to ffmpeg, so it is off under jest by default. Tests
+// that exercise the transcode paths opt back in and stub ffmpeg themselves.
+const TRANSCODE_ENABLED =
+  process.env['NODE_ENV'] !== 'test' || process.env['RAINBOT_TEST_TRANSCODE'] === '1';
 const RECORDS_PREFIX = 'records/';
 const ARCHIVE_PREFIX = 'archived/';
 const AUDIO_HEAD_BYTES = 8192;
@@ -57,7 +60,7 @@ export function soundNeedsOpusConversion(name: string, destinationHead: Buffer |
 }
 
 /** Reads the leading bytes of a stored sound, or null when unreadable. */
-async function fetchSoundHead(filename: string): Promise<Buffer | null> {
+export async function readSoundHead(filename: string): Promise<Buffer | null> {
   if (!s3Client || !bucketName) return null;
   try {
     const response = await s3Client.send(
@@ -150,7 +153,12 @@ async function ensureOggCopy(
 ): Promise<void> {
   if (!s3Client || !bucketName) return;
   if (options?.force) {
-    await writeOggCopy(originalName, oggName);
+    // The destination already holds playable-looking bytes we are about to
+    // overwrite in place, so keep a copy before touching it.
+    await backupSound(oggName);
+    if (!(await writeOggCopy(originalName, oggName))) {
+      throw new Error(`Transcode produced nothing for ${originalName}`);
+    }
     return;
   }
   try {
@@ -167,8 +175,9 @@ async function ensureOggCopy(
   await writeOggCopy(originalName, oggName);
 }
 
-async function writeOggCopy(originalName: string, oggName: string): Promise<void> {
-  if (!s3Client || !bucketName) return;
+/** Returns true when an Ogg Opus object was written to `oggName`. */
+async function writeOggCopy(originalName: string, oggName: string): Promise<boolean> {
+  if (!s3Client || !bucketName) return false;
 
   try {
     const getCommand = new GetObjectCommand({
@@ -178,7 +187,7 @@ async function writeOggCopy(originalName: string, oggName: string): Promise<void
     const response = await s3Client.send(getCommand);
     const sourceBuffer = await bodyToBuffer(response.Body);
     if (!sourceBuffer) {
-      return;
+      return false;
     }
     const oggBuffer = await transcodeToOggOpus(sourceBuffer);
 
@@ -190,26 +199,37 @@ async function writeOggCopy(originalName: string, oggName: string): Promise<void
     });
     await s3Client.send(putCommand);
     log.info(`Transcoded sound to Ogg Opus: ${oggName}`);
+    return true;
   } catch (error) {
     const err = error as Error;
     log.warn(`Failed to transcode ${originalName}: ${err.message}`);
+    return false;
   }
 }
 
-async function archiveSound(filename: string): Promise<void> {
+/**
+ * Copies a sound under `sounds/archived/`, leaving the original where it is.
+ * Archived objects are excluded from listSounds(), so a backup never shows up
+ * in the soundboard.
+ */
+export async function backupSound(filename: string): Promise<void> {
   if (!s3Client || !bucketName) {
     throw new Error('Storage not configured');
   }
 
   const sourceKey = `sounds/${filename}`;
   const encodedSource = encodeURIComponent(sourceKey).replace(/%2F/g, '/');
-  const copyCommand = new CopyObjectCommand({
-    Bucket: bucketName,
-    CopySource: `${bucketName}/${encodedSource}`,
-    Key: `sounds/${ARCHIVE_PREFIX}${filename}`,
-  });
+  await s3Client.send(
+    new CopyObjectCommand({
+      Bucket: bucketName,
+      CopySource: `${bucketName}/${encodedSource}`,
+      Key: `sounds/${ARCHIVE_PREFIX}${filename}`,
+    })
+  );
+}
 
-  await s3Client.send(copyCommand);
+async function archiveSound(filename: string): Promise<void> {
+  await backupSound(filename);
   await deleteSound(filename);
 }
 
@@ -368,7 +388,7 @@ export async function sweepTranscodeSounds(options?: {
 
     const name = sound.name;
     const oggName = toOggFilename(name);
-    const destinationHead = await fetchSoundHead(oggName);
+    const destinationHead = await readSoundHead(oggName);
     if (!soundNeedsOpusConversion(name, destinationHead)) {
       skipped += 1;
       continue;

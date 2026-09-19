@@ -40,6 +40,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   PutObjectCommand: jest.fn(),
   DeleteObjectCommand: jest.fn(),
   HeadObjectCommand: jest.fn(),
+  CopyObjectCommand: jest.fn(),
 }));
 
 describe('storage', () => {
@@ -334,5 +335,97 @@ describe('soundNeedsOpusConversion', () => {
 
     expect(soundNeedsOpusConversion('records/123-456.raw', null)).toBe(false);
     expect(soundNeedsOpusConversion('records/123-456.raw', oggVorbisBytes)).toBe(false);
+  });
+});
+
+describe('backupSound', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockConfig.storageBucketName = 'test-bucket';
+    mockConfig.storageAccessKey = 'test-access-key';
+    mockConfig.storageSecretKey = 'test-secret-key';
+    mockConfig.storageEndpoint = 'https://s3.example.com';
+    jest.resetModules();
+  });
+
+  it('copies the object under archived/ and leaves the original in place', async () => {
+    const { CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    mockSend.mockResolvedValueOnce({});
+
+    const { backupSound } = require('@rainbot/utils/storage');
+    await backupSound('yougay.ogg');
+
+    expect(CopyObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'test-bucket',
+      CopySource: 'test-bucket/sounds/yougay.ogg',
+      Key: 'sounds/archived/yougay.ogg',
+    });
+    expect(DeleteObjectCommand).not.toHaveBeenCalled();
+  });
+
+  it('percent-encodes the copy source so awkward filenames survive', async () => {
+    const { CopyObjectCommand } = require('@aws-sdk/client-s3');
+    mockSend.mockResolvedValueOnce({});
+
+    const { backupSound } = require('@rainbot/utils/storage');
+    await backupSound('pissin noyaballs.ogg');
+
+    expect(CopyObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'test-bucket',
+      CopySource: 'test-bucket/sounds/pissin%20noyaballs.ogg',
+      Key: 'sounds/archived/pissin noyaballs.ogg',
+    });
+  });
+
+  it('refuses to report success when storage is not configured', async () => {
+    (mockConfig as any).storageBucketName = undefined;
+
+    const { backupSound } = require('@rainbot/utils/storage');
+
+    await expect(backupSound('yougay.ogg')).rejects.toThrow('Storage not configured');
+  });
+});
+
+describe('readSoundHead', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockConfig.storageBucketName = 'test-bucket';
+    mockConfig.storageAccessKey = 'test-access-key';
+    mockConfig.storageSecretKey = 'test-secret-key';
+    mockConfig.storageEndpoint = 'https://s3.example.com';
+    jest.resetModules();
+  });
+
+  it('requests only the leading bytes of the object', async () => {
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    mockSend.mockResolvedValueOnce({ Body: Readable.from([Buffer.from('OggS')]) });
+
+    const { readSoundHead } = require('@rainbot/utils/storage');
+    const head = await readSoundHead('yougay.ogg');
+
+    expect(GetObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'test-bucket',
+      Key: 'sounds/yougay.ogg',
+      Range: 'bytes=0-8191',
+    });
+    expect(head).toEqual(Buffer.from('OggS'));
+  });
+
+  it('returns null when the object is missing', async () => {
+    const error: any = new Error('NoSuchKey');
+    error.name = 'NoSuchKey';
+    mockSend.mockRejectedValueOnce(error);
+
+    const { readSoundHead } = require('@rainbot/utils/storage');
+
+    await expect(readSoundHead('gone.ogg')).resolves.toBeNull();
+  });
+
+  it('returns null when storage is not configured', async () => {
+    (mockConfig as any).storageBucketName = undefined;
+
+    const { readSoundHead } = require('@rainbot/utils/storage');
+
+    await expect(readSoundHead('yougay.ogg')).resolves.toBeNull();
   });
 });
