@@ -77,7 +77,18 @@ export interface SweepOptions {
   concurrency?: number;
 }
 
-/** Backfills analysis across the library, skipping clips that have not changed. */
+/**
+ * Backfills analysis across the library, skipping clips that have not changed.
+ *
+ * Counter semantics: `skipped` counts every clip in the *entire* library that is
+ * already up to date (computed before `limit` truncates the work queue), while
+ * `analyzed` and `failed` count only the clips this run actually attempted
+ * (after truncation). With a `limit` set, these three numbers do not add up to
+ * the size of the library - the untruncated remainder of the pending queue is
+ * left for a subsequent run and appears in none of them. Callers building a
+ * progress indicator should account for that gap rather than assuming full
+ * coverage.
+ */
 export async function sweepAnalyzeSounds(
   options: SweepOptions = {}
 ): Promise<{ analyzed: number; skipped: number; failed: number }> {
@@ -107,7 +118,15 @@ export async function sweepAnalyzeSounds(
   for (let i = 0; i < queue.length; i += concurrency) {
     const batch = queue.slice(i, i + concurrency);
     const results = await Promise.all(
-      batch.map(async (sound) => analyzeSound(sound.name, { size: sound.size }))
+      batch.map(async (sound) => {
+        try {
+          return await analyzeSound(sound.name, { size: sound.size });
+        } catch (error) {
+          const err = error as Error;
+          log.warn(`Analyze failed for ${sound.name}: ${err.message}`);
+          return null;
+        }
+      })
     );
     for (const result of results) {
       if (result) analyzed += 1;

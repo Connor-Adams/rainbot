@@ -144,6 +144,17 @@ describe('sweepAnalyzeSounds', () => {
     await expect(sweepAnalyzeSounds()).resolves.toEqual({ analyzed: 1, skipped: 0, failed: 1 });
   });
 
+  it('isolates a per-clip rejection so the rest of the batch still runs', async () => {
+    mockListSounds.mockResolvedValue([
+      { name: 'a.ogg', size: 1, createdAt: new Date() },
+      { name: 'b.ogg', size: 1, createdAt: new Date() },
+    ]);
+    mockGetAnalysisSizes.mockResolvedValue(new Map());
+    mockUpsertAnalysis.mockRejectedValueOnce(new Error('db exploded'));
+
+    await expect(sweepAnalyzeSounds()).resolves.toEqual({ analyzed: 1, skipped: 0, failed: 1 });
+  });
+
   it('honours a limit', async () => {
     mockListSounds.mockResolvedValue([
       { name: 'a.ogg', size: 1, createdAt: new Date() },
