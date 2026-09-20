@@ -1220,6 +1220,10 @@ git add packages/utils/src/sounds/audioAnalyzer.ts packages/utils/src/sounds/__t
 git commit -m "feat(sounds): classify and caption clips with an audio model"
 ```
 
+> **Correction applied during execution.** The `audioFormatFor` helper above is wrong and was removed. OpenAI's chat-completions audio input accepts only `wav` and `mp3` — the installed SDK declares `format: 'wav' | 'mp3'` at `node_modules/openai/resources/chat/completions/completions.d.ts:558` — while `audioFormatFor` could return `ogg`, `webm`, `mp4`, or `flac`. Since every soundboard upload is transcoded to Ogg Opus, essentially the entire library would have failed at runtime into the catch block and returned `null`, classifying nothing while appearing to work. Note that the Whisper endpoint used in Task 6 does accept those formats, so the two stages genuinely differ here.
+>
+> The shipped implementation decodes each clip to 16 kHz mono 16-bit PCM WAV with ffmpeg first, via a new `packages/utils/src/sounds/audioTranscode.ts` exporting `toWavBuffer(buffer: Buffer): Promise<Buffer>` (modelled on `transcodeToOggOpus` in `packages/utils/src/storage.ts:110`), and always sends `format: 'wav'`. The broad `as Parameters<...>` cast was also dropped — it was what let the bad format compile — in favour of a locally declared request interface that keeps the format literal type-checked.
+
 ---
 
 ### Task 6: Stage 2 — verbatim transcription
