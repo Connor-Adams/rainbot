@@ -115,6 +115,32 @@ describe('searchSounds', () => {
     expect(hit?.matchedOn).toBe('transcript');
   });
 
+  it('treats an empty transcript exactly like an absent one', async () => {
+    // A clip can be kind='speech' with transcript='' - speech was heard, no
+    // usable words came back. The read path must not offer an empty snippet
+    // or claim the match came from a transcript with no words in it.
+    mockLexicalSearch.mockResolvedValue(['yougay.ogg']);
+    const analysis = {
+      soundName: 'yougay.ogg',
+      kind: 'speech',
+      caption: 'a man shouting a farewell',
+      tags: [],
+      searchDoc: 'x',
+      sourceSize: 1,
+      model: 'm',
+    };
+
+    for (const transcript of ['', null]) {
+      mockGetAnalysisFor.mockResolvedValue(new Map([['yougay.ogg', { ...analysis, transcript }]]));
+
+      const results = await searchSounds({ query: 'farewell', sounds: library });
+      const hit = results.find((result) => result.name === 'yougay.ogg');
+
+      expect(hit?.matchedOn).toBe('caption');
+      expect(hit?.snippet).toBe('a man shouting a farewell');
+    }
+  });
+
   it('never returns a sound absent from the supplied library', async () => {
     mockLexicalSearch.mockResolvedValue(['deleted.ogg']);
     const results = await searchSounds({ query: 'deleted', sounds: library });

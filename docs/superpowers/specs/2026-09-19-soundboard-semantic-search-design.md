@@ -59,7 +59,7 @@ are 3–8 short keyword phrases chosen so that lexical search can hit them exact
 | `kind`   | Action                                                             | Calls |
 | -------- | ------------------------------------------------------------------ | ----- |
 | `sound`  | Stop. `transcript` stays `NULL`. Caption and tags carry the entry. | 1     |
-| `speech` | Whisper (`verbose_json`) for a verbatim transcript.                | 2     |
+| `speech` | Whisper (`verbose_json`) for a verbatim transcript, or `''`.       | 2     |
 | `mixed`  | Whisper as above; caption and transcript both populated.           | 2     |
 
 Whisper runs only where speech is known to exist, which is both cheaper and more accurate
@@ -67,8 +67,24 @@ than running it blind: a chat model is adequate at description but a dedicated s
 is better at literal fidelity, and literal fidelity is exactly what a "he says X" query
 needs.
 
-`transcript IS NULL` means _no speech present_. It never means _we tried and got nothing_ —
-that distinction matters when reasoning about a row later.
+`transcript` has three states, and they answer a different question from `kind`:
+
+| Value     | Meaning                                               |
+| --------- | ----------------------------------------------------- |
+| `NULL`    | No speech present; transcription was never attempted. |
+| `''`      | Speech was heard, but no usable words were recovered. |
+| non-empty | The transcript.                                       |
+
+A transcription attempt that _failed_ is none of the three: no row is written at all, so
+the `source_size` skip does not mark the clip done and a later sweep retries it.
+
+`kind` is never rewritten from the transcript. `kind` is what is in the audio and
+`transcript` is what words came back; they are independent observations, and collapsing
+one into the other is lossy in a way nothing re-analyzes. A clip whose entire content is
+someone shouting "Bye!" is `speech`, transcribes correctly, and is then trimmed to nothing
+by the hallucination blacklist — `kind: 'speech'`, `transcript: ''` is the honest row.
+Storing it as a sound effect with no speech would be a permanent falsehood, and for a
+`mixed` clip (`caption: 'shouting over a beat'`, `tags: ['shout']`) an incoherent one.
 
 The hallucination guard survives as a trim rather than a defense: segments with
 `no_speech_prob > 0.6` or `avg_logprob < -1.0` are dropped from the Whisper result, along
@@ -87,7 +103,7 @@ raw-SQL convention already used by `sound_customizations` rather than the drizzl
 CREATE TABLE IF NOT EXISTS sound_analysis (
   sound_name   TEXT PRIMARY KEY,
   kind         TEXT NOT NULL,          -- speech | sound | mixed
-  transcript   TEXT,                   -- NULL when no speech present
+  transcript   TEXT,                   -- NULL: no speech present; '': none recovered
   caption      TEXT NOT NULL,
   tags         TEXT[] NOT NULL DEFAULT '{}',
   search_doc   TEXT NOT NULL,          -- normalized display name + filename + transcript + caption + tags
