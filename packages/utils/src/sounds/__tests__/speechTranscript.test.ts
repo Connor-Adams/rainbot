@@ -153,8 +153,20 @@ describe('uploadDescriptorFor', () => {
     expect(uploadDescriptorFor('Some Clip (1).mp3', HEADS.mp3).uploadName).toBe(
       'Some Clip (1).mp3'
     );
-    // Case is not part of the answer, and is not rewritten either.
-    expect(uploadDescriptorFor('CLIP.MP3', HEADS.mp3).uploadName).toBe('CLIP.MP3');
+  });
+
+  it('lowercases an extension that is only a case variant of the container', () => {
+    // The API states its supported list in lowercase, and this function's one
+    // job is to produce a name whose extension is literally on that list.
+    // Uppercase is how a clip enters the library in the first place - both the
+    // multer `fileFilter` and `listSounds` match case-insensitively, and
+    // `uploadSound`'s catch keeps the original name when the transcode fails.
+    expect(uploadDescriptorFor('CLIP.MP3', HEADS.mp3).uploadName).toBe('CLIP.mp3');
+    expect(uploadDescriptorFor('CLIP.Ogg', HEADS.ogg).uploadName).toBe('CLIP.ogg');
+    // Only the extension is touched; the stem keeps its case.
+    expect(uploadDescriptorFor('Some Clip (1).WAV', HEADS.wav).uploadName).toBe(
+      'Some Clip (1).wav'
+    );
   });
 
   describe('bytes no signature matches', () => {
@@ -333,10 +345,10 @@ describe('transcribeSpeech', () => {
         contentType: 'audio/mpeg',
         uploadName: 'clip.mp3',
       },
-      // Case is not part of the answer, and an already-correct name is not
-      // rewritten just to change its case.
+      // Case is not part of finding the container, but the extension that goes
+      // out is always the lowercase form the API's supported list names.
       { filename: 'CLIP.OPUS', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'CLIP.ogg' },
-      { filename: 'CLIP.MP3', bytes: HEADS.mp3, contentType: 'audio/mpeg', uploadName: 'CLIP.MP3' },
+      { filename: 'CLIP.MP3', bytes: HEADS.mp3, contentType: 'audio/mpeg', uploadName: 'CLIP.mp3' },
     ];
 
     it.each(cases)(

@@ -119,10 +119,11 @@ const DEFAULT_CONTAINER = OGG;
  * Derived from what the bytes are, not from what the caller called them - see
  * `sniffUploadContainer` for why those differ in production. The name is
  * rewritten to the sniffed container's extension whenever it does not already
- * carry it, so the declared type, the declared name and the payload all agree.
- * That subsumes the old special cases: `.opus` holds an Ogg container and so
- * becomes `.ogg`, and an extension the API does not accept is replaced rather
- * than sent alongside a type contradicting it.
+ * carry exactly that extension, so the declared type, the declared name and
+ * the payload all agree. That subsumes the old special cases: `.opus` holds an
+ * Ogg container and so becomes `.ogg`, `.MP3` becomes `.mp3` because the API's
+ * supported list is lowercase, and an extension the API does not accept is
+ * replaced rather than sent alongside a type contradicting it.
  *
  * Exported for the tests, which assert the content type that actually reaches
  * the API rather than merely that the value is uploadable.
@@ -139,8 +140,21 @@ export function uploadDescriptorFor(
     sniffUploadContainer(buffer) ?? FALLBACK_CONTAINERS[ext.toLowerCase()] ?? DEFAULT_CONTAINER;
 
   const stem = ext ? filename.slice(0, -ext.length) : filename;
-  const uploadName =
-    ext.toLowerCase() === container.extension ? filename : `${stem}${container.extension}`;
+  // Compared case-sensitively, so an extension that is merely a case variant of
+  // the container's is rewritten rather than kept. The API states its supported
+  // list in lowercase - ['flac', 'm4a', 'mp3', ...] - and this function's
+  // whole job is to emit a name whose extension is literally on that list.
+  // Lowercasing to *find* the container is right (`.MP3` is an mp3); keeping
+  // the original name once one is found was not, and made `uploadName` the one
+  // output of this function that could carry an extension the list does not
+  // contain.
+  //
+  // Reachable, not theoretical: the library's extension filters are
+  // case-insensitive (`/\.(mp3|wav|ogg|m4a|webm|flac)$/i` in both the multer
+  // `fileFilter` and `listSounds`), so `CLIP.MP3` can enter the library, and
+  // `uploadSound` only lowercases the extension when the transcode succeeds -
+  // its catch keeps the original name and bytes.
+  const uploadName = ext === container.extension ? filename : `${stem}${container.extension}`;
 
   return { uploadName, contentType: container.contentType };
 }
