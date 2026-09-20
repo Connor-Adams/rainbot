@@ -172,11 +172,12 @@ describe('describeAudio', () => {
       },
     }));
 
-    const { describeAudio, MAX_ANALYZABLE_BYTES } = require('../audioAnalyzer');
+    const { describeAudio, MAX_ANALYZABLE_BYTES, MAX_DECODED_BYTES } = require('../audioAnalyzer');
     const { MAX_DECODE_SECONDS, DECODED_BYTES_PER_SECOND } = require('../audioTranscode');
     return {
       describeAudio,
       MAX_ANALYZABLE_BYTES,
+      MAX_DECODED_BYTES,
       MAX_DECODE_SECONDS,
       DECODED_BYTES_PER_SECOND,
       toWav,
@@ -242,14 +243,38 @@ describe('describeAudio', () => {
   });
 
   it('skips a small file that decodes to an oversized WAV', async () => {
-    const { describeAudio, MAX_ANALYZABLE_BYTES, toWav, create } = loadWithStubs(
+    // Asserted against the decoded-audio cap, not the source cap. The two
+    // used to be one number; splitting them makes this bound tighter (8MB,
+    // where the source cap is now 25MB) rather than looser - a 25MB
+    // decoded-audio check could never fire, since ffmpeg's own
+    // MAX_DECODE_STDOUT_BYTES ceiling rejects the decode at 8MB first.
+    const { describeAudio, MAX_DECODED_BYTES, toWav, create } = loadWithStubs(
       Buffer.alloc(9 * 1024 * 1024)
     );
-    expect(9 * 1024 * 1024).toBeGreaterThan(MAX_ANALYZABLE_BYTES);
+    expect(9 * 1024 * 1024).toBeGreaterThan(MAX_DECODED_BYTES);
 
     await expect(describeAudio(Buffer.alloc(256 * 1024), 'dense.mp3')).resolves.toBeNull();
     expect(toWav).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('caps the source at the transcription API upload limit of 25MB', async () => {
+    // The same source buffer is handed to transcribeSpeech for any clip with
+    // speech in it, so a source over the API's own 25MB upload limit could
+    // never finish stage 2 regardless of what stage 1 made of it.
+    const { MAX_ANALYZABLE_BYTES, MAX_DECODED_BYTES } = loadWithStubs(Buffer.alloc(16));
+    expect(MAX_ANALYZABLE_BYTES).toBe(25 * 1024 * 1024);
+    expect(MAX_DECODED_BYTES).toBeLessThan(MAX_ANALYZABLE_BYTES);
+  });
+
+  it('analyses the 8.3MB clip the old 8MB cap rejected', async () => {
+    const { describeAudio, toWav, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+
+    await expect(
+      describeAudio(Buffer.alloc(Math.round(8.3 * 1024 * 1024)), 'long_clip.ogg')
+    ).resolves.not.toBeNull();
+    expect(toWav).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   describe('the 30s decode cap', () => {

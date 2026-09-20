@@ -9,29 +9,43 @@ const VALID_KINDS: SoundKind[] = ['speech', 'sound', 'mixed'];
 const MAX_TAGS = 8;
 
 /**
- * Largest clip this will attempt, applied to both the source object and the
- * decoded WAV.
+ * Largest source object this will attempt.
  *
- * The decoded PCM is base64-encoded inline into a JSON request body, so a clip
- * costs roughly 3x its decoded size in resident memory before the request is
- * even serialized. Multer accepts 50MB per upload; a 50MB MP3 decodes to about
- * 96MB of 16kHz mono PCM, ~128MB base64, on the order of 300MB resident for one
- * clip - about 1GB at the sweep's concurrency of 3, enough to exhaust a normal
- * container. The API would reject a body that size anyway.
+ * This is the transcription API's own hard limit on upload size, verified
+ * against OpenAI's speech-to-text guide, which states "Files can be up to 25
+ * MB." The same source buffer that reaches `describeAudio` is handed to
+ * `transcribeSpeech` for any clip carrying speech, so a source above this
+ * cannot complete stage 2 whatever stage 1 makes of it - analysing it would
+ * spend an ffmpeg spawn and an audio-model call to produce a row that the
+ * pipeline then refuses to finish. Rejecting it up front, before ffmpeg is
+ * even spawned, is the honest outcome.
  *
- * 8MB of 16kHz mono 16-bit PCM is about four minutes of audio. A soundboard
- * clip is seconds long, so this is far above anything legitimate while
- * capping one clip at roughly 30MB resident and the whole sweep under 100MB.
- * The same number guards the source buffer, which catches an oversized upload
- * before ffmpeg is even spawned; a compressed file that slips under it is
- * caught again after decoding.
- *
- * `toWavBuffer`'s own `MAX_DECODE_SECONDS` cap (audioTranscode.ts) now bounds
- * decoded output to under 1MB regardless of source size, so this post-decode
- * check is a backstop rather than the primary bound - it only matters if that
- * duration cap is ever raised or bypassed.
+ * This used to be 8MB for a different reason: decode was unbounded, so the
+ * source size was the only thing standing between a long clip and hundreds of
+ * megabytes of resident PCM. That reason is gone. `toWavBuffer` now passes
+ * `-t MAX_DECODE_SECONDS` (audioTranscode.ts), so decoded output is bounded by
+ * duration - under 1MB - no matter how large the source is, and 8MB was
+ * rejecting real clips: production skipped an 8.3MB one outright.
  */
-export const MAX_ANALYZABLE_BYTES = 8 * 1024 * 1024;
+export const MAX_ANALYZABLE_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Largest decoded WAV this will base64-encode into a request body.
+ *
+ * Deliberately its own number rather than MAX_ANALYZABLE_BYTES, which it used
+ * to share. The two now bound different things for different reasons: the
+ * source cap above is the upload API's limit, while this one bounds what gets
+ * inlined into a JSON body and held in memory three times over. Following the
+ * source cap up to 25MB would have made this check unreachable - ffmpeg's own
+ * `MAX_DECODE_STDOUT_BYTES` ceiling rejects the decode at 8MB, so a 25MB WAV
+ * can never arrive here to be tested.
+ *
+ * Kept at the 8MB it has always been, which is the same ceiling
+ * `MAX_DECODE_STDOUT_BYTES` enforces on the far side: with `-t` honored, a
+ * decode tops out under 1MB, so in normal operation neither fires. This is the
+ * backstop that matters if the duration cap is ever raised or bypassed.
+ */
+export const MAX_DECODED_BYTES = 8 * 1024 * 1024;
 
 function describeSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
@@ -269,11 +283,13 @@ export async function describeAudio(
       );
     }
 
-    // A small compressed source can still decode to an enormous WAV, so the
-    // limit is re-applied to what is actually about to be base64-encoded.
-    if (wavBuffer.length > MAX_ANALYZABLE_BYTES) {
+    // A small compressed source can still decode to an enormous WAV, so a
+    // limit is re-applied to what is actually about to be base64-encoded -
+    // its own, since the source cap is the upload API's number and this one
+    // bounds resident memory (see MAX_DECODED_BYTES).
+    if (wavBuffer.length > MAX_DECODED_BYTES) {
       log.warn(
-        `Skipping ${filename}: decodes to ${describeSize(wavBuffer.length)}, over the ${describeSize(MAX_ANALYZABLE_BYTES)} analysis limit`
+        `Skipping ${filename}: decodes to ${describeSize(wavBuffer.length)}, over the ${describeSize(MAX_DECODED_BYTES)} decoded-audio limit`
       );
       return null;
     }
