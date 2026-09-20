@@ -251,6 +251,58 @@ const options: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/sounds/strip-video-sweep': {
+        post: {
+          summary: 'Re-mux stored Ogg clips that carry a video stream down to audio only',
+          description:
+            'Some stored .ogg objects hold a Theora video stream alongside their Opus audio, ' +
+            'which Whisper rejects outright with "400 Invalid file format". This copies each ' +
+            'affected original to sounds/archived/ and then rewrites it in place with the video ' +
+            'stream dropped and the audio packets copied across untouched. Set dryRun to report ' +
+            'what would be rewritten without writing anything.',
+          tags: ['Sounds'],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    dryRun: { type: 'boolean' },
+                    limit: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Sweep results',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      stripped: { type: 'integer' },
+                      archived: { type: 'integer' },
+                      skipped: { type: 'integer' },
+                      failed: { type: 'integer' },
+                    },
+                  },
+                },
+              },
+            },
+            '500': {
+              description: 'Server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   },
   apis: ['./server/routes/*.js', './server/routes/*.ts', './server/*.js', './server/*.ts'],

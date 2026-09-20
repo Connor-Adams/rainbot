@@ -68,6 +68,22 @@ export default function AdminTab() {
     },
   });
 
+  const [stripVideoResult, setStripVideoResult] = useState<string | null>(null);
+
+  const stripVideoMutation = useMutation({
+    mutationFn: () => soundsApi.sweepStripVideo(),
+    onSuccess: (res) => {
+      const data = res.data;
+      setStripVideoResult(
+        `Rewrote ${data.stripped}, archived ${data.archived}, left alone ${data.skipped}, failed ${data.failed}.`
+      );
+      queryClient.invalidateQueries({ queryKey: ['sounds'] });
+    },
+    onError: (err: { response?: { data?: { error?: string } }; message?: string }) => {
+      setStripVideoResult(err.response?.data?.error ?? err.message ?? 'Video strip sweep failed.');
+    },
+  });
+
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
 
   const analyzeSweepMutation = useMutation({
@@ -296,6 +312,17 @@ export default function AdminTab() {
   const handleSweep = () => {
     if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return;
     sweepMutation.mutate();
+  };
+
+  const handleStripVideo = () => {
+    if (
+      !window.confirm(
+        'Rewrite every sound that secretly contains a video stream as audio only? The originals are archived first.'
+      )
+    )
+      return;
+    setStripVideoResult(null);
+    stripVideoMutation.mutate();
   };
 
   const handleDeployCommands = () => {
@@ -965,6 +992,27 @@ export default function AdminTab() {
             {analyzeSweepMutation.isPending ? 'Analyzing...' : 'Analyze sounds for search'}
           </button>
           {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">Strip Hidden Video</div>
+          <div className="text-xs text-text-secondary mb-4">
+            Around eighteen sounds are secretly video files - a picture track sitting alongside the
+            audio - which is why speech transcription refuses them. This rewrites each one as audio
+            only, keeping the sound itself bit-for-bit identical and its name unchanged. A copy of
+            every original is archived first.
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleStripVideo}
+            disabled={stripVideoMutation.isPending}
+          >
+            {stripVideoMutation.isPending ? 'Rewriting...' : 'Strip video from sounds'}
+          </button>
+          {stripVideoResult && (
+            <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
+          )}
         </div>
       </div>
     </section>

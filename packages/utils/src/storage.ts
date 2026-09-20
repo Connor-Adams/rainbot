@@ -59,6 +59,98 @@ export function soundNeedsOpusConversion(name: string, destinationHead: Buffer |
   return !isOpusContainer(destinationHead);
 }
 
+/**
+ * Packet identifiers that mark an Ogg logical stream as video, matched at the
+ * very start of a beginning-of-stream page's payload.
+ *
+ * Theora is the one actually found in this library (`1-08_Douchebag.ogg` and
+ * roughly seventeen siblings probe as `theora` video plus `opus` audio). The
+ * rest are the other codecs Ogg is known to carry as video; they cost nothing
+ * to check and mean a stray one is caught rather than silently skipped.
+ */
+const OGG_VIDEO_PACKET_IDS: Buffer[] = [
+  Buffer.from('\x80theora', 'latin1'),
+  Buffer.from('\x80daala', 'latin1'),
+  Buffer.from('OVP80', 'latin1'), // VP8
+  Buffer.from('\x01video\0', 'latin1'), // OGM-style video
+  Buffer.from('BBCD', 'latin1'), // Dirac
+];
+
+/** Fixed part of an Ogg page header, before the segment table. */
+const OGG_PAGE_HEADER_BYTES = 27;
+/** Byte 5 of a page header; bit 0x02 marks a beginning-of-stream page. */
+const OGG_HEADER_TYPE_OFFSET = 5;
+const OGG_BOS_FLAG = 0x02;
+/** Byte 26 holds the number of entries in the segment table that follows. */
+const OGG_SEGMENT_COUNT_OFFSET = 26;
+
+/**
+ * Whether a stored object is an Ogg file carrying a video stream.
+ *
+ * Whisper rejects these outright with `400 Invalid file format` even though the
+ * container is Ogg and the Opus inside it is perfectly good, so they have to be
+ * found and re-muxed rather than worked around per request.
+ *
+ * Cheap by construction: Ogg requires every logical stream's
+ * beginning-of-stream page to precede any data page, so every codec in the file
+ * announces itself in the opening bytes. `readSoundHead`'s 8KB range request is
+ * many times more than that - the Theora identifier sits at byte 29 of the
+ * affected files - so the whole library is classified with one ranged GET per
+ * object and no decoding at all.
+ *
+ * The walk stops at the first non-BOS page and matches identifiers only at a
+ * page payload's first byte, rather than scanning the head for the text
+ * `theora`. A Vorbis comment or an ISFT-style encoder tag naming a tool can put
+ * that word in an audio-only file, and a substring hit there would send a
+ * healthy clip through a needless rewrite.
+ *
+ * What it misses, stated plainly:
+ * - a video codec outside the list above (it then reads as audio-only, the clip
+ *   keeps failing at Whisper, and nothing is damaged);
+ * - video introduced by a later chain in a chained Ogg stream, since the walk
+ *   stops at the first data page;
+ * - non-Ogg containers entirely - an `.ogg` key actually holding MP4 or
+ *   Matroska bytes is not examined, because it is not the failure being fixed.
+ *
+ * Every miss is a false negative. There is no input for which this returns true
+ * about a file with no video stream, which is the direction that matters: a
+ * false positive would put an untouched clip through a rewrite.
+ */
+export function soundHasVideoStream(head: Buffer | null): boolean {
+  if (!head || head.length < OGG_PAGE_HEADER_BYTES) return false;
+  if (head.subarray(0, 4).toString('latin1') !== 'OggS') return false;
+
+  let offset = 0;
+  while (offset + OGG_PAGE_HEADER_BYTES <= head.length) {
+    if (head.subarray(offset, offset + 4).toString('latin1') !== 'OggS') return false;
+    const headerType = head[offset + OGG_HEADER_TYPE_OFFSET] as number;
+    // All BOS pages come first, so the first page that is not one ends the
+    // stream declarations and there is nothing further to learn.
+    if ((headerType & OGG_BOS_FLAG) === 0) return false;
+
+    const segmentCount = head[offset + OGG_SEGMENT_COUNT_OFFSET] as number;
+    const tableOffset = offset + OGG_PAGE_HEADER_BYTES;
+    const payloadOffset = tableOffset + segmentCount;
+    if (payloadOffset > head.length) return false;
+
+    for (const id of OGG_VIDEO_PACKET_IDS) {
+      if (head.subarray(payloadOffset, payloadOffset + id.length).equals(id)) return true;
+    }
+
+    let payloadBytes = 0;
+    for (let i = 0; i < segmentCount; i += 1) {
+      payloadBytes += head[tableOffset + i] as number;
+    }
+    const next = payloadOffset + payloadBytes;
+    // A page that runs past the head we fetched means the remaining streams are
+    // beyond what was read; stop rather than misread the bytes after it.
+    if (next <= offset || next > head.length) return false;
+    offset = next;
+  }
+
+  return false;
+}
+
 /** Reads the leading bytes of a stored sound, or null when unreadable. */
 export async function readSoundHead(filename: string): Promise<Buffer | null> {
   if (!s3Client || !bucketName) return null;
@@ -74,6 +166,25 @@ export async function readSoundHead(filename: string): Promise<Buffer | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Reads a stored sound's full bytes from its own key, or null when the object
+ * has no body. Errors are left to the caller.
+ *
+ * Unlike `getSoundBuffer` this does no name resolution, so it never fires off a
+ * background transcode of a neighbouring key - which is what a sweep wants: the
+ * object it listed is the object it reads.
+ */
+async function readSoundObject(filename: string): Promise<Buffer | null> {
+  if (!s3Client || !bucketName) return null;
+  const response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: `sounds/${filename}`,
+    })
+  );
+  return bodyToBuffer(response.Body);
 }
 
 async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
@@ -107,24 +218,23 @@ async function bodyToBuffer(body: unknown): Promise<Buffer | null> {
   return null;
 }
 
-async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBufferLike>> {
+/**
+ * Pipes `buffer` through ffmpeg with `args` and resolves its stdout.
+ *
+ * Shared by every ffmpeg call in this module so the stdin handling below is
+ * written once. That handling is not incidental: any early exit - malformed
+ * input ffmpeg refuses to decode, a missing encoder - leaves Node writing into
+ * a closed pipe, and an unhandled 'error' event on that socket takes the
+ * process with it (a sticky `process.exitCode = 1` under Raincloud's handler,
+ * an outright `process.exit(1)` under worker-shared's, which would end a sweep
+ * partway through the library). The listener settles nothing: the 'close' and
+ * child-'error' handlers already cover every outcome, and it must be attached
+ * before the write because a pipe an exited ffmpeg already closed fails inside
+ * `write()` itself.
+ */
+async function runFfmpeg(args: string[], buffer: Uint8Array): Promise<Buffer<ArrayBufferLike>> {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-i',
-      'pipe:0',
-      '-c:a',
-      'libopus',
-      '-b:a',
-      '96k',
-      '-vbr',
-      'on',
-      '-f',
-      'ogg',
-      'pipe:1',
-    ]);
+    const ffmpeg = spawn('ffmpeg', args);
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
@@ -141,13 +251,6 @@ async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBuffe
       }
     });
 
-    // No `-t` here, so ffmpeg normally consumes the whole input and this never
-    // fires. It still must exist: any early exit - malformed input it refuses
-    // to decode, a missing encoder - leaves Node writing into a closed pipe,
-    // and an unhandled 'error' event on that socket takes the process with it
-    // (a sticky `process.exitCode = 1` under Raincloud's handler, an outright
-    // `process.exit(1)` under worker-shared's). Settles nothing: the 'close'
-    // and child-'error' handlers above already cover every outcome.
     ffmpeg.stdin.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EPIPE') return;
       log.debug(`ffmpeg stdin error (${error.code ?? 'no code'}): ${error.message}`);
@@ -156,6 +259,58 @@ async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBuffe
     ffmpeg.stdin.write(buffer);
     ffmpeg.stdin.end();
   });
+}
+
+async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBufferLike>> {
+  return runFfmpeg(
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      'pipe:0',
+      '-c:a',
+      'libopus',
+      '-b:a',
+      '96k',
+      '-vbr',
+      'on',
+      '-f',
+      'ogg',
+      'pipe:1',
+    ],
+    buffer
+  );
+}
+
+/**
+ * Drops every video stream from an Ogg clip, copying the audio packets across
+ * untouched.
+ *
+ * `-vn` with `-c:a copy` is a re-mux, not a re-encode: the Opus packets that
+ * come out are bit-for-bit the ones that went in, so the clip sounds exactly as
+ * it did and the operation costs no quality and almost no CPU. Verified against
+ * ffmpeg 8.0.1 on a Theora+Opus clip - the output probes as a single 48kHz
+ * mono Opus stream of the same duration, and its first page carries `OpusHead`
+ * at the payload offset `isOpusContainer` checks.
+ */
+async function stripVideoFromOgg(buffer: Uint8Array): Promise<Buffer<ArrayBufferLike>> {
+  return runFfmpeg(
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      'pipe:0',
+      '-vn',
+      '-c:a',
+      'copy',
+      '-f',
+      'ogg',
+      'pipe:1',
+    ],
+    buffer
+  );
 }
 
 async function ensureOggCopy(
@@ -192,12 +347,7 @@ async function writeOggCopy(originalName: string, oggName: string): Promise<bool
   if (!s3Client || !bucketName) return false;
 
   try {
-    const getCommand = new GetObjectCommand({
-      Bucket: bucketName,
-      Key: `sounds/${originalName}`,
-    });
-    const response = await s3Client.send(getCommand);
-    const sourceBuffer = await bodyToBuffer(response.Body);
+    const sourceBuffer = await readSoundObject(originalName);
     if (!sourceBuffer) {
       return false;
     }
@@ -425,6 +575,120 @@ export async function sweepTranscodeSounds(options?: {
   }
 
   return { converted, deleted, skipped };
+}
+
+/**
+ * Rewrites every stored Ogg clip that carries a video stream as audio only.
+ *
+ * Roughly eighteen objects in this library are Ogg files holding a Theora video
+ * stream alongside their Opus audio - `1-08_Douchebag.ogg` probes as
+ * `theora`/video 44.7s plus `opus`/audio 44.7s. Whisper refuses the container
+ * outright with `400 Invalid file format`, so those clips have never had a
+ * speech transcript, and every analysis run re-attempts and re-fails them. The
+ * stored objects are fixed once here rather than worked around on each request.
+ *
+ * The rewrite is a re-mux, not a re-encode (see `stripVideoFromOgg`), so the
+ * audio comes out bit-for-bit identical and the clip is written back to its own
+ * key - the soundboard's sound list, customizations, analysis rows and Discord
+ * command choices all key off the filename and would break if it moved.
+ *
+ * Safety, following `sweepTranscodeSounds`:
+ * - the original is copied to `sounds/archived/` and only then overwritten, so
+ *   a bad rewrite is recoverable;
+ * - the archive copy is never deleted. The transcode sweep's `deleteOriginal`
+ *   has no counterpart here for the reason its own guard exists: source and
+ *   destination are the same key, so "delete the original" would delete the
+ *   rewrite. `dryRun` takes its place - it reports exactly what a real run
+ *   would touch while writing nothing;
+ * - a rewrite that yields no bytes, or yields something that is no longer a
+ *   container the players can read, is counted as a failure and the stored
+ *   object is left exactly as it was.
+ */
+export async function sweepStripSoundVideo(options?: {
+  dryRun?: boolean;
+  limit?: number;
+}): Promise<{ stripped: number; archived: number; skipped: number; failed: number }> {
+  if (!s3Client || !bucketName) {
+    throw new Error('Storage not configured');
+  }
+
+  if (!TRANSCODE_ENABLED) {
+    return { stripped: 0, archived: 0, skipped: 0, failed: 0 };
+  }
+
+  const dryRun = options?.dryRun ?? false;
+  const limit = options?.limit ?? 0;
+  let stripped = 0;
+  let archived = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  const sounds = await listSounds();
+  let processed = 0;
+
+  for (const sound of sounds) {
+    if (limit > 0 && processed >= limit) break;
+    processed += 1;
+
+    const name = sound.name;
+    const head = await readSoundHead(name);
+    if (!soundHasVideoStream(head)) {
+      skipped += 1;
+      continue;
+    }
+
+    if (dryRun) {
+      log.info(`Would strip video from ${name}`);
+      stripped += 1;
+      continue;
+    }
+
+    try {
+      const source = await readSoundObject(name);
+      if (!source) {
+        throw new Error('stored object has no body');
+      }
+
+      // Archive before anything is written back, never after: the copy is the
+      // only way back if the re-mux turns out to be wrong.
+      await backupSound(name);
+      archived += 1;
+
+      const audioOnly = await stripVideoFromOgg(source);
+      if (audioOnly.length === 0) {
+        throw new Error('ffmpeg produced no output');
+      }
+      // The re-mux has to leave something the soundboard can still play. A
+      // stream copy that dropped the audio too, or emitted a container the
+      // demuxers do not read, would otherwise be written straight over a clip
+      // that at least played.
+      if (!isOpusContainer(audioOnly)) {
+        throw new Error('re-muxed output is not a container the players read');
+      }
+      if (soundHasVideoStream(audioOnly)) {
+        throw new Error('re-muxed output still declares a video stream');
+      }
+
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: `sounds/${name}`,
+          Body: audioOnly,
+          ContentType: 'audio/ogg',
+        })
+      );
+      stripped += 1;
+      log.info(
+        `Stripped video from ${name} (${source.length} -> ${audioOnly.length} bytes, original archived)`
+      );
+    } catch (error) {
+      const err = error as Error;
+      failed += 1;
+      log.warn(`Video strip failed for ${name}: ${err.message}`);
+    }
+  }
+
+  return { stripped, archived, skipped, failed };
 }
 
 /**
