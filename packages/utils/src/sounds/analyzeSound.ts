@@ -10,7 +10,15 @@ import type { SoundAnalysis } from './types';
 
 const log = createLogger('SOUND-ANALYZE');
 
-const DEFAULT_CONCURRENCY = 3;
+/**
+ * How many clips may be analyzed at once.
+ *
+ * Every analysis spawns an ffmpeg to decode the clip and then calls an audio
+ * model, so this is the ceiling on both. The sweep uses it as its batch size
+ * and `enqueueAnalyzeSound` as its queue width - one number, because they
+ * bound the same resource.
+ */
+export const ANALYSIS_CONCURRENCY = 3;
 
 export interface AnalyzeOptions {
   displayName?: string | null;
@@ -84,6 +92,45 @@ export async function analyzeSound(
   return analysis;
 }
 
+let activeAnalyses = 0;
+const analysisQueue: Array<() => void> = [];
+
+function startNextQueuedAnalysis(): void {
+  activeAnalyses -= 1;
+  const next = analysisQueue.shift();
+  if (next) next();
+}
+
+/** How many queued analyses are running or waiting. Exposed for tests. */
+export function pendingAnalysisCount(): { active: number; queued: number } {
+  return { active: activeAnalyses, queued: analysisQueue.length };
+}
+
+/**
+ * Queues a clip for analysis without waiting for it.
+ *
+ * Callers that analyze on demand - an upload request may carry ten files -
+ * must not fan out ten ffmpeg spawns and ten audio-model calls at once. This
+ * repo has production history of `spawn ffmpeg EAGAIN` under burst load. The
+ * queue is bounded by the same ANALYSIS_CONCURRENCY the sweep batches at, and
+ * every rejection is absorbed here so nothing escapes as an unhandled
+ * rejection; a clip that fails is simply retried by the next sweep.
+ */
+export function enqueueAnalyzeSound(name: string, options: AnalyzeOptions = {}): void {
+  const run = (): void => {
+    activeAnalyses += 1;
+    void analyzeSound(name, options)
+      .catch((error) => {
+        const err = error as Error;
+        log.warn(`Queued analysis failed for ${name}: ${err.message}`);
+      })
+      .finally(startNextQueuedAnalysis);
+  };
+
+  if (activeAnalyses < ANALYSIS_CONCURRENCY) run();
+  else analysisQueue.push(run);
+}
+
 export interface SweepOptions {
   force?: boolean;
   limit?: number;
@@ -107,7 +154,7 @@ export async function sweepAnalyzeSounds(
 ): Promise<{ analyzed: number; skipped: number; failed: number }> {
   const force = options.force ?? false;
   const limit = options.limit ?? 0;
-  const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+  const concurrency = options.concurrency ?? ANALYSIS_CONCURRENCY;
 
   await detectVectorSupport();
 

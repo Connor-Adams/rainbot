@@ -26,7 +26,13 @@ jest.mock('../../config', () => ({
   loadConfig: () => ({ soundAnalysisEnabled: true, soundCaptionModel: 'test-model' }),
 }));
 
-import { analyzeSound, sweepAnalyzeSounds } from '../analyzeSound';
+import {
+  analyzeSound,
+  sweepAnalyzeSounds,
+  enqueueAnalyzeSound,
+  pendingAnalysisCount,
+  ANALYSIS_CONCURRENCY,
+} from '../analyzeSound';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -199,5 +205,95 @@ describe('sweepAnalyzeSounds', () => {
       skipped: 0,
       failed: 0,
     });
+  });
+});
+
+describe('enqueueAnalyzeSound', () => {
+  /** Lets a test hold analyses open so the queue's width can be observed. */
+  function gate() {
+    const releases: Array<() => void> = [];
+    mockDescribeAudio.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(() => resolve({ kind: 'sound', caption: 'a thud', tags: ['thud'] }));
+        })
+    );
+    return releases;
+  }
+
+  /** Runs the microtask/immediate queues until the shared queue is idle. */
+  async function settle(maxTicks = 50): Promise<void> {
+    for (let tick = 0; tick < maxTicks; tick += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+      const { active, queued } = pendingAnalysisCount();
+      if (active === 0 && queued === 0) return;
+    }
+  }
+
+  afterEach(async () => {
+    await settle();
+  });
+
+  it('never runs more analyses at once than the sweep would', async () => {
+    const releases = gate();
+    const names = Array.from({ length: 10 }, (_, i) => `clip${i}.ogg`);
+
+    // A single upload request may carry MAX_UPLOAD_FILES clips.
+    for (const name of names) enqueueAnalyzeSound(name);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(pendingAnalysisCount()).toEqual({
+      active: ANALYSIS_CONCURRENCY,
+      queued: names.length - ANALYSIS_CONCURRENCY,
+    });
+    expect(mockDescribeAudio).toHaveBeenCalledTimes(ANALYSIS_CONCURRENCY);
+
+    // Drain one slot at a time, checking the ceiling holds as it is handed on.
+    for (let released = 0; released < names.length; released += 1) {
+      const release = releases.shift();
+      expect(release).toBeDefined();
+      release!();
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(pendingAnalysisCount().active).toBeLessThanOrEqual(ANALYSIS_CONCURRENCY);
+    }
+
+    await settle();
+    expect(mockDescribeAudio).toHaveBeenCalledTimes(names.length);
+    expect(pendingAnalysisCount()).toEqual({ active: 0, queued: 0 });
+  });
+
+  it('returns before the analysis finishes', async () => {
+    const releases = gate();
+
+    enqueueAnalyzeSound('clip.ogg');
+
+    expect(mockUpsertAnalysis).not.toHaveBeenCalled();
+    expect(pendingAnalysisCount().active).toBe(1);
+
+    await new Promise((resolve) => setImmediate(resolve));
+    releases.forEach((release) => release());
+    await settle();
+    expect(pendingAnalysisCount()).toEqual({ active: 0, queued: 0 });
+  });
+
+  it('absorbs a rejection and keeps draining the queue', async () => {
+    mockDescribeAudio.mockResolvedValue({ kind: 'sound', caption: 'a thud', tags: ['thud'] });
+    mockGetSoundBuffer.mockRejectedValueOnce(new Error('storage down'));
+    mockUpsertAnalysis.mockRejectedValueOnce(new Error('db exploded'));
+
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      for (const name of ['a.ogg', 'b.ogg', 'c.ogg', 'd.ogg']) enqueueAnalyzeSound(name);
+      await settle();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+
+    // All four ran despite two of them failing, and nothing escaped.
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(mockDescribeAudio).toHaveBeenCalledTimes(3);
+    expect(pendingAnalysisCount()).toEqual({ active: 0, queued: 0 });
   });
 });

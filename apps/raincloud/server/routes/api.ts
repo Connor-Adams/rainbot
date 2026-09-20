@@ -6,7 +6,7 @@ import * as voiceManager from '@rainbot/utils/voiceManager';
 import * as storage from '@rainbot/utils/storage';
 import { query } from '@rainbot/utils/database';
 import { deployCommands } from '@rainbot/utils/deployCommands';
-import { searchSounds, analyzeSound, sweepAnalyzeSounds } from '@rainbot/utils';
+import { searchSounds, enqueueAnalyzeSound, sweepAnalyzeSounds } from '@rainbot/utils';
 import { normalizeProxyUrl, maskProxyUrl } from '@rainbot/shared';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
@@ -524,11 +524,13 @@ router.post(
         // keeps those two in the same unit, so an uploaded clip is not
         // re-analyzed at full API cost on the next sweep.
         //
-        // Deliberately not awaited: upload latency must not depend on an audio
-        // model.
-        void analyzeSound(filename).catch(() => {
-          /* analysis is best-effort; the sweep will retry it */
-        });
+        // Queued rather than awaited: upload latency must not depend on an
+        // audio model, but a request may carry MAX_UPLOAD_FILES clips and
+        // firing them all at once would mean that many concurrent ffmpeg
+        // spawns on top of the transcode each upload already does. The queue
+        // shares the sweep's concurrency ceiling and absorbs its own
+        // rejections; a clip that fails is retried by the next sweep.
+        enqueueAnalyzeSound(filename);
       } catch (error) {
         const err = error as Error;
         errors.push({
