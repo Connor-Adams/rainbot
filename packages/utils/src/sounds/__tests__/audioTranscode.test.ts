@@ -218,12 +218,16 @@ describe('toWavBuffer', () => {
     child.stdin = fakeStdin();
     child.kill = jest.fn();
 
+    // Each chunk is over half the ceiling, so the second crosses it -
+    // simulates a duration cap that, for whatever reason, did not stop the
+    // stream.
+    const half = Buffer.alloc(Math.ceil(MAX_DECODE_STDOUT_BYTES / 2) + 1);
+
     mockSpawn.mockImplementation(() => {
       process.nextTick(() => {
-        // Two chunks whose combined size crosses the ceiling - simulates a
-        // duration cap that, for whatever reason, did not stop the stream.
-        const half = Buffer.alloc(Math.ceil(MAX_DECODE_STDOUT_BYTES / 2) + 1);
         child.stdout.emit('data', half);
+        child.stdout.emit('data', half);
+        // A real SIGKILL does not stop bytes already in flight from arriving.
         child.stdout.emit('data', half);
         // A real SIGKILL still delivers a 'close' event; the promise must
         // reject from the size check rather than resolving with partial data.
@@ -232,7 +236,41 @@ describe('toWavBuffer', () => {
       return child;
     });
 
-    await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow(/exceeded/);
+    // Rejecting and killing are necessary but nowhere near sufficient: both
+    // still hold if the implementation accumulates every chunk and only then
+    // rejects, which is the very bug the ceiling exists to prevent. What the
+    // ceiling actually promises is that accumulation stays bounded, so pin
+    // the retained byte count exactly. Only the first chunk may be held: the
+    // second is refused because it would cross the ceiling, and the third
+    // arrives after the kill.
+    await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow(
+      `killed holding ${half.length} bytes`
+    );
     expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('retains everything up to the ceiling without killing', async () => {
+    // The boundary from the other side, so the exact-accumulation assertion
+    // above cannot be satisfied by an implementation that simply drops more
+    // than it should.
+    const exact = Buffer.alloc(MAX_DECODE_STDOUT_BYTES);
+    const child = new EventEmitter() as any;
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = fakeStdin();
+    child.kill = jest.fn();
+
+    mockSpawn.mockImplementation(() => {
+      process.nextTick(() => {
+        child.stdout.emit('data', exact);
+        child.emit('close', 0);
+      });
+      return child;
+    });
+
+    const result = await toWavBuffer(Buffer.from('big'));
+
+    expect(result.length).toBe(MAX_DECODE_STDOUT_BYTES);
+    expect(child.kill).not.toHaveBeenCalled();
   });
 });

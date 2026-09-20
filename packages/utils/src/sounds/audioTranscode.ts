@@ -67,6 +67,7 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
     let killedForSize = false;
+    let bytesHeldAtKill = 0;
 
     ffmpeg.stdout.on('data', (chunk: Buffer) => {
       if (killedForSize) return;
@@ -77,6 +78,14 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
       // counted bytes it then went on to discard.
       if (stdoutBytes + chunk.length > MAX_DECODE_STDOUT_BYTES) {
         killedForSize = true;
+        // Measured off the chunks themselves rather than read from
+        // `stdoutBytes`. The two can only disagree if accumulation has drifted
+        // away from the ceiling that is supposed to bound it - which is
+        // exactly the failure this number needs to make visible, and a running
+        // counter would keep reporting the reassuring figure while the array
+        // grew past it. Only ever computed on this path, so the walk costs
+        // nothing in normal operation.
+        bytesHeldAtKill = stdoutChunks.reduce((total, held) => total + held.length, 0);
         // Release what was accumulated here, not when the promise finally
         // rejects. SIGKILL, the child's exit and 'close' are several ticks
         // apart; holding megabytes across that gap is exactly what this
@@ -94,7 +103,7 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
       if (killedForSize) {
         reject(
           new Error(
-            `ffmpeg output exceeded ${MAX_DECODE_STDOUT_BYTES} bytes before the -t ${MAX_DECODE_SECONDS}s cap stopped it`
+            `ffmpeg output exceeded ${MAX_DECODE_STDOUT_BYTES} bytes before the -t ${MAX_DECODE_SECONDS}s cap stopped it; killed holding ${bytesHeldAtKill} bytes`
           )
         );
         return;
