@@ -202,6 +202,86 @@ describe('describeAudio', () => {
 
     await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.not.toBeNull();
     expect(create.mock.calls[0][0]).toMatchObject({ response_format: { type: 'json_object' } });
+    // The happy path pays nothing for the fallback: one request, no retry.
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The SDK's types accept `response_format`; that proves nothing about the
+   * endpoint, which is how the plain Readable, the retired model name and the
+   * empty content type all shipped. If gpt-audio-1.5 refuses the parameter,
+   * `create` throws, the outer catch returns null and every clip in the
+   * library fails - the exact outage this pipeline keeps having. So the
+   * rejection is survived rather than gambled on.
+   */
+  describe('an API that refuses the JSON-object constraint outright', () => {
+    /** The 400 the SDK surfaces for an unsupported parameter. */
+    function unsupportedParameterError() {
+      return Object.assign(
+        new Error("400 Unsupported parameter: 'response_format' is not supported with this model."),
+        { status: 400, error: { param: 'response_format' } }
+      );
+    }
+
+    it('retries once without the parameter and returns the description', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toEqual({
+        kind: 'sound',
+        caption: 'a thud',
+        tags: ['thud'],
+      });
+
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls[0][0]).toHaveProperty('response_format');
+      // The retry drops only that one parameter - the audio still has to go.
+      const retried = create.mock.calls[1][0];
+      expect(retried).not.toHaveProperty('response_format');
+      expect(retried.messages).toEqual(create.mock.calls[0][0].messages);
+      expect(retried.model).toBe('test-model');
+    });
+
+    it('pays the rejected request once per process, not once per clip', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'one.ogg')).resolves.not.toBeNull();
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'two.ogg')).resolves.not.toBeNull();
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'three.ogg')).resolves.not.toBeNull();
+
+      // 2 for the first clip, then 1 each - not 2 each.
+      expect(create).toHaveBeenCalledTimes(4);
+      for (const call of create.mock.calls.slice(1)) {
+        expect(call[0]).not.toHaveProperty('response_format');
+      }
+      // Visible, but not a line per clip.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('test-model');
+    });
+
+    it('does not retry a 400 that is about something else', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(
+        Object.assign(new Error('400 Invalid value for model'), { status: 400 })
+      );
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(1);
+      // And the memo is untouched: the next clip still asks for JSON mode.
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'next.ogg')).resolves.not.toBeNull();
+      expect(create.mock.calls[1][0]).toHaveProperty('response_format');
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up rather than looping when the retry fails too', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+      create.mockRejectedValueOnce(new Error('rate limited'));
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('logs an excerpt of a reply it could not parse', async () => {

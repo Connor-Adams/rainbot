@@ -184,13 +184,20 @@ interface AudioChatCompletionRequest {
    * `Shared.ResponseFormatJSONObject` (`type: 'json_object'`), one of the
    * three members of the `response_format` union on
    * node_modules/openai/resources/chat/completions/completions.d.ts:1117 -
-   * so, like the audio `format` union below, a typo still fails to compile
+   * so, like the audio format union below, a typo still fails to compile
    * without importing the optional package's types.
    *
-   * The parser stays tolerant regardless: this is a request, and a model that
-   * ignores or does not support it must not take the pipeline down with it.
+   * Optional because the API may refuse it outright. The SDK's *types*
+   * accepting it proves nothing - they accepted the plain `Readable`, the
+   * retired model name and the empty content type too - and whether
+   * `gpt-audio-1.5` takes the parameter at the endpoint is not something this
+   * repo has verified. A sibling in the same family (`gpt-audio-mini`) is
+   * publicly reported to reject it, and the model's own feature list does not
+   * mention it. `sendDescribeRequest` below handles that rejection; the
+   * tolerant parser does not and never could, since a refused request never
+   * reaches it.
    */
-  response_format: { type: 'json_object' };
+  response_format?: { type: 'json_object' };
   messages: [
     {
       role: 'user';
@@ -200,6 +207,69 @@ interface AudioChatCompletionRequest {
       ];
     },
   ];
+}
+
+/**
+ * Whether the caption model is still believed to accept `response_format`.
+ *
+ * Process-lifetime, deliberately: the answer is a property of the configured
+ * model and the endpoint, not of the clip, so discovering it once and
+ * remembering it means the wasted request is paid a single time per process
+ * rather than on every clip in a library-wide sweep. It resets on restart,
+ * which is exactly when the model may have changed.
+ */
+let jsonModeAccepted = true;
+
+/**
+ * True for the `400` an endpoint returns when it will not take the parameter
+ * at all - distinct from a model that accepts it and then ignores it, which
+ * the tolerant parser already covers.
+ *
+ * Matched narrowly. Any other 400 (a too-large payload, a bad model name) must
+ * keep propagating to the outer catch rather than triggering a pointless
+ * second request, and must not flip the memo for the rest of the process.
+ */
+function rejectsJsonMode(error: unknown): boolean {
+  const err = error as { status?: number; message?: string; error?: { param?: string } };
+  if (err?.status !== 400) return false;
+  return (err.message ?? '').includes('response_format') || err.error?.param === 'response_format';
+}
+
+/**
+ * Sends the description request, retrying once without `response_format` if
+ * the API refuses the parameter.
+ *
+ * Asking for JSON mode is worth doing - it is the difference between a reply
+ * that is usually an object and one that is always an object - but an
+ * unsupported parameter is a hard 400, which means `create` throws, the outer
+ * catch returns null, and every clip in the library fails. That is precisely
+ * the outage these fixes exist to end, so the parameter is sent and its
+ * rejection is survived rather than gambled on.
+ *
+ * The happy path costs nothing: one boolean read, one request, no retry.
+ */
+async function sendDescribeRequest(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any,
+  buildRequest: (withJsonMode: boolean) => AudioChatCompletionRequest,
+  model: string
+): Promise<unknown> {
+  try {
+    return await client.chat.completions.create(buildRequest(jsonModeAccepted));
+  } catch (error) {
+    if (!jsonModeAccepted || !rejectsJsonMode(error)) throw error;
+
+    // Once per process, not once per clip: the memo below makes this line
+    // visible without letting it become sweep-wide log spam.
+    jsonModeAccepted = false;
+    log.warn(
+      `${model} refused the JSON-object reply constraint (${(error as Error).message}) - ` +
+        `retrying without it and omitting it for the rest of this process. ` +
+        `The reply parser tolerates prose around the object either way.`
+    );
+
+    return await client.chat.completions.create(buildRequest(false));
+  }
 }
 
 /**
@@ -282,28 +352,34 @@ export async function describeAudio(
     // set to the same number could never fire, and one set lower would be a
     // new policy silently rejecting clips the decode cap allows.
 
-    const request: AudioChatCompletionRequest = {
-      model: config.soundCaptionModel,
-      modalities: ['text'],
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: DESCRIBE_PROMPT },
-            {
-              type: 'input_audio',
-              input_audio: {
-                data: wavBuffer.toString('base64'),
-                format: 'wav',
+    // Built on demand so the retry can send the same body minus the one
+    // parameter, without re-encoding the audio.
+    const audioData = wavBuffer.toString('base64');
+    const buildRequest = (withJsonMode: boolean): AudioChatCompletionRequest => {
+      const request: AudioChatCompletionRequest = {
+        model: config.soundCaptionModel,
+        modalities: ['text'],
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: DESCRIBE_PROMPT },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: audioData,
+                  format: 'wav',
+                },
               },
-            },
-          ],
-        },
-      ],
+            ],
+          },
+        ],
+      };
+      if (withJsonMode) request.response_format = { type: 'json_object' };
+      return request;
     };
 
-    const response = await client.chat.completions.create(request);
+    const response = await sendDescribeRequest(client, buildRequest, config.soundCaptionModel);
 
     const reply = (response as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]
       ?.message?.content;
