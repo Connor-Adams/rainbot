@@ -63,11 +63,11 @@ describe('trimHallucinations', () => {
 describe('transcribeSpeech', () => {
   afterEach(() => jest.resetModules());
 
-  it('returns null when no API key is configured', async () => {
+  it('reports failure when no API key is configured', async () => {
     jest.resetModules();
     jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: undefined }) }));
     const { transcribeSpeech } = require('../speechTranscript');
-    await expect(transcribeSpeech(Buffer.from('x'), 'a.ogg')).resolves.toBeNull();
+    await expect(transcribeSpeech(Buffer.from('x'), 'a.ogg')).resolves.toEqual({ ok: false });
   });
 
   /**
@@ -106,9 +106,10 @@ describe('transcribeSpeech', () => {
     });
 
     const { transcribeSpeech } = require('../speechTranscript');
-    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toBe(
-      'you are gay'
-    );
+    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toEqual({
+      ok: true,
+      transcript: 'you are gay',
+    });
 
     expect(received['file']).toBeDefined();
     expect(uploads.isUploadable(received['file'])).toBe(true);
@@ -124,11 +125,32 @@ describe('transcribeSpeech', () => {
     mockOpenAI(received, { text: 'hello' });
 
     const { transcribeSpeech } = require('../speechTranscript');
-    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toBe('hello');
+    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toEqual({
+      ok: true,
+      transcript: 'hello',
+    });
     expect((received['file'] as { name?: string }).name).toBe('clip.ogg');
   });
 
-  it('returns null when the SDK rejects the request', async () => {
+  it('reports a genuinely empty transcript (not a failure) when every segment is trimmed away', async () => {
+    jest.resetModules();
+    jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+    const received: Record<string, unknown> = {};
+    // A clip whose only spoken content is hallucination-blacklisted ("you") -
+    // Whisper succeeds, but trimHallucinations legitimately reduces it to
+    // nothing. This must be distinguishable from a failed request.
+    mockOpenAI(received, {
+      segments: [{ text: 'you', no_speech_prob: 0.01, avg_logprob: -0.1 }],
+    });
+
+    const { transcribeSpeech } = require('../speechTranscript');
+    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toEqual({
+      ok: true,
+      transcript: null,
+    });
+  });
+
+  it('reports failure when the SDK rejects the request', async () => {
     jest.resetModules();
     jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
     jest.doMock('openai', () => ({
@@ -145,6 +167,8 @@ describe('transcribeSpeech', () => {
     }));
 
     const { transcribeSpeech } = require('../speechTranscript');
-    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toBeNull();
+    await expect(transcribeSpeech(Buffer.from('audio bytes'), 'clip.ogg')).resolves.toEqual({
+      ok: false,
+    });
   });
 });

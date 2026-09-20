@@ -52,17 +52,38 @@ export async function analyzeSound(
   if (!description) return null;
 
   // A stored transcript of NULL means "this clip has no speech in it". A clip
-  // classified speech/mixed whose transcription failed is not that, and writing
-  // the row anyway would record the failure as a finished analysis: the sweep
-  // skips clips whose source_size is unchanged, so it would never be retried.
+  // classified speech/mixed whose transcription attempt *failed* is not
+  // that - writing the row anyway would record the failure as a finished
+  // analysis, and the sweep skips clips whose source_size is unchanged, so it
+  // would never be retried.
+  //
+  // A clip whose transcription attempt *succeeded* but found nothing usable
+  // (every segment fell to the hallucination trim - e.g. the whole clip was
+  // just "you") is different: it is genuinely done, and re-running it every
+  // sweep forever would never produce a different answer. That row is stored
+  // like any other, but `kind` is downgraded to 'sound' first - `speech` or
+  // `mixed` with a NULL transcript would assert both "has speech" and "has no
+  // speech" about the same row, which is exactly the invariant
+  // docs/superpowers/specs/2026-09-19-soundboard-semantic-search-design.md
+  // documents transcript IS NULL as meaning. 'sound' + NULL is the only
+  // combination that is actually true here: whatever the classifier heard,
+  // Whisper found no speech worth keeping.
   let transcript: string | null = null;
-  if (description.kind !== 'sound') {
-    transcript = await transcribeSpeech(buffer, name);
-    if (transcript === null) {
+  let kind = description.kind;
+  if (kind !== 'sound') {
+    const result = await transcribeSpeech(buffer, name);
+    if (!result.ok) {
       log.warn(
-        `Transcription produced nothing for ${name} (classified ${description.kind}) - leaving it unanalyzed so the sweep retries it`
+        `Transcription failed for ${name} (classified ${kind}) - leaving it unanalyzed so the sweep retries it`
       );
       return null;
+    }
+    transcript = result.transcript;
+    if (transcript === null) {
+      log.info(
+        `Transcription of ${name} found no usable speech (classified ${kind}) - storing as sound`
+      );
+      kind = 'sound';
     }
   }
 
@@ -76,7 +97,7 @@ export async function analyzeSound(
 
   const analysis: SoundAnalysis = {
     soundName: name,
-    kind: description.kind,
+    kind,
     transcript,
     caption: description.caption,
     tags: description.tags,

@@ -58,12 +58,13 @@ describe('analyzeSound', () => {
 
   it('transcribes a clip classified as speech', async () => {
     mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a man yells', tags: ['yell'] });
-    mockTranscribeSpeech.mockResolvedValue('you are gay');
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: 'you are gay' });
 
     const result = await analyzeSound('yougay.ogg');
 
     expect(mockTranscribeSpeech).toHaveBeenCalledTimes(1);
     expect(result?.transcript).toBe('you are gay');
+    expect(result?.kind).toBe('speech');
   });
 
   it('transcribes a mixed clip and keeps both fields', async () => {
@@ -72,12 +73,13 @@ describe('analyzeSound', () => {
       caption: 'shouting over a beat',
       tags: ['shout'],
     });
-    mockTranscribeSpeech.mockResolvedValue('lets go');
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: 'lets go' });
 
     const result = await analyzeSound('hype.ogg');
 
     expect(result?.transcript).toBe('lets go');
     expect(result?.caption).toBe('shouting over a beat');
+    expect(result?.kind).toBe('mixed');
   });
 
   it('folds the caption and tags into the search document', async () => {
@@ -93,24 +95,23 @@ describe('analyzeSound', () => {
     expect(result?.searchDoc).toContain('blast');
   });
 
-  it('writes nothing when a speech clip cannot be transcribed', async () => {
+  it('writes nothing when transcription of a speech clip fails', async () => {
     mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a man yells', tags: ['yell'] });
-    mockTranscribeSpeech.mockResolvedValue(null);
+    mockTranscribeSpeech.mockResolvedValue({ ok: false });
 
-    // A NULL transcript means "no speech present". Recording that for a clip
-    // classified as speech would be the opposite of what happened, and the
-    // sweep would never revisit it.
+    // A failed attempt is not the same as a clip with no speech, and must
+    // leave no row so the sweep retries it.
     await expect(analyzeSound('yougay.ogg')).resolves.toBeNull();
     expect(mockUpsertAnalysis).not.toHaveBeenCalled();
   });
 
-  it('writes nothing when a mixed clip cannot be transcribed', async () => {
+  it('writes nothing when transcription of a mixed clip fails', async () => {
     mockDescribeAudio.mockResolvedValue({
       kind: 'mixed',
       caption: 'shouting over a beat',
       tags: ['shout'],
     });
-    mockTranscribeSpeech.mockResolvedValue(null);
+    mockTranscribeSpeech.mockResolvedValue({ ok: false });
 
     await expect(analyzeSound('hype.ogg')).resolves.toBeNull();
     expect(mockUpsertAnalysis).not.toHaveBeenCalled();
@@ -122,6 +123,43 @@ describe('analyzeSound', () => {
     const result = await analyzeSound('thud.ogg');
 
     expect(result?.transcript).toBeNull();
+    expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores a row and downgrades kind to sound when a speech clip transcribes to nothing', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'speech',
+      caption: 'a man mutters',
+      tags: ['mutter'],
+    });
+    // The transcription attempt succeeded, but every segment was trimmed away
+    // (e.g. the only word was hallucination-blacklisted "you") - this is done,
+    // not failed, and must be stored so the sweep does not retry it forever.
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('mutter.ogg');
+
+    expect(result).not.toBeNull();
+    expect(result?.transcript).toBeNull();
+    // kind='speech' with transcript=NULL would assert the clip both has and
+    // has no speech; 'sound' is the only combination that is actually true.
+    expect(result?.kind).toBe('sound');
+    expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores a row and downgrades kind to sound when a mixed clip transcribes to nothing', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'mixed',
+      caption: 'a beat with faint chatter',
+      tags: ['chatter'],
+    });
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('chatter.ogg');
+
+    expect(result).not.toBeNull();
+    expect(result?.transcript).toBeNull();
+    expect(result?.kind).toBe('sound');
     expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
   });
 
