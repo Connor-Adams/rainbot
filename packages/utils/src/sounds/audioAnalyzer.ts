@@ -8,6 +8,30 @@ const log = createLogger('SOUND-ANALYZER');
 const VALID_KINDS: SoundKind[] = ['speech', 'sound', 'mixed'];
 const MAX_TAGS = 8;
 
+/**
+ * Largest clip this will attempt, applied to both the source object and the
+ * decoded WAV.
+ *
+ * The decoded PCM is base64-encoded inline into a JSON request body, so a clip
+ * costs roughly 3x its decoded size in resident memory before the request is
+ * even serialized. Multer accepts 50MB per upload; a 50MB MP3 decodes to about
+ * 96MB of 16kHz mono PCM, ~128MB base64, on the order of 300MB resident for one
+ * clip - about 1GB at the sweep's concurrency of 3, enough to exhaust a normal
+ * container. The API would reject a body that size anyway.
+ *
+ * 8MB of 16kHz mono 16-bit PCM is about four minutes of audio. A soundboard
+ * clip is seconds long, so this is far above anything legitimate while
+ * capping one clip at roughly 30MB resident and the whole sweep under 100MB.
+ * The same number guards the source buffer, which catches an oversized upload
+ * before ffmpeg is even spawned; a compressed file that slips under it is
+ * caught again after decoding.
+ */
+export const MAX_ANALYZABLE_BYTES = 8 * 1024 * 1024;
+
+function describeSize(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export const DESCRIBE_PROMPT = `You are cataloguing short audio clips for a Discord soundboard so people can search for them later.
 
 Listen to the clip and reply with JSON only, no prose and no code fence:
@@ -96,6 +120,13 @@ export async function describeAudio(
     return null;
   }
 
+  if (buffer.length > MAX_ANALYZABLE_BYTES) {
+    log.warn(
+      `Skipping ${filename}: ${describeSize(buffer.length)} exceeds the ${describeSize(MAX_ANALYZABLE_BYTES)} analysis limit`
+    );
+    return null;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let OpenAI: any;
   try {
@@ -116,6 +147,15 @@ export async function describeAudio(
     // extension. A conversion failure falls through to the catch below and
     // returns null like every other failure in this function.
     const wavBuffer = await toWavBuffer(buffer);
+
+    // A small compressed source can still decode to an enormous WAV, so the
+    // limit is re-applied to what is actually about to be base64-encoded.
+    if (wavBuffer.length > MAX_ANALYZABLE_BYTES) {
+      log.warn(
+        `Skipping ${filename}: decodes to ${describeSize(wavBuffer.length)}, over the ${describeSize(MAX_ANALYZABLE_BYTES)} analysis limit`
+      );
+      return null;
+    }
 
     const request: AudioChatCompletionRequest = {
       model: config.soundCaptionModel,
