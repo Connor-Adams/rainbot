@@ -277,22 +277,62 @@ describe('transcribeSpeech', () => {
       // Opus-in-Ogg: `opus` is absent from the API's supported-extension list
       // while `ogg` is on it, and the container really is Ogg.
       { filename: 'clip.opus', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'clip.ogg' },
-      { filename: 'clip.webm', bytes: HEADS.webm, contentType: 'audio/webm', uploadName: 'clip.webm' },
+      {
+        filename: 'clip.webm',
+        bytes: HEADS.webm,
+        contentType: 'audio/webm',
+        uploadName: 'clip.webm',
+      },
       { filename: 'clip.mp3', bytes: HEADS.mp3, contentType: 'audio/mpeg', uploadName: 'clip.mp3' },
       { filename: 'clip.wav', bytes: HEADS.wav, contentType: 'audio/wav', uploadName: 'clip.wav' },
       { filename: 'clip.m4a', bytes: HEADS.m4a, contentType: 'audio/mp4', uploadName: 'clip.m4a' },
-      { filename: 'clip.flac', bytes: HEADS.flac, contentType: 'audio/flac', uploadName: 'clip.flac' },
+      {
+        filename: 'clip.flac',
+        bytes: HEADS.flac,
+        contentType: 'audio/flac',
+        uploadName: 'clip.flac',
+      },
       // The transcoded copy behind an original name - what `getSoundBuffer`
       // hands back for most of the pre-transcode library. The bytes win.
-      { filename: 'laugh.mp3', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'laugh.ogg' },
-      { filename: 'laugh.wav', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'laugh.ogg' },
-      { filename: 'laugh.flac', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'laugh.ogg' },
+      {
+        filename: 'laugh.mp3',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
+      {
+        filename: 'laugh.wav',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
+      {
+        filename: 'laugh.flac',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
       // Unidentifiable bytes fall back to the name, which must still declare
       // something the API accepts - never an empty type, never octet-stream -
       // and carry a name it accepts too, since it gates on both.
-      { filename: 'clip.aiff', bytes: HEADS.unidentified, contentType: 'audio/ogg', uploadName: 'clip.ogg' },
-      { filename: 'clip', bytes: HEADS.unidentified, contentType: 'audio/ogg', uploadName: 'clip.ogg' },
-      { filename: 'clip.mp3', bytes: HEADS.unidentified, contentType: 'audio/mpeg', uploadName: 'clip.mp3' },
+      {
+        filename: 'clip.aiff',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/ogg',
+        uploadName: 'clip.ogg',
+      },
+      {
+        filename: 'clip',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/ogg',
+        uploadName: 'clip.ogg',
+      },
+      {
+        filename: 'clip.mp3',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/mpeg',
+        uploadName: 'clip.mp3',
+      },
       // Case is not part of the answer, and an already-correct name is not
       // rewritten just to change its case.
       { filename: 'CLIP.OPUS', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'CLIP.ogg' },
@@ -302,21 +342,22 @@ describe('transcribeSpeech', () => {
     it.each(cases)(
       'sends $filename as $contentType',
       async ({ filename, bytes, contentType, uploadName }) => {
-      jest.resetModules();
-      jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
-      const received: Record<string, unknown> = {};
-      mockOpenAI(received, { text: 'hello' });
+        jest.resetModules();
+        jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+        const received: Record<string, unknown> = {};
+        mockOpenAI(received, { text: 'hello' });
 
-      const { transcribeSpeech } = require('../speechTranscript');
-      await expect(transcribeSpeech(bytes, filename)).resolves.toEqual({
-        ok: true,
-        transcript: 'hello',
-      });
+        const { transcribeSpeech } = require('../speechTranscript');
+        await expect(transcribeSpeech(bytes, filename)).resolves.toEqual({
+          ok: true,
+          transcript: 'hello',
+        });
 
-      const file = received['file'] as { type?: string; name?: string };
-      expect(file.type).toBe(contentType);
-      expect(file.name).toBe(uploadName);
-    });
+        const file = received['file'] as { type?: string; name?: string };
+        expect(file.type).toBe(contentType);
+        expect(file.name).toBe(uploadName);
+      }
+    );
 
     it('never leaves the content type empty', async () => {
       jest.resetModules();
