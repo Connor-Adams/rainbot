@@ -66,12 +66,25 @@ If there is no intelligible speech, say so with "sound". Do not invent words tha
  */
 const MAX_LOGGED_REPLY_CHARS = 300;
 
+/**
+ * How much of the reply is examined to build the excerpt.
+ *
+ * Slicing before flattening matters: flattening first copies the entire reply
+ * - which may be megabytes of refusal - only to throw all but 300 characters
+ * of it away. Collapsing whitespace can only shorten a string, so a window
+ * several times the excerpt length always leaves enough to fill it, even for
+ * a reply that is mostly indentation.
+ */
+const REPLY_SCAN_CHARS = MAX_LOGGED_REPLY_CHARS * 4;
+
 /** A bounded, single-line rendering of a model reply, for logs. */
 function excerptReply(raw: string): string {
-  const flattened = raw.replace(/\s+/g, ' ').trim();
-  return flattened.length > MAX_LOGGED_REPLY_CHARS
-    ? `${flattened.slice(0, MAX_LOGGED_REPLY_CHARS)}...`
-    : flattened;
+  const flattened = raw.slice(0, REPLY_SCAN_CHARS).replace(/\s+/g, ' ').trim();
+  const excerpt = flattened.slice(0, MAX_LOGGED_REPLY_CHARS);
+  // Elided either because the window itself was trimmed, or because the reply
+  // ran past the window entirely.
+  const elided = excerpt.length < flattened.length || raw.length > REPLY_SCAN_CHARS;
+  return elided ? `${excerpt}...` : excerpt;
 }
 
 /**
@@ -135,19 +148,47 @@ export function parseDescription(raw: string): SoundDescription | null {
   for (const span of jsonObjectSpans(raw)) {
     const description = parseJsonObject(span);
     if (description) return description;
+
+    // The span parsed but is not a description - very often because the model
+    // wrapped one: `{"description": {"kind": "sound", ...}}`. JSON mode makes
+    // that shape more likely, not less, since it guarantees an object without
+    // saying which object. `jsonObjectSpans` only yields depth-zero spans, so
+    // the inner object is never offered on its own and the whole reply was
+    // discarded. One level down is enough to catch the wrapper without
+    // rummaging through arbitrary nesting for something description-shaped.
+    const wrapped = parseWrappedObject(span);
+    if (wrapped) return wrapped;
   }
   return null;
 }
 
-function parseJsonObject(span: string): SoundDescription | null {
+/** Tries the object-valued properties of a span that itself failed to validate. */
+function parseWrappedObject(span: string): SoundDescription | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(span);
   } catch {
     return null;
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
 
-  if (typeof parsed !== 'object' || parsed === null) return null;
+  for (const value of Object.values(parsed as Record<string, unknown>)) {
+    const description = validateDescription(value);
+    if (description) return description;
+  }
+  return null;
+}
+
+function parseJsonObject(span: string): SoundDescription | null {
+  try {
+    return validateDescription(JSON.parse(span));
+  } catch {
+    return null;
+  }
+}
+
+function validateDescription(parsed: unknown): SoundDescription | null {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
   const candidate = parsed as { kind?: unknown; caption?: unknown; tags?: unknown };
 
   if (typeof candidate.kind !== 'string') return null;

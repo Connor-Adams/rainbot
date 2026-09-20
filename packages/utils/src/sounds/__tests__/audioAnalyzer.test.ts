@@ -120,6 +120,41 @@ describe('parseDescription', () => {
     expect(parseDescription('Nothing useful here: {"error":"refused"}')).toBeNull();
   });
 
+  /**
+   * A reply that wraps the description in an outer object. JSON mode makes
+   * this shape likelier, not rarer: it guarantees an object without saying
+   * which object. The scan only yields depth-zero spans, so the outer span
+   * parsed, failed validation, and the inner one was never offered.
+   */
+  describe('a description wrapped in an outer object', () => {
+    it('finds the description one level down', () => {
+      expect(
+        parseDescription('{"description": {"kind":"sound","caption":"a bonk","tags":["bonk"]}}')
+      ).toEqual({ kind: 'sound', caption: 'a bonk', tags: ['bonk'] });
+    });
+
+    it('finds it under any property name, and past ones that do not fit', () => {
+      expect(
+        parseDescription(
+          '{"model":"gpt-audio-1.5","usage":{"tokens":9},"result":{"kind":"speech","caption":"a man yells","tags":[]}}'
+        )?.caption
+      ).toBe('a man yells');
+    });
+
+    it('finds it inside a wrapper surrounded by prose', () => {
+      expect(
+        parseDescription(
+          'Here you go:\n{"description":{"kind":"mixed","caption":"a shout over a beat","tags":["shout"]}}\nHope that helps.'
+        )?.kind
+      ).toBe('mixed');
+    });
+
+    it('still returns null when nothing one level down is a description', () => {
+      expect(parseDescription('{"error":{"code":"refused","message":"no"}}')).toBeNull();
+      expect(parseDescription('{"outer":{"inner":{"kind":"sound","caption":"x"}}}')).toBeNull();
+    });
+  });
+
   it('caps runaway tag lists at eight', () => {
     const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
     expect(
@@ -308,6 +343,22 @@ describe('describeAudio', () => {
     expect(line).not.toContain('\n');
     expect(line.length).toBeLessThan(500);
     expect(line).toContain('...');
+  });
+
+  it('still fills the excerpt when the reply is mostly whitespace', async () => {
+    // The helper slices its window before collapsing whitespace, so that the
+    // whole reply is never copied just to log 300 characters of it. Collapsing
+    // only shortens, so the window has to be wide enough that a padded reply
+    // still yields a useful excerpt rather than a few characters.
+    const reply = `sorry:${'\n '.repeat(400)}${'y'.repeat(400)}`;
+    const { describeAudio, warn } = loadWithStubs(Buffer.alloc(1024), reply);
+
+    await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toBeNull();
+    const line = String(warn.mock.calls[0][0]);
+    expect(line).toContain('sorry:');
+    expect(line).toContain('yyyy');
+    expect(line).toContain('...');
+    expect(line).not.toContain('\n');
   });
 
   it('skips an oversized source without even decoding it', async () => {
