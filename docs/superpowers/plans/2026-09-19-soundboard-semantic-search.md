@@ -27,15 +27,19 @@
 
 Pure string functions, no I/O. This task alone fixes `air horn` → `airhorn.ogg`.
 
+**These live in `@rainbot/shared`, not `@rainbot/utils`.** The dashboard filters locally while the server indexes with the same rules, and the two disagreeing about what `air horn` normalizes to is exactly the bug this feature exists to fix. `@rainbot/shared` has a dual CJS+ESM build precisely so the ESM UI can consume it; `@rainbot/utils` is CJS-only and `ui/package.json` does not depend on it. So the function lives in `shared`, and `@rainbot/utils` re-exports it, leaving every server-side import in later tasks written as `./searchText`.
+
 **Files:**
 
-- Create: `packages/utils/src/sounds/searchText.ts`
-- Test: `packages/utils/src/sounds/__tests__/searchText.test.ts`
+- Create: `packages/shared/src/soundSearchText.ts`
+- Modify: `packages/shared/src/index.ts`
+- Create: `packages/utils/src/sounds/searchText.ts` (a re-export, so later tasks import `./searchText` unchanged)
+- Test: `packages/shared/src/__tests__/soundSearchText.test.ts`
 
 **Interfaces:**
 
 - Consumes: nothing.
-- Produces:
+- Produces, from both `@rainbot/shared` and `@rainbot/utils`:
   - `normalizeForSearch(input: string): string`
   - `humanizeFilename(name: string): string`
   - `buildSearchDoc(parts: SearchDocParts): string`
@@ -43,10 +47,10 @@ Pure string functions, no I/O. This task alone fixes `air horn` → `airhorn.ogg
 
 - [ ] **Step 1: Write the failing test**
 
-Create `packages/utils/src/sounds/__tests__/searchText.test.ts`:
+Create `packages/shared/src/__tests__/soundSearchText.test.ts`:
 
 ```ts
-import { normalizeForSearch, humanizeFilename, buildSearchDoc } from '../searchText';
+import { normalizeForSearch, humanizeFilename, buildSearchDoc } from '../soundSearchText';
 
 describe('normalizeForSearch', () => {
   it('strips every non-alphanumeric character and lowercases', () => {
@@ -102,12 +106,12 @@ describe('buildSearchDoc', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `yarn workspace @rainbot/utils test src/sounds/__tests__/searchText.test.ts`
-Expected: FAIL — `Cannot find module '../searchText'`
+Run: `yarn workspace @rainbot/shared test src/__tests__/soundSearchText.test.ts`
+Expected: FAIL — `Cannot find module '../soundSearchText'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `packages/utils/src/sounds/searchText.ts`:
+Create `packages/shared/src/soundSearchText.ts`:
 
 ```ts
 /**
@@ -162,15 +166,44 @@ export function buildSearchDoc(parts: SearchDocParts): string {
 }
 ```
 
+Add to `packages/shared/src/index.ts`, following the commented-section style already in that file:
+
+```ts
+// Soundboard search text shaping (shared with the ESM UI)
+export { normalizeForSearch, humanizeFilename, buildSearchDoc } from './soundSearchText';
+export type { SearchDocParts } from './soundSearchText';
+```
+
+Create `packages/utils/src/sounds/searchText.ts` as a re-export, so every later task can import `./searchText` without knowing where the code lives:
+
+```ts
+/**
+ * Re-exported from `@rainbot/shared` because the dashboard filters locally
+ * with the same rules the server indexes by, and `@rainbot/shared` is the
+ * only package the ESM UI can import. Two implementations of this would
+ * drift, and the symptom would be search working on the server but not while
+ * typing.
+ */
+export {
+  normalizeForSearch,
+  humanizeFilename,
+  buildSearchDoc,
+  type SearchDocParts,
+} from '@rainbot/shared';
+```
+
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `yarn workspace @rainbot/utils test src/sounds/__tests__/searchText.test.ts`
+Run: `yarn workspace @rainbot/shared test src/__tests__/soundSearchText.test.ts`
 Expected: PASS, 8 tests.
+
+Then confirm the re-export resolves: `yarn build:ts && yarn type-check`
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/utils/src/sounds/searchText.ts packages/utils/src/sounds/__tests__/searchText.test.ts
+git add packages/shared/src/soundSearchText.ts packages/shared/src/index.ts packages/shared/src/__tests__/soundSearchText.test.ts packages/utils/src/sounds/searchText.ts
 git commit -m "feat(sounds): normalize search text so 'air horn' matches airhorn.ogg"
 ```
 
@@ -2600,6 +2633,7 @@ export function useDebouncedValue<T>(value: T, delayMs: number): T {
 Add to the imports:
 
 ```ts
+import { normalizeForSearch } from '@rainbot/shared';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { Sound, SoundSearchResult } from '@/types';
 ```
@@ -2625,8 +2659,9 @@ Replace the `filteredSounds` block (lines 123-128) with:
 const locallyFiltered = visibleSounds.filter((sound: Sound) => {
   const custom = getCustomization(sound.name);
   const searchTarget = `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`;
-  const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return squash(searchTarget).includes(squash(searchQuery));
+  // The shared normalizer, not a local copy - the client filter and the
+  // server index must agree on what "air horn" reduces to.
+  return normalizeForSearch(searchTarget).includes(normalizeForSearch(searchQuery));
 });
 
 const snippets = new Map<string, string | null>(
