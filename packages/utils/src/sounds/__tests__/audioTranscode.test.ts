@@ -44,10 +44,169 @@ function fakeFfmpeg(output: Buffer, code = 0, stderrText = '') {
 import {
   toWavBuffer,
   wasDecodeTruncated,
+  patchPipedWavSizes,
   MAX_DECODE_SECONDS,
   MAX_DECODE_STDOUT_BYTES,
   DECODED_BYTES_PER_SECOND,
 } from '../audioTranscode';
+
+const UNKNOWN = 0xffffffff;
+
+/** A `fmt ` chunk of the shape ffmpeg emits for 16kHz mono `pcm_s16le`. */
+function fmtChunk(): Buffer {
+  const chunk = Buffer.alloc(8 + 16);
+  chunk.write('fmt ', 0, 'latin1');
+  chunk.writeUInt32LE(16, 4);
+  chunk.writeUInt16LE(1, 8); // PCM
+  chunk.writeUInt16LE(1, 10); // mono
+  chunk.writeUInt32LE(16000, 12);
+  chunk.writeUInt32LE(32000, 16);
+  chunk.writeUInt16LE(2, 20);
+  chunk.writeUInt16LE(16, 22);
+  return chunk;
+}
+
+/** The `LIST`/`INFO` chunk real ffmpeg writes between `fmt ` and `data`. */
+function listChunk(): Buffer {
+  const body = Buffer.concat([
+    Buffer.from('INFO', 'latin1'),
+    Buffer.from('ISFT', 'latin1'),
+    (() => {
+      const size = Buffer.alloc(4);
+      size.writeUInt32LE(14, 0);
+      return size;
+    })(),
+    Buffer.from('Lavf62.3.100\0\0', 'latin1'),
+  ]);
+  const header = Buffer.alloc(8);
+  header.write('LIST', 0, 'latin1');
+  header.writeUInt32LE(body.length, 4);
+  return Buffer.concat([header, body]);
+}
+
+/**
+ * A WAV laid out the way ffmpeg writes one to a non-seekable pipe: both size
+ * fields hold the unknown-length sentinel.
+ */
+function pipedStyleWav(payload: Buffer, middle: Buffer[] = []): Buffer {
+  const dataHeader = Buffer.alloc(8);
+  dataHeader.write('data', 0, 'latin1');
+  dataHeader.writeUInt32LE(UNKNOWN, 4);
+
+  const riff = Buffer.alloc(12);
+  riff.write('RIFF', 0, 'latin1');
+  riff.writeUInt32LE(UNKNOWN, 4);
+  riff.write('WAVE', 8, 'latin1');
+
+  return Buffer.concat([riff, fmtChunk(), ...middle, dataHeader, payload]);
+}
+
+/** The offset of the `data` chunk's size field, found by walking the chunks. */
+function dataSizeOffset(wav: Buffer): number {
+  let offset = 12;
+  while (offset + 8 <= wav.length) {
+    const id = wav.subarray(offset, offset + 4).toString('latin1');
+    if (id === 'data') return offset + 4;
+    const size = wav.readUInt32LE(offset + 4);
+    offset += 8 + size + (size % 2);
+  }
+  throw new Error('no data chunk');
+}
+
+/**
+ * ffmpeg cannot seek backwards on a pipe, so it cannot patch the RIFF header
+ * after writing the audio and declares ~4 GiB instead. Those bytes are base64'd
+ * straight into an `input_audio` part declared `format: 'wav'`.
+ *
+ * No real ffmpeg is spawned here: the layouts below are the ones ffmpeg 8.0.1
+ * was observed to produce, reconstructed byte for byte.
+ */
+describe('patchPipedWavSizes', () => {
+  it('replaces both unknown-length sentinels with the real lengths', () => {
+    const payload = Buffer.alloc(64000, 7);
+    const wav = pipedStyleWav(payload);
+    expect(wav.readUInt32LE(4)).toBe(UNKNOWN);
+    expect(wav.readUInt32LE(dataSizeOffset(wav))).toBe(UNKNOWN);
+
+    const patched = patchPipedWavSizes(wav);
+
+    expect(patched.readUInt32LE(4)).toBe(patched.length - 8);
+    expect(patched.readUInt32LE(dataSizeOffset(patched))).toBe(payload.length);
+    // The audio itself is untouched, and so is the byte length that
+    // `wasDecodeTruncated` reads.
+    expect(patched.length).toBe(wav.length);
+    expect(patched.subarray(patched.length - payload.length)).toEqual(payload);
+  });
+
+  it('patches a layout with a LIST chunk before data', () => {
+    // Real ffmpeg 8.0.1 output is not the canonical 44-byte header: it writes
+    // a LIST/INFO chunk naming its own version, which put `data` at byte 70 in
+    // the measured case. A fixed-offset patch writes over that chunk.
+    const payload = Buffer.alloc(1024, 3);
+    const list = listChunk();
+    const wav = pipedStyleWav(payload, [list]);
+    const before = Buffer.from(wav.subarray(36, 36 + list.length));
+    expect(dataSizeOffset(wav)).toBeGreaterThan(36 + list.length);
+
+    const patched = patchPipedWavSizes(wav);
+
+    expect(patched.readUInt32LE(4)).toBe(patched.length - 8);
+    expect(patched.readUInt32LE(dataSizeOffset(patched))).toBe(payload.length);
+    // The LIST chunk survives intact.
+    expect(patched.subarray(36, 36 + list.length)).toEqual(before);
+  });
+
+  it('leaves a buffer that is not RIFF/WAVE alone', () => {
+    const notWav = Buffer.from('OggS\x00\x02not a wav at all, really', 'latin1');
+    const before = Buffer.from(notWav);
+    expect(patchPipedWavSizes(notWav)).toEqual(before);
+
+    // RIFF, but not a WAVE - an AVI, say.
+    const riffNotWave = Buffer.concat([
+      Buffer.from('RIFF', 'latin1'),
+      Buffer.alloc(4, 0xff),
+      Buffer.from('AVI ', 'latin1'),
+      Buffer.alloc(16, 1),
+    ]);
+    const avi = Buffer.from(riffNotWave);
+    expect(patchPipedWavSizes(riffNotWave)).toEqual(avi);
+
+    // Too short to hold a RIFF header at all.
+    expect(patchPipedWavSizes(Buffer.alloc(0))).toEqual(Buffer.alloc(0));
+  });
+
+  it('leaves real declared lengths alone rather than rewriting them', () => {
+    // A WAV that was written to a seekable output already carries true sizes,
+    // and may have chunks after `data`. Rewriting its data size to "everything
+    // to the end of the buffer" would be corruption.
+    const payload = Buffer.alloc(512, 9);
+    const trailing = listChunk();
+    const wav = pipedStyleWav(payload, []);
+    wav.writeUInt32LE(payload.length, dataSizeOffset(wav));
+    wav.writeUInt32LE(wav.length - 8, 4);
+    const wellFormed = Buffer.concat([wav, trailing]);
+    wellFormed.writeUInt32LE(wellFormed.length - 8, 4);
+    const before = Buffer.from(wellFormed);
+
+    expect(patchPipedWavSizes(wellFormed)).toEqual(before);
+  });
+
+  it('leaves a WAVE with no data chunk alone', () => {
+    const wav = Buffer.concat([
+      Buffer.from('RIFF', 'latin1'),
+      (() => {
+        const size = Buffer.alloc(4);
+        size.writeUInt32LE(UNKNOWN, 0);
+        return size;
+      })(),
+      Buffer.from('WAVE', 'latin1'),
+      fmtChunk(),
+    ]);
+    const before = Buffer.from(wav);
+
+    expect(patchPipedWavSizes(wav)).toEqual(before);
+  });
+});
 
 describe('wasDecodeTruncated', () => {
   const cap = MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
@@ -299,5 +458,38 @@ describe('toWavBuffer', () => {
 
     expect(result.length).toBe(MAX_DECODE_STDOUT_BYTES);
     expect(child.kill).not.toHaveBeenCalled();
+  });
+
+  it('hands back a WAV whose declared lengths match its bytes', () => {
+    // The wiring, not the patch: a decode that resolves must never hand the
+    // caller the ~4 GiB header ffmpeg writes to a pipe, because that buffer
+    // goes straight into an `input_audio` part declared `format: 'wav'`.
+    const payload = Buffer.alloc(32000, 5);
+    const piped = pipedStyleWav(payload, [listChunk()]);
+    mockSpawn.mockImplementation(() => fakeFfmpeg(piped));
+
+    return toWavBuffer(Buffer.from('fake-ogg-bytes')).then((result) => {
+      expect(result.readUInt32LE(4)).toBe(result.length - 8);
+      expect(result.readUInt32LE(dataSizeOffset(result))).toBe(payload.length);
+    });
+  });
+
+  it('does not disturb the length the truncation check reads', async () => {
+    // `wasDecodeTruncated` compares `wav.length` against the duration cap, and
+    // the header repair must not move that number in either direction.
+    const cap = MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
+    const atCap = pipedStyleWav(Buffer.alloc(cap, 1), [listChunk()]);
+    mockSpawn.mockImplementation(() => fakeFfmpeg(atCap));
+
+    const capped = await toWavBuffer(Buffer.from('long'));
+    expect(capped.length).toBe(atCap.length);
+    expect(wasDecodeTruncated(capped)).toBe(true);
+
+    const shortWav = pipedStyleWav(Buffer.alloc(2 * DECODED_BYTES_PER_SECOND, 1), [listChunk()]);
+    mockSpawn.mockImplementation(() => fakeFfmpeg(shortWav));
+
+    const short = await toWavBuffer(Buffer.from('short'));
+    expect(short.length).toBe(shortWav.length);
+    expect(wasDecodeTruncated(short)).toBe(false);
   });
 });
