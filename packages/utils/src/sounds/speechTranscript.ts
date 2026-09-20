@@ -64,7 +64,6 @@ export async function transcribeSpeech(buffer: Buffer, filename: string): Promis
   let OpenAI: any;
   try {
     // openai is an optionalDependency; a missing package must degrade quietly.
-     
     ({ OpenAI } = require('openai'));
   } catch {
     log.warn('openai package not installed - skipping transcription');

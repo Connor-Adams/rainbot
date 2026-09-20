@@ -58,7 +58,6 @@ describe('transcribeSpeech', () => {
   it('returns null when no API key is configured', async () => {
     jest.resetModules();
     jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: undefined }) }));
-     
     const { transcribeSpeech } = require('../speechTranscript');
     await expect(transcribeSpeech(Buffer.from('x'), 'a.ogg')).resolves.toBeNull();
   });
