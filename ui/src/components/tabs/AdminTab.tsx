@@ -947,9 +947,18 @@ export default function AdminTab() {
               {lastResult.skipped}
             </div>
           )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">Search Analysis</div>
+          <div className="text-xs text-text-secondary mb-4">
+            Listen to every sound that has changed since it was last analysed and store a
+            description, tags and a transcript so it can be found by what it sounds like or by what
+            is said in it. Leaves audio files untouched.
+          </div>
           <button
             type="button"
-            className="btn btn-primary mt-3"
+            className="btn btn-primary"
             onClick={() => analyzeSweepMutation.mutate({ force: false })}
             disabled={analyzeSweepMutation.isPending}
           >
