@@ -30,7 +30,7 @@ describe('embedText', () => {
     jest.doMock('../../config', () => ({
       loadConfig: () => ({ openaiApiKey: undefined, soundEmbeddingModel: 'test-model' }),
     }));
-     
+
     const { embedText } = require('../embeddings');
     await expect(embedText('air horn')).resolves.toBeNull();
   });
@@ -40,7 +40,7 @@ describe('embedText', () => {
     jest.doMock('../../config', () => ({
       loadConfig: () => ({ openaiApiKey: 'key', soundEmbeddingModel: 'test-model' }),
     }));
-     
+
     const { embedText } = require('../embeddings');
     await expect(embedText('   ')).resolves.toBeNull();
   });

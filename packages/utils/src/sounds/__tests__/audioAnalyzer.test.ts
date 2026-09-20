@@ -60,7 +60,7 @@ describe('describeAudio', () => {
     jest.doMock('../../config', () => ({
       loadConfig: () => ({ openaiApiKey: undefined, soundCaptionModel: 'test-model' }),
     }));
-     
+
     const { describeAudio } = require('../audioAnalyzer');
     await expect(describeAudio(Buffer.from('x'), 'a.ogg')).resolves.toBeNull();
   });

@@ -46,7 +46,6 @@ export async function embedText(text: string): Promise<number[] | null> {
   // degrades quietly instead of failing type-check or install.
   let OpenAI: any;
   try {
-     
     ({ OpenAI } = require('openai'));
   } catch {
     log.warn('openai package not installed - skipping embeddings');
