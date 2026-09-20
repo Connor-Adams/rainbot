@@ -160,6 +160,11 @@ export const soundsApi = {
     api.delete(`/sounds/${encodeURIComponent(name)}/customization`),
   sweepTranscode: (options?: { deleteOriginal?: boolean; limit?: number }) =>
     api.post('/sounds/transcode-sweep', options || {}),
+  sweepStripVideo: (options?: { dryRun?: boolean; limit?: number }) =>
+    api.post<{ stripped: number; archived: number; skipped: number; failed: number }>(
+      '/sounds/strip-video-sweep',
+      options || {}
+    ),
   search: (query: string) => api.get('/sounds/search', { params: { q: query, limit: 100 } }),
   analyzeSweep: (options?: { force?: boolean; limit?: number }) =>
     api.post('/sounds/analyze-sweep', options || {}),

@@ -780,6 +780,27 @@ router.post(
   }
 );
 
+// POST /api/sounds/strip-video-sweep - Re-mux stored Ogg clips that carry a
+// video stream down to audio only, archiving each original first.
+router.post(
+  '/sounds/strip-video-sweep',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const dryRun = req.body?.dryRun === true;
+      const limit = Number(req.body?.limit || 0);
+      const result = await storage.sweepStripSoundVideo({
+        dryRun,
+        limit: Number.isFinite(limit) ? limit : 0,
+      });
+      res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/deploy-commands - Redeploy Discord slash commands
 router.post(
   '/deploy-commands',
