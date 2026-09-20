@@ -17,9 +17,9 @@ const log = createLogger('RAINBOT-AUDIO');
 export function getYtdlpOptions(): Record<string, unknown> {
   const options: Record<string, unknown> = {
     noPlaylist: true,
-    // Warnings stay on: they are the only signal that a JS runtime or PO token
-    // provider is missing, and --no-warnings hid that for months while
-    // playback failed with an unrelated-looking error.
+    // Warnings stay on: they are the only signal that a JS runtime or
+    // extraction component is missing, and --no-warnings hid exactly that for
+    // months while playback failed with an unrelated-looking error.
     quiet: true,
     noCheckCertificates: true,
     // yt-dlp enables only deno by default and calls YouTube extraction without
@@ -34,30 +34,9 @@ export function getYtdlpOptions(): Record<string, unknown> {
   // audio-only formats at all and yt-dlp failed with "Requested format is not
   // available". yt-dlp's own default client list tracks YouTube's changes.
   // YTDLP_EXTRACTOR_ARGS stays available to pin clients around a regression.
-  const extractorArgs: string[] = [];
-
   const pinnedArgs = process.env['YTDLP_EXTRACTOR_ARGS']?.trim() || '';
   if (pinnedArgs) {
-    extractorArgs.push(pinnedArgs);
-  }
-
-  // The bgutil PO token plugin answers YouTube's "Sign in to confirm you're not
-  // a bot" without an account, which is what a datacenter IP otherwise needs
-  // cookies for. Only its http provider works from a pip install - the script
-  // providers report "unavailable" without a checked-out server build - so this
-  // must point at a running provider server. Unset, the plugin tries
-  // http://127.0.0.1:4416, fails to reach it, and yt-dlp warns and carries on.
-  const potBaseUrl = process.env['BGUTIL_POT_BASE_URL']?.trim() || '';
-  if (potBaseUrl) {
-    extractorArgs.push(`youtubepot-bgutilhttp:base_url=${potBaseUrl}`);
-  }
-
-  // dargs repeats the flag for an array, which is how yt-dlp takes more than
-  // one --extractor-args. A lone string keeps the single-arg form.
-  if (extractorArgs.length === 1) {
-    options['extractorArgs'] = extractorArgs[0];
-  } else if (extractorArgs.length > 1) {
-    options['extractorArgs'] = extractorArgs;
+    options['extractorArgs'] = pinnedArgs;
   }
 
   const cookiesPath = process.env['YTDLP_COOKIES'] || '';

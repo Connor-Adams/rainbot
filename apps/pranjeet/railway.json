@@ -3,7 +3,14 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn workspace @rainbot/pranjeet-worker build"
+    "buildCommand": "yarn workspace @rainbot/pranjeet-worker build",
+    "watchPatterns": [
+      "/apps/pranjeet/**",
+      "/packages/**",
+      "/Dockerfile",
+      "/yarn.lock",
+      "/package.json"
+    ]
   },
   "deploy": {
     "startCommand": "node apps/pranjeet/dist/apps/pranjeet/src/index.js",
@@ -14,7 +21,7 @@
     "PRANJEET_TOKEN": "",
     "PRANJEET_PORT": "3002",
     "ORCHESTRATOR_BOT_ID": "",
-    "RAINCLOUD_URL": "http://raincloud.railway.internal:3000",
+    "RAINCLOUD_URL": "http://raincloud.railway.internal:8080",
     "WORKER_SECRET": "${{shared.WORKER_SECRET}}",
     "TTS_PROVIDER": "${{shared.TTS_PROVIDER}}",
     "TTS_API_KEY": "${{shared.TTS_API_KEY}}",
