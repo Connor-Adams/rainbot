@@ -1,0 +1,37 @@
+fix(sounds): decode clips to wav before sending to the audio model
+
+The chat-completions audio input only accepts format: 'wav' | 'mp3'
+(node_modules/openai/resources/chat/completions/completions.d.ts) - it
+is not the same endpoint as Whisper transcriptions, which does accept
+ogg/webm/etc. Since this soundboard transcodes every upload to Ogg
+Opus, audioFormatFor was deriving 'ogg' for virtually every clip,
+OpenAI was rejecting almost every request, describeAudio's catch was
+swallowing the error, and describeAudio silently returned null for
+the whole library while looking like it worked.
+
+Decode every clip to 16kHz mono 16-bit PCM wav via a new ffmpeg-spawn
+helper (audioTranscode.ts, mirroring storage.ts's transcodeToOggOpus)
+and always send format: 'wav'. Deleted audioFormatFor - with a real
+decode step the source extension no longer matters, and a dead
+extension-mapper invites someone to wire it back up later. A
+conversion failure now falls through the same catch as every other
+failure path and returns null.
+
+Also replaced the blanket `as Parameters<...>[0]` cast - which had
+silently discarded the 'wav' | 'mp3' literal check and let the wrong
+format compile clean - with a small local request type that still
+type-checks `format` against that same union.
+
+Fixed a second, related defect: `let OpenAI: typeof import('openai').OpenAI`
+was a compile-time reference into openai's type declarations even
+though openai is an optionalDependency of this package, so a real
+install without it would fail yarn type-check with "Cannot find
+module 'openai'" - the exact failure the lazy require-in-try/catch
+exists to avoid. Switched to an untyped `any` binding at the require
+site only, matching the pattern already used in
+voice/speechRecognition.ts's OpenAISTTProvider.
+
+Added tests for toWavBuffer covering the ffmpeg argument list, the
+success path, a non-zero exit with and without stderr, and the
+process 'error' event - all with child_process mocked, no real
+ffmpeg spawned.

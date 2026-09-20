@@ -75,6 +75,30 @@ const FIRST_CHUNK_OFFSET = 12;
 const CHUNK_HEADER_BYTES = 8;
 
 /**
+ * Where the `data` chunk id starts in a canonical WAV: 12 bytes of
+ * `RIFF`/size/`WAVE` plus a 24-byte `fmt ` chunk. The samples themselves then
+ * begin at 44, which is the header length every "skip 44 bytes" reader in the
+ * world assumes.
+ *
+ * `toWavBuffer` passes `-map_metadata -1 -fflags +bitexact` to hold ffmpeg to
+ * this layout. Without them it interposes a `LIST`/`INFO` chunk carrying its
+ * own build string, measured against ffmpeg 8.0.1:
+ *
+ *   default:                RIFF....WAVEfmt ....LIST....INFOISFT....Lavf62.3.100..data
+ *                           -> `data` at byte 70
+ *   with the two flags:     RIFF....WAVEfmt ....data
+ *                           -> `data` at byte 36
+ *
+ * A reader taking the 44-byte assumption on the first layout reads the literal
+ * text `Lavf62.3.100` as PCM and is misaligned for everything after it. On a
+ * 45-second clip that is inaudible; on a one-second clip the 34 stray bytes and
+ * the shift they cause are a real fraction of the audio, which is the shape of
+ * the production failure - short clips coming back as "I'm unable to listen to
+ * audio" while long ones are described fine.
+ */
+export const CANONICAL_DATA_OFFSET = 36;
+
+/**
  * Repairs the length fields of a WAV that ffmpeg wrote to a pipe.
  *
  * ffmpeg cannot seek backwards on a non-seekable output, so it cannot return
@@ -94,10 +118,12 @@ const CHUNK_HEADER_BYTES = 8;
  * rather than its contents, which is the production symptom.
  *
  * The `data` chunk's offset is found by walking the chunk list, never assumed.
- * Real ffmpeg output is not the canonical 44-byte header: it emits a
- * `LIST`/`INFO` chunk carrying its own version string between `fmt ` and
- * `data`, putting `data` at byte 70 in the measured case. A fixed-offset patch
- * would have written the lengths over that chunk.
+ * `toWavBuffer`'s flags now hold ffmpeg to the canonical layout, so in practice
+ * the walk stops at CANONICAL_DATA_OFFSET on the first iteration - but it stays
+ * a walk. Drop `-map_metadata -1` or run a build that emits some other chunk
+ * and a fixed-offset patch would write the lengths straight over that chunk's
+ * bytes; the walk simply steps past it. The LIST-chunk layout is still covered
+ * by this function's tests for exactly that reason.
  *
  * Only the sentinel is rewritten. A size field that already holds a plausible
  * value is left exactly as it is, so a well-formed WAV - one with trailing
@@ -175,6 +201,14 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
       '1',
       '-c:a',
       'pcm_s16le',
+      // Keep the wav canonical: `data` at byte 36, nothing between `fmt ` and
+      // it. See CANONICAL_DATA_OFFSET - without these, ffmpeg writes a
+      // LIST/INFO chunk naming its own build, and a reader that assumes the
+      // textbook 44-byte header reads that version string as samples.
+      '-map_metadata',
+      '-1',
+      '-fflags',
+      '+bitexact',
       '-f',
       'wav',
       'pipe:1',

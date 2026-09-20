@@ -45,6 +45,7 @@ import {
   toWavBuffer,
   wasDecodeTruncated,
   patchPipedWavSizes,
+  CANONICAL_DATA_OFFSET,
   MAX_DECODE_SECONDS,
   MAX_DECODE_STDOUT_BYTES,
   DECODED_BYTES_PER_SECOND,
@@ -208,6 +209,52 @@ describe('patchPipedWavSizes', () => {
   });
 });
 
+/**
+ * The layout the ffmpeg flags are there to produce.
+ *
+ * Measured against ffmpeg 8.0.1 by piping a one-second `sine=frequency=440`
+ * Opus clip through the exact argument list `toWavBuffer` passes:
+ *
+ *   without the flags:  RIFF....WAVEfmt ....LIST....INFOISFT....Lavf62.3.100..data
+ *                       -> `data` id at byte 70, samples at 78
+ *   with them:          RIFF....WAVEfmt ....data
+ *                       -> `data` id at byte 36, samples at 44
+ *
+ * Reconstructed here byte for byte; no ffmpeg is spawned.
+ */
+describe('canonical wav layout', () => {
+  it('puts the data chunk where a 44-byte-header reader expects it', () => {
+    const payload = Buffer.alloc(32000, 5);
+    const wav = patchPipedWavSizes(pipedStyleWav(payload));
+
+    expect(wav.subarray(CANONICAL_DATA_OFFSET, CANONICAL_DATA_OFFSET + 4).toString('latin1')).toBe(
+      'data'
+    );
+    expect(dataSizeOffset(wav)).toBe(CANONICAL_DATA_OFFSET + 4);
+    // 12 bytes of RIFF/size/WAVE + a 24-byte `fmt ` chunk + 8 bytes of `data`
+    // header is the textbook 44, and the samples start exactly there.
+    expect(CANONICAL_DATA_OFFSET + 8).toBe(44);
+    expect(wav.subarray(44)).toEqual(payload);
+    expect(wav.readUInt32LE(CANONICAL_DATA_OFFSET + 4)).toBe(payload.length);
+  });
+
+  it('is what the LIST-chunk layout breaks, which is the bug being fixed', () => {
+    // The layout ffmpeg emits without `-map_metadata -1`. A reader that skips
+    // 44 bytes lands inside ffmpeg's own version string and stays misaligned.
+    const payload = Buffer.alloc(32000, 5);
+    const stale = patchPipedWavSizes(pipedStyleWav(payload, [listChunk()]));
+
+    expect(
+      stale.subarray(CANONICAL_DATA_OFFSET, CANONICAL_DATA_OFFSET + 4).toString('latin1')
+    ).toBe('LIST');
+    expect(dataSizeOffset(stale)).toBe(70 + 4);
+    expect(stale.subarray(44)).not.toEqual(payload);
+    // The 34 stray bytes are a rounding error across 45 seconds of audio and a
+    // real fraction of a one-second clip - which is why short clips failed.
+    expect(stale.length - 44 - payload.length).toBe(34);
+  });
+});
+
 describe('wasDecodeTruncated', () => {
   const cap = MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
 
@@ -256,6 +303,12 @@ describe('toWavBuffer', () => {
       '1',
       '-c:a',
       'pcm_s16le',
+      // Without these ffmpeg interposes a LIST/INFO chunk holding its build
+      // string, pushing `data` from 36 to 70.
+      '-map_metadata',
+      '-1',
+      '-fflags',
+      '+bitexact',
       '-f',
       'wav',
       'pipe:1',
