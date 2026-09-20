@@ -517,9 +517,16 @@ router.post(
         });
 
         // Analysis runs after the upload has been transcoded, since transcode
-        // rewrites the stored object. Deliberately not awaited: upload latency
-        // must not depend on an audio model.
-        void analyzeSound(filename, { size: file.size }).catch(() => {
+        // rewrites the stored object. No `size` is passed on purpose: multer's
+        // file.size is the pre-transcode upload size, while the sweep compares
+        // the recorded source_size against the stored S3 object's size. Letting
+        // analyzeSound default to the length of the object it actually read
+        // keeps those two in the same unit, so an uploaded clip is not
+        // re-analyzed at full API cost on the next sweep.
+        //
+        // Deliberately not awaited: upload latency must not depend on an audio
+        // model.
+        void analyzeSound(filename).catch(() => {
           /* analysis is best-effort; the sweep will retry it */
         });
       } catch (error) {
