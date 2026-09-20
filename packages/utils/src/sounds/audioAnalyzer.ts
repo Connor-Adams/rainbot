@@ -50,17 +50,94 @@ Listen to the clip and reply with JSON only, no prose and no code fence:
 
 If there is no intelligible speech, say so with "sound". Do not invent words that were not spoken.`;
 
+/**
+ * Characters of a rejected reply to put in the log.
+ *
+ * Enough to see the shape of what came back - a fence, a lead-in sentence, a
+ * refusal - without pasting a whole model response into the log on every
+ * failed clip. The excerpt goes on the existing single warn line rather than
+ * a line of its own, so a library-wide failure costs no more log volume than
+ * it did before, and a refusal is bounded at this length.
+ */
+const MAX_LOGGED_REPLY_CHARS = 300;
+
+/** A bounded, single-line rendering of a model reply, for logs. */
+function excerptReply(raw: string): string {
+  const flattened = raw.replace(/\s+/g, ' ').trim();
+  return flattened.length > MAX_LOGGED_REPLY_CHARS
+    ? `${flattened.slice(0, MAX_LOGGED_REPLY_CHARS)}...`
+    : flattened;
+}
+
+/**
+ * Every balanced `{...}` span in a reply, outermost first, in order.
+ *
+ * The model is asked for bare JSON and `response_format` asks the API to
+ * enforce it, but neither is a guarantee: the original `gpt-4o-audio-preview`
+ * obliged and its replacement does not reliably, wrapping the object in a
+ * lead-in sentence or a fenced block. Requiring the *whole* string to parse
+ * threw all of those away.
+ *
+ * The scan is string-aware. A naive "first `{` to last `}`" - or any regex -
+ * breaks on a caption that contains a brace, which is a caption a soundboard
+ * will eventually produce, and a quoted brace must not open or close a span.
+ * Escapes are tracked so a `\"` inside a string does not end it.
+ *
+ * Several spans are returned rather than one because prose can contain braces
+ * of its own before the real object; the caller tries each until one
+ * validates. Nested objects are not returned separately - only spans that
+ * start at depth zero - so a sub-object can never be mistaken for the reply.
+ */
+function jsonObjectSpans(text: string): string[] {
+  const spans: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+    } else if (char === '{') {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (char === '}') {
+      // A stray closer in prose, with nothing open - ignore it rather than
+      // letting depth go negative and desynchronise every later span.
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        spans.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return spans;
+}
+
 /** Parses a model reply into a description, or null when it is unusable. */
 export function parseDescription(raw: string): SoundDescription | null {
-  const unfenced = raw
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```$/, '')
-    .trim();
+  for (const span of jsonObjectSpans(raw)) {
+    const description = parseJsonObject(span);
+    if (description) return description;
+  }
+  return null;
+}
 
+function parseJsonObject(span: string): SoundDescription | null {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(unfenced);
+    parsed = JSON.parse(span);
   } catch {
     return null;
   }
@@ -96,6 +173,19 @@ export function parseDescription(raw: string): SoundDescription | null {
 interface AudioChatCompletionRequest {
   model: string;
   modalities: ['text'];
+  /**
+   * Asks the API to constrain the reply to a JSON object, rather than hoping
+   * the prompt alone is obeyed. Mirrors the SDK's
+   * `Shared.ResponseFormatJSONObject` (`type: 'json_object'`), one of the
+   * three members of the `response_format` union on
+   * node_modules/openai/resources/chat/completions/completions.d.ts:1117 -
+   * so, like the audio `format` union below, a typo still fails to compile
+   * without importing the optional package's types.
+   *
+   * The parser stays tolerant regardless: this is a request, and a model that
+   * ignores or does not support it must not take the pipeline down with it.
+   */
+  response_format: { type: 'json_object' };
   messages: [
     {
       role: 'user';
@@ -191,6 +281,7 @@ export async function describeAudio(
     const request: AudioChatCompletionRequest = {
       model: config.soundCaptionModel,
       modalities: ['text'],
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'user',
@@ -218,7 +309,14 @@ export async function describeAudio(
     }
 
     const description = parseDescription(reply);
-    if (!description) log.warn(`Unparseable description reply for ${filename}`);
+    // Without the reply itself this line is undiagnosable - it took a dig
+    // through production logs to establish that a model swap, not moderation,
+    // was rejecting the whole library. The excerpt is bounded and flattened
+    // (see MAX_LOGGED_REPLY_CHARS) because the reply may well be a refusal,
+    // and it rides the same single warn line so the log volume is unchanged.
+    if (!description) {
+      log.warn(`Unparseable description reply for ${filename}: ${excerptReply(reply)}`);
+    }
     return description;
   } catch (error) {
     const err = error as Error;
