@@ -13,7 +13,7 @@ describe('sound analysis config', () => {
 
     const { loadConfig } = require('../../config');
     const config = loadConfig(true);
-    expect(config.soundCaptionModel).toBe('gpt-4o-audio-preview');
+    expect(config.soundCaptionModel).toBe('gpt-audio-1.5');
     expect(config.soundEmbeddingModel).toBe('text-embedding-3-small');
   });
 

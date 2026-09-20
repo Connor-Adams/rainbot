@@ -182,7 +182,7 @@ export function loadConfig(forceReload = false): AppConfig {
 
     // Sound analysis configuration (soundboard transcription + search)
     openaiApiKey: process.env['OPENAI_API_KEY'] || process.env['STT_API_KEY'],
-    soundCaptionModel: process.env['SOUND_CAPTION_MODEL'] || 'gpt-4o-audio-preview',
+    soundCaptionModel: process.env['SOUND_CAPTION_MODEL'] || 'gpt-audio-1.5',
     soundEmbeddingModel: process.env['SOUND_EMBEDDING_MODEL'] || 'text-embedding-3-small',
     soundAnalysisEnabled: process.env['SOUND_ANALYSIS_ENABLED'] !== 'false',
   };
