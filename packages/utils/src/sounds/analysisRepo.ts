@@ -17,18 +17,56 @@ const EMBEDDING_DIMENSIONS = 1536;
  */
 let vectorAvailable: boolean | null = null;
 
+/**
+ * The detection currently in flight, so concurrent callers share one probe
+ * rather than each issuing their own CREATE EXTENSION.
+ */
+let detectionInFlight: Promise<boolean> | null = null;
+
 export function isVectorAvailable(): boolean {
   return vectorAvailable === true;
 }
 
 export function resetVectorSupportCache(): void {
   vectorAvailable = null;
+  detectionInFlight = null;
 }
 
-/** Attempts to enable pgvector, and remembers whether it worked. */
+/**
+ * Attempts to enable pgvector, and remembers whether it worked.
+ *
+ * Every path that needs the answer calls this rather than reading the cached
+ * flag directly: the flag resets on each process start, and if only the sweep
+ * ever detected, a redeployed process would write no vector column and would
+ * rank every query in JS until someone happened to run a sweep. Detection is
+ * still one probe per process - the result is cached, and concurrent callers
+ * share the in-flight promise.
+ */
 export async function detectVectorSupport(): Promise<boolean> {
   if (vectorAvailable !== null) return vectorAvailable;
+  if (detectionInFlight) return detectionInFlight;
 
+  detectionInFlight = probeVectorSupport().finally(() => {
+    detectionInFlight = null;
+  });
+  return detectionInFlight;
+}
+
+async function probeVectorSupport(): Promise<boolean> {
+  try {
+    return await runVectorProbe();
+  } catch (error) {
+    // query() answers null rather than throwing when there is no database, so
+    // reaching here means a real SQL failure. Cache the negative so a broken
+    // extension does not re-probe on every search.
+    const err = error as Error;
+    log.warn(`pgvector detection failed - semantic search will rank in JS: ${err.message}`);
+    vectorAvailable = false;
+    return false;
+  }
+}
+
+async function runVectorProbe(): Promise<boolean> {
   const created = await query('CREATE EXTENSION IF NOT EXISTS vector');
   if (!created) {
     log.info('pgvector unavailable - semantic search will rank in JS');
@@ -56,7 +94,12 @@ export async function detectVectorSupport(): Promise<boolean> {
     if (backfilled) {
       log.info('backfilled pgvector embeddings from embedding_json');
     } else {
-      log.info('pgvector embedding backfill skipped - database unavailable');
+      // query() answers null for a missing database *and* for a rejected
+      // statement, so this covers a genuine SQL or cast error too - naming
+      // only the first would send someone looking in the wrong place.
+      log.warn(
+        'pgvector embedding backfill did not run - no database, or the UPDATE was rejected (for example a cast error on stored embedding_json)'
+      );
     }
   }
   return vectorAvailable;
@@ -102,7 +145,7 @@ export async function upsertAnalysis(
     ]
   );
 
-  if (embedding && isVectorAvailable()) {
+  if (embedding && (await detectVectorSupport())) {
     await query(`UPDATE sound_analysis SET embedding = $2::vector WHERE sound_name = $1`, [
       analysis.soundName,
       toVectorLiteral(embedding),
@@ -208,7 +251,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 /** Ranks stored analyses by embedding similarity, in SQL or in JS. */
 export async function vectorSearch(embedding: number[], limit: number): Promise<string[]> {
-  if (isVectorAvailable()) {
+  if (await detectVectorSupport()) {
     const result = await query(
       `SELECT sound_name
          FROM sound_analysis

@@ -70,16 +70,41 @@ describe('upsertAnalysis', () => {
     expect(params).toContainEqual(JSON.stringify([0.1, 0.2]));
   });
 
-  it('writes the pgvector column only once support is detected', async () => {
+  it('detects pgvector itself and writes the vector column, with no sweep first', async () => {
     mockQuery.mockResolvedValue({ rows: [] });
-    await upsertAnalysis(analysis, [0.1, 0.2]);
-    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('::vector'))).toBe(false);
 
-    await detectVectorSupport();
-    mockQuery.mockClear();
-    mockQuery.mockResolvedValue({ rows: [] });
+    // No detectVectorSupport() call here on purpose: this is the state every
+    // freshly started process is in, and a redeploy must not silently stop
+    // populating the vector column until someone runs a sweep.
     await upsertAnalysis(analysis, [0.1, 0.2]);
+
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('CREATE EXTENSION'))).toBe(
+      true
+    );
     expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('::vector'))).toBe(true);
+  });
+
+  it('writes no vector column when pgvector is unavailable', async () => {
+    mockQuery.mockImplementation(async (sql: string) =>
+      String(sql).includes('CREATE EXTENSION') ? null : { rows: [] }
+    );
+
+    await upsertAnalysis(analysis, [0.1, 0.2]);
+
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('::vector'))).toBe(false);
+  });
+
+  it('detects only once across repeated writes', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    await upsertAnalysis(analysis, [0.1, 0.2]);
+    await upsertAnalysis(analysis, [0.1, 0.2]);
+    await upsertAnalysis(analysis, [0.1, 0.2]);
+
+    const probes = mockQuery.mock.calls.filter(([sql]) =>
+      String(sql).includes('CREATE EXTENSION')
+    ).length;
+    expect(probes).toBe(1);
   });
 
   it('tolerates a null embedding', async () => {
@@ -115,13 +140,62 @@ describe('vectorSearch', () => {
   });
 
   it('ranks by cosine in JS when pgvector is absent', async () => {
-    mockQuery.mockResolvedValue({
-      rows: [
-        { sound_name: 'far.ogg', embedding_json: JSON.stringify([0, 1]) },
-        { sound_name: 'near.ogg', embedding_json: JSON.stringify([1, 0]) },
-      ],
-    });
+    mockQuery.mockImplementation(async (sql: string) =>
+      String(sql).includes('CREATE EXTENSION')
+        ? null
+        : {
+            rows: [
+              { sound_name: 'far.ogg', embedding_json: JSON.stringify([0, 1]) },
+              { sound_name: 'near.ogg', embedding_json: JSON.stringify([1, 0]) },
+            ],
+          }
+    );
     await expect(vectorSearch([1, 0], 10)).resolves.toEqual(['near.ogg', 'far.ogg']);
+  });
+
+  it('detects pgvector itself and uses the SQL path, with no sweep first', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ sound_name: 'near.ogg' }] });
+
+    await expect(vectorSearch([1, 0], 10)).resolves.toEqual(['near.ogg']);
+
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('CREATE EXTENSION'))).toBe(
+      true
+    );
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('embedding <=>'))).toBe(true);
+  });
+
+  it('detects once, not once per query', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ sound_name: 'near.ogg' }] });
+
+    await vectorSearch([1, 0], 10);
+    await vectorSearch([1, 0], 10);
+    await vectorSearch([1, 0], 10);
+
+    const probes = mockQuery.mock.calls.filter(([sql]) =>
+      String(sql).includes('CREATE EXTENSION')
+    ).length;
+    expect(probes).toBe(1);
+  });
+
+  it('shares one probe between callers racing before detection finishes', async () => {
+    mockQuery.mockResolvedValue({ rows: [{ sound_name: 'near.ogg' }] });
+
+    await Promise.all([vectorSearch([1, 0], 10), vectorSearch([0, 1], 10)]);
+
+    const probes = mockQuery.mock.calls.filter(([sql]) =>
+      String(sql).includes('CREATE EXTENSION')
+    ).length;
+    expect(probes).toBe(1);
+  });
+
+  it('falls back to JS instead of throwing when the query layer rejects', async () => {
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (String(sql).includes('CREATE EXTENSION')) throw new Error('permission denied');
+      return { rows: [{ sound_name: 'near.ogg', embedding_json: JSON.stringify([1, 0]) }] };
+    });
+
+    await expect(vectorSearch([1, 0], 10)).resolves.toEqual(['near.ogg']);
+    expect(isVectorAvailable()).toBe(false);
   });
 });
 
