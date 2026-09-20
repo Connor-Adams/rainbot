@@ -70,12 +70,22 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
 
     ffmpeg.stdout.on('data', (chunk: Buffer) => {
       if (killedForSize) return;
-      stdoutBytes += chunk.length;
-      if (stdoutBytes > MAX_DECODE_STDOUT_BYTES) {
+      // Tested before accumulating rather than after, so the chunk that
+      // crosses the ceiling is not retained either. That keeps `stdoutBytes`
+      // equal to the bytes actually held in `stdoutChunks` at every moment,
+      // which is the quantity the ceiling exists to bound - the old ordering
+      // counted bytes it then went on to discard.
+      if (stdoutBytes + chunk.length > MAX_DECODE_STDOUT_BYTES) {
         killedForSize = true;
+        // Release what was accumulated here, not when the promise finally
+        // rejects. SIGKILL, the child's exit and 'close' are several ticks
+        // apart; holding megabytes across that gap is exactly what this
+        // ceiling exists to prevent.
+        stdoutChunks.length = 0;
         ffmpeg.kill('SIGKILL');
         return;
       }
+      stdoutBytes += chunk.length;
       stdoutChunks.push(chunk);
     });
     ffmpeg.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
