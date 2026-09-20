@@ -14,3 +14,7 @@ export type { YouTubeVideoInfo } from './youtubeUrl';
 
 // Outbound proxy URL validation and redaction
 export { normalizeProxyUrl, maskProxyUrl, ProxyUrlError } from './proxyUrl';
+
+// Soundboard search text shaping (shared with the ESM UI)
+export { normalizeForSearch, humanizeFilename, buildSearchDoc } from './soundSearchText';
+export type { SearchDocParts } from './soundSearchText';

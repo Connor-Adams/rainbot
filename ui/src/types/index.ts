@@ -26,6 +26,13 @@ export interface Sound {
   size: number;
 }
 
+export interface SoundSearchResult {
+  name: string;
+  score: number;
+  matchedOn: 'name' | 'transcript' | 'caption' | 'semantic';
+  snippet: string | null;
+}
+
 export interface BotStatus {
   online: boolean;
   username?: string;

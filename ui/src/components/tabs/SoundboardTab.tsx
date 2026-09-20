@@ -1,18 +1,23 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// Barrel import ('@rainbot/shared') pulls in the logger, which imports Node's
+// fs/path and breaks the Vite browser build - use the subpath export instead,
+// matching the existing '@rainbot/shared/youtube' pattern in NowPlayingCard.
+import { normalizeForSearch } from '@rainbot/shared/search';
 import { soundsApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useSoundCustomization } from '@/hooks/useSoundCustomization';
 import { useAudioPreview } from '@/hooks/useAudioPreview';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { SoundCard } from '@/components/soundboard/SoundCard';
 import { SoundMenu } from '@/components/soundboard/SoundMenu';
 import { EditModal } from '@/components/soundboard/EditModal';
 import { SearchBar } from '@/components/soundboard/SearchBar';
 import { EmptyState } from '@/components/soundboard/EmptyState';
 import { UploadButton } from '@/components/soundboard/UploadButton';
-import type { Sound } from '@/types';
+import type { Sound, SoundSearchResult } from '@/types';
 
 export default function SoundboardTab() {
   const { selectedGuildId } = useGuildStore();
@@ -39,6 +44,14 @@ export default function SoundboardTab() {
     queryKey: ['sounds'],
     queryFn: () => soundsApi.list().then((res) => res.data),
     refetchInterval: 10000,
+  });
+
+  const debouncedQuery = useDebouncedValue(searchQuery, 200);
+
+  const { data: searchResults } = useQuery({
+    queryKey: ['sound-search', debouncedQuery],
+    queryFn: () => soundsApi.search(debouncedQuery).then((res) => res.data.results),
+    enabled: debouncedQuery.trim().length > 0,
   });
 
   // Mutations
@@ -120,13 +133,29 @@ export default function SoundboardTab() {
     return !oggBases.has(getBaseName(sound.name).toLowerCase());
   });
 
-  // Filter sounds based on search query
-  const filteredSounds = visibleSounds.filter((sound: Sound) => {
+  // Local filtering is the immediate, always-correct baseline. Server results
+  // replace it once they land, so typing never waits on a round-trip and a
+  // failed request degrades to exactly the old behaviour.
+  const locallyFiltered = visibleSounds.filter((sound: Sound) => {
     const custom = getCustomization(sound.name);
-    const searchTarget =
-      `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`.toLowerCase();
-    return searchTarget.includes(searchQuery.toLowerCase());
+    const searchTarget = `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`;
+    // The shared normalizer, not a local copy - the client filter and the
+    // server index must agree on what "air horn" reduces to.
+    return normalizeForSearch(searchTarget).includes(normalizeForSearch(searchQuery));
   });
+
+  const snippets = new Map<string, string | null>(
+    (searchResults ?? []).map((result: SoundSearchResult) => [result.name, result.snippet])
+  );
+
+  const isSearchCurrent = debouncedQuery === searchQuery && searchResults !== undefined;
+  const byName = new Map(visibleSounds.map((sound: Sound) => [sound.name, sound]));
+  const filteredSounds =
+    searchQuery.trim() && isSearchCurrent
+      ? (searchResults as SoundSearchResult[])
+          .map((result) => byName.get(result.name))
+          .filter((sound): sound is Sound => sound !== undefined)
+      : locallyFiltered;
 
   // Handlers
   const handlePlay = useCallback(
@@ -267,6 +296,7 @@ export default function SoundboardTab() {
                 onPlay={handlePlay}
                 onMenuToggle={setOpenMenuId}
                 isMenuOpen={openMenuId === sound.name}
+                snippet={snippets.get(sound.name) ?? null}
               />
               {openMenuId === sound.name && (
                 <SoundMenu

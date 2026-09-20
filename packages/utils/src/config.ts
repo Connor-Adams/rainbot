@@ -50,6 +50,12 @@ export interface AppConfig {
   ttsApiKey: string | undefined;
   voiceLanguage: string;
   ttsVoiceName: string | undefined;
+
+  // Sound analysis configuration (soundboard transcription + search)
+  openaiApiKey: string | undefined;
+  soundCaptionModel: string;
+  soundEmbeddingModel: string;
+  soundAnalysisEnabled: boolean;
 }
 
 /**
@@ -58,9 +64,9 @@ export interface AppConfig {
  * Provides consistent config loading across the application
  * Results are cached to avoid duplicate logging
  */
-export function loadConfig(): AppConfig {
+export function loadConfig(forceReload = false): AppConfig {
   // Return cached config if already loaded
-  if (cachedConfig) {
+  if (cachedConfig && !forceReload) {
     return cachedConfig;
   }
 
@@ -173,6 +179,12 @@ export function loadConfig(): AppConfig {
     ttsApiKey: process.env['TTS_API_KEY'],
     voiceLanguage: process.env['VOICE_LANGUAGE'] || 'en-US',
     ttsVoiceName: process.env['TTS_VOICE_NAME'],
+
+    // Sound analysis configuration (soundboard transcription + search)
+    openaiApiKey: process.env['OPENAI_API_KEY'] || process.env['STT_API_KEY'],
+    soundCaptionModel: process.env['SOUND_CAPTION_MODEL'] || 'gpt-4o-audio-preview',
+    soundEmbeddingModel: process.env['SOUND_EMBEDDING_MODEL'] || 'text-embedding-3-small',
+    soundAnalysisEnabled: process.env['SOUND_ANALYSIS_ENABLED'] !== 'false',
   };
 
   // Log which environment variables are set (for debugging)

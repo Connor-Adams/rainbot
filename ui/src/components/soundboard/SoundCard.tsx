@@ -12,6 +12,7 @@ interface SoundCardProps {
   onPlay: (sound: Sound) => void;
   onMenuToggle: (soundName: string) => void;
   isMenuOpen: boolean;
+  snippet?: string | null;
 }
 
 export function SoundCard({
@@ -23,6 +24,7 @@ export function SoundCard({
   onPlay,
   onMenuToggle,
   isMenuOpen,
+  snippet,
 }: SoundCardProps) {
   const displayName = customization?.displayName || sound.name.replace(/\.[^/.]+$/, '');
   const emoji = customization?.emoji || '🎵';
@@ -78,6 +80,11 @@ export function SoundCard({
           {displayName}
         </div>
         <div className="text-xs text-text-muted font-mono mt-1">{formatSize(sound.size)}</div>
+        {snippet && (
+          <div className="text-[11px] text-text-muted italic mt-1 line-clamp-2" title={snippet}>
+            "{snippet}"
+          </div>
+        )}
       </div>
 
       {/* Playing indicator */}

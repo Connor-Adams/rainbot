@@ -4,6 +4,7 @@ export * from './deployCommands';
 export * from './listeningHistory';
 export * from './logger';
 export * from './playerEmbed';
+export * from './sounds';
 export * from './sourceType';
 export * from './statistics';
 export * from './storage';

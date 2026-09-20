@@ -6,6 +6,12 @@ import * as voiceManager from '@rainbot/utils/voiceManager';
 import * as storage from '@rainbot/utils/storage';
 import { query } from '@rainbot/utils/database';
 import { deployCommands } from '@rainbot/utils/deployCommands';
+import {
+  searchSounds,
+  enqueueAnalyzeSound,
+  sweepAnalyzeSounds,
+  deleteAnalysis,
+} from '@rainbot/utils';
 import { normalizeProxyUrl, maskProxyUrl } from '@rainbot/shared';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
@@ -373,6 +379,70 @@ router.get('/recordings', requireAuth, async (req, res: Response) => {
   }
 });
 
+const MAX_SEARCH_LIMIT = 100;
+
+/** Exported for tests; mounted below as GET /api/sounds/search. */
+export async function searchSoundsHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const rawQuery = typeof req.query['q'] === 'string' ? req.query['q'] : '';
+    const rawLimit = Number(req.query['limit'] ?? 50);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_SEARCH_LIMIT)
+      : 50;
+
+    const sounds = await storage.listSounds();
+
+    const customizations = await query(`SELECT sound_name, display_name FROM sound_customizations`);
+    const displayNames = new Map<string, string | null>();
+    if (customizations) {
+      for (const row of customizations.rows as Array<{
+        sound_name: string;
+        display_name: string | null;
+      }>) {
+        displayNames.set(row.sound_name, row.display_name);
+      }
+    }
+
+    const results = await searchSounds({
+      query: rawQuery,
+      limit,
+      sounds: sounds.map((sound) => ({
+        name: sound.name,
+        displayName: displayNames.get(sound.name) ?? null,
+      })),
+    });
+
+    res.json({ results });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/sounds/search - Search sounds by name, transcript, or description
+// Registered ahead of /sounds/:name/* so "search" is never captured as a sound name.
+router.get('/sounds/search', requireAuth, searchSoundsHandler);
+
+// POST /api/sounds/analyze-sweep - Backfill analysis across the sound library
+router.post(
+  '/sounds/analyze-sweep',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const force = req.body?.force === true;
+      const rawLimit = Number(req.body?.limit || 0);
+      const result = await sweepAnalyzeSounds({
+        force,
+        limit: Number.isFinite(rawLimit) ? rawLimit : 0,
+      });
+      res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // GET /api/sounds/:name/download - Download a sound file
 router.get('/sounds/:name/download', requireAuth, async (req, res: Response) => {
   try {
@@ -450,6 +520,22 @@ router.post(
           originalName: file.originalname,
           size: file.size,
         });
+
+        // Analysis runs after the upload has been transcoded, since transcode
+        // rewrites the stored object. No `size` is passed on purpose: multer's
+        // file.size is the pre-transcode upload size, while the sweep compares
+        // the recorded source_size against the stored S3 object's size. Letting
+        // analyzeSound default to the length of the object it actually read
+        // keeps those two in the same unit, so an uploaded clip is not
+        // re-analyzed at full API cost on the next sweep.
+        //
+        // Queued rather than awaited: upload latency must not depend on an
+        // audio model, but a request may carry MAX_UPLOAD_FILES clips and
+        // firing them all at once would mean that many concurrent ffmpeg
+        // spawns on top of the transcode each upload already does. The queue
+        // shares the sweep's concurrency ceiling and absorbs its own
+        // rejections; a clip that fails is retried by the next sweep.
+        enqueueAnalyzeSound(filename);
       } catch (error) {
         const err = error as Error;
         errors.push({
@@ -486,6 +572,11 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
     await storage.deleteSound(filename);
     try {
       await deleteSoundCustomization(filename);
+    } catch {
+      // Best-effort cleanup if DB is unavailable.
+    }
+    try {
+      await deleteAnalysis(filename);
     } catch {
       // Best-effort cleanup if DB is unavailable.
     }

@@ -181,6 +181,23 @@ export async function initializeSchema(): Promise<boolean> {
         `);
 
     await pool.query(`
+            CREATE TABLE IF NOT EXISTS sound_analysis (
+                sound_name VARCHAR(255) PRIMARY KEY,
+                kind VARCHAR(10) NOT NULL CHECK (kind IN ('speech', 'sound', 'mixed')),
+                transcript TEXT,
+                caption TEXT NOT NULL DEFAULT '',
+                tags TEXT[] NOT NULL DEFAULT '{}',
+                search_doc TEXT NOT NULL DEFAULT '',
+                search_norm TEXT NOT NULL DEFAULT '',
+                search_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', search_doc)) STORED,
+                embedding_json JSONB,
+                source_size BIGINT,
+                model VARCHAR(100) NOT NULL DEFAULT '',
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id VARCHAR(20) PRIMARY KEY,
                 username VARCHAR(100),
@@ -817,6 +834,12 @@ export async function initializeSchema(): Promise<boolean> {
     await pool.query(
       `CREATE INDEX IF NOT EXISTS idx_user_scores_engagement ON user_scores(engagement_score DESC)`
     );
+
+    // Indexes for sound_analysis
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS idx_sound_analysis_tsv ON sound_analysis USING GIN(search_tsv)`
+    );
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sound_analysis_kind ON sound_analysis(kind)`);
 
     // Create views - drop and recreate in transaction to allow column changes
     // Using transaction to minimize window where view doesn't exist

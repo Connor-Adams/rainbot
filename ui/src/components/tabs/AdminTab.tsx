@@ -68,6 +68,22 @@ export default function AdminTab() {
     },
   });
 
+  const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
+
+  const analyzeSweepMutation = useMutation({
+    mutationFn: (options: { force: boolean }) => soundsApi.analyzeSweep(options),
+    onSuccess: (res) => {
+      const data = res.data as { analyzed: number; skipped: number; failed: number };
+      setAnalyzeResult(
+        `Analyzed ${data.analyzed}, skipped ${data.skipped}, failed ${data.failed}.`
+      );
+      queryClient.invalidateQueries({ queryKey: ['sound-search'] });
+    },
+    onError: (err: { response?: { data?: { error?: string } }; message?: string }) => {
+      setAnalyzeResult(err.response?.data?.error ?? err.message ?? 'Analysis sweep failed.');
+    },
+  });
+
   const deployCommandsMutation = useMutation({
     mutationFn: () => adminApi.deployCommands(),
     onSuccess: (res) => {
@@ -931,6 +947,24 @@ export default function AdminTab() {
               {lastResult.skipped}
             </div>
           )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface-input p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">Search Analysis</div>
+          <div className="text-xs text-text-secondary mb-4">
+            Listen to every sound that has changed since it was last analysed and store a
+            description, tags and a transcript so it can be found by what it sounds like or by what
+            is said in it. Leaves audio files untouched.
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => analyzeSweepMutation.mutate({ force: false })}
+            disabled={analyzeSweepMutation.isPending}
+          >
+            {analyzeSweepMutation.isPending ? 'Analyzing...' : 'Analyze sounds for search'}
+          </button>
+          {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
         </div>
       </div>
     </section>

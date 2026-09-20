@@ -1,12 +1,83 @@
 const { Events, MessageFlags } = require('discord.js');
 const { createLogger } = require('@rainbot/utils/logger');
-const voiceManager = require('@rainbot/utils/voiceManager');
+// listSounds lives in storage, not voiceManager. voiceManager exports no such
+// function, so the previous call threw a TypeError on every keystroke and the
+// catch below answered with an empty choice list.
+const { listSounds } = require('@rainbot/utils/storage');
 const stats = require('@rainbot/utils/statistics');
+const { searchSounds } = require('@rainbot/utils');
 
 const log = createLogger('INTERACTION');
 
+/**
+ * Answers autocomplete for /play's `source` option.
+ *
+ * Exported so the branch can be exercised without a Discord client; `execute`
+ * remains its only production caller.
+ */
+async function handlePlaySourceAutocomplete(interaction, startTime) {
+  try {
+    const sounds = await listSounds();
+    const input = interaction.options.getFocused(true).value.trim();
+
+    // Semantic search is off here on purpose: autocomplete fires on
+    // every keystroke against Discord's 3 second budget, and an
+    // embedding round-trip per keystroke would blow both the latency
+    // and the API bill. The dashboard, which debounces, keeps it.
+    const results = await searchSounds({
+      query: input,
+      sounds: sounds.map((sound) => ({ name: sound.name })),
+      limit: 25,
+      allowSemantic: false,
+    });
+
+    const choices = results.slice(0, 25).map((result) => {
+      const label = result.snippet ? `${result.name} — ${result.snippet}` : result.name;
+      return {
+        name: label.length > 100 ? `${label.substring(0, 97)}...` : label,
+        value: result.name,
+      };
+    });
+
+    await interaction.respond(choices);
+
+    // Track autocomplete interaction
+    stats.trackInteraction(
+      'autocomplete',
+      interaction.id,
+      `play_source`,
+      interaction.user.id,
+      interaction.user.username,
+      interaction.guildId,
+      interaction.channelId,
+      Date.now() - startTime,
+      true,
+      null,
+      { query: input, resultsShown: choices.length, totalSounds: sounds.length }
+    );
+  } catch (error) {
+    log.error(`Error in autocomplete: ${error.message}`);
+    stats.trackInteraction(
+      'autocomplete',
+      interaction.id,
+      `play_source`,
+      interaction.user.id,
+      interaction.user.username,
+      interaction.guildId,
+      interaction.channelId,
+      Date.now() - startTime,
+      false,
+      error.message,
+      null
+    );
+    // Return empty array on error - user can still type and search
+    await interaction.respond([]);
+  }
+}
+
 module.exports = {
   name: Events.InteractionCreate,
+  handlePlaySourceAutocomplete,
   async execute(interaction) {
     const startTime = Date.now();
 
@@ -23,59 +94,7 @@ module.exports = {
         const focusedOption = interaction.options.getFocused(true);
 
         if (focusedOption.name === 'source') {
-          try {
-            const sounds = await voiceManager.listSounds();
-            const input = focusedOption.value.toLowerCase().trim();
-
-            let filtered;
-            if (input === '') {
-              // Show all sounds if no input (up to 25)
-              filtered = sounds.slice(0, 25);
-            } else {
-              // Filter sounds that match the input
-              filtered = sounds.filter((sound) => sound.name.toLowerCase().includes(input));
-            }
-
-            // Limit to 25 choices (Discord's limit)
-            const choices = filtered.slice(0, 25).map((sound) => ({
-              name: sound.name.length > 100 ? sound.name.substring(0, 97) + '...' : sound.name,
-              value: sound.name,
-            }));
-
-            await interaction.respond(choices);
-
-            // Track autocomplete interaction
-            stats.trackInteraction(
-              'autocomplete',
-              interaction.id,
-              `play_source`,
-              interaction.user.id,
-              interaction.user.username,
-              interaction.guildId,
-              interaction.channelId,
-              Date.now() - startTime,
-              true,
-              null,
-              { query: input, resultsShown: choices.length, totalSounds: sounds.length }
-            );
-          } catch (error) {
-            log.error(`Error in autocomplete: ${error.message}`);
-            stats.trackInteraction(
-              'autocomplete',
-              interaction.id,
-              `play_source`,
-              interaction.user.id,
-              interaction.user.username,
-              interaction.guildId,
-              interaction.channelId,
-              Date.now() - startTime,
-              false,
-              error.message,
-              null
-            );
-            // Return empty array on error - user can still type and search
-            await interaction.respond([]);
-          }
+          await handlePlaySourceAutocomplete(interaction, startTime);
         }
       }
       return;

@@ -151,6 +151,107 @@ const options: swaggerJsdoc.Options = {
         sessionAuth: [],
       },
     ],
+    paths: {
+      '/api/sounds/search': {
+        get: {
+          summary: 'Search sounds by name, transcript, or description',
+          tags: ['Sounds'],
+          parameters: [
+            {
+              name: 'q',
+              in: 'query',
+              schema: { type: 'string' },
+              description: 'Search query text',
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              schema: { type: 'integer' },
+              description: 'Maximum number of results (capped at 100)',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Ranked search results',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      results: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            name: { type: 'string' },
+                            score: { type: 'number' },
+                            matchedOn: { type: 'string' },
+                            snippet: { type: 'string', nullable: true },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '500': {
+              description: 'Server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/api/sounds/analyze-sweep': {
+        post: {
+          summary: 'Backfill analysis across the sound library',
+          tags: ['Sounds'],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    force: { type: 'boolean' },
+                    limit: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Sweep results',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      analyzed: { type: 'integer' },
+                      skipped: { type: 'integer' },
+                      failed: { type: 'integer' },
+                    },
+                  },
+                },
+              },
+            },
+            '500': {
+              description: 'Server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   apis: ['./server/routes/*.js', './server/routes/*.ts', './server/*.js', './server/*.ts'],
 };

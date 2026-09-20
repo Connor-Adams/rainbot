@@ -514,6 +514,12 @@ export async function getSoundStream(filename: string): Promise<Readable> {
   }
 }
 
+/** Reads a stored sound fully into memory, for analysis. */
+export async function getSoundBuffer(filename: string): Promise<Buffer> {
+  const stream = await getSoundStream(filename);
+  return streamToBuffer(stream);
+}
+
 export async function getSoundStreamWithName(
   filename: string
 ): Promise<{ stream: Readable; filename: string }> {
