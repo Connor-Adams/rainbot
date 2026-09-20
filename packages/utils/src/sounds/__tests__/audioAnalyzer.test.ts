@@ -180,10 +180,9 @@ describe('describeAudio', () => {
    * Loads describeAudio with the config, the ffmpeg decode and the SDK all
    * stubbed, so nothing spawns a process or reaches the network.
    */
-  function loadWithStubs(
-    wav: Buffer,
-    reply = '{"kind":"sound","caption":"a thud","tags":["thud"]}'
-  ) {
+  const DEFAULT_REPLY = '{"kind":"sound","caption":"a thud","tags":["thud"]}';
+
+  function loadWithStubs(wav: Buffer, reply = DEFAULT_REPLY) {
     const toWav = jest.fn(async () => wav);
     const create = jest.fn(async () => ({ choices: [{ message: { content: reply } }] }));
     const warn = jest.fn();
@@ -293,6 +292,43 @@ describe('describeAudio', () => {
       // Visible, but not a line per clip.
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0][0])).toContain('test-model');
+    });
+
+    /**
+     * The sweep runs `Promise.all` over batches of ANALYSIS_CONCURRENCY clips,
+     * and the upload path drives the same limiter, so concurrent calls are the
+     * normal case. The sequential test above cannot see this: it lets the memo
+     * settle between clips.
+     *
+     * With the memo read inside the catch, all three clips send the parameter,
+     * all three 400, the first clears the memo and retries, and the other two
+     * read the already-cleared `false`, skip their own retry and rethrow into
+     * the outer catch - `ok, null, null`. So this asserts on the outcome every
+     * caller actually sees, not on the call count.
+     */
+    it('retries every clip of a concurrent batch, not just the one that won the race', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      // Not `mockRejectedValueOnce`: this endpoint refuses the parameter
+      // every time it is sent, which is what a model that does not support it
+      // actually does.
+      const ok = { choices: [{ message: { content: DEFAULT_REPLY } }] };
+      create.mockImplementation(async (request: { response_format?: unknown }) => {
+        if (request.response_format) throw unsupportedParameterError();
+        return ok;
+      });
+
+      const results = await Promise.all([
+        describeAudio(Buffer.alloc(16 * 1024), 'one.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'two.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'three.ogg'),
+      ]);
+
+      for (const result of results) {
+        expect(result).toEqual({ kind: 'sound', caption: 'a thud', tags: ['thud'] });
+      }
+      // Six calls: each clip pays its own rejected request plus its retry,
+      // because all three were already in flight when the answer was found.
+      expect(create).toHaveBeenCalledTimes(6);
     });
 
     it('does not retry a 400 that is about something else', async () => {

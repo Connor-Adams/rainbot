@@ -255,9 +255,13 @@ interface AudioChatCompletionRequest {
  *
  * Process-lifetime, deliberately: the answer is a property of the configured
  * model and the endpoint, not of the clip, so discovering it once and
- * remembering it means the wasted request is paid a single time per process
- * rather than on every clip in a library-wide sweep. It resets on restart,
- * which is exactly when the model may have changed.
+ * remembering it means the wasted request is paid by the first concurrent
+ * batch alone rather than by every clip in a library-wide sweep. It resets on
+ * restart, which is exactly when the model may have changed.
+ *
+ * Read into a local before each request rather than consulted from the catch -
+ * see `sendDescribeRequest`. A memo is the wrong thing to ask what a request
+ * in flight actually sent.
  */
 let jsonModeAccepted = true;
 
@@ -295,13 +299,37 @@ async function sendDescribeRequest(
   buildRequest: (withJsonMode: boolean) => AudioChatCompletionRequest,
   model: string
 ): Promise<unknown> {
-  try {
-    return await client.chat.completions.create(buildRequest(jsonModeAccepted));
-  } catch (error) {
-    if (!jsonModeAccepted || !rejectsJsonMode(error)) throw error;
+  // Read the memo once, into a local, and let the catch consult the local.
+  //
+  // The two are not the same question. The memo answers "does the model accept
+  // the parameter?", which is process-wide; the catch needs "did *this*
+  // request carry it?", which is per-request. Reading the memo in the catch
+  // conflates them, and they diverge the moment two requests overlap - which
+  // is the normal case, not an edge case: the sweep runs `Promise.all` over
+  // batches of ANALYSIS_CONCURRENCY clips and the upload path drives the same
+  // limiter. Three concurrent clips against an endpoint that refuses the
+  // parameter would all send it, all 400, and then the two that lost the race
+  // to clear the memo would read the already-cleared `false`, skip their own
+  // retry, rethrow, and return null - the silent-null signature this file
+  // exists to prevent.
+  //
+  // It also makes the no-recursion property structural rather than incidental:
+  // the retry passes `false` literally, and a `false` local can never enter
+  // this catch's retry branch at all.
+  const sentWithJsonMode = jsonModeAccepted;
 
-    // Once per process, not once per clip: the memo below makes this line
-    // visible without letting it become sweep-wide log spam.
+  try {
+    return await client.chat.completions.create(buildRequest(sentWithJsonMode));
+  } catch (error) {
+    if (!sentWithJsonMode || !rejectsJsonMode(error)) throw error;
+
+    // Once per concurrent batch, not once per clip. The memo stops the *next*
+    // batch paying it, so a sweep pays the wasted request (and this line) once
+    // per clip that was already in flight when the answer was discovered -
+    // at most ANALYSIS_CONCURRENCY times for the whole process, not once per
+    // clip in the library. Suppressing the duplicate lines would mean sharing
+    // an in-flight promise across calls, which is a lot of machinery to save
+    // two log lines once per process.
     jsonModeAccepted = false;
     log.warn(
       `${model} refused the JSON-object reply constraint (${(error as Error).message}) - ` +
