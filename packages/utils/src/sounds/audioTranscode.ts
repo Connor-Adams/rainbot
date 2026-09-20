@@ -36,6 +36,29 @@ export const MAX_DECODE_SECONDS = 30;
 export const MAX_DECODE_STDOUT_BYTES = 8 * 1024 * 1024;
 
 /**
+ * Bytes one second of the decoded stream occupies, fixed by the ffmpeg flags
+ * below: 16000 samples/sec * 1 channel * 2 bytes per sample.
+ */
+export const DECODED_BYTES_PER_SECOND = 16000 * 2;
+
+/**
+ * Whether a decode came back at the `-t` cap, meaning ffmpeg stopped early and
+ * the caller is holding only the clip's first MAX_DECODE_SECONDS.
+ *
+ * The output rate is fixed (see DECODED_BYTES_PER_SECOND), so length alone
+ * answers this - no second spawn to probe the source. A clip shorter than the
+ * cap always lands below the threshold; ffmpeg's wav header adds a few dozen
+ * bytes on top, which only ever pushes a genuinely capped decode further past
+ * it. The one imprecision is a clip whose true duration falls inside the last
+ * couple of milliseconds before the cap, which reads as truncated - it is
+ * within rounding of being exactly that, and the only consequence is a log
+ * line.
+ */
+export function wasDecodeTruncated(wav: Buffer): boolean {
+  return wav.length >= MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
+}
+
+/**
  * Decodes an arbitrary audio buffer to 16kHz mono 16-bit PCM WAV via ffmpeg.
  *
  * Speech models want this format, and at 16kHz mono it is roughly a fifth

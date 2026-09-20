@@ -41,7 +41,34 @@ function fakeFfmpeg(output: Buffer, code = 0, stderrText = '') {
   return child;
 }
 
-import { toWavBuffer, MAX_DECODE_SECONDS, MAX_DECODE_STDOUT_BYTES } from '../audioTranscode';
+import {
+  toWavBuffer,
+  wasDecodeTruncated,
+  MAX_DECODE_SECONDS,
+  MAX_DECODE_STDOUT_BYTES,
+  DECODED_BYTES_PER_SECOND,
+} from '../audioTranscode';
+
+describe('wasDecodeTruncated', () => {
+  const cap = MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
+
+  it('matches the rate the ffmpeg flags fix', () => {
+    // 16kHz mono 16-bit, per the -ar/-ac/-c:a flags toWavBuffer passes.
+    expect(DECODED_BYTES_PER_SECOND).toBe(16000 * 2);
+  });
+
+  it('is false for a clip that decoded in full', () => {
+    expect(wasDecodeTruncated(Buffer.alloc(5 * DECODED_BYTES_PER_SECOND))).toBe(false);
+    expect(wasDecodeTruncated(Buffer.alloc(cap - 1))).toBe(false);
+  });
+
+  it('is true at the cap and beyond, header included', () => {
+    expect(wasDecodeTruncated(Buffer.alloc(cap))).toBe(true);
+    // ffmpeg's wav header sits on top of the samples, so a genuinely capped
+    // decode lands past the threshold rather than on it.
+    expect(wasDecodeTruncated(Buffer.alloc(cap + 78))).toBe(true);
+  });
+});
 
 describe('toWavBuffer', () => {
   beforeEach(() => {

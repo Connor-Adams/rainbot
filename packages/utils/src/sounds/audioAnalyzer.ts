@@ -1,6 +1,6 @@
 import { loadConfig } from '../config';
 import { createLogger } from '../logger';
-import { toWavBuffer } from './audioTranscode';
+import { toWavBuffer, wasDecodeTruncated, MAX_DECODE_SECONDS } from './audioTranscode';
 import type { SoundDescription, SoundKind } from './types';
 
 const log = createLogger('SOUND-ANALYZER');
@@ -152,6 +152,32 @@ export async function describeAudio(
     // extension. A conversion failure falls through to the catch below and
     // returns null like every other failure in this function.
     const wavBuffer = await toWavBuffer(buffer);
+
+    // The `-t` cap silently hands back a prefix, and the row that results is
+    // written with the *full* source size, so the sweep's source_size skip
+    // never revisits it. Nothing else records that the caption describes only
+    // part of the clip, so say so here.
+    //
+    // The asymmetry is deliberate, not an oversight: `transcribeSpeech` is
+    // given the original buffer, so the transcript still covers the whole
+    // clip while the caption and tags cover its opening. Truncating the
+    // transcript to match would delete recoverable words - exactly the words
+    // a "the one where he says X" query needs, and exactly on the long clips
+    // where a name match is least likely to help. The two fields already
+    // answer different questions, so the honest resolution is a partial
+    // caption that is known to be partial, not a transcript made worse for
+    // symmetry's sake.
+    //
+    // Only the decoded duration is known here; the source's true length would
+    // cost a second ffmpeg spawn per clip, and this repo has production
+    // history of `spawn ffmpeg EAGAIN` under burst load.
+    if (wasDecodeTruncated(wavBuffer)) {
+      log.warn(
+        `${filename} runs to at least the ${MAX_DECODE_SECONDS}s decode cap (source ${describeSize(buffer.length)}): ` +
+          `its caption and tags describe only the first ${MAX_DECODE_SECONDS}s, while its transcript still covers the whole clip. ` +
+          `Soundboard clips are seconds long, so this is probably not one.`
+      );
+    }
 
     // A small compressed source can still decode to an enormous WAV, so the
     // limit is re-applied to what is actually about to be base64-encoded.
