@@ -25,7 +25,7 @@ function fakeFfmpeg(output: Buffer, code = 0, stderrText = '') {
   return child;
 }
 
-import { toWavBuffer } from '../audioTranscode';
+import { toWavBuffer, MAX_DECODE_SECONDS, MAX_DECODE_STDOUT_BYTES } from '../audioTranscode';
 
 describe('toWavBuffer', () => {
   beforeEach(() => {
@@ -46,6 +46,8 @@ describe('toWavBuffer', () => {
       'error',
       '-i',
       'pipe:0',
+      '-t',
+      String(MAX_DECODE_SECONDS),
       '-ar',
       '16000',
       '-ac',
@@ -85,5 +87,30 @@ describe('toWavBuffer', () => {
     });
 
     await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow('spawn ffmpeg ENOENT');
+  });
+
+  it('kills ffmpeg and rejects if stdout exceeds the byte ceiling despite the -t cap', async () => {
+    const child = new EventEmitter() as any;
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = { write: jest.fn(), end: jest.fn() };
+    child.kill = jest.fn();
+
+    mockSpawn.mockImplementation(() => {
+      process.nextTick(() => {
+        // Two chunks whose combined size crosses the ceiling - simulates a
+        // duration cap that, for whatever reason, did not stop the stream.
+        const half = Buffer.alloc(Math.ceil(MAX_DECODE_STDOUT_BYTES / 2) + 1);
+        child.stdout.emit('data', half);
+        child.stdout.emit('data', half);
+        // A real SIGKILL still delivers a 'close' event; the promise must
+        // reject from the size check rather than resolving with partial data.
+        child.emit('close', null);
+      });
+      return child;
+    });
+
+    await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow(/exceeded/);
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
   });
 });

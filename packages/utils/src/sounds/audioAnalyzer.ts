@@ -25,6 +25,11 @@ const MAX_TAGS = 8;
  * The same number guards the source buffer, which catches an oversized upload
  * before ffmpeg is even spawned; a compressed file that slips under it is
  * caught again after decoding.
+ *
+ * `toWavBuffer`'s own `MAX_DECODE_SECONDS` cap (audioTranscode.ts) now bounds
+ * decoded output to under 1MB regardless of source size, so this post-decode
+ * check is a backstop rather than the primary bound - it only matters if that
+ * duration cap is ever raised or bypassed.
  */
 export const MAX_ANALYZABLE_BYTES = 8 * 1024 * 1024;
 
