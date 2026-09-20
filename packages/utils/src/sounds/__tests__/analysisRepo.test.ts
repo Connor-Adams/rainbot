@@ -43,6 +43,20 @@ describe('detectVectorSupport', () => {
     await expect(detectVectorSupport()).resolves.toBe(false);
     expect(isVectorAvailable()).toBe(false);
   });
+
+  it('backfills embeddings from embedding_json after the ALTER succeeds', async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    await expect(detectVectorSupport()).resolves.toBe(true);
+
+    const alterIndex = mockQuery.mock.calls.findIndex(([sql]) =>
+      String(sql).includes('ALTER TABLE')
+    );
+    const backfillIndex = mockQuery.mock.calls.findIndex(([sql]) =>
+      String(sql).includes('embedding_json::text::vector')
+    );
+    expect(alterIndex).toBeGreaterThanOrEqual(0);
+    expect(backfillIndex).toBeGreaterThan(alterIndex);
+  });
 });
 
 describe('upsertAnalysis', () => {

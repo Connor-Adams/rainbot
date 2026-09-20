@@ -40,7 +40,25 @@ export async function detectVectorSupport(): Promise<boolean> {
     `ALTER TABLE sound_analysis ADD COLUMN IF NOT EXISTS embedding vector(${EMBEDDING_DIMENSIONS})`
   );
   vectorAvailable = altered !== null;
-  if (vectorAvailable) log.info('pgvector enabled for sound search');
+  if (vectorAvailable) {
+    log.info('pgvector enabled for sound search');
+
+    // pgvector may have been installed after rows already existed with only
+    // embedding_json populated. Backfill embedding from embedding_json so
+    // vectorSearch's SQL branch (WHERE embedding IS NOT NULL) does not
+    // silently skip pre-existing rows.
+    const backfilled = await query(
+      `UPDATE sound_analysis
+          SET embedding = embedding_json::text::vector
+        WHERE embedding IS NULL
+          AND embedding_json IS NOT NULL`
+    );
+    if (backfilled) {
+      log.info('backfilled pgvector embeddings from embedding_json');
+    } else {
+      log.info('pgvector embedding backfill skipped - database unavailable');
+    }
+  }
   return vectorAvailable;
 }
 
