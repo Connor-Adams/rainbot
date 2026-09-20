@@ -1,7 +1,77 @@
+import path from 'path';
 import { loadConfig } from '../config';
 import { createLogger } from '../logger';
 
 const log = createLogger('SOUND-TRANSCRIPT');
+
+/**
+ * Content type to declare on the upload, keyed by the clip's extension.
+ *
+ * The SDK's `toFile` leaves the File's `type` empty unless it is handed one,
+ * and the multipart part then carries no usable content type. The API rejects
+ * that with `400 Invalid file format` whatever the filename says - which is
+ * what production did for every single speech clip in the library. Verified
+ * against the installed openai@4.104.0:
+ *
+ *   toFile(buf, 'clip.ogg')                        -> type: ""
+ *   toFile(buf, 'clip.ogg', { type: 'audio/ogg' }) -> type: "audio/ogg"
+ *
+ * Deliberately not storage.ts's private `getContentType`. That one labels
+ * objects for S3, where an unrecognised extension can safely degrade to
+ * `application/octet-stream` and nobody minds; here an unrecognised type is a
+ * rejected request. It also has no entry for `.oga` or `.opus`, both of which
+ * this library actually contains. The two want different coverage and
+ * different fallbacks, so they stay separate.
+ */
+const UPLOAD_CONTENT_TYPES: Record<string, string> = {
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  // Opus here is always Opus-in-Ogg: storage.ts transcodes every upload with
+  // `-c:a libopus -f ogg`, so the container genuinely is Ogg and `audio/ogg`
+  // describes the bytes correctly. It is also the only thing the API will
+  // take - its supported list is ['flac', 'm4a', 'mp3', 'mp4', 'mpeg',
+  // 'mpga', 'oga', 'ogg', 'wav', 'webm'], which names containers rather than
+  // codecs: `oga`/`ogg` are on it and `opus` is not.
+  '.opus': 'audio/ogg',
+  '.webm': 'audio/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.flac': 'audio/flac',
+};
+
+/**
+ * What to declare for an extension the table does not know.
+ *
+ * `application/octet-stream` - storage.ts's fallback - is not on the API's
+ * supported list, so it would fail exactly the way declaring nothing did.
+ * Every object this soundboard stores is normalised to Ogg Opus
+ * (`toOggFilename` / `transcodeToOggOpus`, and `getSoundBuffer` prefers the
+ * `.ogg` copy), so Ogg is overwhelmingly the likely truth for anything whose
+ * name is unfamiliar, and guessing it at least produces a request the API
+ * will open and inspect instead of one it refuses on sight.
+ */
+const DEFAULT_UPLOAD_CONTENT_TYPE = 'audio/ogg';
+
+/**
+ * The filename and content type a clip should be uploaded under.
+ *
+ * `.opus` is renamed to `.ogg` because the API's supported-extension list
+ * above has no `opus` entry while the bytes are an ordinary Ogg container;
+ * the renamed part matches both the real container and the declared content
+ * type, so nothing about the request misrepresents the file. Exported for the
+ * tests, which assert the content type that actually reaches the API rather
+ * than merely that the value is uploadable.
+ */
+export function uploadDescriptorFor(filename: string): {
+  uploadName: string;
+  contentType: string;
+} {
+  const ext = path.extname(filename).toLowerCase();
+  const contentType = UPLOAD_CONTENT_TYPES[ext] ?? DEFAULT_UPLOAD_CONTENT_TYPE;
+  const uploadName = ext === '.opus' ? `${filename.slice(0, -ext.length)}.ogg` : filename;
+  return { uploadName, contentType };
+}
 
 export interface WhisperSegment {
   text: string;
@@ -105,7 +175,13 @@ export async function transcribeSpeech(
     // `.path` set, which only influences the derived filename) satisfies none
     // of them, and the request throws a TypeError before any network call -
     // which this function's catch would quietly turn into a failed attempt.
-    const file = await toFile(buffer, filename);
+    //
+    // Satisfying `isUploadable()` is necessary but not sufficient: it only
+    // proves the request can be *built*. The content type is what decides
+    // whether the server accepts it, and `toFile` will not infer one from the
+    // filename (see UPLOAD_CONTENT_TYPES), so it has to be stated.
+    const { uploadName, contentType } = uploadDescriptorFor(filename);
+    const file = await toFile(buffer, uploadName, { type: contentType });
 
     const response = await client.audio.transcriptions.create({
       file,

@@ -1,10 +1,17 @@
 import { Readable } from 'stream';
-import { trimHallucinations } from '../speechTranscript';
+import { trimHallucinations, uploadDescriptorFor } from '../speechTranscript';
 
 // The SDK's own multipart gate. Asserting against it rather than against a
 // hand-rolled guess is the point: the bug this covers was a value that looked
 // file-ish but that `isUploadable()` rejects, so the request threw before any
 // network call and the transcript came back null.
+//
+// `isUploadable()` is necessary and not sufficient, though, which is the
+// second bug these tests now cover: it says the request can be *built*, not
+// that the server will accept it. A `toFile` call with no `type` builds
+// perfectly and is rejected with `400 Invalid file format` by every request,
+// so the assertions below check the content type that actually lands on the
+// upload, not merely that the value is file-shaped.
 
 const uploads = require('openai/uploads');
 
@@ -57,6 +64,36 @@ describe('trimHallucinations', () => {
 
   it('returns an empty string for no segments', () => {
     expect(trimHallucinations([])).toBe('');
+  });
+});
+
+describe('uploadDescriptorFor', () => {
+  it('maps every extension this library contains to a type the API accepts', () => {
+    expect(uploadDescriptorFor('a.ogg').contentType).toBe('audio/ogg');
+    expect(uploadDescriptorFor('a.oga').contentType).toBe('audio/ogg');
+    expect(uploadDescriptorFor('a.webm').contentType).toBe('audio/webm');
+    expect(uploadDescriptorFor('a.mp3').contentType).toBe('audio/mpeg');
+    expect(uploadDescriptorFor('a.wav').contentType).toBe('audio/wav');
+    expect(uploadDescriptorFor('a.m4a').contentType).toBe('audio/mp4');
+    expect(uploadDescriptorFor('a.flac').contentType).toBe('audio/flac');
+  });
+
+  it('presents an Opus clip as the Ogg container it actually is', () => {
+    // `opus` is not on the API's supported-extension list; `ogg` is, and the
+    // bytes are an Ogg container either way.
+    expect(uploadDescriptorFor('a.opus')).toEqual({
+      uploadName: 'a.ogg',
+      contentType: 'audio/ogg',
+    });
+  });
+
+  it('falls back to a type the API will accept, not to octet-stream', () => {
+    expect(uploadDescriptorFor('a.aiff').contentType).toBe('audio/ogg');
+    expect(uploadDescriptorFor('a').contentType).toBe('audio/ogg');
+  });
+
+  it('leaves every non-opus filename alone', () => {
+    expect(uploadDescriptorFor('Some Clip (1).mp3').uploadName).toBe('Some Clip (1).mp3');
   });
 });
 
@@ -114,8 +151,71 @@ describe('transcribeSpeech', () => {
     expect(received['file']).toBeDefined();
     expect(uploads.isUploadable(received['file'])).toBe(true);
     expect(received['file']).not.toBeInstanceOf(Readable);
+    // Being uploadable is not enough on its own - an untyped File is
+    // uploadable and is still rejected by the server - so pin the content
+    // type here too.
+    expect((received['file'] as { type?: string }).type).toBe('audio/ogg');
     expect(received['model']).toBe('whisper-1');
     expect(received['response_format']).toBe('verbose_json');
+  });
+
+  /**
+   * The content type that actually reaches the API, per extension this
+   * library contains.
+   *
+   * Asserted on the `File` the fake client receives rather than on the helper
+   * alone, so a future refactor that computes the right type and then forgets
+   * to hand it to `toFile` fails here. No network call is made.
+   */
+  describe('the content type on the uploaded file', () => {
+    const cases: Array<[string, string, string]> = [
+      // filename, expected content type, expected upload filename
+      ['clip.ogg', 'audio/ogg', 'clip.ogg'],
+      ['clip.oga', 'audio/ogg', 'clip.oga'],
+      // Opus-in-Ogg: `opus` is absent from the API's supported-extension list
+      // while `ogg` is on it, and the container really is Ogg.
+      ['clip.opus', 'audio/ogg', 'clip.ogg'],
+      ['clip.webm', 'audio/webm', 'clip.webm'],
+      ['clip.mp3', 'audio/mpeg', 'clip.mp3'],
+      ['clip.wav', 'audio/wav', 'clip.wav'],
+      ['clip.m4a', 'audio/mp4', 'clip.m4a'],
+      ['clip.flac', 'audio/flac', 'clip.flac'],
+      // Unknown and absent extensions must still declare something the API
+      // will accept - never an empty type, and never octet-stream.
+      ['clip.aiff', 'audio/ogg', 'clip.aiff'],
+      ['clip', 'audio/ogg', 'clip'],
+      // Case is not part of the answer.
+      ['CLIP.OPUS', 'audio/ogg', 'CLIP.ogg'],
+      ['CLIP.MP3', 'audio/mpeg', 'CLIP.MP3'],
+    ];
+
+    it.each(cases)('sends %s as %s', async (filename, contentType, uploadName) => {
+      jest.resetModules();
+      jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+      const received: Record<string, unknown> = {};
+      mockOpenAI(received, { text: 'hello' });
+
+      const { transcribeSpeech } = require('../speechTranscript');
+      await expect(transcribeSpeech(Buffer.from('audio bytes'), filename)).resolves.toEqual({
+        ok: true,
+        transcript: 'hello',
+      });
+
+      const file = received['file'] as { type?: string; name?: string };
+      expect(file.type).toBe(contentType);
+      expect(file.name).toBe(uploadName);
+    });
+
+    it('never leaves the content type empty', async () => {
+      jest.resetModules();
+      jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+      const received: Record<string, unknown> = {};
+      mockOpenAI(received, { text: 'hello' });
+
+      const { transcribeSpeech } = require('../speechTranscript');
+      await transcribeSpeech(Buffer.from('audio bytes'), 'weird.name.with.dots');
+      expect((received['file'] as { type?: string }).type).not.toBe('');
+    });
   });
 
   it('keeps the clip filename on the uploaded file', async () => {
