@@ -1,4 +1,7 @@
 import { spawn } from 'child_process';
+import { createLogger } from '../logger';
+
+const log = createLogger('SOUND-TRANSCODE');
 
 /**
  * Duration ffmpeg is told to stop decoding at, via `-t`.
@@ -92,6 +95,28 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
         const stderr = Buffer.concat(stderrChunks).toString('utf8');
         reject(new Error(stderr || `ffmpeg exited with code ${code}`));
       }
+    });
+
+    // `-t` makes ffmpeg stop reading stdin and exit the moment it has enough
+    // output, and the SIGKILL above severs the pipe outright - in both cases
+    // Node may still have megabytes of source queued here, and the write end
+    // fails with EPIPE. Without this listener that is an unhandled 'error'
+    // event on the socket: Raincloud's handler (apps/raincloud/index.js) turns
+    // it into a sticky `process.exitCode = 1` so every later clean shutdown
+    // reports as a crash, and worker-shared's
+    // (packages/worker-shared/src/errors/process.ts) into an outright
+    // `process.exit(1)` mid-sweep. Verified against ffmpeg 8.0.1 with a
+    // 10-minute Opus clip small enough to pass the source-size guard.
+    //
+    // It deliberately settles nothing. Every outcome is already covered: the
+    // 'close' handler resolves an early exit 0 with the capped output (which
+    // is what `-t` was for), rejects a non-zero exit with stderr, and rejects
+    // the byte-ceiling kill; the child's own 'error' handler covers a spawn
+    // that never starts. Rejecting here would only race those with a less
+    // informative error, and resolving would be wrong outright.
+    ffmpeg.stdin.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EPIPE') return;
+      log.debug(`ffmpeg stdin error (${error.code ?? 'no code'}): ${error.message}`);
     });
 
     ffmpeg.stdin.write(buffer);

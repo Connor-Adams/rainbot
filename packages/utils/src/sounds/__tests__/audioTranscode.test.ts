@@ -9,12 +9,28 @@ jest.mock('child_process', () => ({
   spawn: mockSpawn,
 }));
 
+/**
+ * A stdin that can fail the way a real one does.
+ *
+ * The previous stand-in was `{ write: jest.fn(), end: jest.fn() }`, which can
+ * never emit anything - so the unhandled-EPIPE crash that `-t` introduces was
+ * invisible to every test here. An EventEmitter lets a test raise the error
+ * for real, and `emit('error')` with no listener throws, which is exactly the
+ * unhandled 'error' event that kills the real process.
+ */
+function fakeStdin() {
+  const stdin = new EventEmitter() as any;
+  stdin.write = jest.fn();
+  stdin.end = jest.fn();
+  return stdin;
+}
+
 /** A stand-in ffmpeg that emits `output` on stdout/`stderrText` on stderr and exits with `code`. */
 function fakeFfmpeg(output: Buffer, code = 0, stderrText = '') {
   const child = new EventEmitter() as any;
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
-  child.stdin = { write: jest.fn(), end: jest.fn() };
+  child.stdin = fakeStdin();
 
   process.nextTick(() => {
     if (code === 0 && output.length > 0) child.stdout.emit('data', output);
@@ -80,7 +96,7 @@ describe('toWavBuffer', () => {
     const child = new EventEmitter() as any;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
-    child.stdin = { write: jest.fn(), end: jest.fn() };
+    child.stdin = fakeStdin();
     mockSpawn.mockImplementation(() => {
       process.nextTick(() => child.emit('error', new Error('spawn ffmpeg ENOENT')));
       return child;
@@ -89,11 +105,117 @@ describe('toWavBuffer', () => {
     await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow('spawn ffmpeg ENOENT');
   });
 
+  describe('stdin EPIPE', () => {
+    /** The error a write into a pipe ffmpeg has already closed produces. */
+    function epipe(): NodeJS.ErrnoException {
+      return Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+    }
+
+    it('survives the EPIPE that -t causes once ffmpeg stops reading stdin', async () => {
+      const wavOut = Buffer.from('RIFF....WAVEfmt ');
+      // With `-t`, ffmpeg exits as soon as it has enough output and 'close'
+      // fires while megabytes are still queued in stdin; only then does the
+      // write fail. Verified against real ffmpeg 8.0.1 with a 10-minute Opus
+      // clip small enough to pass the source-size guard.
+      //
+      // `emit('error')` on an emitter with no listener throws, which IS the
+      // unhandled 'error' event that kills the process, so anything caught
+      // here is an escape.
+      const escaped: Error[] = [];
+
+      mockSpawn.mockImplementation(() => {
+        const child = fakeFfmpeg(wavOut);
+        process.nextTick(() => {
+          try {
+            child.stdin.emit('error', epipe());
+          } catch (error) {
+            escaped.push(error as Error);
+          }
+        });
+        return child;
+      });
+
+      await expect(toWavBuffer(Buffer.from('a'.repeat(4096)))).resolves.toEqual(wavOut);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(escaped).toEqual([]);
+    });
+
+    it('catches an EPIPE raised by the write itself, so the handler must precede it', async () => {
+      const wavOut = Buffer.from('RIFF....WAVEfmt ');
+
+      mockSpawn.mockImplementation(() => {
+        const child = fakeFfmpeg(wavOut);
+        // A pipe already closed by an exited ffmpeg fails inside write().
+        // Nothing catches that throw, so if the handler were attached after
+        // the write, it would escape the executor and reject the promise.
+        child.stdin.write.mockImplementation(() => {
+          child.stdin.emit('error', epipe());
+          return false;
+        });
+        return child;
+      });
+
+      await expect(toWavBuffer(Buffer.from('a'))).resolves.toEqual(wavOut);
+    });
+
+    it('swallows a non-EPIPE stdin error without settling the promise', async () => {
+      const wavOut = Buffer.from('RIFF....WAVEfmt ');
+      const escaped: Error[] = [];
+
+      mockSpawn.mockImplementation(() => {
+        const child = fakeFfmpeg(wavOut);
+        process.nextTick(() => {
+          try {
+            child.stdin.emit('error', Object.assign(new Error('broken'), { code: 'ECONNRESET' }));
+          } catch (error) {
+            escaped.push(error as Error);
+          }
+        });
+        return child;
+      });
+
+      // 'close' is the only thing allowed to settle this promise - an stdin
+      // error of any kind must not pre-empt it with a worse answer.
+      await expect(toWavBuffer(Buffer.from('a'))).resolves.toEqual(wavOut);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(escaped).toEqual([]);
+    });
+
+    it('survives the EPIPE the byte-ceiling SIGKILL causes', async () => {
+      const child = new EventEmitter() as any;
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = fakeStdin();
+      child.kill = jest.fn();
+      const escaped: Error[] = [];
+
+      mockSpawn.mockImplementation(() => {
+        process.nextTick(() => {
+          const over = Buffer.alloc(MAX_DECODE_STDOUT_BYTES + 1);
+          child.stdout.emit('data', over);
+          // SIGKILL severs the pipe the pending write is still feeding.
+          try {
+            child.stdin.emit('error', epipe());
+          } catch (error) {
+            escaped.push(error as Error);
+          }
+          child.emit('close', null);
+        });
+        return child;
+      });
+
+      await expect(toWavBuffer(Buffer.from('bad'))).rejects.toThrow(/exceeded/);
+      expect(escaped).toEqual([]);
+    });
+  });
+
   it('kills ffmpeg and rejects if stdout exceeds the byte ceiling despite the -t cap', async () => {
     const child = new EventEmitter() as any;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
-    child.stdin = { write: jest.fn(), end: jest.fn() };
+    child.stdin = fakeStdin();
     child.kill = jest.fn();
 
     mockSpawn.mockImplementation(() => {

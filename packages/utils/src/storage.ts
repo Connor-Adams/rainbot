@@ -141,6 +141,18 @@ async function transcodeToOggOpus(buffer: Uint8Array): Promise<Buffer<ArrayBuffe
       }
     });
 
+    // No `-t` here, so ffmpeg normally consumes the whole input and this never
+    // fires. It still must exist: any early exit - malformed input it refuses
+    // to decode, a missing encoder - leaves Node writing into a closed pipe,
+    // and an unhandled 'error' event on that socket takes the process with it
+    // (a sticky `process.exitCode = 1` under Raincloud's handler, an outright
+    // `process.exit(1)` under worker-shared's). Settles nothing: the 'close'
+    // and child-'error' handlers above already cover every outcome.
+    ffmpeg.stdin.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EPIPE') return;
+      log.debug(`ffmpeg stdin error (${error.code ?? 'no code'}): ${error.message}`);
+    });
+
     ffmpeg.stdin.write(buffer);
     ffmpeg.stdin.end();
   });
