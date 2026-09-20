@@ -1,4 +1,3 @@
-import { Readable } from 'stream';
 import { loadConfig } from '../config';
 import { createLogger } from '../logger';
 
@@ -62,9 +61,11 @@ export async function transcribeSpeech(buffer: Buffer, filename: string): Promis
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let OpenAI: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let toFile: any;
   try {
     // openai is an optionalDependency; a missing package must degrade quietly.
-    ({ OpenAI } = require('openai'));
+    ({ OpenAI, toFile } = require('openai'));
   } catch {
     log.warn('openai package not installed - skipping transcription');
     return null;
@@ -72,11 +73,17 @@ export async function transcribeSpeech(buffer: Buffer, filename: string): Promis
 
   try {
     const client = new OpenAI({ apiKey: config.openaiApiKey });
-    const stream = Readable.from(buffer) as Readable & { path?: string };
-    stream.path = filename;
+
+    // Must go through the SDK's own `toFile`. Its multipart encoder only
+    // accepts values that satisfy `isUploadable()` - a File/Blob, a fetch
+    // Response, or an `fs.ReadStream`. A plain `stream.Readable` (even with
+    // `.path` set, which only influences the derived filename) satisfies none
+    // of them, and the request throws a TypeError before any network call -
+    // which this function's catch would quietly turn into a null transcript.
+    const file = await toFile(buffer, filename);
 
     const response = await client.audio.transcriptions.create({
-      file: stream,
+      file,
       model: 'whisper-1',
       response_format: 'verbose_json',
     });
