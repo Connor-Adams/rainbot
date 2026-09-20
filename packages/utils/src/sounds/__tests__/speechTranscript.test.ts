@@ -92,6 +92,18 @@ describe('uploadDescriptorFor', () => {
     expect(uploadDescriptorFor('a').contentType).toBe('audio/ogg');
   });
 
+  it('renames an extension the API will not accept, not just the .opus case', () => {
+    // The API gates on the filename extension too, so declaring `audio/ogg`
+    // while leaving the name `a.aiff` sends a name it refuses on sight paired
+    // with a type that contradicts it. Either the rename matters here as it
+    // does for `.opus`, or it never mattered at all.
+    expect(uploadDescriptorFor('a.aiff')).toEqual({
+      uploadName: 'a.ogg',
+      contentType: 'audio/ogg',
+    });
+    expect(uploadDescriptorFor('a')).toEqual({ uploadName: 'a.ogg', contentType: 'audio/ogg' });
+  });
+
   it('leaves every non-opus filename alone', () => {
     expect(uploadDescriptorFor('Some Clip (1).mp3').uploadName).toBe('Some Clip (1).mp3');
   });
@@ -181,9 +193,10 @@ describe('transcribeSpeech', () => {
       ['clip.m4a', 'audio/mp4', 'clip.m4a'],
       ['clip.flac', 'audio/flac', 'clip.flac'],
       // Unknown and absent extensions must still declare something the API
-      // will accept - never an empty type, and never octet-stream.
-      ['clip.aiff', 'audio/ogg', 'clip.aiff'],
-      ['clip', 'audio/ogg', 'clip'],
+      // will accept - never an empty type, and never octet-stream - and must
+      // carry a name it accepts too, since it gates on both.
+      ['clip.aiff', 'audio/ogg', 'clip.ogg'],
+      ['clip', 'audio/ogg', 'clip.ogg'],
       // Case is not part of the answer.
       ['CLIP.OPUS', 'audio/ogg', 'CLIP.ogg'],
       ['CLIP.MP3', 'audio/mpeg', 'CLIP.MP3'],

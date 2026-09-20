@@ -51,25 +51,45 @@ const UPLOAD_CONTENT_TYPES: Record<string, string> = {
  * name is unfamiliar, and guessing it at least produces a request the API
  * will open and inspect instead of one it refuses on sight.
  */
+const DEFAULT_UPLOAD_EXTENSION = '.ogg';
 const DEFAULT_UPLOAD_CONTENT_TYPE = 'audio/ogg';
 
 /**
  * The filename and content type a clip should be uploaded under.
  *
- * `.opus` is renamed to `.ogg` because the API's supported-extension list
- * above has no `opus` entry while the bytes are an ordinary Ogg container;
- * the renamed part matches both the real container and the declared content
- * type, so nothing about the request misrepresents the file. Exported for the
- * tests, which assert the content type that actually reaches the API rather
- * than merely that the value is uploadable.
+ * The API gates on the *filename extension* as well as on the content type:
+ * its supported list - ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga',
+ * 'ogg', 'wav', 'webm'] - is checked against the multipart part's filename,
+ * and a name outside it is refused with `400 Invalid file format` however the
+ * part is typed. That is the position this function takes, and it has exactly
+ * one consequence: a name whose extension the API will not accept is renamed
+ * to the extension matching the type being declared, so the two always agree.
+ *
+ * `.opus` is the familiar case - the list has no `opus` entry while the bytes
+ * are an ordinary Ogg container - but the unknown-extension fallback needs the
+ * same treatment for the same reason. Leaving `clip.aiff` named `clip.aiff`
+ * while declaring `audio/ogg` is a name the server rejects on sight paired
+ * with a type contradicting it; if the rename is pointless there it was
+ * pointless for `.opus` too, and production's `400 Invalid file format` says
+ * it is not.
+ *
+ * Exported for the tests, which assert the content type that actually reaches
+ * the API rather than merely that the value is uploadable.
  */
 export function uploadDescriptorFor(filename: string): {
   uploadName: string;
   contentType: string;
 } {
-  const ext = path.extname(filename).toLowerCase();
-  const contentType = UPLOAD_CONTENT_TYPES[ext] ?? DEFAULT_UPLOAD_CONTENT_TYPE;
-  const uploadName = ext === '.opus' ? `${filename.slice(0, -ext.length)}.ogg` : filename;
+  const ext = path.extname(filename);
+  const known = UPLOAD_CONTENT_TYPES[ext.toLowerCase()];
+  const contentType = known ?? DEFAULT_UPLOAD_CONTENT_TYPE;
+
+  // `.opus` carries a type the API takes but a name it does not, so it is
+  // renamed alongside every extension the table has no entry for at all.
+  const acceptedAsIs = known !== undefined && ext.toLowerCase() !== '.opus';
+  const stem = ext ? filename.slice(0, -ext.length) : filename;
+  const uploadName = acceptedAsIs ? filename : `${stem}${DEFAULT_UPLOAD_EXTENSION}`;
+
   return { uploadName, contentType };
 }
 
