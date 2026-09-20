@@ -1,6 +1,6 @@
-import path from 'path';
 import { loadConfig } from '../config';
 import { createLogger } from '../logger';
+import { toWavBuffer } from './audioTranscode';
 import type { SoundDescription, SoundKind } from './types';
 
 const log = createLogger('SOUND-ANALYZER');
@@ -54,11 +54,28 @@ export function parseDescription(raw: string): SoundDescription | null {
   return { kind: candidate.kind as SoundKind, caption: candidate.caption.trim(), tags };
 }
 
-function audioFormatFor(filename: string): string {
-  const ext = path.extname(filename).toLowerCase().replace('.', '');
-  if (ext === 'oga' || ext === 'opus') return 'ogg';
-  if (ext === 'm4a') return 'mp4';
-  return ext || 'ogg';
+/**
+ * Minimal shape of the chat-completions request this call needs.
+ *
+ * Deliberately not imported from 'openai' - that package is an optional
+ * dependency (see the `require('openai')` below), and referencing its types
+ * here would reintroduce a compile-time dependency on a package that may not
+ * be installed. The `format` union mirrors the SDK's own
+ * `format: 'wav' | 'mp3'` (node_modules/openai/resources/chat/completions/completions.d.ts)
+ * so a typo or a reintroduced non-wav format still fails to compile.
+ */
+interface AudioChatCompletionRequest {
+  model: string;
+  modalities: ['text'];
+  messages: [
+    {
+      role: 'user';
+      content: [
+        { type: 'text'; text: string },
+        { type: 'input_audio'; input_audio: { data: string; format: 'wav' | 'mp3' } },
+      ];
+    },
+  ];
 }
 
 /**
@@ -79,10 +96,10 @@ export async function describeAudio(
     return null;
   }
 
-  let OpenAI: typeof import('openai').OpenAI;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let OpenAI: any;
   try {
     // openai is an optionalDependency; a missing package must degrade quietly.
-     
     ({ OpenAI } = require('openai'));
   } catch {
     log.warn('openai package not installed - skipping audio description');
@@ -91,7 +108,16 @@ export async function describeAudio(
 
   try {
     const client = new OpenAI({ apiKey: config.openaiApiKey });
-    const response = await client.chat.completions.create({
+
+    // The chat-completions audio input only accepts 'wav' | 'mp3' (unlike
+    // the Whisper transcriptions endpoint, which also takes ogg/webm/etc.),
+    // and this soundboard transcodes every upload to Ogg Opus - so every
+    // clip must be decoded to wav here rather than trusting the source
+    // extension. A conversion failure falls through to the catch below and
+    // returns null like every other failure in this function.
+    const wavBuffer = await toWavBuffer(buffer);
+
+    const request: AudioChatCompletionRequest = {
       model: config.soundCaptionModel,
       modalities: ['text'],
       messages: [
@@ -102,14 +128,16 @@ export async function describeAudio(
             {
               type: 'input_audio',
               input_audio: {
-                data: buffer.toString('base64'),
-                format: audioFormatFor(filename),
+                data: wavBuffer.toString('base64'),
+                format: 'wav',
               },
             },
           ],
         },
       ],
-    } as Parameters<typeof client.chat.completions.create>[0]);
+    };
+
+    const response = await client.chat.completions.create(request);
 
     const reply = (response as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]
       ?.message?.content;
