@@ -2,6 +2,7 @@ const { Events, MessageFlags } = require('discord.js');
 const { createLogger } = require('@rainbot/utils/logger');
 const voiceManager = require('@rainbot/utils/voiceManager');
 const stats = require('@rainbot/utils/statistics');
+const { searchSounds } = require('@rainbot/utils');
 
 const log = createLogger('INTERACTION');
 
@@ -25,22 +26,26 @@ module.exports = {
         if (focusedOption.name === 'source') {
           try {
             const sounds = await voiceManager.listSounds();
-            const input = focusedOption.value.toLowerCase().trim();
+            const input = focusedOption.value.trim();
 
-            let filtered;
-            if (input === '') {
-              // Show all sounds if no input (up to 25)
-              filtered = sounds.slice(0, 25);
-            } else {
-              // Filter sounds that match the input
-              filtered = sounds.filter((sound) => sound.name.toLowerCase().includes(input));
-            }
+            // Semantic search is off here on purpose: autocomplete fires on
+            // every keystroke against Discord's 3 second budget, and an
+            // embedding round-trip per keystroke would blow both the latency
+            // and the API bill. The dashboard, which debounces, keeps it.
+            const results = await searchSounds({
+              query: input,
+              sounds: sounds.map((sound) => ({ name: sound.name })),
+              limit: 25,
+              allowSemantic: false,
+            });
 
-            // Limit to 25 choices (Discord's limit)
-            const choices = filtered.slice(0, 25).map((sound) => ({
-              name: sound.name.length > 100 ? sound.name.substring(0, 97) + '...' : sound.name,
-              value: sound.name,
-            }));
+            const choices = results.slice(0, 25).map((result) => {
+              const label = result.snippet ? `${result.name} — ${result.snippet}` : result.name;
+              return {
+                name: label.length > 100 ? `${label.substring(0, 97)}...` : label,
+                value: result.name,
+              };
+            });
 
             await interaction.respond(choices);
 
