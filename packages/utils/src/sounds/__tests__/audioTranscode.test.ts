@@ -49,6 +49,7 @@ import {
   MAX_DECODE_SECONDS,
   MAX_DECODE_STDOUT_BYTES,
   DECODED_BYTES_PER_SECOND,
+  MIN_ANALYSIS_SECONDS,
 } from '../audioTranscode';
 
 const UNKNOWN = 0xffffffff;
@@ -274,6 +275,36 @@ describe('wasDecodeTruncated', () => {
     // decode lands past the threshold rather than on it.
     expect(wasDecodeTruncated(Buffer.alloc(cap + 78))).toBe(true);
   });
+
+  /**
+   * The padding filter lengthens output and the `-t` cap shortens it, and this
+   * predicate can only see the result. These are the two buffers production
+   * actually produces on either side of that, sized off the same constants the
+   * ffmpeg flags are built from.
+   */
+  describe('with silence padding in play', () => {
+    /** A `MIN_ANALYSIS_SECONDS` buffer: what a sub-second clip pads out to. */
+    const padded = MIN_ANALYSIS_SECONDS * DECODED_BYTES_PER_SECOND + 44;
+
+    it('does not report a padded short clip as truncated', () => {
+      expect(wasDecodeTruncated(Buffer.alloc(padded))).toBe(false);
+    });
+
+    it('still reports a genuinely capped long clip as truncated', () => {
+      // 45 seconds of source decoded under `-t 30` lands here; `apad` adds
+      // nothing to it.
+      expect(wasDecodeTruncated(Buffer.alloc(cap + 44))).toBe(true);
+    });
+
+    it('leaves room no amount of padding can close', () => {
+      // The structural reason the two cases above cannot collide: padding tops
+      // out at MIN_ANALYSIS_SECONDS, which is a small fraction of the cap. If
+      // anyone ever raises MIN_ANALYSIS_SECONDS toward MAX_DECODE_SECONDS, this
+      // fails before the misreport reaches production.
+      expect(MIN_ANALYSIS_SECONDS).toBeLessThan(MAX_DECODE_SECONDS);
+      expect(padded).toBeLessThan(cap);
+    });
+  });
 });
 
 describe('toWavBuffer', () => {
@@ -297,6 +328,11 @@ describe('toWavBuffer', () => {
       'pipe:0',
       '-t',
       String(MAX_DECODE_SECONDS),
+      // Short clips come back from the caption model as "I'm unable to listen
+      // to audio"; trailing silence up to MIN_ANALYSIS_SECONDS clears that
+      // floor. `whole_dur` is a target, so this is a no-op above it.
+      '-af',
+      `apad=whole_dur=${MIN_ANALYSIS_SECONDS}`,
       '-ar',
       '16000',
       '-ac',
@@ -317,6 +353,67 @@ describe('toWavBuffer', () => {
     const child = mockSpawn.mock.results[0].value;
     expect(child.stdin.write).toHaveBeenCalledWith(input);
     expect(child.stdin.end).toHaveBeenCalled();
+  });
+
+  describe('silence padding', () => {
+    /** Pull the `-af` value out of the args ffmpeg was actually spawned with. */
+    function filterArg(): string | undefined {
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const at = args.indexOf('-af');
+      return at === -1 ? undefined : args[at + 1];
+    }
+
+    it('asks ffmpeg for a whole-duration target rather than unbounded padding', async () => {
+      mockSpawn.mockImplementation(() => fakeFfmpeg(Buffer.from('RIFF....WAVEfmt ')));
+      await toWavBuffer(Buffer.from('short-clip'));
+
+      // A bare `apad` pads forever, and `-t MAX_DECODE_SECONDS` would then turn
+      // every clip in the library into 30 seconds of mostly silence. The
+      // duration target is the whole reason this is safe.
+      expect(filterArg()).toBe(`apad=whole_dur=${MIN_ANALYSIS_SECONDS}`);
+      expect(filterArg()).not.toBe('apad');
+    });
+
+    it('sends one filter chain, not a duplicate -af that would override it', async () => {
+      mockSpawn.mockImplementation(() => fakeFfmpeg(Buffer.from('RIFF....WAVEfmt ')));
+      await toWavBuffer(Buffer.from('short-clip'));
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      expect(args.filter((a) => a === '-af')).toHaveLength(1);
+    });
+
+    it('is the same request whatever the clip, so a long clip is padded by nothing', async () => {
+      // `whole_dur` is a minimum target: ffmpeg appends silence only up to it
+      // and leaves a longer stream untouched. Verified against ffmpeg 8.0.1 -
+      // a 3s clip's decoded output is byte-identical with and without this
+      // filter - so the no-op lives in ffmpeg, and what this asserts is that
+      // nothing here special-cases the two and gets the branch wrong.
+      mockSpawn.mockImplementation(() => fakeFfmpeg(Buffer.from('RIFF....WAVEfmt ')));
+      await toWavBuffer(Buffer.alloc(16));
+      const shortArgs = mockSpawn.mock.calls[0][1];
+
+      mockSpawn.mockReset();
+      mockSpawn.mockImplementation(() => fakeFfmpeg(Buffer.from('RIFF....WAVEfmt ')));
+      await toWavBuffer(Buffer.alloc(4 * 1024 * 1024));
+      const longArgs = mockSpawn.mock.calls[0][1];
+
+      expect(longArgs).toEqual(shortArgs);
+    });
+
+    it('does not lengthen the buffer the truncation check reads', async () => {
+      // Padding happens inside ffmpeg; nothing on this side appends to what it
+      // hands back. A stand-in that returns a padded-length buffer must still
+      // read as untruncated once it comes through `toWavBuffer`.
+      const paddedOut = pipedStyleWav(
+        Buffer.alloc(MIN_ANALYSIS_SECONDS * DECODED_BYTES_PER_SECOND)
+      );
+      mockSpawn.mockImplementation(() => fakeFfmpeg(paddedOut));
+
+      const result = await toWavBuffer(Buffer.from('short-clip'));
+
+      expect(result.length).toBe(paddedOut.length);
+      expect(wasDecodeTruncated(result)).toBe(false);
+    });
   });
 
   it('rejects with the stderr text when ffmpeg exits non-zero', async () => {

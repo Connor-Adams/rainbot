@@ -36,6 +36,43 @@ export const MAX_DECODE_SECONDS = 30;
 export const MAX_DECODE_STDOUT_BYTES = 8 * 1024 * 1024;
 
 /**
+ * Duration every decode is padded up to with trailing silence, via
+ * `-af apad=whole_dur=...`.
+ *
+ * The caption model drops audio below roughly a second and then answers as
+ * though nothing was attached at all. Measured against `gpt-audio-1.5` on this
+ * library's own clips:
+ *
+ *   waterslide.ogg        1.34s  -> described correctly, classified `speech`
+ *   Bonk.ogg              0.96s  -> "I can listen to the audio now. Please
+ *                                    provide the clip."
+ *   Villager_idle1.ogg   ~0.9s   -> "I'm unable to listen to audio."
+ *   (45-second clips)            -> described fine
+ *
+ * The WAV itself is not the problem: these very clips were checked to carry a
+ * canonical header with `data` at CANONICAL_DATA_OFFSET and exact declared
+ * sizes. Duration is the one property that separates the working clip from the
+ * failing ones, and a soundboard is mostly sub-second clips - "a one-second
+ * recording of something being hit with a bat" is the median entry here, not
+ * an edge case - so the whole feature turns on clearing that floor.
+ *
+ * Two seconds is twice the longest clip known to fail and half again the
+ * shortest known to succeed, which is margin on both sides of a threshold
+ * neither of us can see. It is also cheap: the decode is 16kHz mono 16-bit, so
+ * the ceiling this puts on a padded payload is 2 * DECODED_BYTES_PER_SECOND =
+ * 64KB, about 86KB once base64'd - and padding is only ever additive up to
+ * this point, so the clips it touches are the smallest ones in the library.
+ * Going longer would bury a 300ms bonk in silence for no evidence that the
+ * threshold is anywhere near it.
+ *
+ * Deliberately far below MAX_DECODE_SECONDS. The two caps move in opposite
+ * directions - this one lengthens output, that one shortens it - and
+ * `wasDecodeTruncated` reads length alone, so the gap between them is what
+ * keeps a padded clip from reading as a capped one. See that function.
+ */
+export const MIN_ANALYSIS_SECONDS = 2;
+
+/**
  * Bytes one second of the decoded stream occupies, fixed by the ffmpeg flags
  * below: 16000 samples/sec * 1 channel * 2 bytes per sample.
  */
@@ -53,6 +90,13 @@ export const DECODED_BYTES_PER_SECOND = 16000 * 2;
  * couple of milliseconds before the cap, which reads as truncated - it is
  * within rounding of being exactly that, and the only consequence is a log
  * line.
+ *
+ * `toWavBuffer`'s silence padding cannot confuse this. It only ever extends
+ * output up to MIN_ANALYSIS_SECONDS, which is 2 of the 30 seconds this
+ * threshold sits at, so the longest possible padded-from-nothing buffer is
+ * ~64KB against a ~960KB threshold. For padding to reach the cap it would have
+ * to pad a clip that was already at least MAX_DECODE_SECONDS - MIN_ANALYSIS_SECONDS
+ * long, and `apad` does nothing at all to a clip already past its target.
  */
 export function wasDecodeTruncated(wav: Buffer): boolean {
   return wav.length >= MAX_DECODE_SECONDS * DECODED_BYTES_PER_SECOND;
@@ -195,6 +239,19 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
       'pipe:0',
       '-t',
       String(MAX_DECODE_SECONDS),
+      // Pad short clips out with trailing silence so they clear the caption
+      // model's minimum duration - see MIN_ANALYSIS_SECONDS for the production
+      // measurements. `whole_dur` is a *target*, not an amount: ffmpeg appends
+      // silence only up to it and leaves anything already longer untouched, so
+      // this is a no-op for every clip but the very short ones. Verified
+      // against the installed ffmpeg 8.0.1, where a 3s clip's output is
+      // byte-identical with and without this filter.
+      //
+      // The bare `apad` would pad forever and `-t` above would then hand back
+      // MAX_DECODE_SECONDS of mostly silence for every clip in the library;
+      // the duration target is what bounds it.
+      '-af',
+      `apad=whole_dur=${MIN_ANALYSIS_SECONDS}`,
       '-ar',
       '16000',
       '-ac',
