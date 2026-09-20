@@ -1,10 +1,17 @@
 import { Readable } from 'stream';
-import { trimHallucinations } from '../speechTranscript';
+import { trimHallucinations, uploadDescriptorFor } from '../speechTranscript';
 
 // The SDK's own multipart gate. Asserting against it rather than against a
 // hand-rolled guess is the point: the bug this covers was a value that looked
 // file-ish but that `isUploadable()` rejects, so the request threw before any
 // network call and the transcript came back null.
+//
+// `isUploadable()` is necessary and not sufficient, though, which is the
+// second bug these tests now cover: it says the request can be *built*, not
+// that the server will accept it. A `toFile` call with no `type` builds
+// perfectly and is rejected with `400 Invalid file format` by every request,
+// so the assertions below check the content type that actually lands on the
+// upload, not merely that the value is file-shaped.
 
 const uploads = require('openai/uploads');
 
@@ -57,6 +64,145 @@ describe('trimHallucinations', () => {
 
   it('returns an empty string for no segments', () => {
     expect(trimHallucinations([])).toBe('');
+  });
+});
+
+/**
+ * Leading bytes of each container, as a real file of that kind carries them.
+ *
+ * Padded past the longest signature offset so nothing is decided by a short
+ * read. `unidentified` is an AIFF-style `FORM` header: a real container, and
+ * deliberately not one any signature here matches.
+ */
+const HEADS = {
+  ogg: Buffer.concat([Buffer.from('OggS', 'latin1'), Buffer.alloc(60)]),
+  webm: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(60)]),
+  wav: Buffer.concat([
+    Buffer.from('RIFF', 'latin1'),
+    Buffer.alloc(4),
+    Buffer.from('WAVE', 'latin1'),
+    Buffer.alloc(60),
+  ]),
+  flac: Buffer.concat([Buffer.from('fLaC', 'latin1'), Buffer.alloc(60)]),
+  m4a: Buffer.concat([Buffer.alloc(4), Buffer.from('ftypM4A ', 'latin1'), Buffer.alloc(60)]),
+  mp3: Buffer.concat([Buffer.from('ID3', 'latin1'), Buffer.alloc(60)]),
+  mp3Bare: Buffer.concat([Buffer.from([0xff, 0xfb]), Buffer.alloc(60)]),
+  unidentified: Buffer.concat([Buffer.from('FORM', 'latin1'), Buffer.alloc(60)]),
+};
+
+describe('uploadDescriptorFor', () => {
+  it('describes the container the bytes actually are', () => {
+    // The name is held constant and wrong on purpose: only the bytes decide.
+    expect(uploadDescriptorFor('a.bin', HEADS.ogg)).toEqual({
+      uploadName: 'a.ogg',
+      contentType: 'audio/ogg',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.webm)).toEqual({
+      uploadName: 'a.webm',
+      contentType: 'audio/webm',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.wav)).toEqual({
+      uploadName: 'a.wav',
+      contentType: 'audio/wav',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.flac)).toEqual({
+      uploadName: 'a.flac',
+      contentType: 'audio/flac',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.m4a)).toEqual({
+      uploadName: 'a.m4a',
+      contentType: 'audio/mp4',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.mp3)).toEqual({
+      uploadName: 'a.mp3',
+      contentType: 'audio/mpeg',
+    });
+    expect(uploadDescriptorFor('a.bin', HEADS.mp3Bare).contentType).toBe('audio/mpeg');
+  });
+
+  /**
+   * The exact pairing production hands this function.
+   *
+   * `getSoundBuffer` resolves `laugh.mp3` through `resolveSoundFilename`,
+   * which prefers the transcoded `laugh.ogg` copy, while `analyzeSound` still
+   * passes the original name. `SOUND_TRANSCODE_DELETE_ORIGINAL` defaults to
+   * false, so `listSounds()` returns both names and the `.mp3` entry really is
+   * analysed with Ogg bytes. Keying off the name declared MP3 over an Ogg
+   * payload for every `.mp3`/`.wav`/`.m4a`/`.flac` clip in the library.
+   */
+  it('declares Ogg for a .mp3 name whose bytes are the transcoded Ogg copy', () => {
+    expect(uploadDescriptorFor('laugh.mp3', HEADS.ogg)).toEqual({
+      uploadName: 'laugh.ogg',
+      contentType: 'audio/ogg',
+    });
+    expect(uploadDescriptorFor('clip.wav', HEADS.ogg).contentType).toBe('audio/ogg');
+    expect(uploadDescriptorFor('clip.m4a', HEADS.ogg).contentType).toBe('audio/ogg');
+    expect(uploadDescriptorFor('clip.flac', HEADS.ogg).contentType).toBe('audio/ogg');
+  });
+
+  it('presents an Opus clip as the Ogg container it actually is', () => {
+    // `opus` is not on the API's supported-extension list; `ogg` is, and the
+    // bytes are an Ogg container either way.
+    expect(uploadDescriptorFor('a.opus', HEADS.ogg)).toEqual({
+      uploadName: 'a.ogg',
+      contentType: 'audio/ogg',
+    });
+  });
+
+  it('leaves a name alone when it already matches the bytes', () => {
+    expect(uploadDescriptorFor('Some Clip (1).mp3', HEADS.mp3).uploadName).toBe(
+      'Some Clip (1).mp3'
+    );
+  });
+
+  it('lowercases an extension that is only a case variant of the container', () => {
+    // The API states its supported list in lowercase, and this function's one
+    // job is to produce a name whose extension is literally on that list.
+    // Uppercase is how a clip enters the library in the first place - both the
+    // multer `fileFilter` and `listSounds` match case-insensitively, and
+    // `uploadSound`'s catch keeps the original name when the transcode fails.
+    expect(uploadDescriptorFor('CLIP.MP3', HEADS.mp3).uploadName).toBe('CLIP.mp3');
+    expect(uploadDescriptorFor('CLIP.Ogg', HEADS.ogg).uploadName).toBe('CLIP.ogg');
+    // Only the extension is touched; the stem keeps its case.
+    expect(uploadDescriptorFor('Some Clip (1).WAV', HEADS.wav).uploadName).toBe(
+      'Some Clip (1).wav'
+    );
+  });
+
+  describe('bytes no signature matches', () => {
+    it('falls back to the name, which is the only evidence left', () => {
+      expect(uploadDescriptorFor('a.mp3', HEADS.unidentified).contentType).toBe('audio/mpeg');
+      expect(uploadDescriptorFor('a.wav', HEADS.unidentified).contentType).toBe('audio/wav');
+      expect(uploadDescriptorFor('a.webm', HEADS.unidentified).contentType).toBe('audio/webm');
+      expect(uploadDescriptorFor('a.m4a', HEADS.unidentified).contentType).toBe('audio/mp4');
+      expect(uploadDescriptorFor('a.flac', HEADS.unidentified).contentType).toBe('audio/flac');
+      expect(uploadDescriptorFor('a.ogg', HEADS.unidentified).contentType).toBe('audio/ogg');
+    });
+
+    it('falls back to a type the API will accept, not to octet-stream', () => {
+      expect(uploadDescriptorFor('a.aiff', HEADS.unidentified).contentType).toBe('audio/ogg');
+      expect(uploadDescriptorFor('a', HEADS.unidentified).contentType).toBe('audio/ogg');
+    });
+
+    it('renames an extension the API will not accept, not just the .opus case', () => {
+      // The API gates on the filename extension too, so declaring `audio/ogg`
+      // while leaving the name `a.aiff` sends a name it refuses on sight
+      // paired with a type that contradicts it. Either the rename matters here
+      // as it does for `.opus`, or it never mattered at all.
+      expect(uploadDescriptorFor('a.aiff', HEADS.unidentified)).toEqual({
+        uploadName: 'a.ogg',
+        contentType: 'audio/ogg',
+      });
+      expect(uploadDescriptorFor('a', HEADS.unidentified)).toEqual({
+        uploadName: 'a.ogg',
+        contentType: 'audio/ogg',
+      });
+    });
+
+    it('survives a buffer too short to hold any signature', () => {
+      expect(uploadDescriptorFor('a.mp3', Buffer.alloc(0)).contentType).toBe('audio/mpeg');
+      expect(uploadDescriptorFor('a.mp3', Buffer.from('O')).contentType).toBe('audio/mpeg');
+    });
   });
 });
 
@@ -114,8 +260,127 @@ describe('transcribeSpeech', () => {
     expect(received['file']).toBeDefined();
     expect(uploads.isUploadable(received['file'])).toBe(true);
     expect(received['file']).not.toBeInstanceOf(Readable);
+    // Being uploadable is not enough on its own - an untyped File is
+    // uploadable and is still rejected by the server - so pin the content
+    // type here too.
+    expect((received['file'] as { type?: string }).type).toBe('audio/ogg');
     expect(received['model']).toBe('whisper-1');
     expect(received['response_format']).toBe('verbose_json');
+  });
+
+  /**
+   * The content type that actually reaches the API, for each pairing of name
+   * and bytes this library produces.
+   *
+   * Asserted on the `File` the fake client receives rather than on the helper
+   * alone, so a future refactor that computes the right type and then forgets
+   * to hand it to `toFile` fails here. Every case supplies bytes as well as a
+   * name, because the two disagree in production and the bytes are what the
+   * server opens. No network call is made.
+   */
+  describe('the content type on the uploaded file', () => {
+    const cases: Array<{
+      filename: string;
+      bytes: Buffer;
+      contentType: string;
+      uploadName: string;
+    }> = [
+      { filename: 'clip.ogg', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'clip.ogg' },
+      // Opus-in-Ogg: `opus` is absent from the API's supported-extension list
+      // while `ogg` is on it, and the container really is Ogg.
+      { filename: 'clip.opus', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'clip.ogg' },
+      {
+        filename: 'clip.webm',
+        bytes: HEADS.webm,
+        contentType: 'audio/webm',
+        uploadName: 'clip.webm',
+      },
+      { filename: 'clip.mp3', bytes: HEADS.mp3, contentType: 'audio/mpeg', uploadName: 'clip.mp3' },
+      { filename: 'clip.wav', bytes: HEADS.wav, contentType: 'audio/wav', uploadName: 'clip.wav' },
+      { filename: 'clip.m4a', bytes: HEADS.m4a, contentType: 'audio/mp4', uploadName: 'clip.m4a' },
+      {
+        filename: 'clip.flac',
+        bytes: HEADS.flac,
+        contentType: 'audio/flac',
+        uploadName: 'clip.flac',
+      },
+      // The transcoded copy behind an original name - what `getSoundBuffer`
+      // hands back for most of the pre-transcode library. The bytes win.
+      {
+        filename: 'laugh.mp3',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
+      {
+        filename: 'laugh.wav',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
+      {
+        filename: 'laugh.flac',
+        bytes: HEADS.ogg,
+        contentType: 'audio/ogg',
+        uploadName: 'laugh.ogg',
+      },
+      // Unidentifiable bytes fall back to the name, which must still declare
+      // something the API accepts - never an empty type, never octet-stream -
+      // and carry a name it accepts too, since it gates on both.
+      {
+        filename: 'clip.aiff',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/ogg',
+        uploadName: 'clip.ogg',
+      },
+      {
+        filename: 'clip',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/ogg',
+        uploadName: 'clip.ogg',
+      },
+      {
+        filename: 'clip.mp3',
+        bytes: HEADS.unidentified,
+        contentType: 'audio/mpeg',
+        uploadName: 'clip.mp3',
+      },
+      // Case is not part of finding the container, but the extension that goes
+      // out is always the lowercase form the API's supported list names.
+      { filename: 'CLIP.OPUS', bytes: HEADS.ogg, contentType: 'audio/ogg', uploadName: 'CLIP.ogg' },
+      { filename: 'CLIP.MP3', bytes: HEADS.mp3, contentType: 'audio/mpeg', uploadName: 'CLIP.mp3' },
+    ];
+
+    it.each(cases)(
+      'sends $filename as $contentType',
+      async ({ filename, bytes, contentType, uploadName }) => {
+        jest.resetModules();
+        jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+        const received: Record<string, unknown> = {};
+        mockOpenAI(received, { text: 'hello' });
+
+        const { transcribeSpeech } = require('../speechTranscript');
+        await expect(transcribeSpeech(bytes, filename)).resolves.toEqual({
+          ok: true,
+          transcript: 'hello',
+        });
+
+        const file = received['file'] as { type?: string; name?: string };
+        expect(file.type).toBe(contentType);
+        expect(file.name).toBe(uploadName);
+      }
+    );
+
+    it('never leaves the content type empty', async () => {
+      jest.resetModules();
+      jest.doMock('../../config', () => ({ loadConfig: () => ({ openaiApiKey: 'sk-test' }) }));
+      const received: Record<string, unknown> = {};
+      mockOpenAI(received, { text: 'hello' });
+
+      const { transcribeSpeech } = require('../speechTranscript');
+      await transcribeSpeech(Buffer.from('audio bytes'), 'weird.name.with.dots');
+      expect((received['file'] as { type?: string }).type).not.toBe('');
+    });
   });
 
   it('keeps the clip filename on the uploaded file', async () => {

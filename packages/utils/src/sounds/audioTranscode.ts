@@ -59,6 +59,100 @@ export function wasDecodeTruncated(wav: Buffer): boolean {
 }
 
 /**
+ * The size a RIFF chunk carries when its true length was not known at the time
+ * the header went out. ffmpeg writes this to a non-seekable output because it
+ * cannot come back and patch the field afterwards.
+ */
+const UNKNOWN_CHUNK_SIZE = 0xffffffff;
+
+/** Byte offset of the RIFF chunk's own size field. */
+const RIFF_SIZE_OFFSET = 4;
+
+/** Where the chunk list starts: past `RIFF`, the size field, and `WAVE`. */
+const FIRST_CHUNK_OFFSET = 12;
+
+/** Bytes of chunk header - a four-character id plus a `uint32le` size. */
+const CHUNK_HEADER_BYTES = 8;
+
+/**
+ * Repairs the length fields of a WAV that ffmpeg wrote to a pipe.
+ *
+ * ffmpeg cannot seek backwards on a non-seekable output, so it cannot return
+ * to the header and patch in the real lengths once the audio has been written.
+ * It emits the "unknown" sentinel instead, and every WAV this module produces
+ * therefore declares itself to be about 4 GiB. Verified against ffmpeg 8.0.1
+ * with this function's own flags:
+ *
+ *   piped:   52 49 46 46 ff ff ff ff 57 41 56 45   RIFF....WAVE
+ *            ...with the `data` chunk's size field also ffffffff
+ *   to file: RIFF size = 65272, data size = 65202
+ *
+ * That buffer is base64'd straight into an `input_audio` part declared
+ * `format: 'wav'`. ffmpeg-derived decoders read the sentinel as "read to EOF"
+ * and cope; a strict parser rejects it or over-reads. A model handed a file
+ * claiming 4 GiB of samples and given 60 KB may well describe a broken file
+ * rather than its contents, which is the production symptom.
+ *
+ * The `data` chunk's offset is found by walking the chunk list, never assumed.
+ * Real ffmpeg output is not the canonical 44-byte header: it emits a
+ * `LIST`/`INFO` chunk carrying its own version string between `fmt ` and
+ * `data`, putting `data` at byte 70 in the measured case. A fixed-offset patch
+ * would have written the lengths over that chunk.
+ *
+ * Only the sentinel is rewritten. A size field that already holds a plausible
+ * value is left exactly as it is, so a well-formed WAV - one with trailing
+ * chunks after `data`, say - cannot be corrupted by this function. Anything
+ * that is not the expected layout is likewise returned untouched, with a debug
+ * line, rather than half-patched.
+ *
+ * The buffer's byte length is never changed, so `wasDecodeTruncated` - which
+ * reads `wav.length` and nothing else - is unaffected by this.
+ */
+export function patchPipedWavSizes(wav: Buffer): Buffer {
+  const ascii = (offset: number): string =>
+    wav.length >= offset + 4 ? wav.subarray(offset, offset + 4).toString('latin1') : '';
+
+  if (wav.length < FIRST_CHUNK_OFFSET || ascii(0) !== 'RIFF' || ascii(8) !== 'WAVE') {
+    log.debug(`Decoded audio is not a RIFF/WAVE buffer (${wav.length} bytes) - leaving it as is`);
+    return wav;
+  }
+
+  let offset = FIRST_CHUNK_OFFSET;
+  while (offset + CHUNK_HEADER_BYTES <= wav.length) {
+    const id = ascii(offset);
+    const declared = wav.readUInt32LE(offset + 4);
+
+    if (id === 'data') {
+      const payload = wav.length - (offset + CHUNK_HEADER_BYTES);
+      // Only the unknown-length sentinel is a lie worth correcting. A declared
+      // size that fits inside the buffer is a real measurement - possibly with
+      // chunks after it - and overwriting it with "everything to the end" would
+      // be the corruption this patch exists to avoid.
+      if (declared !== UNKNOWN_CHUNK_SIZE) return wav;
+      wav.writeUInt32LE(payload, offset + 4);
+      // The RIFF chunk covers everything after its own id and size field.
+      wav.writeUInt32LE(wav.length - CHUNK_HEADER_BYTES, RIFF_SIZE_OFFSET);
+      return wav;
+    }
+
+    // A non-`data` chunk of unknown length cannot be stepped over, and a size
+    // that runs past the buffer means the layout is not what is assumed here.
+    // Either way, stop rather than guess.
+    if (declared === UNKNOWN_CHUNK_SIZE) break;
+    // RIFF chunks are padded to an even length; the pad byte is not counted in
+    // the declared size.
+    const next = offset + CHUNK_HEADER_BYTES + declared + (declared % 2);
+    if (next <= offset || next > wav.length) break;
+    offset = next;
+  }
+
+  log.debug(
+    `Decoded WAV has no locatable data chunk (${wav.length} bytes) - leaving its header as is`
+  );
+  return wav;
+}
+
+/**
  * Decodes an arbitrary audio buffer to 16kHz mono 16-bit PCM WAV via ffmpeg.
  *
  * Speech models want this format, and at 16kHz mono it is roughly a fifth
@@ -132,7 +226,11 @@ export async function toWavBuffer(buffer: Buffer): Promise<Buffer> {
         return;
       }
       if (code === 0) {
-        resolve(Buffer.concat(stdoutChunks));
+        // `Buffer.concat` hands back a fresh buffer that nothing else holds a
+        // reference to, so the header repair is done in place on it. See
+        // `patchPipedWavSizes` - ffmpeg could not write real lengths into a
+        // pipe, and the byte length is left unchanged either way.
+        resolve(patchPipedWavSizes(Buffer.concat(stdoutChunks)));
       } else {
         const stderr = Buffer.concat(stderrChunks).toString('utf8');
         reject(new Error(stderr || `ffmpeg exited with code ${code}`));

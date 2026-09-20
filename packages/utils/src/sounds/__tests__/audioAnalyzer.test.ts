@@ -44,6 +44,117 @@ describe('parseDescription', () => {
     expect(parsed?.tags).toEqual(['bass']);
   });
 
+  /**
+   * The replacement caption model does not reliably reply with bare JSON the
+   * way `gpt-4o-audio-preview` did, and requiring the whole string to parse
+   * rejected every clip in the library. These cover the shapes production
+   * actually produced.
+   */
+  describe('replies with prose around the JSON', () => {
+    const body = '{"kind":"sound","caption":"a bonk","tags":["bonk"]}';
+
+    it('finds the object after a lead-in sentence', () => {
+      expect(parseDescription(`Here is the JSON you asked for:\n${body}`)).toEqual({
+        kind: 'sound',
+        caption: 'a bonk',
+        tags: ['bonk'],
+      });
+    });
+
+    it('finds the object before trailing commentary', () => {
+      expect(parseDescription(`${body}\n\nLet me know if you need anything else!`)?.caption).toBe(
+        'a bonk'
+      );
+    });
+
+    it('finds the object with prose on both sides', () => {
+      expect(
+        parseDescription(`Sure thing. ${body} That clip is a short percussive hit.`)?.caption
+      ).toBe('a bonk');
+    });
+
+    it('unwraps a fenced block with a language tag and surrounding prose', () => {
+      expect(
+        parseDescription(`I listened to the clip.\n\`\`\`json\n${body}\n\`\`\`\nHope that helps.`)
+          ?.caption
+      ).toBe('a bonk');
+    });
+
+    it('skips a brace in the prose and keeps looking', () => {
+      // A naive scan anchored on the first `{` would stop at `{like this}`.
+      expect(parseDescription(`Formatted {like this}, here you go: ${body}`)?.caption).toBe(
+        'a bonk'
+      );
+    });
+  });
+
+  it('keeps a caption containing a closing brace intact', () => {
+    // A naive "first { to last }" span, or a lazy regex, either truncates
+    // this caption or fails to parse it outright.
+    const parsed = parseDescription(
+      JSON.stringify({
+        kind: 'speech',
+        caption: 'a man reads out "}" as a curly bracket',
+        tags: ['bracket'],
+      })
+    );
+    expect(parsed?.caption).toBe('a man reads out "}" as a curly bracket');
+  });
+
+  it('keeps a caption whose braces would unbalance a naive scan', () => {
+    const parsed = parseDescription(
+      `Here you go: ${JSON.stringify({
+        kind: 'sound',
+        caption: 'someone shouts }}} repeatedly',
+        tags: ['shout'],
+      })} done.`
+    );
+    expect(parsed?.caption).toBe('someone shouts }}} repeatedly');
+  });
+
+  it('returns null for a reply that is not JSON at all', () => {
+    expect(parseDescription('I am sorry, I cannot help with that request.')).toBeNull();
+    expect(parseDescription('')).toBeNull();
+    expect(parseDescription('{ this is not json }')).toBeNull();
+    // A balanced object that is valid JSON but not a description.
+    expect(parseDescription('Nothing useful here: {"error":"refused"}')).toBeNull();
+  });
+
+  /**
+   * A reply that wraps the description in an outer object. JSON mode makes
+   * this shape likelier, not rarer: it guarantees an object without saying
+   * which object. The scan only yields depth-zero spans, so the outer span
+   * parsed, failed validation, and the inner one was never offered.
+   */
+  describe('a description wrapped in an outer object', () => {
+    it('finds the description one level down', () => {
+      expect(
+        parseDescription('{"description": {"kind":"sound","caption":"a bonk","tags":["bonk"]}}')
+      ).toEqual({ kind: 'sound', caption: 'a bonk', tags: ['bonk'] });
+    });
+
+    it('finds it under any property name, and past ones that do not fit', () => {
+      expect(
+        parseDescription(
+          '{"model":"gpt-audio-1.5","usage":{"tokens":9},"result":{"kind":"speech","caption":"a man yells","tags":[]}}'
+        )?.caption
+      ).toBe('a man yells');
+    });
+
+    it('finds it inside a wrapper surrounded by prose', () => {
+      expect(
+        parseDescription(
+          'Here you go:\n{"description":{"kind":"mixed","caption":"a shout over a beat","tags":["shout"]}}\nHope that helps.'
+        )?.kind
+      ).toBe('mixed');
+    });
+
+    it('still returns null when nothing one level down is a description', () => {
+      expect(parseDescription('{"error":{"code":"refused","message":"no"}}')).toBeNull();
+      expect(parseDescription('{"outer":{"inner":{"kind":"sound","caption":"x"}}}')).toBeNull();
+    });
+  });
+
   it('caps runaway tag lists at eight', () => {
     const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
     expect(
@@ -69,10 +180,9 @@ describe('describeAudio', () => {
    * Loads describeAudio with the config, the ffmpeg decode and the SDK all
    * stubbed, so nothing spawns a process or reaches the network.
    */
-  function loadWithStubs(
-    wav: Buffer,
-    reply = '{"kind":"sound","caption":"a thud","tags":["thud"]}'
-  ) {
+  const DEFAULT_REPLY = '{"kind":"sound","caption":"a thud","tags":["thud"]}';
+
+  function loadWithStubs(wav: Buffer, reply = DEFAULT_REPLY) {
     const toWav = jest.fn(async () => wav);
     const create = jest.fn(async () => ({ choices: [{ message: { content: reply } }] }));
     const warn = jest.fn();
@@ -121,6 +231,172 @@ describe('describeAudio', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it('asks the API to constrain the reply to a JSON object', async () => {
+    const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+
+    await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.not.toBeNull();
+    expect(create.mock.calls[0][0]).toMatchObject({ response_format: { type: 'json_object' } });
+    // The happy path pays nothing for the fallback: one request, no retry.
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The SDK's types accept `response_format`; that proves nothing about the
+   * endpoint, which is how the plain Readable, the retired model name and the
+   * empty content type all shipped. If gpt-audio-1.5 refuses the parameter,
+   * `create` throws, the outer catch returns null and every clip in the
+   * library fails - the exact outage this pipeline keeps having. So the
+   * rejection is survived rather than gambled on.
+   */
+  describe('an API that refuses the JSON-object constraint outright', () => {
+    /** The 400 the SDK surfaces for an unsupported parameter. */
+    function unsupportedParameterError() {
+      return Object.assign(
+        new Error("400 Unsupported parameter: 'response_format' is not supported with this model."),
+        { status: 400, error: { param: 'response_format' } }
+      );
+    }
+
+    it('retries once without the parameter and returns the description', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toEqual({
+        kind: 'sound',
+        caption: 'a thud',
+        tags: ['thud'],
+      });
+
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls[0][0]).toHaveProperty('response_format');
+      // The retry drops only that one parameter - the audio still has to go.
+      const retried = create.mock.calls[1][0];
+      expect(retried).not.toHaveProperty('response_format');
+      expect(retried.messages).toEqual(create.mock.calls[0][0].messages);
+      expect(retried.model).toBe('test-model');
+    });
+
+    it('pays the rejected request once per process, not once per clip', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'one.ogg')).resolves.not.toBeNull();
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'two.ogg')).resolves.not.toBeNull();
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'three.ogg')).resolves.not.toBeNull();
+
+      // 2 for the first clip, then 1 each - not 2 each.
+      expect(create).toHaveBeenCalledTimes(4);
+      for (const call of create.mock.calls.slice(1)) {
+        expect(call[0]).not.toHaveProperty('response_format');
+      }
+      // Visible, but not a line per clip.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('test-model');
+    });
+
+    /**
+     * The sweep runs `Promise.all` over batches of ANALYSIS_CONCURRENCY clips,
+     * and the upload path drives the same limiter, so concurrent calls are the
+     * normal case. The sequential test above cannot see this: it lets the memo
+     * settle between clips.
+     *
+     * With the memo read inside the catch, all three clips send the parameter,
+     * all three 400, the first clears the memo and retries, and the other two
+     * read the already-cleared `false`, skip their own retry and rethrow into
+     * the outer catch - `ok, null, null`. So this asserts on the outcome every
+     * caller actually sees, not on the call count.
+     */
+    it('retries every clip of a concurrent batch, not just the one that won the race', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      // Not `mockRejectedValueOnce`: this endpoint refuses the parameter
+      // every time it is sent, which is what a model that does not support it
+      // actually does.
+      const ok = { choices: [{ message: { content: DEFAULT_REPLY } }] };
+      create.mockImplementation(async (request: { response_format?: unknown }) => {
+        if (request.response_format) throw unsupportedParameterError();
+        return ok;
+      });
+
+      const results = await Promise.all([
+        describeAudio(Buffer.alloc(16 * 1024), 'one.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'two.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'three.ogg'),
+      ]);
+
+      for (const result of results) {
+        expect(result).toEqual({ kind: 'sound', caption: 'a thud', tags: ['thud'] });
+      }
+      // Six calls: each clip pays its own rejected request plus its retry,
+      // because all three were already in flight when the answer was found.
+      expect(create).toHaveBeenCalledTimes(6);
+    });
+
+    it('does not retry a 400 that is about something else', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(
+        Object.assign(new Error('400 Invalid value for model'), { status: 400 })
+      );
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(1);
+      // And the memo is untouched: the next clip still asks for JSON mode.
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'next.ogg')).resolves.not.toBeNull();
+      expect(create.mock.calls[1][0]).toHaveProperty('response_format');
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up rather than looping when the retry fails too', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(unsupportedParameterError());
+      create.mockRejectedValueOnce(new Error('rate limited'));
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('logs an excerpt of a reply it could not parse', async () => {
+    const { describeAudio, warn } = loadWithStubs(
+      Buffer.alloc(1024),
+      'I am sorry, I cannot identify that audio.'
+    );
+
+    await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toBeNull();
+    const logged = warn.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(logged).toContain('bonk.ogg');
+    // The reply itself is what made this undiagnosable from the log alone.
+    expect(logged).toContain('I am sorry, I cannot identify that audio.');
+  });
+
+  it('bounds and flattens the excerpt so a long refusal cannot flood the log', async () => {
+    const reply = `no.\n${'x'.repeat(5000)}`;
+    const { describeAudio, warn } = loadWithStubs(Buffer.alloc(1024), reply);
+
+    await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toBeNull();
+    // One line per failed clip, as before - not one line plus a dump.
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0][0]);
+    expect(line).not.toContain('\n');
+    expect(line.length).toBeLessThan(500);
+    expect(line).toContain('...');
+  });
+
+  it('still fills the excerpt when the reply is mostly whitespace', async () => {
+    // The helper slices its window before collapsing whitespace, so that the
+    // whole reply is never copied just to log 300 characters of it. Collapsing
+    // only shortens, so the window has to be wide enough that a padded reply
+    // still yields a useful excerpt rather than a few characters.
+    const reply = `sorry:${'\n '.repeat(400)}${'y'.repeat(400)}`;
+    const { describeAudio, warn } = loadWithStubs(Buffer.alloc(1024), reply);
+
+    await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toBeNull();
+    const line = String(warn.mock.calls[0][0]);
+    expect(line).toContain('sorry:');
+    expect(line).toContain('yyyy');
+    expect(line).toContain('...');
+    expect(line).not.toContain('\n');
+  });
+
   it('skips an oversized source without even decoding it', async () => {
     const { describeAudio, MAX_ANALYZABLE_BYTES, toWav, create } = loadWithStubs(Buffer.alloc(16));
     const oversized = Buffer.alloc(MAX_ANALYZABLE_BYTES + 1);
@@ -132,15 +408,47 @@ describe('describeAudio', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('skips a small file that decodes to an oversized WAV', async () => {
-    const { describeAudio, MAX_ANALYZABLE_BYTES, toWav, create } = loadWithStubs(
-      Buffer.alloc(9 * 1024 * 1024)
+  /**
+   * Replaces a test that stubbed `toWavBuffer` to return a 9MB buffer and
+   * asserted a now-deleted MAX_DECODED_BYTES guard rejected it. That state is
+   * unreachable in production - `toWavBuffer` rejects while stdout is still
+   * accumulating, at the same 8MB - so the test only ever proved the stub
+   * worked. The bound itself is covered where it actually lives, by
+   * audioTranscode.test.ts's 'kills ffmpeg and rejects if stdout exceeds the
+   * byte ceiling'. What is left for this layer to promise is that a rejected
+   * decode costs nothing further, which is what this asserts.
+   */
+  it('spends no model call when the decode is rejected for being oversized', async () => {
+    const { describeAudio, toWav, create } = loadWithStubs(Buffer.alloc(16));
+    toWav.mockRejectedValueOnce(
+      new Error('ffmpeg output exceeded 8388608 bytes before the -t 30s cap stopped it')
     );
-    expect(9 * 1024 * 1024).toBeGreaterThan(MAX_ANALYZABLE_BYTES);
 
     await expect(describeAudio(Buffer.alloc(256 * 1024), 'dense.mp3')).resolves.toBeNull();
     expect(toWav).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('caps the source at the transcription API upload limit of 25MB', async () => {
+    // The same source buffer is handed to transcribeSpeech for any clip with
+    // speech in it, so a source over the API's own 25MB upload limit could
+    // never finish stage 2 regardless of what stage 1 made of it.
+    const { MAX_ANALYZABLE_BYTES } = loadWithStubs(Buffer.alloc(16));
+    // Decimal, not binary. A source between the two readings of "25 MB"
+    // passes a 25 MiB check locally and is refused by the server - the same
+    // fine-here-rejected-there shape these fixes exist to stop repeating.
+    expect(MAX_ANALYZABLE_BYTES).toBe(25 * 1000 * 1000);
+    expect(MAX_ANALYZABLE_BYTES).toBeLessThan(25 * 1024 * 1024);
+  });
+
+  it('analyses the 8.3MB clip the old 8MB cap rejected', async () => {
+    const { describeAudio, toWav, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+
+    await expect(
+      describeAudio(Buffer.alloc(Math.round(8.3 * 1024 * 1024)), 'long_clip.ogg')
+    ).resolves.not.toBeNull();
+    expect(toWav).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   describe('the 30s decode cap', () => {
