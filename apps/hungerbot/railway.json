@@ -3,7 +3,14 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn workspace @rainbot/hungerbot-worker build"
+    "buildCommand": "yarn workspace @rainbot/hungerbot-worker build",
+    "watchPatterns": [
+      "/apps/hungerbot/**",
+      "/packages/**",
+      "/Dockerfile",
+      "/yarn.lock",
+      "/package.json"
+    ]
   },
   "deploy": {
     "startCommand": "node apps/hungerbot/dist/index.js",
@@ -14,7 +21,7 @@
     "HUNGERBOT_TOKEN": "",
     "HUNGERBOT_PORT": "3003",
     "ORCHESTRATOR_BOT_ID": "",
-    "RAINCLOUD_URL": "http://raincloud.railway.internal:3000",
+    "RAINCLOUD_URL": "http://raincloud.railway.internal:8080",
     "WORKER_SECRET": "${{shared.WORKER_SECRET}}"
   }
 }

@@ -3,7 +3,14 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn build:raincloud"
+    "buildCommand": "yarn build:raincloud",
+    "watchPatterns": [
+      "/apps/raincloud/**",
+      "/packages/**",
+      "/Dockerfile",
+      "/yarn.lock",
+      "/package.json"
+    ]
   },
   "deploy": {
     "startCommand": "node apps/raincloud/index.js",

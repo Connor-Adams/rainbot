@@ -57,55 +57,49 @@ proxy support at all. Since yt-dlp piping is the primary path, that is usually
 invisible, but a failure that falls through those tiers will still hit the bot
 check.
 
-## 3. PO token provider (useful alongside a working IP)
+## 3. PO token providers: tried, measured, removed
 
-YouTube demands a proof-of-origin token from IPs it treats as suspicious, which
-includes essentially all datacenter ranges — so Railway trips the bot check even
-when nothing is wrong with the bot. Cookies paper over that, but they rot:
-YouTube rotates `__Secure-1PSIDTS`, so a jar exported from a browser you keep
-using is invalidated quickly. A PO token provider addresses the cause instead,
-with no account and no cookies.
+A `bgutil-ytdlp-pot-provider` server was run here for a while. It is **not**
+installed any more. The reasoning is kept so it is not rediscovered the hard way.
 
-The image already installs the `bgutil-ytdlp-pot-provider` plugin. The plugin
-alone is **not** enough: a pip install gives you only its `http` provider,
-because the script providers look for a checked-out server build under
-`~/bgutil-ytdlp-pot-provider` that pip does not ship. `yt-dlp -v` shows exactly
-that:
+PO tokens gate **GVS** — the media download — for `web`-family clients. They do
+nothing about an IP-level refusal, which happens earlier, at the _player_
+request. With the provider running and reachable, a video was still refused
+across six player clients, and the verbose log showed the provider was never even
+invoked, because extraction never reached format resolution.
 
-```
-PO Token Providers: bgutil:http-2.0.0 (external),
-                    bgutil:script-node-2.0.0 (external, unavailable),
-                    bgutil:script-deno-2.0.0 (external, unavailable)
-```
+Once the proxy was in place the provider became measurably unnecessary: a full
+3.8MB audio download completed with the provider deliberately pointed at a dead
+port, because yt-dlp selects the `visionos` client, which carries no PO token
+requirement at all.
 
-So the provider server has to run somewhere, and rainbot has to be pointed at it:
-
-1. Add a Railway service from the Docker image
-   `brainicism/bgutil-ytdlp-pot-provider`. Match its tag to the plugin version in
-   the image (`pip show bgutil-ytdlp-pot-provider`) — plugin and server are
-   expected to be on the same version.
-2. It listens on port **4416**. Keep it on the private network; it needs no
-   public domain.
-3. On the **Rainbot** service:
-
-   ```env
-   BGUTIL_POT_BASE_URL=http://<provider-service>.railway.internal:4416
-   ```
-
-Leaving `BGUTIL_POT_BASE_URL` unset is safe — the plugin tries
-`http://127.0.0.1:4416`, cannot reach it, and yt-dlp warns and carries on. That
-same warning is how you spot a wrong value:
+Leaving the plugin installed without a reachable server also makes yt-dlp warn on
+every single call:
 
 ```
 WARNING: [youtube] [pot:bgutil:http] Error reaching GET http://127.0.0.1:4416/ping
 ```
 
-`TOKEN_TTL` (hours, default 6) on the provider service controls its token cache.
+Unsetting `BGUTIL_POT_BASE_URL` does not silence that — the plugin falls back to
+the localhost default and warns anyway. A warning printed on every call is a
+warning nobody reads, and this repo has already lost three debugging rounds to a
+real warning hiding in noise.
+
+If YouTube ever forces a `web`-family client, reinstate it: add
+`bgutil-ytdlp-pot-provider` to the Dockerfile's pip install, run the
+`brainicism/bgutil-ytdlp-pot-provider` image (port 4416, tag matching the plugin
+version), and pass
+`--extractor-args youtubepot-bgutilhttp:base_url=http://<service>:4416`. Note
+that a pip install provides only the `http` provider — its script providers
+report `unavailable`, because they look for a checked-out server build that pip
+does not ship.
 
 ## 4. YouTube cookies (fallback, and a treadmill)
 
-Cookies from a logged-in browser also clear 403 and bot-check errors, but they
-expire and have to be re-exported. Prefer the PO token provider above.
+Cookies from a logged-in browser also clear 403 and bot-check errors, because a
+signed-in session outranks the IP's reputation. But they expire and have to be
+re-exported, which is the treadmill the proxy exists to end. Prefer the proxy in
+section 2; reach for cookies only when there is no usable proxy.
 
 ### Option A: Upload via Dashboard (recommended)
 
@@ -154,5 +148,5 @@ YTDLP_PATH=/full/path/to/yt-dlp
 
 - **Pipe path** = no direct fetch, usually avoids 403; may be slightly slower to start.
 - **Set a proxy** (Admin -> YouTube proxy). A bot check from a datacenter IP is an IP problem; no client, cookie or PO token setting solves it.
-- A **PO token provider** (`BGUTIL_POT_BASE_URL`) helps once the IP is acceptable, but does nothing on its own.
+- A **PO token provider** was tried and removed — measured as unnecessary once the proxy was in place, and noisy when left installed.
 - **YTDLP_COOKIES** and **YTDLP_EXTRACTOR_ARGS** remain available if you still hit 403 or playback failures.
