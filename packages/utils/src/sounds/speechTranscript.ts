@@ -5,92 +5,144 @@ import { createLogger } from '../logger';
 const log = createLogger('SOUND-TRANSCRIPT');
 
 /**
- * Content type to declare on the upload, keyed by the clip's extension.
+ * A container the transcription API accepts, with the extension and content
+ * type that describe it.
  *
- * The SDK's `toFile` leaves the File's `type` empty unless it is handed one,
- * and the multipart part then carries no usable content type. The API rejects
- * that with `400 Invalid file format` whatever the filename says - which is
- * what production did for every single speech clip in the library. Verified
- * against the installed openai@4.104.0:
+ * The API gates on both halves. The SDK's `toFile` leaves the File's `type`
+ * empty unless it is handed one, and the multipart part then carries no usable
+ * content type; the API rejects that with `400 Invalid file format` whatever
+ * the filename says - which is what production did for every single speech
+ * clip in the library. Verified against the installed openai@4.104.0:
  *
  *   toFile(buf, 'clip.ogg')                        -> type: ""
  *   toFile(buf, 'clip.ogg', { type: 'audio/ogg' }) -> type: "audio/ogg"
  *
- * Deliberately not storage.ts's private `getContentType`. That one labels
- * objects for S3, where an unrecognised extension can safely degrade to
- * `application/octet-stream` and nobody minds; here an unrecognised type is a
- * rejected request. It also has no entry for `.oga` or `.opus`, both of which
- * this library actually contains. The two want different coverage and
- * different fallbacks, so they stay separate.
+ * The filename's extension is checked too, against the supported list
+ * ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm'],
+ * which names containers rather than codecs. Pairing the two in one value is
+ * what keeps them from disagreeing.
  */
-const UPLOAD_CONTENT_TYPES: Record<string, string> = {
-  '.ogg': 'audio/ogg',
-  '.oga': 'audio/ogg',
-  // Opus here is always Opus-in-Ogg: storage.ts transcodes every upload with
-  // `-c:a libopus -f ogg`, so the container genuinely is Ogg and `audio/ogg`
-  // describes the bytes correctly. It is also the only thing the API will
-  // take - its supported list is ['flac', 'm4a', 'mp3', 'mp4', 'mpeg',
-  // 'mpga', 'oga', 'ogg', 'wav', 'webm'], which names containers rather than
-  // codecs: `oga`/`ogg` are on it and `opus` is not.
-  '.opus': 'audio/ogg',
-  '.webm': 'audio/webm',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav',
-  '.m4a': 'audio/mp4',
-  '.flac': 'audio/flac',
+interface UploadContainer {
+  extension: string;
+  contentType: string;
+}
+
+const OGG: UploadContainer = { extension: '.ogg', contentType: 'audio/ogg' };
+const WEBM: UploadContainer = { extension: '.webm', contentType: 'audio/webm' };
+const WAV: UploadContainer = { extension: '.wav', contentType: 'audio/wav' };
+const FLAC: UploadContainer = { extension: '.flac', contentType: 'audio/flac' };
+const MP4: UploadContainer = { extension: '.m4a', contentType: 'audio/mp4' };
+const MP3: UploadContainer = { extension: '.mp3', contentType: 'audio/mpeg' };
+
+/**
+ * The container a clip's leading bytes actually are, or null when they are
+ * none this API accepts.
+ *
+ * This exists because the caller's filename is not evidence about the bytes.
+ * `getSoundBuffer` -> `getSoundStream` -> `resolveSoundFilename` silently
+ * prefers the transcoded `.ogg` copy of a clip, and
+ * `SOUND_TRANSCODE_DELETE_ORIGINAL` defaults to false, so `listSounds()`
+ * returns both `laugh.mp3` and `laugh.ogg` and `analyzeSound` then hands
+ * `transcribeSpeech` the name `laugh.mp3` attached to Ogg Opus bytes. Keying
+ * the content type off that name declared MP3 over an Ogg payload for every
+ * `.mp3`/`.wav`/`.m4a`/`.flac` entry in the library - the whole pre-transcode
+ * backfill population.
+ *
+ * Reading the bytes is the one answer that cannot drift: it consults
+ * `resolveSoundFilename` not at all, so no future change to which object that
+ * function picks can desynchronise it. The alternative -
+ * `getSoundStreamWithName`'s resolved name - would still be a name-based
+ * inference one indirection further out (storage.ts itself notes that a
+ * `.ogg` key may hold Vorbis), and costs a second S3 HEAD per clip.
+ *
+ * Signatures are checked in order of specificity; the bare MPEG frame sync
+ * last, since it is the loosest of them.
+ */
+function sniffUploadContainer(buffer: Buffer): UploadContainer | null {
+  const head = buffer.subarray(0, 16);
+  const at = (offset: number, length: number): string =>
+    head.length >= offset + length ? head.subarray(offset, offset + length).toString('latin1') : '';
+
+  if (at(0, 4) === 'OggS') return OGG;
+  if (head.length >= 4 && head.readUInt32BE(0) === 0x1a45dfa3) return WEBM; // EBML, i.e. WebM/Matroska
+  if (at(0, 4) === 'RIFF' && at(8, 4) === 'WAVE') return WAV;
+  if (at(0, 4) === 'fLaC') return FLAC;
+  if (at(4, 4) === 'ftyp') return MP4;
+  if (at(0, 3) === 'ID3') return MP3;
+  // A bare MPEG audio frame: 0xFF then eleven set sync bits.
+  if (head.length >= 2 && head.readUInt8(0) === 0xff && (head.readUInt8(1) & 0xe0) === 0xe0) {
+    return MP3;
+  }
+
+  return null;
+}
+
+/**
+ * Container to assume for bytes no signature matched, keyed by extension.
+ *
+ * Only reached when the sniff above came back empty, which for this library
+ * means bytes in some container the API would refuse anyway. The name is then
+ * the only evidence left, and it is better than nothing: unidentifiable bytes
+ * called `clip.mp3` are likelier MP3 than Ogg.
+ *
+ * `.opus` and `.oga` are deliberately absent. Both are unreachable - the
+ * multer `fileFilter` and `listSounds` share the pattern
+ * `/\.(mp3|wav|ogg|m4a|webm|flac)$/i`, so neither extension can enter the
+ * library - and a real Opus-in-Ogg or Ogg-Vorbis payload is identified by its
+ * `OggS` magic regardless of what it is called.
+ */
+const FALLBACK_CONTAINERS: Record<string, UploadContainer> = {
+  '.ogg': OGG,
+  '.webm': WEBM,
+  '.wav': WAV,
+  '.flac': FLAC,
+  '.m4a': MP4,
+  '.mp3': MP3,
 };
 
 /**
- * What to declare for an extension the table does not know.
+ * Container to assume when neither the bytes nor the name identify one.
  *
  * `application/octet-stream` - storage.ts's fallback - is not on the API's
  * supported list, so it would fail exactly the way declaring nothing did.
  * Every object this soundboard stores is normalised to Ogg Opus
  * (`toOggFilename` / `transcodeToOggOpus`, and `getSoundBuffer` prefers the
- * `.ogg` copy), so Ogg is overwhelmingly the likely truth for anything whose
- * name is unfamiliar, and guessing it at least produces a request the API
- * will open and inspect instead of one it refuses on sight.
+ * `.ogg` copy), so Ogg is the likeliest truth for anything unidentified, and
+ * guessing it at least produces a request the API will open and inspect
+ * instead of one it refuses on sight.
  */
-const DEFAULT_UPLOAD_EXTENSION = '.ogg';
-const DEFAULT_UPLOAD_CONTENT_TYPE = 'audio/ogg';
+const DEFAULT_CONTAINER = OGG;
 
 /**
  * The filename and content type a clip should be uploaded under.
  *
- * The API gates on the *filename extension* as well as on the content type:
- * its supported list - ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga',
- * 'ogg', 'wav', 'webm'] - is checked against the multipart part's filename,
- * and a name outside it is refused with `400 Invalid file format` however the
- * part is typed. That is the position this function takes, and it has exactly
- * one consequence: a name whose extension the API will not accept is renamed
- * to the extension matching the type being declared, so the two always agree.
- *
- * `.opus` is the familiar case - the list has no `opus` entry while the bytes
- * are an ordinary Ogg container - but the unknown-extension fallback needs the
- * same treatment for the same reason. Leaving `clip.aiff` named `clip.aiff`
- * while declaring `audio/ogg` is a name the server rejects on sight paired
- * with a type contradicting it; if the rename is pointless there it was
- * pointless for `.opus` too, and production's `400 Invalid file format` says
- * it is not.
+ * Derived from what the bytes are, not from what the caller called them - see
+ * `sniffUploadContainer` for why those differ in production. The name is
+ * rewritten to the sniffed container's extension whenever it does not already
+ * carry it, so the declared type, the declared name and the payload all agree.
+ * That subsumes the old special cases: `.opus` holds an Ogg container and so
+ * becomes `.ogg`, and an extension the API does not accept is replaced rather
+ * than sent alongside a type contradicting it.
  *
  * Exported for the tests, which assert the content type that actually reaches
  * the API rather than merely that the value is uploadable.
  */
-export function uploadDescriptorFor(filename: string): {
+export function uploadDescriptorFor(
+  filename: string,
+  buffer: Buffer
+): {
   uploadName: string;
   contentType: string;
 } {
   const ext = path.extname(filename);
-  const known = UPLOAD_CONTENT_TYPES[ext.toLowerCase()];
-  const contentType = known ?? DEFAULT_UPLOAD_CONTENT_TYPE;
+  const container =
+    sniffUploadContainer(buffer) ?? FALLBACK_CONTAINERS[ext.toLowerCase()] ?? DEFAULT_CONTAINER;
 
-  // `.opus` carries a type the API takes but a name it does not, so it is
-  // renamed alongside every extension the table has no entry for at all.
-  const acceptedAsIs = known !== undefined && ext.toLowerCase() !== '.opus';
   const stem = ext ? filename.slice(0, -ext.length) : filename;
-  const uploadName = acceptedAsIs ? filename : `${stem}${DEFAULT_UPLOAD_EXTENSION}`;
+  const uploadName =
+    ext.toLowerCase() === container.extension ? filename : `${stem}${container.extension}`;
 
-  return { uploadName, contentType };
+  return { uploadName, contentType: container.contentType };
 }
 
 export interface WhisperSegment {
@@ -197,10 +249,13 @@ export async function transcribeSpeech(
     // which this function's catch would quietly turn into a failed attempt.
     //
     // Satisfying `isUploadable()` is necessary but not sufficient: it only
-    // proves the request can be *built*. The content type is what decides
-    // whether the server accepts it, and `toFile` will not infer one from the
-    // filename (see UPLOAD_CONTENT_TYPES), so it has to be stated.
-    const { uploadName, contentType } = uploadDescriptorFor(filename);
+    // proves the request can be *built*. The declared name and content type
+    // are what decide whether the server accepts it, and `toFile` will not
+    // infer either (see `uploadDescriptorFor`), so both have to be stated -
+    // and stated about the buffer, which is the only thing here that is
+    // certainly the payload. `filename` may name a source object whose bytes
+    // were replaced by a transcoded copy before they reached this function.
+    const { uploadName, contentType } = uploadDescriptorFor(filename, buffer);
     const file = await toFile(buffer, uploadName, { type: contentType });
 
     const response = await client.audio.transcriptions.create({
