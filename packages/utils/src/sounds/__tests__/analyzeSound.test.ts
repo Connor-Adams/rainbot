@@ -87,6 +87,38 @@ describe('analyzeSound', () => {
     expect(result?.searchDoc).toContain('blast');
   });
 
+  it('writes nothing when a speech clip cannot be transcribed', async () => {
+    mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a man yells', tags: ['yell'] });
+    mockTranscribeSpeech.mockResolvedValue(null);
+
+    // A NULL transcript means "no speech present". Recording that for a clip
+    // classified as speech would be the opposite of what happened, and the
+    // sweep would never revisit it.
+    await expect(analyzeSound('yougay.ogg')).resolves.toBeNull();
+    expect(mockUpsertAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when a mixed clip cannot be transcribed', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'mixed',
+      caption: 'shouting over a beat',
+      tags: ['shout'],
+    });
+    mockTranscribeSpeech.mockResolvedValue(null);
+
+    await expect(analyzeSound('hype.ogg')).resolves.toBeNull();
+    expect(mockUpsertAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('still writes a null transcript for a clip that genuinely has no speech', async () => {
+    mockDescribeAudio.mockResolvedValue({ kind: 'sound', caption: 'a thud', tags: ['thud'] });
+
+    const result = await analyzeSound('thud.ogg');
+
+    expect(result?.transcript).toBeNull();
+    expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+  });
+
   it('writes nothing when description fails', async () => {
     mockDescribeAudio.mockResolvedValue(null);
 

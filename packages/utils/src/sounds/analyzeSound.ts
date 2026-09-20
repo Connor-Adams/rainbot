@@ -43,7 +43,20 @@ export async function analyzeSound(
   const description = await describeAudio(buffer, name);
   if (!description) return null;
 
-  const transcript = description.kind === 'sound' ? null : await transcribeSpeech(buffer, name);
+  // A stored transcript of NULL means "this clip has no speech in it". A clip
+  // classified speech/mixed whose transcription failed is not that, and writing
+  // the row anyway would record the failure as a finished analysis: the sweep
+  // skips clips whose source_size is unchanged, so it would never be retried.
+  let transcript: string | null = null;
+  if (description.kind !== 'sound') {
+    transcript = await transcribeSpeech(buffer, name);
+    if (transcript === null) {
+      log.warn(
+        `Transcription produced nothing for ${name} (classified ${description.kind}) - leaving it unanalyzed so the sweep retries it`
+      );
+      return null;
+    }
+  }
 
   const searchDoc = buildSearchDoc({
     name,
