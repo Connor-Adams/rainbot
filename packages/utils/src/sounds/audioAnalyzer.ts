@@ -29,24 +29,6 @@ const MAX_TAGS = 8;
  */
 export const MAX_ANALYZABLE_BYTES = 25 * 1024 * 1024;
 
-/**
- * Largest decoded WAV this will base64-encode into a request body.
- *
- * Deliberately its own number rather than MAX_ANALYZABLE_BYTES, which it used
- * to share. The two now bound different things for different reasons: the
- * source cap above is the upload API's limit, while this one bounds what gets
- * inlined into a JSON body and held in memory three times over. Following the
- * source cap up to 25MB would have made this check unreachable - ffmpeg's own
- * `MAX_DECODE_STDOUT_BYTES` ceiling rejects the decode at 8MB, so a 25MB WAV
- * can never arrive here to be tested.
- *
- * Kept at the 8MB it has always been, which is the same ceiling
- * `MAX_DECODE_STDOUT_BYTES` enforces on the far side: with `-t` honored, a
- * decode tops out under 1MB, so in normal operation neither fires. This is the
- * backstop that matters if the duration cap is ever raised or bypassed.
- */
-export const MAX_DECODED_BYTES = 8 * 1024 * 1024;
-
 function describeSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
@@ -283,16 +265,13 @@ export async function describeAudio(
       );
     }
 
-    // A small compressed source can still decode to an enormous WAV, so a
-    // limit is re-applied to what is actually about to be base64-encoded -
-    // its own, since the source cap is the upload API's number and this one
-    // bounds resident memory (see MAX_DECODED_BYTES).
-    if (wavBuffer.length > MAX_DECODED_BYTES) {
-      log.warn(
-        `Skipping ${filename}: decodes to ${describeSize(wavBuffer.length)}, over the ${describeSize(MAX_DECODED_BYTES)} decoded-audio limit`
-      );
-      return null;
-    }
+    // There is deliberately no second size check on `wavBuffer` here. The
+    // decode's own `MAX_DECODE_STDOUT_BYTES` ceiling (audioTranscode.ts) is
+    // the single bound on how large a WAV can reach this point: it rejects
+    // while the bytes are still accumulating, which is strictly earlier and
+    // strictly tighter than testing a buffer already resident. A guard here
+    // set to the same number could never fire, and one set lower would be a
+    // new policy silently rejecting clips the decode cap allows.
 
     const request: AudioChatCompletionRequest = {
       model: config.soundCaptionModel,
