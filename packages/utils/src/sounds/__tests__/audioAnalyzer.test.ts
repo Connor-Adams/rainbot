@@ -75,12 +75,21 @@ describe('describeAudio', () => {
   ) {
     const toWav = jest.fn(async () => wav);
     const create = jest.fn(async () => ({ choices: [{ message: { content: reply } }] }));
+    const warn = jest.fn();
 
     jest.resetModules();
     jest.doMock('../../config', () => ({
       loadConfig: () => ({ openaiApiKey: 'sk-test', soundCaptionModel: 'test-model' }),
     }));
-    jest.doMock('../audioTranscode', () => ({ toWavBuffer: toWav }));
+    jest.doMock('../../logger', () => ({
+      createLogger: () => ({ info: jest.fn(), warn, error: jest.fn(), debug: jest.fn() }),
+    }));
+    // Only the decode is replaced. `wasDecodeTruncated` and the constants must
+    // stay real, or the truncation check silently becomes a call on undefined.
+    jest.doMock('../audioTranscode', () => ({
+      ...jest.requireActual('../audioTranscode'),
+      toWavBuffer: toWav,
+    }));
     jest.doMock('openai', () => ({
       OpenAI: class {
         chat = { completions: { create } };
@@ -88,7 +97,16 @@ describe('describeAudio', () => {
     }));
 
     const { describeAudio, MAX_ANALYZABLE_BYTES } = require('../audioAnalyzer');
-    return { describeAudio, MAX_ANALYZABLE_BYTES, toWav, create };
+    const { MAX_DECODE_SECONDS, DECODED_BYTES_PER_SECOND } = require('../audioTranscode');
+    return {
+      describeAudio,
+      MAX_ANALYZABLE_BYTES,
+      MAX_DECODE_SECONDS,
+      DECODED_BYTES_PER_SECOND,
+      toWav,
+      create,
+      warn,
+    };
   }
 
   it('describes a clip that is within the size limit', async () => {
@@ -123,6 +141,48 @@ describe('describeAudio', () => {
     await expect(describeAudio(Buffer.alloc(256 * 1024), 'dense.mp3')).resolves.toBeNull();
     expect(toWav).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  describe('the 30s decode cap', () => {
+    /** A decode that came back at the cap, as a truncated one always does. */
+    function cappedWav(seconds: number, bytesPerSecond: number) {
+      // Plus a header, the way ffmpeg's own output carries one.
+      return Buffer.alloc(seconds * bytesPerSecond + 78);
+    }
+
+    it('warns when the caption describes only the first 30s of a longer clip', async () => {
+      const probe = loadWithStubs(Buffer.alloc(0));
+      const { describeAudio, warn, create } = loadWithStubs(
+        cappedWav(probe.MAX_DECODE_SECONDS, probe.DECODED_BYTES_PER_SECOND)
+      );
+
+      // Still analysed - a partial caption beats no caption. It just must not
+      // be partial in silence: the row is written with the full source size,
+      // so the sweep's source_size skip never revisits it.
+      await expect(describeAudio(Buffer.alloc(4 * 1024 * 1024), 'podcast.ogg')).resolves.toEqual({
+        kind: 'sound',
+        caption: 'a thud',
+        tags: ['thud'],
+      });
+      expect(create).toHaveBeenCalledTimes(1);
+
+      const warning = warn.mock.calls.map(([line]) => String(line)).join('\n');
+      expect(warning).toContain('podcast.ogg');
+      expect(warning).toContain(`${probe.MAX_DECODE_SECONDS}s`);
+      // The asymmetry with the transcript is the part a reader needs told.
+      expect(warning).toContain('transcript');
+    });
+
+    it('says nothing about a clip that decoded in full', async () => {
+      const probe = loadWithStubs(Buffer.alloc(0));
+      // One sample short of the cap: the same clip a second earlier.
+      const { describeAudio, warn } = loadWithStubs(
+        Buffer.alloc(probe.MAX_DECODE_SECONDS * probe.DECODED_BYTES_PER_SECOND - 1)
+      );
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.not.toBeNull();
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 
   it('accepts a clip exactly at the limit', async () => {

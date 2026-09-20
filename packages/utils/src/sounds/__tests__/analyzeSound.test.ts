@@ -58,12 +58,13 @@ describe('analyzeSound', () => {
 
   it('transcribes a clip classified as speech', async () => {
     mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a man yells', tags: ['yell'] });
-    mockTranscribeSpeech.mockResolvedValue('you are gay');
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: 'you are gay' });
 
     const result = await analyzeSound('yougay.ogg');
 
     expect(mockTranscribeSpeech).toHaveBeenCalledTimes(1);
     expect(result?.transcript).toBe('you are gay');
+    expect(result?.kind).toBe('speech');
   });
 
   it('transcribes a mixed clip and keeps both fields', async () => {
@@ -72,12 +73,13 @@ describe('analyzeSound', () => {
       caption: 'shouting over a beat',
       tags: ['shout'],
     });
-    mockTranscribeSpeech.mockResolvedValue('lets go');
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: 'lets go' });
 
     const result = await analyzeSound('hype.ogg');
 
     expect(result?.transcript).toBe('lets go');
     expect(result?.caption).toBe('shouting over a beat');
+    expect(result?.kind).toBe('mixed');
   });
 
   it('folds the caption and tags into the search document', async () => {
@@ -93,24 +95,23 @@ describe('analyzeSound', () => {
     expect(result?.searchDoc).toContain('blast');
   });
 
-  it('writes nothing when a speech clip cannot be transcribed', async () => {
+  it('writes nothing when transcription of a speech clip fails', async () => {
     mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a man yells', tags: ['yell'] });
-    mockTranscribeSpeech.mockResolvedValue(null);
+    mockTranscribeSpeech.mockResolvedValue({ ok: false });
 
-    // A NULL transcript means "no speech present". Recording that for a clip
-    // classified as speech would be the opposite of what happened, and the
-    // sweep would never revisit it.
+    // A failed attempt is not the same as a clip with no speech, and must
+    // leave no row so the sweep retries it.
     await expect(analyzeSound('yougay.ogg')).resolves.toBeNull();
     expect(mockUpsertAnalysis).not.toHaveBeenCalled();
   });
 
-  it('writes nothing when a mixed clip cannot be transcribed', async () => {
+  it('writes nothing when transcription of a mixed clip fails', async () => {
     mockDescribeAudio.mockResolvedValue({
       kind: 'mixed',
       caption: 'shouting over a beat',
       tags: ['shout'],
     });
-    mockTranscribeSpeech.mockResolvedValue(null);
+    mockTranscribeSpeech.mockResolvedValue({ ok: false });
 
     await expect(analyzeSound('hype.ogg')).resolves.toBeNull();
     expect(mockUpsertAnalysis).not.toHaveBeenCalled();
@@ -123,6 +124,102 @@ describe('analyzeSound', () => {
 
     expect(result?.transcript).toBeNull();
     expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  // These replace a pair of tests that asserted `kind` was downgraded to
+  // 'sound' whenever a transcript came back empty. That behaviour was wrong,
+  // so the assertions could not be kept - but nothing here is looser: each
+  // now pins `kind` and `transcript` to exact values instead of one exact
+  // value and one null, and checks the row that actually reached the
+  // repository rather than only the returned object.
+  it('keeps kind=speech and stores an empty transcript when a speech clip yields no words', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'speech',
+      caption: 'a man mutters',
+      tags: ['mutter'],
+    });
+    // The attempt succeeded; every segment was trimmed away, e.g. the whole
+    // clip was the hallucination-blacklisted "you". Done, not failed - it
+    // must be stored so the sweep does not retry it forever.
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('mutter.ogg');
+
+    expect(result).not.toBeNull();
+    // '' says "speech was heard, no usable words came back". Rewriting kind
+    // to 'sound' would instead assert the clip contains no speech at all -
+    // a permanent falsehood, since the source_size skip never revisits it.
+    expect(result?.transcript).toBe('');
+    expect(result?.kind).toBe('speech');
+    expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+    expect(mockUpsertAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'speech', transcript: '' }),
+      expect.anything()
+    );
+  });
+
+  it('keeps kind=mixed and its caption when a mixed clip yields no words', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'mixed',
+      caption: 'shouting over a beat',
+      tags: ['shout'],
+    });
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('chatter.ogg');
+
+    expect(result).not.toBeNull();
+    expect(result?.transcript).toBe('');
+    // caption 'shouting over a beat' + tags ['shout'] + kind 'sound' was the
+    // incoherent row the downgrade produced.
+    expect(result?.kind).toBe('mixed');
+    expect(result?.caption).toBe('shouting over a beat');
+    expect(mockUpsertAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a one-word interjection as speech rather than filing it as a sound effect', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'speech',
+      caption: 'a man shouts a farewell',
+      tags: ['bye', 'farewell'],
+    });
+    // 'bye' is in HALLUCINATION_PHRASES, so a clip that is nothing but
+    // someone shouting "Bye!" transcribes correctly and then trims to
+    // nothing. One-word interjections are exactly what goes on a soundboard.
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('bye.ogg');
+
+    expect(result?.kind).toBe('speech');
+    expect(result?.transcript).toBe('');
+  });
+
+  it('distinguishes all three transcript states', async () => {
+    // null: never attempted. '': attempted, nothing usable. text: the words.
+    mockDescribeAudio.mockResolvedValue({ kind: 'sound', caption: 'a thud', tags: ['thud'] });
+    expect((await analyzeSound('thud.ogg'))?.transcript).toBeNull();
+
+    mockDescribeAudio.mockResolvedValue({ kind: 'speech', caption: 'a shout', tags: ['shout'] });
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+    expect((await analyzeSound('bye.ogg'))?.transcript).toBe('');
+
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: 'lets go' });
+    expect((await analyzeSound('hype.ogg'))?.transcript).toBe('lets go');
+  });
+
+  it('leaves an empty transcript out of the search document', async () => {
+    mockDescribeAudio.mockResolvedValue({
+      kind: 'speech',
+      caption: 'a man mutters',
+      tags: ['mutter'],
+    });
+    mockTranscribeSpeech.mockResolvedValue({ ok: true, transcript: null });
+
+    const result = await analyzeSound('mutter.ogg');
+
+    // '' has to behave like null everywhere downstream, or the encoding buys
+    // honesty at the cost of a stray separator in every indexed document.
+    expect(result?.searchDoc).toBe('mutter.ogg mutter a man mutters mutter');
   });
 
   it('writes nothing when description fails', async () => {

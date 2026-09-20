@@ -51,18 +51,46 @@ export async function analyzeSound(
   const description = await describeAudio(buffer, name);
   if (!description) return null;
 
-  // A stored transcript of NULL means "this clip has no speech in it". A clip
-  // classified speech/mixed whose transcription failed is not that, and writing
-  // the row anyway would record the failure as a finished analysis: the sweep
-  // skips clips whose source_size is unchanged, so it would never be retried.
+  // `transcript` carries three states, and they are not interchangeable (see
+  // SoundAnalysis.transcript in types.ts):
+  //
+  //   NULL  - no speech present; transcription was never attempted.
+  //   ''    - speech was heard, but no usable words came back.
+  //   text  - the transcript.
+  //
+  // A *failed* attempt is none of the three. Writing a row for it would record
+  // the failure as a finished analysis, and the sweep skips clips whose
+  // source_size is unchanged, so it would never be retried. Return null and
+  // leave the clip for a later sweep.
+  //
+  // A *succeeded* attempt that found nothing usable is genuinely done -
+  // re-running it every sweep forever would never produce a different answer -
+  // so it is stored, as ''. `kind` is left exactly as the classifier reported
+  // it. The two fields answer independent questions: `kind` is what is in the
+  // audio, `transcript` is what words are recoverable from it, and rewriting
+  // the first because the second came back empty conflates them lossily and
+  // in one direction only. HALLUCINATION_PHRASES includes 'bye', 'you' and
+  // 'thank you', so a clip whose entire content is someone shouting "Bye!" is
+  // classified speech, transcribed correctly, trimmed to nothing by the
+  // blacklist - and would then have been stored forever as a sound effect
+  // with no speech in it. One-word interjections are exactly what people put
+  // on a soundboard. For a `mixed` clip it was plainly incoherent: caption
+  // 'shouting over a beat', tags ['shout'], kind 'sound'.
   let transcript: string | null = null;
-  if (description.kind !== 'sound') {
-    transcript = await transcribeSpeech(buffer, name);
-    if (transcript === null) {
+  const kind = description.kind;
+  if (kind !== 'sound') {
+    const result = await transcribeSpeech(buffer, name);
+    if (!result.ok) {
       log.warn(
-        `Transcription produced nothing for ${name} (classified ${description.kind}) - leaving it unanalyzed so the sweep retries it`
+        `Transcription failed for ${name} (classified ${kind}) - leaving it unanalyzed so the sweep retries it`
       );
       return null;
+    }
+    transcript = result.transcript ?? '';
+    if (transcript === '') {
+      log.info(
+        `Transcription of ${name} recovered no usable words (classified ${kind}) - storing an empty transcript and keeping kind=${kind}`
+      );
     }
   }
 
@@ -76,7 +104,7 @@ export async function analyzeSound(
 
   const analysis: SoundAnalysis = {
     soundName: name,
-    kind: description.kind,
+    kind,
     transcript,
     caption: description.caption,
     tags: description.tags,
