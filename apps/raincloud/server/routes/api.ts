@@ -6,7 +6,12 @@ import * as voiceManager from '@rainbot/utils/voiceManager';
 import * as storage from '@rainbot/utils/storage';
 import { query } from '@rainbot/utils/database';
 import { deployCommands } from '@rainbot/utils/deployCommands';
-import { searchSounds, enqueueAnalyzeSound, sweepAnalyzeSounds } from '@rainbot/utils';
+import {
+  searchSounds,
+  enqueueAnalyzeSound,
+  sweepAnalyzeSounds,
+  deleteAnalysis,
+} from '@rainbot/utils';
 import { normalizeProxyUrl, maskProxyUrl } from '@rainbot/shared';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
@@ -571,7 +576,7 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
       // Best-effort cleanup if DB is unavailable.
     }
     try {
-      await query(`DELETE FROM sound_analysis WHERE sound_name = $1`, [filename]);
+      await deleteAnalysis(filename);
     } catch {
       // Best-effort cleanup if DB is unavailable.
     }
