@@ -25,7 +25,6 @@ jest.mock('@rainbot/utils', () => ({
   searchSounds: (...args: unknown[]) => mockSearchSounds(...args),
 }));
 
- 
 const { handlePlaySourceAutocomplete } = require('../interactionCreate');
 
 function makeInteraction(focusedValue: string) {

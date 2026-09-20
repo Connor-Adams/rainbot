@@ -87,7 +87,6 @@ describe('describeAudio', () => {
       },
     }));
 
-     
     const { describeAudio, MAX_ANALYZABLE_BYTES } = require('../audioAnalyzer');
     return { describeAudio, MAX_ANALYZABLE_BYTES, toWav, create };
   }

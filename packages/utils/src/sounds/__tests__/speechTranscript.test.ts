@@ -5,7 +5,7 @@ import { trimHallucinations } from '../speechTranscript';
 // hand-rolled guess is the point: the bug this covers was a value that looked
 // file-ish but that `isUploadable()` rejects, so the request threw before any
 // network call and the transcript came back null.
- 
+
 const uploads = require('openai/uploads');
 
 describe('trimHallucinations', () => {
