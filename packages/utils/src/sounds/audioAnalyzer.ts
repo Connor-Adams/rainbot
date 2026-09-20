@@ -26,11 +26,20 @@ const MAX_TAGS = 8;
  * `-t MAX_DECODE_SECONDS` (audioTranscode.ts), so decoded output is bounded by
  * duration - under 1MB - no matter how large the source is, and 8MB was
  * rejecting real clips: production skipped an 8.3MB one outright.
+ *
+ * Decimal megabytes, not binary. "25 MB" in the guide is ambiguous, and the
+ * two readings differ by 1,214,400 bytes: a source in that band passes a
+ * `25 * 1024 * 1024` check here and is refused by the server, which is the
+ * fine-locally-refused-remotely shape this whole file exists to stop
+ * repeating. The smaller reading is the only one that cannot be wrong, and it
+ * costs at most a clip in that band being skipped locally instead of failing
+ * remotely - visibly, with a log line naming the size.
  */
-export const MAX_ANALYZABLE_BYTES = 25 * 1024 * 1024;
+export const MAX_ANALYZABLE_BYTES = 25 * 1000 * 1000;
 
+/** Decimal MB, matching how the limits above are stated. */
 function describeSize(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  return `${(bytes / 1_000_000).toFixed(1)}MB`;
 }
 
 export const DESCRIBE_PROMPT = `You are cataloguing short audio clips for a Discord soundboard so people can search for them later.

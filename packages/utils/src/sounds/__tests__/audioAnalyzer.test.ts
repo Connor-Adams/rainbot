@@ -267,7 +267,11 @@ describe('describeAudio', () => {
     // speech in it, so a source over the API's own 25MB upload limit could
     // never finish stage 2 regardless of what stage 1 made of it.
     const { MAX_ANALYZABLE_BYTES } = loadWithStubs(Buffer.alloc(16));
-    expect(MAX_ANALYZABLE_BYTES).toBe(25 * 1024 * 1024);
+    // Decimal, not binary. A source between the two readings of "25 MB"
+    // passes a 25 MiB check locally and is refused by the server - the same
+    // fine-here-rejected-there shape these fixes exist to stop repeating.
+    expect(MAX_ANALYZABLE_BYTES).toBe(25 * 1000 * 1000);
+    expect(MAX_ANALYZABLE_BYTES).toBeLessThan(25 * 1024 * 1024);
   });
 
   it('analyses the 8.3MB clip the old 8MB cap rejected', async () => {
