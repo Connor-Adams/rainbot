@@ -42,6 +42,35 @@ function describeSize(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)}MB`;
 }
 
+/**
+ * The single instruction sent with every clip.
+ *
+ * Two of its lines are load-bearing for reasons that are not obvious from
+ * reading them, and both were written against production failures rather than
+ * guessed at:
+ *
+ * "how the voice sounds ... never identify or guess whose voice it is". The
+ * caption line used to say "describe the speaker and delivery", and the model
+ * read "describe the speaker" as a request to say *who* is talking - which is
+ * the one thing an audio model is trained hardest to refuse. A sweep over the
+ * library came back with "I can't identify speakers from a voice sample" on
+ * clips with a voice in them, and - once that guardrail was tripped - the
+ * generic "I'm sorry, but I can't assist with that request" on clips of
+ * animals and a fish. Harmless clips being refused is the tell that this was
+ * never content moderation. So the line now asks only for the voice as a
+ * *sonic* quality, and the refusal is stated outright rather than left to be
+ * inferred from the absence of a request: a model that has been told not to
+ * identify anyone does not have to decide whether it was being asked to.
+ *
+ * "Do not invent words that were not spoken". This one predates the above and
+ * fixes a different bug: without it the model happily supplied plausible
+ * dialogue for clips that had none, which then went into the search document
+ * as if it were transcript.
+ *
+ * Kept deliberately short. A longer prompt is not automatically a safer one,
+ * and this one already succeeds on the great majority of the library; every
+ * extra clause is another thing for the model to weigh against the task.
+ */
 export const DESCRIBE_PROMPT = `You are cataloguing short audio clips for a Discord soundboard so people can search for them later.
 
 Listen to the clip and reply with JSON only, no prose and no code fence:
@@ -50,8 +79,10 @@ Listen to the clip and reply with JSON only, no prose and no code fence:
 - "speech": a person talking, and little else.
 - "sound": a sound effect, noise, music sting, or animal - no intelligible speech.
 - "mixed": intelligible speech over music or effects.
-- caption: one short sentence naming what makes the clip recognizable - the source of the sound and its character. For speech, describe the speaker and delivery rather than repeating their words.
+- caption: one short sentence naming what makes the clip recognizable - the source of the sound and its character. For a voice, describe how it sounds - tone, delivery, pitch, accent, emotion - rather than repeating the words.
 - tags: 3 to 8 short lowercase keyword phrases someone might actually search for.
+
+Never identify, name, or guess whose voice it is. Describe only how the voice sounds.
 
 If there is no intelligible speech, say so with "sound". Do not invent words that were not spoken.`;
 
@@ -207,6 +238,55 @@ function validateDescription(parsed: unknown): SoundDescription | null {
 }
 
 /**
+ * Replies that say the model could not hear the clip, or ask to be sent one.
+ *
+ * Two shapes, because production produced both:
+ *
+ *   "I can't listen to the audio."      "I can't actually hear the audio clip."
+ *   "I'm sorry, but I can't process audio."
+ *   "Please provide the audio clip you'd like me to listen to."
+ *   "Please upload the clip so I can help you with the description."
+ *
+ * Both require the reply to talk about the *audio itself* being absent: an
+ * inability verb applied to a recording, or a request to be given one. That is
+ * what keeps this off a genuine content refusal, which never mentions either -
+ * "I'm sorry, but I can't assist with that request" has no hearing verb and no
+ * audio noun, and "I can't identify speakers from a voice sample" has neither
+ * a listed verb ("identify" is not one) nor a listed noun ("sample" is not
+ * one). It also keeps this off a merely malformed reply: a model that got the
+ * audio and botched the JSON is not simultaneously claiming it heard nothing.
+ *
+ * The second pattern's determiner set is deliberately closed. "Could you
+ * provide more details about the clip?" is the trailing sentence of a real
+ * refusal, and `more` not being an article is the only thing between it and a
+ * pointless second request; leaving a loose `.{0,20}` gap there would have
+ * matched it.
+ */
+const MISSING_AUDIO_PATTERNS: RegExp[] = [
+  /\b(?:cannot|can'?t|unable to|not able to|don'?t have the ability to)\b[^.!?]{0,40}?\b(?:hear|listen|play|access|process|receive|open)\b[^.!?]{0,20}?\b(?:audio|clip|sound file|recording)\b/,
+  /\b(?:provide|upload|share|send|attach|give)\b(?:\s+(?:me|us|it|with|to))*\s+(?:the|an?|your|that)?\s*(?:audio|clip|sound file|recording)\b/,
+];
+
+/**
+ * Whether the model answered as a text-only assistant, as if nothing had been
+ * attached - a known intermittent failure of audio models that usually clears
+ * on a resend. The clips that hit it decode fine and their WAV headers were
+ * verified canonical with the audio present, so the attachment is not in
+ * question; the model's attention to it is.
+ *
+ * Matching is done on a lowercased copy with both apostrophe spellings folded
+ * together: production replies use `can't` and `can’t` interchangeably, and a
+ * pattern that knows only one of them would resend half the clips it should.
+ * The same bounded window as the log excerpt is scanned rather than the whole
+ * reply - a deflection is two sentences, never megabytes, so nothing is lost
+ * and a pathological reply cannot turn this into a scan of the entire string.
+ */
+export function looksLikeMissingAudioReply(reply: string): boolean {
+  const text = reply.slice(0, REPLY_SCAN_CHARS).toLowerCase().replace(/[‘’ʼ]/g, "'");
+  return MISSING_AUDIO_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
  * Minimal shape of the chat-completions request this call needs.
  *
  * Deliberately not imported from 'openai' - that package is an optional
@@ -281,6 +361,22 @@ function rejectsJsonMode(error: unknown): boolean {
 }
 
 /**
+ * A completed request, plus the one fact a caller needs to repeat it.
+ *
+ * `withJsonMode` is what the request that actually came back carried - not
+ * what the memo says, and not what this call started out intending to send.
+ * The deflection resend in `describeAudio` rebuilds the body from it, so it
+ * sends exactly the body that the endpoint has already accepted once. Handing
+ * back the local rather than letting the caller re-read `jsonModeAccepted` is
+ * the same memo-versus-local distinction the body of this function turns on,
+ * one level up.
+ */
+interface DescribeAttempt {
+  response: unknown;
+  withJsonMode: boolean;
+}
+
+/**
  * Sends the description request, retrying once without `response_format` if
  * the API refuses the parameter.
  *
@@ -298,7 +394,7 @@ async function sendDescribeRequest(
   client: any,
   buildRequest: (withJsonMode: boolean) => AudioChatCompletionRequest,
   model: string
-): Promise<unknown> {
+): Promise<DescribeAttempt> {
   // Read the memo once, into a local, and let the catch consult the local.
   //
   // The two are not the same question. The memo answers "does the model accept
@@ -319,7 +415,8 @@ async function sendDescribeRequest(
   const sentWithJsonMode = jsonModeAccepted;
 
   try {
-    return await client.chat.completions.create(buildRequest(sentWithJsonMode));
+    const response = await client.chat.completions.create(buildRequest(sentWithJsonMode));
+    return { response, withJsonMode: sentWithJsonMode };
   } catch (error) {
     if (!sentWithJsonMode || !rejectsJsonMode(error)) throw error;
 
@@ -337,8 +434,17 @@ async function sendDescribeRequest(
         `The reply parser tolerates prose around the object either way.`
     );
 
-    return await client.chat.completions.create(buildRequest(false));
+    return {
+      response: await client.chat.completions.create(buildRequest(false)),
+      withJsonMode: false,
+    };
   }
+}
+
+/** The assistant text of a completion, if the reply carried any. */
+function replyContent(response: unknown): string | undefined {
+  return (response as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message
+    ?.content;
 }
 
 /**
@@ -448,23 +554,71 @@ export async function describeAudio(
       return request;
     };
 
-    const response = await sendDescribeRequest(client, buildRequest, config.soundCaptionModel);
+    const attempt = await sendDescribeRequest(client, buildRequest, config.soundCaptionModel);
 
-    const reply = (response as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]
-      ?.message?.content;
+    let reply = replyContent(attempt.response);
     if (!reply) {
       log.warn(`Empty description reply for ${filename}`);
       return null;
     }
 
-    const description = parseDescription(reply);
+    let description = parseDescription(reply);
+    let resent = false;
+
+    // The model intermittently answers as a text-only assistant - "I can't
+    // listen to the audio", "please provide the audio clip" - on clips whose
+    // audio is demonstrably attached and decodes fine. That is a known failure
+    // of audio models rather than anything about the clip, and it usually
+    // clears on a resend, so spend one more request before giving up.
+    //
+    // Three properties this deliberately has, all of them easy to break:
+    //
+    // - It calls `create` directly, NOT `sendDescribeRequest`. Going back
+    //   through that function would re-run the `response_format` probe: a
+    //   deflection on a clip whose first request already paid a rejected
+    //   parameter plus its retry would cost four requests, and a resend could
+    //   reintroduce a parameter the endpoint has already refused. Rebuilding
+    //   from `attempt.withJsonMode` sends exactly the body that came back, so
+    //   the two retries compose additively - at most three requests per clip -
+    //   instead of multiplying.
+    //
+    // - One resend, not a loop. `resent` is a flag, not a counter, and there
+    //   is no path from here back into this branch.
+    //
+    // - It fires only for this shape, never for a genuine content refusal
+    //   (see `looksLikeMissingAudioReply`). A refusal must still write no row,
+    //   so the sweep retries the clip on a later run - there is deliberately
+    //   no terminal-refusal state anywhere in this pipeline.
+    if (!description && looksLikeMissingAudioReply(reply)) {
+      // Visible, but at info: this is an expected hiccup that the next line
+      // usually resolves, not something anyone needs to act on.
+      log.info(
+        `${config.soundCaptionModel} answered for ${filename} as if no audio were attached - resending once: ${excerptReply(reply)}`
+      );
+      resent = true;
+
+      const retried = await client.chat.completions.create(buildRequest(attempt.withJsonMode));
+      const retriedReply = replyContent(retried);
+      // An empty resend leaves the first reply in place, so the warn below
+      // still carries the deflection that explains the failure rather than
+      // nothing at all.
+      if (retriedReply) {
+        reply = retriedReply;
+        description = parseDescription(reply);
+      }
+    }
+
     // Without the reply itself this line is undiagnosable - it took a dig
     // through production logs to establish that a model swap, not moderation,
     // was rejecting the whole library. The excerpt is bounded and flattened
     // (see MAX_LOGGED_REPLY_CHARS) because the reply may well be a refusal,
     // and it rides the same single warn line so the log volume is unchanged.
     if (!description) {
-      log.warn(`Unparseable description reply for ${filename}: ${excerptReply(reply)}`);
+      log.warn(
+        `Unparseable description reply for ${filename}` +
+          `${resent ? ' (still unusable after one resend for a no-audio reply)' : ''}: ` +
+          excerptReply(reply)
+      );
     }
     return description;
   } catch (error) {

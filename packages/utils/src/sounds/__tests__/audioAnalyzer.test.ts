@@ -1,4 +1,137 @@
-import { parseDescription } from '../audioAnalyzer';
+import { DESCRIBE_PROMPT, looksLikeMissingAudioReply, parseDescription } from '../audioAnalyzer';
+
+/**
+ * The prompt is the whole interface to the caption model, and one clause of it
+ * cost 21 of 263 clips in a production sweep: asking the model to "describe
+ * the speaker" read as a request to identify who was talking, which it
+ * refuses on principle - and having refused once it went on to refuse clips of
+ * animals too. These pin the intent that replaced it rather than the prose, so
+ * the wording stays free to change and the trap does not come back.
+ */
+describe('DESCRIBE_PROMPT', () => {
+  it('never asks the model to identify who is speaking', () => {
+    // The exact clause that caused the outage.
+    expect(DESCRIBE_PROMPT).not.toMatch(/describe the speaker/i);
+
+    // And, more generally, every naming verb in the prompt sits under a
+    // prohibition. A bare "identify the speaker" reintroduced anywhere - in
+    // any rewording - fails here rather than in a production sweep.
+    const naming = /\b(?:identify|name|who is speaking|whose)\b/gi;
+    let match = naming.exec(DESCRIBE_PROMPT);
+    let seen = 0;
+    while (match) {
+      const lead = DESCRIBE_PROMPT.slice(Math.max(0, match.index - 40), match.index);
+      expect(`${lead}[${match[0]}]`).toMatch(/\b(?:never|not|no)\b/i);
+      seen += 1;
+      match = naming.exec(DESCRIBE_PROMPT);
+    }
+    // Guards the loop itself: a prompt that mentioned none of these would pass
+    // vacuously, and the prohibition is supposed to be there.
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('tells the model outright not to identify anyone', () => {
+    // Stated, not merely omitted: a model that has been told not to identify
+    // anyone does not have to infer it from the absence of the request.
+    expect(DESCRIBE_PROMPT).toMatch(/never identify, name, or guess whose voice it is/i);
+  });
+
+  it('asks for the voice as a sonic quality instead', () => {
+    expect(DESCRIBE_PROMPT).toMatch(/how (?:it|the voice) sounds/i);
+    for (const quality of ['tone', 'delivery', 'pitch', 'accent', 'emotion']) {
+      expect(DESCRIBE_PROMPT).toContain(quality);
+    }
+  });
+
+  it('keeps the rule that stopped the model inventing dialogue', () => {
+    // A separate, already-fixed class of bug: without this the model supplied
+    // plausible words for clips that had none, and they reached the search doc.
+    expect(DESCRIBE_PROMPT).toContain('Do not invent words that were not spoken');
+  });
+
+  it('keeps the reply contract the parser depends on', () => {
+    for (const key of ['kind', 'caption', 'tags']) {
+      expect(DESCRIBE_PROMPT).toContain(`"${key}"`);
+    }
+    for (const kind of ['speech', 'sound', 'mixed']) {
+      expect(DESCRIBE_PROMPT).toContain(`"${kind}"`);
+    }
+    expect(DESCRIBE_PROMPT).toMatch(/JSON only, no prose and no code fence/);
+    expect(DESCRIBE_PROMPT).toMatch(/3 to 8 short lowercase keyword phrases/);
+  });
+});
+
+/**
+ * The predicate that decides whether a failed reply is worth one more request.
+ * It has to separate three things that all arrive as "prose instead of JSON":
+ * the model claiming it got no audio (resend), the model refusing on content
+ * grounds (do not resend - the sweep retries it on a later run anyway), and
+ * the model simply botching the reply (do not resend).
+ */
+describe('looksLikeMissingAudioReply', () => {
+  // Verbatim from a production sweep. These are the replies the retry exists
+  // for, so they are pinned exactly rather than paraphrased.
+  const DEFLECTIONS = [
+    "I can't listen to the audio. Please upload the clip so I can help you with the description.",
+    "Sure, please provide the audio clip you'd like me to listen to. Once I can hear it, I'll describe it.",
+    "Sure, please provide the audio clip you'd like me to listen to.",
+    "Please provide the audio clip you'd like me to listen to, and I'll generate the JSON.",
+    "I'm sorry, but I can't process audio. Could you provide more details about the clip?",
+    "I can't actually hear the audio clip. Could you please provide more details about it?",
+  ];
+
+  it.each(DEFLECTIONS)('spots %s', (reply) => {
+    expect(looksLikeMissingAudioReply(reply)).toBe(true);
+  });
+
+  it('spots the curly-apostrophe spelling too', () => {
+    // Production emits both, sometimes in the same sweep, and a pattern that
+    // knows only the straight one would resend half the clips it should.
+    expect(looksLikeMissingAudioReply('I can’t hear the audio clip.')).toBe(true);
+    expect(looksLikeMissingAudioReply('I can’t actually listen to the recording.')).toBe(true);
+  });
+
+  /**
+   * The load-bearing half. A content refusal must fall through untouched: no
+   * row is written either way, so the sweep retries the clip on a later run,
+   * and resending it would only buy the same refusal at twice the price.
+   */
+  it.each([
+    "I'm sorry, but I can't assist with that request.",
+    "I'm sorry, but I can't help with that request.",
+    "I can't help with identifying who is speaking from a voice sample, but I can analyze the content of the audio.",
+    "I can't identify speakers from voice samples. Please let me know if there's another way I can assist.",
+    'I can’t identify speakers from a voice sample. Please let me know if you need anything else.',
+  ])('leaves the genuine refusal %s alone', (reply) => {
+    expect(looksLikeMissingAudioReply(reply)).toBe(false);
+  });
+
+  it('leaves a merely malformed reply alone', () => {
+    // Nothing the tolerant parser could salvage, but nothing claiming the
+    // audio was missing either - a second identical request buys nothing.
+    expect(looksLikeMissingAudioReply('{ this is not json }')).toBe(false);
+    expect(looksLikeMissingAudioReply('{"kind":"music","caption":"a clip","tags":[]}')).toBe(false);
+    expect(looksLikeMissingAudioReply('')).toBe(false);
+    expect(looksLikeMissingAudioReply('Here is the description you asked for.')).toBe(false);
+  });
+
+  it('does not mistake a request for more detail for a request for the audio', () => {
+    // The determiner set is closed precisely so `more` cannot stand in for an
+    // article here. This sentence is the tail of real refusals.
+    expect(looksLikeMissingAudioReply('Could you provide more details about the clip?')).toBe(
+      false
+    );
+  });
+
+  it('does not fire on a caption that happens to mention listening', () => {
+    // A description is a description even when its words overlap the pattern's
+    // vocabulary; this only ever runs on a reply that already failed to parse,
+    // but the predicate should not be the reason a good clip gets resent.
+    expect(
+      looksLikeMissingAudioReply('A calm narrator explains how to access a sound library.')
+    ).toBe(false);
+  });
+});
 
 describe('parseDescription', () => {
   it('parses a well-formed reply', () => {
@@ -352,6 +485,138 @@ describe('describeAudio', () => {
 
       await expect(describeAudio(Buffer.alloc(16 * 1024), 'thud.ogg')).resolves.toBeNull();
       expect(create).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  /**
+   * The clips that hit this decode fine and their WAV headers were verified
+   * canonical with the audio present - the model is just intermittently
+   * answering as a text-only assistant. It usually clears on a resend, so one
+   * more request is worth spending before the clip is left for a later sweep.
+   */
+  describe('a reply that answers as if no audio were attached', () => {
+    const DEFLECTION = "I can't listen to the audio. Please upload the clip so I can help you.";
+
+    function deflect() {
+      return { choices: [{ message: { content: DEFLECTION } }] };
+    }
+
+    it('resends once and returns the description the second reply carried', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockResolvedValueOnce(deflect());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toEqual({
+        kind: 'sound',
+        caption: 'a thud',
+        tags: ['thud'],
+      });
+
+      // Exactly two: the deflection and the resend. Not three, not a loop.
+      expect(create).toHaveBeenCalledTimes(2);
+      // The resend is the same request, byte for byte - including whether it
+      // carries the JSON-object constraint. Rebuilding it any other way would
+      // either re-probe a parameter the endpoint may have refused, or change
+      // the variable under test.
+      expect(create.mock.calls[1][0]).toEqual(create.mock.calls[0][0]);
+      // A hiccup that resolved itself is not a warning.
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('handles the curly-apostrophe spelling the model also emits', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'I can’t actually hear the audio clip.' } }],
+      });
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.not.toBeNull();
+      expect(create).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after one resend and says so with the excerpt', async () => {
+      const { describeAudio, create, warn } = loadWithStubs(Buffer.alloc(64 * 1024), DEFLECTION);
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = String(warn.mock.calls[0][0]);
+      expect(line).toContain('bonk.ogg');
+      expect(line).toContain('resend');
+      expect(line).toContain("I can't listen to the audio");
+    });
+
+    it('does not resend a genuine content refusal', async () => {
+      // No row is written either way, so the sweep retries the clip on a later
+      // run. Resending here would buy the same refusal at twice the price -
+      // and there is deliberately no terminal-refusal state to short-circuit.
+      const { describeAudio, create, warn } = loadWithStubs(
+        Buffer.alloc(64 * 1024),
+        "I'm sorry, but I can't assist with that request."
+      );
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'salmon.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(1);
+      const line = String(warn.mock.calls[0][0]);
+      expect(line).toContain('salmon.ogg');
+      // And it is logged as it was before, with no resend wording attached.
+      expect(line).not.toContain('resend');
+    });
+
+    it('does not resend a reply that is merely unparseable', async () => {
+      const { describeAudio, create } = loadWithStubs(
+        Buffer.alloc(64 * 1024),
+        '{"kind":"music","caption":"a clip","tags":[]}'
+      );
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'odd.ogg')).resolves.toBeNull();
+      expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * The two retries in this file must compose additively, not multiply. A
+     * resend routed back through `sendDescribeRequest` would re-run the
+     * `response_format` probe, so a clip that paid a rejected parameter and
+     * then deflected would cost four requests - and the resend could carry a
+     * parameter the endpoint has already refused.
+     */
+    it('costs at most three requests when it follows a refused JSON-mode probe', async () => {
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024));
+      create.mockRejectedValueOnce(
+        Object.assign(
+          new Error(
+            "400 Unsupported parameter: 'response_format' is not supported with this model."
+          ),
+          { status: 400, error: { param: 'response_format' } }
+        )
+      );
+      create.mockResolvedValueOnce(deflect());
+
+      await expect(describeAudio(Buffer.alloc(16 * 1024), 'bonk.ogg')).resolves.toEqual({
+        kind: 'sound',
+        caption: 'a thud',
+        tags: ['thud'],
+      });
+
+      expect(create).toHaveBeenCalledTimes(3);
+      // The rejected probe, then two bodies without it. The resend must not
+      // reintroduce the parameter the endpoint just refused.
+      expect(create.mock.calls[0][0]).toHaveProperty('response_format');
+      expect(create.mock.calls[1][0]).not.toHaveProperty('response_format');
+      expect(create.mock.calls[2][0]).not.toHaveProperty('response_format');
+      expect(create.mock.calls[2][0]).toEqual(create.mock.calls[1][0]);
+    });
+
+    it('does not turn a repeated deflection into a loop', async () => {
+      // Three clips, every reply a deflection: two requests each, never more.
+      const { describeAudio, create } = loadWithStubs(Buffer.alloc(64 * 1024), DEFLECTION);
+
+      const results = await Promise.all([
+        describeAudio(Buffer.alloc(16 * 1024), 'one.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'two.ogg'),
+        describeAudio(Buffer.alloc(16 * 1024), 'three.ogg'),
+      ]);
+
+      expect(results).toEqual([null, null, null]);
+      expect(create).toHaveBeenCalledTimes(6);
     });
   });
 
