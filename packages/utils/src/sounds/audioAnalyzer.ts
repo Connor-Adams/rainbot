@@ -42,6 +42,35 @@ function describeSize(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)}MB`;
 }
 
+/**
+ * The single instruction sent with every clip.
+ *
+ * Two of its lines are load-bearing for reasons that are not obvious from
+ * reading them, and both were written against production failures rather than
+ * guessed at:
+ *
+ * "how the voice sounds ... never identify or guess whose voice it is". The
+ * caption line used to say "describe the speaker and delivery", and the model
+ * read "describe the speaker" as a request to say *who* is talking - which is
+ * the one thing an audio model is trained hardest to refuse. A sweep over the
+ * library came back with "I can't identify speakers from a voice sample" on
+ * clips with a voice in them, and - once that guardrail was tripped - the
+ * generic "I'm sorry, but I can't assist with that request" on clips of
+ * animals and a fish. Harmless clips being refused is the tell that this was
+ * never content moderation. So the line now asks only for the voice as a
+ * *sonic* quality, and the refusal is stated outright rather than left to be
+ * inferred from the absence of a request: a model that has been told not to
+ * identify anyone does not have to decide whether it was being asked to.
+ *
+ * "Do not invent words that were not spoken". This one predates the above and
+ * fixes a different bug: without it the model happily supplied plausible
+ * dialogue for clips that had none, which then went into the search document
+ * as if it were transcript.
+ *
+ * Kept deliberately short. A longer prompt is not automatically a safer one,
+ * and this one already succeeds on the great majority of the library; every
+ * extra clause is another thing for the model to weigh against the task.
+ */
 export const DESCRIBE_PROMPT = `You are cataloguing short audio clips for a Discord soundboard so people can search for them later.
 
 Listen to the clip and reply with JSON only, no prose and no code fence:
@@ -50,8 +79,10 @@ Listen to the clip and reply with JSON only, no prose and no code fence:
 - "speech": a person talking, and little else.
 - "sound": a sound effect, noise, music sting, or animal - no intelligible speech.
 - "mixed": intelligible speech over music or effects.
-- caption: one short sentence naming what makes the clip recognizable - the source of the sound and its character. For speech, describe the speaker and delivery rather than repeating their words.
+- caption: one short sentence naming what makes the clip recognizable - the source of the sound and its character. For a voice, describe how it sounds - tone, delivery, pitch, accent, emotion - rather than repeating the words.
 - tags: 3 to 8 short lowercase keyword phrases someone might actually search for.
+
+Never identify, name, or guess whose voice it is. Describe only how the voice sounds.
 
 If there is no intelligible speech, say so with "sound". Do not invent words that were not spoken.`;
 

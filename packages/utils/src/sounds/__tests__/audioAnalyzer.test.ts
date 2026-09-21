@@ -1,4 +1,65 @@
-import { parseDescription } from '../audioAnalyzer';
+import { DESCRIBE_PROMPT, parseDescription } from '../audioAnalyzer';
+
+/**
+ * The prompt is the whole interface to the caption model, and one clause of it
+ * cost 21 of 263 clips in a production sweep: asking the model to "describe
+ * the speaker" read as a request to identify who was talking, which it
+ * refuses on principle - and having refused once it went on to refuse clips of
+ * animals too. These pin the intent that replaced it rather than the prose, so
+ * the wording stays free to change and the trap does not come back.
+ */
+describe('DESCRIBE_PROMPT', () => {
+  it('never asks the model to identify who is speaking', () => {
+    // The exact clause that caused the outage.
+    expect(DESCRIBE_PROMPT).not.toMatch(/describe the speaker/i);
+
+    // And, more generally, every naming verb in the prompt sits under a
+    // prohibition. A bare "identify the speaker" reintroduced anywhere - in
+    // any rewording - fails here rather than in a production sweep.
+    const naming = /\b(?:identify|name|who is speaking|whose)\b/gi;
+    let match = naming.exec(DESCRIBE_PROMPT);
+    let seen = 0;
+    while (match) {
+      const lead = DESCRIBE_PROMPT.slice(Math.max(0, match.index - 40), match.index);
+      expect(`${lead}[${match[0]}]`).toMatch(/\b(?:never|not|no)\b/i);
+      seen += 1;
+      match = naming.exec(DESCRIBE_PROMPT);
+    }
+    // Guards the loop itself: a prompt that mentioned none of these would pass
+    // vacuously, and the prohibition is supposed to be there.
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('tells the model outright not to identify anyone', () => {
+    // Stated, not merely omitted: a model that has been told not to identify
+    // anyone does not have to infer it from the absence of the request.
+    expect(DESCRIBE_PROMPT).toMatch(/never identify, name, or guess whose voice it is/i);
+  });
+
+  it('asks for the voice as a sonic quality instead', () => {
+    expect(DESCRIBE_PROMPT).toMatch(/how (?:it|the voice) sounds/i);
+    for (const quality of ['tone', 'delivery', 'pitch', 'accent', 'emotion']) {
+      expect(DESCRIBE_PROMPT).toContain(quality);
+    }
+  });
+
+  it('keeps the rule that stopped the model inventing dialogue', () => {
+    // A separate, already-fixed class of bug: without this the model supplied
+    // plausible words for clips that had none, and they reached the search doc.
+    expect(DESCRIBE_PROMPT).toContain('Do not invent words that were not spoken');
+  });
+
+  it('keeps the reply contract the parser depends on', () => {
+    for (const key of ['kind', 'caption', 'tags']) {
+      expect(DESCRIBE_PROMPT).toContain(`"${key}"`);
+    }
+    for (const kind of ['speech', 'sound', 'mixed']) {
+      expect(DESCRIBE_PROMPT).toContain(`"${kind}"`);
+    }
+    expect(DESCRIBE_PROMPT).toMatch(/JSON only, no prose and no code fence/);
+    expect(DESCRIBE_PROMPT).toMatch(/3 to 8 short lowercase keyword phrases/);
+  });
+});
 
 describe('parseDescription', () => {
   it('parses a well-formed reply', () => {
