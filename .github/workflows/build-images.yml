@@ -1,0 +1,153 @@
+name: Build Images (GHCR)
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+  # yt-dlp rots. raincloud and rainbot install it at image build time, and under
+  # content-hash gating an unchanged app is never rebuilt — so without this the
+  # binary in :prod would age indefinitely. The weekly run forces all four
+  # images and re-pushes the same :tree-<hash> tags with fresh apt/pip layers.
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Build every image, ignoring the content-hash skip'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Decide which images actually need building. A service is rebuilt only when
+  # its content hash (scripts/service-content-hash.cjs) has no :tree-<hash> tag
+  # in GHCR yet. Unchanged services are skipped entirely — no build job, no
+  # buildkit boot, no registry pull.
+  detect:
+    name: Detect changed images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      any: ${{ steps.detect.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect which images need building
+        id: detect
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE_INPUT: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+
+          FORCE=false
+          if [ "${EVENT_NAME}" = "schedule" ] || [ "${FORCE_INPUT}" = "true" ]; then
+            FORCE=true
+            echo "Force mode: building every image regardless of existing tags."
+          fi
+
+          # name|build-context|dockerfile
+          SERVICES=(
+            "raincloud|.|apps/raincloud/Dockerfile"
+            "rainbot|.|apps/rainbot/Dockerfile"
+            "pranjeet|.|apps/pranjeet/Dockerfile"
+            "hungerbot|.|apps/hungerbot/Dockerfile"
+          )
+
+          include='[]'
+          for entry in "${SERVICES[@]}"; do
+            IFS='|' read -r name context file <<< "$entry"
+            hash=$(node scripts/service-content-hash.cjs "$name")
+            image="ghcr.io/${REPO_LC}-${name}"
+            # skopeo talks to the registry directly — no Docker daemon, no
+            # buildx boot, no image pull.
+            if [ "${FORCE}" != "true" ] && skopeo inspect --raw \
+                 --creds "${GHCR_USER}:${GHCR_TOKEN}" \
+                 "docker://${image}:tree-${hash}" >/dev/null 2>&1; then
+              echo "skip  ${name} (tree-${hash} already built)"
+            else
+              echo "build ${name} (tree-${hash})"
+              include=$(jq -c \
+                --arg name "$name" \
+                --arg context "$context" \
+                --arg file "$file" \
+                --arg hash "$hash" \
+                '. + [{name: $name, context: $context, file: $file, hash: $hash}]' \
+                <<< "$include")
+            fi
+          done
+
+          echo "matrix={\"include\":${include}}" >> "$GITHUB_OUTPUT"
+          if [ "$include" = '[]' ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "All images already up to date; nothing to build."
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: detect
+    if: ${{ needs.detect.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${REPO_LC}-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          # Keep single-manifest output. build-push v6+ enables provenance
+          # attestations by default, turning each single-arch image into an
+          # index with an extra unknown/unknown manifest. The promote re-tag
+          # flow (imagetools create/inspect) doesn't need that.
+          provenance: false
+          # :tree-<hash> is the content-addressed identity release-promote
+          # resolves by. :sha-<commit> and :main are traceability/rollback only.
+          tags: |
+            ${{ steps.meta.outputs.image }}:tree-${{ matrix.hash }}
+            ${{ steps.meta.outputs.image }}:sha-${{ github.sha }}
+            ${{ steps.meta.outputs.image }}:main
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

@@ -23,11 +23,29 @@ CI/CD for the Rainbot monorepo. Shared setup is centralized in **composite actio
 
 CodeQL analysis for JavaScript/TypeScript.
 
-### 🚀 `release-ghcr.yml` - Build & push images (GHCR)
+### 📦 `build-images.yml` - Build & push images (GHCR)
 
-**Triggers:** Release published, workflow_dispatch (optional force)
+**Triggers:** Push to `main`, weekly schedule, workflow_dispatch (optional force)
 
-Plans changed apps from previous tag, builds only changed images with Railpack, pushes to GHCR. Uses `verify-release-tag` in plan; build job no longer re-runs CI verification.
+Builds one image per bot from `apps/<svc>/Dockerfile` (build context = repo root) and pushes to `ghcr.io/<owner>/rainbot-<svc>`.
+
+A service is rebuilt only when its **content hash** — [`scripts/service-content-hash.cjs`](../../scripts/service-content-hash.cjs), the git object ids of everything that lands in its build context — has no `:tree-<hash>` tag in GHCR yet. The detect job asks the registry with `skopeo`, so unchanged services cost no buildx boot and no build job at all.
+
+Tags pushed per build: `:tree-<hash>` (the identity `release-promote.yml` resolves by), `:sha-<commit>` and `:main` (traceability/rollback only).
+
+The **weekly schedule** force-rebuilds everything. That exists for `yt-dlp`, which raincloud's and rainbot's images install at build time and which breaks against YouTube within weeks of a release — under content-hash gating an untouched app would otherwise never get a fresh binary. Removing the schedule silently rots those two images.
+
+Bump `EPOCH` in `service-content-hash.cjs` to force a rebuild of all four when something outside the source tree changes the image (base image moves, apt package, build logic).
+
+### 🚀 `release-promote.yml` - Promote images to `:prod`
+
+**Triggers:** Release published, workflow_dispatch (tag + optional force)
+
+Builds nothing. Checks out the released commit, recomputes each service's content hash with the **same module** `build-images.yml` used, waits (bounded) for `:tree-<hash>` to exist, then re-tags it as `:<release-tag>` and `:prod` with `docker buildx imagetools create` — a registry-side manifest copy, so `:prod` is byte-identical to the image CI built. Uses `verify-release-tag`.
+
+### ⚠️ `release-ghcr.yml` - DEPRECATED
+
+Superseded by the two workflows above. It built the same image names with Railpack, which never invokes a Dockerfile and so shipped no ffmpeg/yt-dlp. Its `release: published` trigger has been removed so it cannot race over `:prod`. **Delete this file.**
 
 ### 🚀 `release-deploy.yml` - Deploy to Railway
 
