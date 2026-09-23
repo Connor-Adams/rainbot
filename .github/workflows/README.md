@@ -27,7 +27,9 @@ CodeQL analysis for JavaScript/TypeScript.
 
 **Triggers:** Push to `main`, weekly schedule, workflow_dispatch (optional force)
 
-Builds one image per bot from `apps/<svc>/Dockerfile` (build context = repo root) and pushes to `ghcr.io/<owner>/rainbot-<svc>`.
+Builds five images — one per bot from `apps/<svc>/Dockerfile`, plus the dashboard from `ui/Dockerfile` — and pushes each to `ghcr.io/<owner>/rainbot-<svc>`. Build context is the repo root in every case.
+
+The `ui` image is nginx, not node: no bot serves the dashboard (raincloud's express 404s unmatched routes), so it ships standalone. It reads no `VITE_*` at build time — `ui/30-runtime-config.sh` rewrites `runtime-config.js` from `VITE_API_BASE_URL` / `VITE_AUTH_BASE_URL` / `VITE_DEBUG_LOGS` on every container start, so one image works in every environment. It listens on `$PORT`, defaulting to 8080 (unprivileged nginx cannot bind below 1024).
 
 A service is rebuilt only when its **content hash** — [`scripts/service-content-hash.cjs`](../../scripts/service-content-hash.cjs), the git object ids of everything that lands in its build context — has no `:tree-<hash>` tag in GHCR yet. The detect job asks the registry with `skopeo`, so unchanged services cost no buildx boot and no build job at all.
 
@@ -35,7 +37,7 @@ Tags pushed per build: `:tree-<hash>` (the identity `release-promote.yml` resolv
 
 The **weekly schedule** force-rebuilds everything. That exists for `yt-dlp`, which raincloud's and rainbot's images install at build time and which breaks against YouTube within weeks of a release — under content-hash gating an untouched app would otherwise never get a fresh binary. Removing the schedule silently rots those two images.
 
-Bump `EPOCH` in `service-content-hash.cjs` to force a rebuild of all four when something outside the source tree changes the image (base image moves, apt package, build logic).
+Bump `EPOCH` in `service-content-hash.cjs` to force a rebuild of all five when something outside the source tree changes the image (base image moves, apt package, build logic).
 
 ### 🚀 `release-promote.yml` - Promote images to `:prod`
 

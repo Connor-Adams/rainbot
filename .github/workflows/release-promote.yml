@@ -91,7 +91,7 @@ jobs:
           fi
 
           REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          SERVICES=(raincloud rainbot pranjeet hungerbot)
+          SERVICES=(raincloud rainbot pranjeet hungerbot ui)
 
           for name in "${SERVICES[@]}"; do
             hash=$(node scripts/service-content-hash.cjs "$name")
@@ -130,7 +130,7 @@ jobs:
             echo
             echo "| service | image | content hash |"
             echo "| --- | --- | --- |"
-            for name in raincloud rainbot pranjeet hungerbot; do
+            for name in raincloud rainbot pranjeet hungerbot ui; do
               hash=$(node scripts/service-content-hash.cjs "$name")
               echo "| ${name} | \`ghcr.io/${REPO_LC}-${name}\` | \`tree-${hash}\` |"
             done
