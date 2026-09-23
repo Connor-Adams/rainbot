@@ -13,6 +13,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@rainbot/observability": "*",
     "@rainbot/worker-protocol": "*",
     "@trpc/client": "^10.45.2",
     "@trpc/server": "^10.45.2",

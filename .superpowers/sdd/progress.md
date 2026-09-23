@@ -60,8 +60,43 @@ package.json and a paths entry to apps/rainbot/tsconfig.json (its own
 inherit or had it). Compiled dist confirms `require("./telemetry")` is the
 first statement in all three, ahead of `require("@rainbot/rpc")`.
 Evidence the ordering holds at runtime: patched Module.prototype.require in
-a throwaway harness around dist/hungerbot with OTEL_SDK_DISABLED=false and
+a throwaway harness around dist/hungerbot with OTEL*SDK_DISABLED=false and
 observed `@opentelemetry/sdk-node` required before `discord.js` — order:
 ["sdk-node required", "discord.js required"]. All three workers still
 start cleanly under OTEL_SDK_DISABLED=true (reach "Worker server listening
 on port ..." despite the missing token). yarn validate green (26/26).
+Task 7: complete (commits 7f1c544..b1c2e94, review clean)
+Used a separate side-effect module apps/<worker>/src/telemetry.ts imported
+first, NOT the brief's in-index call (see plan bug above). Ordering proven
+with a Module.prototype.require hook and independently reproduced by the
+reviewer: sdk-node loads before discord.js in all three workers.
+Minor (for final review): nothing statically guards against a future edit
+inserting an import above `import './telemetry';`. A --require preload
+would be immune; the side-effect-import pattern is not.
+Task 8: complete (commits b1c2e94..48f06e1, review clean)
+raincloud bootstraps inline (CJS, source-order require) above the
+Module.\_resolveFilename monkeypatch. Ordering and alias resolution both
+independently reproduced by the reviewer.
+Minor (for final review): dotenv loads at index.js:14, AFTER the telemetry
+bootstrap at :7, so OTEL*\* set only in a local .env is ignored. Production
+is unaffected (Dokploy injects real env vars). Fix is to move the dotenv
+require above the bootstrap — dotenv is not an instrumented module.
+Task 9: complete, per task-9-report.md.
+Registration gauge: instrumented 5 terminal states in orchestrator.ts, not
+the brief's 3 — also the "invalid RAINCLOUD_URL" early return and the
+non-ok HTTP response branch (which also gives up permanently, no retry).
+Both are equally silent-failure paths and belong on the gauge.
+RPC span: the brief's client.ts sketch (`procedure`/`workerName`/`invoke()`)
+doesn't exist in the real file — createTRPCClient just builds a raw
+createTRPCProxyClient and returns it; there's no per-call wrapper to edit.
+Adapted by adding a `worker` option and wrapping the returned proxy in a
+path-tracking Proxy that intercepts only the terminal `query`/`mutate`
+methods (not `subscribe` — it's sync/observer-based, no subscriptions exist
+in this repo, and wrapping it would change control flow). withSpan +
+recordRpcDuration wrap the underlying call via Reflect.apply; errors
+propagate by reference (verified with a same-instance test, mirroring
+spans.test.ts's identity check). Updated the one call site
+(apps/raincloud/src/rpc/clients.ts) to pass worker: 'rainbot'/'pranjeet'/
+'hungerbot'. Added packages/rpc/jest.config.js (rpc had none — no prior
+tests) plus a telemetry test. yarn validate green (26/26, 500 utils + 151
+raincloud tests unaffected).

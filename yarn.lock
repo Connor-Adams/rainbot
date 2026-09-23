@@ -3993,6 +3993,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/rpc@workspace:packages/rpc"
   dependencies:
+    "@rainbot/observability": "npm:*"
     "@rainbot/worker-protocol": "npm:*"
     "@trpc/client": "npm:^10.45.2"
     "@trpc/server": "npm:^10.45.2"
@@ -4108,6 +4109,7 @@ __metadata:
   resolution: "@rainbot/worker-shared@workspace:packages/worker-shared"
   dependencies:
     "@discordjs/voice": "npm:^0.19.0"
+    "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/shared": "workspace:*"
     "@rainbot/worker-protocol": "npm:*"
