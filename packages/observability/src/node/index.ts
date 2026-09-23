@@ -1,3 +1,11 @@
 export { startTelemetry, shutdownTelemetry, isTelemetryStarted } from './sdk';
 export { withSpan } from './spans';
+export {
+  recordVoiceConnections,
+  recordTrackResolve,
+  recordTrackResolveFailure,
+  recordRpcDuration,
+  recordWorkerRegistered,
+  recordSoundPlay,
+} from './metrics';
 export { RainbotAttr } from '../semconv';
