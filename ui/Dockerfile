@@ -6,6 +6,16 @@
 FROM node:22-slim AS builder
 WORKDIR /app
 
+# A static site needs no C++ toolchain, but `yarn install --immutable` installs
+# the WHOLE workspace graph — including the bots' @discordjs/opus, which is
+# node-pre-gyp and compiles via node-gyp whenever no prebuild matches the
+# platform. It matched on arm64 and did not on the amd64 CI runner, so leaving
+# this out built fine locally and failed in Actions.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    python3 build-essential g++ make ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN corepack enable
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
