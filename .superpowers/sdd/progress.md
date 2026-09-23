@@ -100,3 +100,47 @@ spans.test.ts's identity check). Updated the one call site
 'hungerbot'. Added packages/rpc/jest.config.js (rpc had none — no prior
 tests) plus a telemetry test. yarn validate green (26/26, 500 utils + 151
 raincloud tests unaffected).
+Task 9: complete (commits 48f06e1..d56344d, review clean after two fix passes)
+Instrumented 5 registration give-up paths, not the plan's 3 (invalid
+RAINCLOUD_URL and non-2xx response are also permanent).
+Client RPC span uses a Proxy (the plan's per-call-wrapper sketch did not
+match reality); verified against a real tRPC client, then-safety intact.
+CORRECTION to an earlier claim: trace-context propagation ALREADY works via
+instrumentation-undici on httpBatchLink's fetch — client and server trace
+ids match. Cross-service traces connect without extra plumbing.
+CRITICAL fixed: tRPC's next() RESOLVES with {ok:false,error} instead of
+rejecting, so withSpan's catch was dead code — a WORKER_SECRET mismatch
+would have shown as a successful span. Now inspects result.ok. Mutation-
+verified. Also: trace.getActiveSpan() needs a registered ContextManager,
+which tests were missing and production gets from NodeSDK.start().
+Task 10: complete, per task-10-report.md.
+queue.mutate: wrapped withQueueLock exactly per brief, lock acquisition
+inside the span. Existing withQueueLock suite untouched and green.
+track.resolve: the brief's file scope (trackFetcher.ts only) covers just the
+rare metadata-fallback yt-dlp call, not the yt-dlp call that actually
+resolves a playable stream — metrics.ts's own docstring says the duration
+histogram is "time to resolve a track to a playable stream" and the failure
+counter should "trend up before playback fails outright." Deviated:
+also instrumented getStreamUrl's yt-dlp call in audioResource.ts (the
+async-fallback path) with the same track.resolve span/metrics, tagged via
+the pre-existing (till-now-unused) RainbotAttr.extractionPath: 'metadata' |
+'get-url' | 'pipe'.
+ANOTHER resolve-with-error-value trap found (matches Task 9's tRPC one):
+createTrackResourcePipe's yt-dlp subprocess never rejects on failure — it
+races the subprocess against a timeout and returns null on 'exited'/'failed'
+outcomes. withSpan would see this as a clean return and record nothing.
+Recorded recordTrackResolve/recordTrackResolveFailure directly off the race
+outcome instead of relying on withSpan's exception-based detection; no span
+here since there is no exception to attach ERROR status to.
+audio.resource.create: wrapped both createAudioResource call sites (async
+fetch path and pipe stdout path) exactly per brief; both are hardcoded
+StreamType.Arbitrary so transcoded is always true at these two sites.
+Added RainbotAttr.streamType/transcoded to semconv.ts (brief inlined them as
+string literals; CLAUDE.md-adjacent convention here is no inline attribute
+keys).
+packages/utils needed new devDependencies (@opentelemetry/api,
+@opentelemetry/sdk-trace-base) to write a real-span telemetry test for
+withQueueLock, mirroring packages/rpc's existing pattern
+(trpc.span.test.ts) rather than the brief's mocked-withSpan style used in
+client.telemetry.test.ts. yarn validate green (26/26, 502 utils tests
+including the 2 new queue.mutate tests, 27 rainbot-worker tests unaffected).

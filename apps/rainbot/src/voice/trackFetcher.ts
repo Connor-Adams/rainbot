@@ -9,6 +9,12 @@ import type {
 import youtubedlPkg from 'youtube-dl-exec';
 import type { Track } from '@rainbot/protocol';
 import { createLogger, extractYouTubeVideoId, toCanonicalYouTubeUrl } from '@rainbot/shared';
+import {
+  withSpan,
+  recordTrackResolve,
+  recordTrackResolveFailure,
+  RainbotAttr,
+} from '@rainbot/observability/node';
 import { getYtdlpOptions } from './audioResource';
 
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -102,15 +108,33 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
       }
 
       if (title === 'Unknown Track' || duration === undefined) {
+        const resolveAttrs = {
+          [RainbotAttr.trackUrl]: cleanSource,
+          [RainbotAttr.trackSource]: 'youtube',
+          [RainbotAttr.extractionPath]: 'metadata',
+          [RainbotAttr.proxyUsed]: Boolean(process.env['YTDLP_PROXY']),
+        };
+        const started = Date.now();
         try {
-          const info = (await youtubedl(cleanSource, {
-            ...getYtdlpOptions(),
-            dumpSingleJson: true,
-            noPlaylist: true,
-          })) as { title?: string; duration?: number };
+          const info = (await withSpan('track.resolve', resolveAttrs, () =>
+            youtubedl(cleanSource, {
+              ...getYtdlpOptions(),
+              dumpSingleJson: true,
+              noPlaylist: true,
+            })
+          )) as { title?: string; duration?: number };
+          recordTrackResolve(Date.now() - started, {
+            [RainbotAttr.trackSource]: 'youtube',
+            [RainbotAttr.extractionPath]: 'metadata',
+          });
           if (info.title && info.title.trim()) title = info.title.trim();
           if (info.duration != null && Number.isFinite(info.duration)) duration = info.duration;
-        } catch {
+        } catch (error) {
+          recordTrackResolveFailure({
+            [RainbotAttr.trackSource]: 'youtube',
+            [RainbotAttr.extractionPath]: 'metadata',
+            [RainbotAttr.outcome]: error instanceof Error ? error.name : 'unknown',
+          });
           // Keep existing title/duration
         }
       }

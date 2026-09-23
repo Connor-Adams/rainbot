@@ -4,6 +4,12 @@ import youtubedlPkg from 'youtube-dl-exec';
 import { Readable } from 'stream';
 import type { Track } from '@rainbot/protocol';
 import { createLogger } from '@rainbot/shared';
+import {
+  withSpan,
+  recordTrackResolve,
+  recordTrackResolveFailure,
+  RainbotAttr,
+} from '@rainbot/observability/node';
 
 // Use system yt-dlp if available, otherwise fall back to bundled.
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -89,9 +95,30 @@ async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> 
     options['downloadSections'] = `*${seekSeconds}-inf`;
   }
 
-  const result = (await youtubedl(videoUrl, options)) as unknown as string;
+  const resolveAttrs = {
+    [RainbotAttr.trackUrl]: videoUrl,
+    [RainbotAttr.trackSource]: 'youtube',
+    [RainbotAttr.extractionPath]: 'get-url',
+    [RainbotAttr.proxyUsed]: Boolean(process.env['YTDLP_PROXY']),
+  };
+  const started = Date.now();
+  let result: unknown;
+  try {
+    result = await withSpan('track.resolve', resolveAttrs, () => youtubedl(videoUrl, options));
+    recordTrackResolve(Date.now() - started, {
+      [RainbotAttr.trackSource]: 'youtube',
+      [RainbotAttr.extractionPath]: 'get-url',
+    });
+  } catch (error) {
+    recordTrackResolveFailure({
+      [RainbotAttr.trackSource]: 'youtube',
+      [RainbotAttr.extractionPath]: 'get-url',
+      [RainbotAttr.outcome]: error instanceof Error ? error.name : 'unknown',
+    });
+    throw error;
+  }
 
-  const streamUrl = result.trim();
+  const streamUrl = (result as string).trim();
 
   if (urlCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = urlCache.keys().next().value;
@@ -146,10 +173,19 @@ async function createTrackResourceAsync(
       nodeStream.on('error', () => {});
 
       log.debug(`stream async ok url="${track.url}"`);
-      return createAudioResource(nodeStream, {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: true,
-      });
+      return await withSpan(
+        'audio.resource.create',
+        {
+          [RainbotAttr.streamType]: StreamType.Arbitrary,
+          [RainbotAttr.transcoded]: true,
+          [RainbotAttr.trackSource]: track.sourceType ?? 'unknown',
+        },
+        async () =>
+          createAudioResource(nodeStream, {
+            inputType: StreamType.Arbitrary,
+            inlineVolume: true,
+          })
+      );
     } catch (fetchError) {
       clearTimeout(timeoutId);
       throw fetchError;
@@ -208,6 +244,12 @@ async function createTrackResourcePipe(
     log.warn(`yt-dlp pipe stdout error: ${err.message}`);
   });
 
+  // No exception crosses this boundary on failure — a dead-on-arrival or
+  // erroring subprocess resolves to 'exited'/'failed' rather than rejecting,
+  // so withSpan (which only reacts to a thrown/rejected fn) would see this as
+  // a clean, unremarkable return. Record resolve outcome directly instead of
+  // relying on withSpan's exception-based error detection.
+  const started = Date.now();
   const outcome = await Promise.race([
     subprocess.then(() => 'exited' as const).catch(() => 'failed' as const),
     new Promise<'timeout'>((resolve) =>
@@ -217,13 +259,32 @@ async function createTrackResourcePipe(
 
   if (outcome !== 'timeout') {
     log.debug(`yt-dlp pipe ${outcome} within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
+    recordTrackResolveFailure({
+      [RainbotAttr.trackSource]: 'youtube',
+      [RainbotAttr.extractionPath]: 'pipe',
+      [RainbotAttr.outcome]: outcome,
+    });
     return null;
   }
 
-  return createAudioResource(subprocess.stdout as Readable, {
-    inputType: StreamType.Arbitrary,
-    inlineVolume: true,
+  recordTrackResolve(Date.now() - started, {
+    [RainbotAttr.trackSource]: 'youtube',
+    [RainbotAttr.extractionPath]: 'pipe',
   });
+
+  return withSpan(
+    'audio.resource.create',
+    {
+      [RainbotAttr.streamType]: StreamType.Arbitrary,
+      [RainbotAttr.transcoded]: true,
+      [RainbotAttr.trackSource]: track.sourceType ?? 'unknown',
+    },
+    async () =>
+      createAudioResource(subprocess.stdout as Readable, {
+        inputType: StreamType.Arbitrary,
+        inlineVolume: true,
+      })
+  );
 }
 
 export async function createTrackResourceForAny(

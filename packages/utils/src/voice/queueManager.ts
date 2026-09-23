@@ -3,6 +3,7 @@
  */
 import { Mutex } from 'async-mutex';
 import { AudioPlayerStatus } from '@discordjs/voice';
+import { withSpan, RainbotAttr } from '@rainbot/observability/node';
 import { createLogger } from '../logger';
 import * as stats from '../statistics';
 import { getVoiceState } from './connectionManager';
@@ -63,13 +64,16 @@ function getQueueMutex(guildId: string): Mutex {
  * Execute a function with exclusive queue lock
  */
 export async function withQueueLock<T>(guildId: string, fn: () => T | Promise<T>): Promise<T> {
-  const mutex = getQueueMutex(guildId);
-  const release = await mutex.acquire();
-  try {
-    return await fn();
-  } finally {
-    release();
-  }
+  return withSpan('queue.mutate', { [RainbotAttr.guildId]: guildId }, async () => {
+    // Lock acquisition stays inside the span so lock wait time is measured.
+    const mutex = getQueueMutex(guildId);
+    const release = await mutex.acquire();
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  });
 }
 
 /**

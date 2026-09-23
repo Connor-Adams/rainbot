@@ -17,6 +17,8 @@ export const RainbotAttr = Object.freeze({
   proxyUsed: 'rainbot.proxy_used',
   rpcProcedure: 'rainbot.rpc_procedure',
   outcome: 'rainbot.outcome',
+  streamType: 'rainbot.stream_type',
+  transcoded: 'rainbot.transcoded',
 } as const);
 
 export type RainbotAttrName = (typeof RainbotAttr)[keyof typeof RainbotAttr];
