@@ -3886,6 +3886,8 @@ __metadata:
   dependencies:
     "@discordjs/opus": "npm:^0.10.0"
     "@discordjs/voice": "npm:^0.19.0"
+    "@opentelemetry/api": "npm:^1.9.1"
+    "@opentelemetry/sdk-trace-base": "npm:^2.7.1"
     "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/rpc": "npm:*"

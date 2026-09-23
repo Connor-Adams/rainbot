@@ -72,11 +72,27 @@ interface CacheEntry {
 
 const urlCache = new Map<string, CacheEntry>();
 
-function createVolumeResource(
+/**
+ * `resolutionPath` names which of createTrackResourceForAny's branches produced
+ * this resource, so a span's presence doesn't need to be paired with the
+ * absence of a pipe/async span to know a fallback engaged — the attribute
+ * says so directly.
+ */
+async function createVolumeResource(
   input: Readable | string,
-  options: { inputType?: StreamType } = {}
-): AudioResource {
-  return createAudioResource(input, { ...options, inlineVolume: true });
+  options: { inputType?: StreamType } = {},
+  spanAttrs: { trackSource: string; resolutionPath: string }
+): Promise<AudioResource> {
+  return withSpan(
+    'audio.resource.create',
+    {
+      [RainbotAttr.streamType]: options.inputType ?? 'unknown',
+      [RainbotAttr.transcoded]: options.inputType === StreamType.Arbitrary,
+      [RainbotAttr.trackSource]: spanAttrs.trackSource,
+      [RainbotAttr.resolutionPath]: spanAttrs.resolutionPath,
+    },
+    async () => createAudioResource(input, { ...options, inlineVolume: true })
+  );
 }
 
 async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> {
@@ -330,7 +346,11 @@ export async function createTrackResourceForAny(
       quality: 2,
       ...(seekSeconds > 0 ? { seek: seekSeconds } : {}),
     });
-    return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
+    return createVolumeResource(
+      streamInfo.stream,
+      { inputType: streamInfo.type },
+      { trackSource: track.sourceType ?? 'unknown', resolutionPath: 'play-dl-fallback' }
+    );
   }
 
   const urlType = await play.validate(track.url);
@@ -345,7 +365,11 @@ export async function createTrackResourceForAny(
       quality: 2,
       ...(seekSeconds > 0 ? { seek: seekSeconds } : {}),
     });
-    return createVolumeResource(streamInfo.stream, { inputType: streamInfo.type });
+    return createVolumeResource(
+      streamInfo.stream,
+      { inputType: streamInfo.type },
+      { trackSource: track.sourceType ?? 'unknown', resolutionPath: 'play-dl-direct' }
+    );
   }
 
   throw new Error('URL no longer valid');
