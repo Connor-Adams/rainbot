@@ -3817,6 +3817,7 @@ __metadata:
   resolution: "@rainbot/observability@workspace:packages/observability"
   dependencies:
     "@opentelemetry/api": "npm:^1.9.1"
+    "@opentelemetry/api-logs": "npm:^0.218.0"
     "@opentelemetry/auto-instrumentations-node": "npm:^0.76.0"
     "@opentelemetry/exporter-metrics-otlp-http": "npm:^0.218.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.218.0"

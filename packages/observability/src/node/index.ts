@@ -9,3 +9,4 @@ export {
   recordSoundPlay,
 } from './metrics';
 export { RainbotAttr } from '../semconv';
+export { createOtlpTransport } from './winstonTransport';
