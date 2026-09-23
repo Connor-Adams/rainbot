@@ -3,7 +3,8 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { TRPCError } from '@trpc/server';
 import { RainbotAttr } from '@rainbot/observability/node';
 import { t, publicProcedure, internalProcedure, withRpcSpan, type RPCContext } from '../trpc';
@@ -15,6 +16,14 @@ beforeAll(() => {
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
   trace.setGlobalTracerProvider(provider);
+
+  // Production registers this via `NodeSDK.start()` (see
+  // `@rainbot/observability`'s `startTelemetry`). Without a real context
+  // manager, `context.active()` always returns `ROOT_CONTEXT` and
+  // `trace.getActiveSpan()` inside `withRpcSpan` would silently find
+  // nothing — the fix's `trace.getActiveSpan()` call needs this to
+  // exercise the same context propagation the production code relies on.
+  context.setGlobalContextManager(new AsyncHooksContextManager().enable());
 });
 
 afterEach(() => exporter.reset());
@@ -92,11 +101,96 @@ describe('worker.rpc.handler server span', () => {
       const createCaller = t.createCallerFactory(router);
       const caller = createCaller(fakeContext('wrong-secret'));
 
-      await expect(caller.secure()).rejects.toBeInstanceOf(TRPCError);
+      let caught: unknown;
+      try {
+        await caller.secure();
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(TRPCError);
+      expect((caught as TRPCError).code).toBe('UNAUTHORIZED');
 
       const [span] = exporter.getFinishedSpans();
       expect(span.name).toBe('worker.rpc.handler');
       expect(span.attributes[RainbotAttr.rpcProcedure]).toBe('secure');
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env['WORKER_SECRET'];
+      } else {
+        process.env['WORKER_SECRET'] = previousSecret;
+      }
+    }
+  });
+
+  it('spans a procedure resolver throwing, since it resolves through the same {ok:false} path', async () => {
+    const previousSecret = process.env['WORKER_SECRET'];
+    process.env['WORKER_SECRET'] = 'expected-secret';
+
+    try {
+      const resolverError = new Error('resolver blew up');
+      const router = t.router({
+        explode: internalProcedure.query(() => {
+          throw resolverError;
+        }),
+      });
+      const createCaller = t.createCallerFactory(router);
+      const caller = createCaller(fakeContext('expected-secret'));
+
+      let caught: unknown;
+      try {
+        await caller.explode();
+      } catch (error) {
+        caught = error;
+      }
+
+      // tRPC's caller machinery re-wraps a non-TRPCError throw via
+      // getTRPCErrorFromUnknown before it reaches us, so identity isn't
+      // preserved here (unlike the direct-middleware test above) — but the
+      // original error is still the cause, and the resolved-error path
+      // still has to mark the span.
+      expect(caught).toBeInstanceOf(TRPCError);
+      expect((caught as TRPCError).cause).toBe(resolverError);
+
+      const [span] = exporter.getFinishedSpans();
+      expect(span.name).toBe('worker.rpc.handler');
+      expect(span.attributes[RainbotAttr.rpcProcedure]).toBe('explode');
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env['WORKER_SECRET'];
+      } else {
+        process.env['WORKER_SECRET'] = previousSecret;
+      }
+    }
+  });
+
+  it('returns the unauthorized result to tRPC unchanged, proving instrumentation does not alter control flow', async () => {
+    const previousSecret = process.env['WORKER_SECRET'];
+    process.env['WORKER_SECRET'] = 'expected-secret';
+
+    try {
+      const router = t.router({
+        secure: internalProcedure.query(() => 'ok'),
+      });
+      const createCaller = t.createCallerFactory(router);
+      const caller = createCaller(fakeContext('wrong-secret'));
+
+      let caught: unknown;
+      try {
+        await caller.secure();
+      } catch (error) {
+        caught = error;
+      }
+
+      // Same shape a caller would have seen before this middleware ever
+      // inspected the result: a TRPCError with the same code and message,
+      // not something wrapped, replaced, or resolved instead of thrown.
+      expect(caught).toBeInstanceOf(TRPCError);
+      const error = caught as TRPCError;
+      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.message).toBe('Invalid internal secret');
     } finally {
       if (previousSecret === undefined) {
         delete process.env['WORKER_SECRET'];

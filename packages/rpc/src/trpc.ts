@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import type { Request, Response } from 'express';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { withSpan, RainbotAttr } from '@rainbot/observability/node';
 
 export interface RPCContext {
@@ -36,9 +37,28 @@ export const t = initTRPC.context<RPCContext>().create();
  * `WORKER_SECRET` mismatch is a known production failure mode and exactly
  * the case that should stay visible, not just successful authenticated
  * calls.
+ *
+ * tRPC's own middleware recursion catches every downstream throw — from
+ * `requireInternalSecret` or from a procedure resolver — and resolves
+ * `next()` to `{ ok: false, error }` instead of rejecting; it only rethrows
+ * once, at the very top, outside any middleware's `next()` call. So a real
+ * auth failure or application error never makes `next()` reject, and
+ * `withSpan`'s try/catch never sees it. We inspect the resolved result
+ * ourselves and mark the active span as an error when `ok` is false, without
+ * altering what this middleware returns to tRPC.
  */
 export const withRpcSpan = t.middleware(({ path, next }) => {
-  return withSpan('worker.rpc.handler', { [RainbotAttr.rpcProcedure]: path }, () => next());
+  return withSpan('worker.rpc.handler', { [RainbotAttr.rpcProcedure]: path }, async () => {
+    const result = await next();
+    if (!result.ok) {
+      const span = trace.getActiveSpan();
+      if (span) {
+        span.recordException(result.error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: result.error.message });
+      }
+    }
+    return result;
+  });
 });
 
 export const requireInternalSecret = t.middleware(({ ctx, next }) => {
