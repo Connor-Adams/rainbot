@@ -3812,7 +3812,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@rainbot/observability@workspace:packages/observability":
+"@rainbot/observability@npm:*, @rainbot/observability@workspace:packages/observability":
   version: 0.0.0-use.local
   resolution: "@rainbot/observability@workspace:packages/observability"
   dependencies:
@@ -4003,6 +4003,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/shared@workspace:packages/shared"
   dependencies:
+    "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@types/node": "npm:^25.0.3"
     typescript: "npm:^5.9.3"
@@ -4052,6 +4053,7 @@ __metadata:
     "@google-cloud/speech": "npm:^6.7.0"
     "@google-cloud/text-to-speech": "npm:^5.7.0"
     "@rainbot/db": "npm:*"
+    "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/shared": "npm:*"
     "@rainbot/worker-shared": "npm:*"

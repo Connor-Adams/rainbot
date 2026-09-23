@@ -8,6 +8,7 @@
     "noUnusedLocals": false,
     "baseUrl": "../../",
     "paths": {
+      "@rainbot/observability/node": ["packages/observability/dist/node/index.d.ts"],
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@rainbot/shared": ["packages/shared/src/index.ts"],

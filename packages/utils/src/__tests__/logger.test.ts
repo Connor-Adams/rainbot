@@ -29,8 +29,14 @@ jest.mock('winston', () => {
   };
 });
 
-// Mock fs to prevent actual file system operations
+// Mock fs to prevent actual file system operations. Spread the real module
+// rather than replacing it wholesale: '../logger' now transitively imports
+// @rainbot/observability/node (for the OTLP transport), and that pulls in
+// OTel's Node auto-instrumentations, which touch other fs functions at
+// import time. A mock exposing only existsSync/mkdirSync left those
+// undefined and crashed the require chain.
 jest.mock('fs', () => ({
+  ...jest.requireActual('fs'),
   existsSync: jest.fn(() => true),
   mkdirSync: jest.fn(),
 }));

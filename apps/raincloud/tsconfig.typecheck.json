@@ -5,6 +5,7 @@
     "paths": {
       "@rainbot/db": ["packages/db/src/index.ts"],
       "@rainbot/db/*": ["packages/db/src/*"],
+      "@rainbot/observability/node": ["packages/observability/dist/node/index.d.ts"],
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@rainbot/utils": ["packages/utils/src/index.ts"],
