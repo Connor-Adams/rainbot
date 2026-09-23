@@ -51,7 +51,6 @@ export function startTelemetry(serviceName: string): void {
     sdk.start();
   } catch (error) {
     sdk = undefined;
-     
     console.warn('[observability] telemetry failed to start, continuing without it', error);
   }
 }
