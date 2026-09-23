@@ -1,3 +1,5 @@
+import './telemetry';
+
 import type {
   VoiceInteractionSession,
   ParsedVoiceCommand,

@@ -1,3 +1,5 @@
+import './telemetry';
+
 import { createRainbotRouter } from '@rainbot/rpc';
 import {
   createWorkerDiscordClient,

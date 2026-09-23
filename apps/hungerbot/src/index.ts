@@ -1,3 +1,5 @@
+import './telemetry';
+
 import { createHungerbotRouter } from '@rainbot/rpc';
 import {
   setupProcessErrorHandlers,
