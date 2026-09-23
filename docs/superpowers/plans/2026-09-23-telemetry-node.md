@@ -674,35 +674,51 @@ git commit -m "feat(observability): metric instruments"
 
 ```typescript
 // packages/observability/src/node/__tests__/winstonTransport.test.ts
-import { createOtlpTransport, __emitted } from '../winstonTransport';
+import { createOtlpTransport, type LogRecord } from '../winstonTransport';
 
 describe('createOtlpTransport', () => {
+  let emitted: LogRecord[];
+  const emit = (record: LogRecord): void => {
+    emitted.push(record);
+  };
+
+  beforeEach(() => {
+    emitted = [];
+  });
+
   afterEach(() => {
-    __emitted.length = 0;
     delete process.env['OTEL_SDK_DISABLED'];
   });
 
   it('returns undefined when telemetry is disabled', () => {
     process.env['OTEL_SDK_DISABLED'] = 'true';
-    expect(createOtlpTransport()).toBeUndefined();
+    expect(createOtlpTransport(emit)).toBeUndefined();
   });
 
   it('omits trace context cleanly when no span is active', () => {
-    const transport = createOtlpTransport();
+    const transport = createOtlpTransport(emit);
     transport!.log!({ level: 'info', message: 'hello' }, () => undefined);
 
-    expect(__emitted[0].attributes['trace_id']).toBeUndefined();
-    expect(__emitted[0].body).toBe('hello');
+    expect(emitted[0].attributes['trace_id']).toBeUndefined();
+    expect(emitted[0].body).toBe('hello');
   });
 
-  it('never throws when emission fails', () => {
-    const transport = createOtlpTransport();
-    const circular: Record<string, unknown> = {};
-    circular['self'] = circular;
+  it('never throws when the emitter throws', () => {
+    const transport = createOtlpTransport(() => {
+      throw new Error('collector unreachable');
+    });
 
-    expect(() =>
-      transport!.log!({ level: 'info', message: 'x', meta: circular }, () => undefined)
-    ).not.toThrow();
+    expect(() => transport!.log!({ level: 'info', message: 'x' }, () => undefined)).not.toThrow();
+  });
+
+  it('still calls next() when the emitter throws, so Winston is not wedged', () => {
+    const transport = createOtlpTransport(() => {
+      throw new Error('collector unreachable');
+    });
+    const next = jest.fn();
+
+    transport!.log!({ level: 'info', message: 'x' }, next);
+    expect(next).toHaveBeenCalled();
   });
 });
 ```
@@ -720,8 +736,23 @@ import Transport from 'winston-transport';
 import { trace, context } from '@opentelemetry/api';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 
-/** Test seam: emitted records, populated only under jest. */
-export const __emitted: Array<{ body: string; attributes: Record<string, unknown> }> = [];
+export interface LogRecord {
+  body: string;
+  severityNumber: SeverityNumber;
+  severityText: string;
+  attributes: Record<string, unknown>;
+}
+
+/**
+ * The emitter is injected so tests exercise the real transport path with a
+ * fake sink, rather than the transport branching on NODE_ENV and tests
+ * asserting on a branch that only exists for them.
+ */
+export type Emit = (record: LogRecord) => void;
+
+const defaultEmit: Emit = (record) => {
+  logs.getLogger('@rainbot/observability').emit(record);
+};
 
 const SEVERITY: Record<string, SeverityNumber> = {
   error: SeverityNumber.ERROR,
@@ -732,7 +763,9 @@ const SEVERITY: Record<string, SeverityNumber> = {
 };
 
 class OtlpTransport extends Transport {
-  private readonly logger = logs.getLogger('@rainbot/observability');
+  constructor(private readonly emit: Emit) {
+    super();
+  }
 
   override log(info: Record<string, unknown>, next: () => void): void {
     try {
@@ -749,29 +782,25 @@ class OtlpTransport extends Transport {
         attributes['logger'] = info['context'];
       }
 
-      const record = {
+      this.emit({
         body: String(info['message'] ?? ''),
         severityNumber: SEVERITY[String(info['level'])] ?? SeverityNumber.INFO,
         severityText: String(info['level']),
         attributes,
-      };
-
-      if (process.env['NODE_ENV'] === 'test') {
-        __emitted.push({ body: record.body, attributes });
-      } else {
-        this.logger.emit(record);
-      }
+      });
     } catch {
       // A logging transport that throws inside an error handler is how the
       // original error gets lost. Swallow and move on.
     }
+    // Outside the try: Winston's pipeline stalls if next() is never called,
+    // so a failed emit must not also wedge logging.
     next();
   }
 }
 
-export function createOtlpTransport(): Transport | undefined {
+export function createOtlpTransport(emit: Emit = defaultEmit): Transport | undefined {
   if (process.env['OTEL_SDK_DISABLED'] === 'true') return undefined;
-  return new OtlpTransport();
+  return new OtlpTransport(emit);
 }
 ```
 
@@ -854,6 +883,13 @@ At the top of the file, alongside the existing imports:
 import { createOtlpTransport } from '@rainbot/observability/node';
 ```
 
+Above the `winston.createLogger` call, construct it once — calling the factory
+twice inside the spread would build two transports and discard one:
+
+```typescript
+const otlpTransport = createOtlpTransport();
+```
+
 Then change the `transports` array of `winston.createLogger` from:
 
 ```typescript
@@ -867,7 +903,7 @@ to:
   transports: [
     // Spread, not push: createOtlpTransport returns undefined when
     // OTEL_SDK_DISABLED is set, and Winston rejects undefined entries.
-    ...(createOtlpTransport() ? [createOtlpTransport()!] : []),
+    ...(otlpTransport ? [otlpTransport] : []),
     new winston.transports.Console({
 ```
 
