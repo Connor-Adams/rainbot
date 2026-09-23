@@ -1,8 +1,11 @@
-name: Release Build Images (GHCR)
+name: Release Build Images (GHCR) [DEPRECATED]
 
+# SUPERSEDED by build-images.yml (build on push to main, content-hash gated) +
+# release-promote.yml (re-tag :tree-<hash> as :prod on release). This workflow
+# builds the same image names with Railpack, which never invokes a Dockerfile
+# and therefore ships no ffmpeg/yt-dlp. Its `release: published` trigger is
+# removed so the two cannot race over the :prod tag. Delete this file.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       force:

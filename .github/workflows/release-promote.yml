@@ -1,0 +1,137 @@
+name: Release Promote (GHCR :prod)
+
+# Promotion never builds. build-images.yml already pushed :tree-<hash> for the
+# released commit; this workflow only recomputes each service's content hash and
+# re-tags that exact manifest as :<release-tag> and :prod, registry-side.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to promote (e.g. v1.4.0)'
+        required: true
+        type: string
+      force:
+        description: 'Skip the branch + CI verification of the tag'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+  checks: read
+
+concurrency:
+  group: release-promote
+  cancel-in-progress: false
+
+env:
+  IMAGE_WAIT_ATTEMPTS: '30'
+  IMAGE_WAIT_SECONDS: '10'
+
+jobs:
+  promote:
+    name: Promote images to :prod
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Repo info
+        id: repo
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            core.setOutput('default_branch', data.default_branch);
+
+      # Check out the released commit so the content hashes come out exactly as
+      # build-images.yml computed them. `ref: <tag>` resolves annotated tags to
+      # their commit transparently.
+      - name: Check out release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+
+      - name: Resolve tag SHA
+        id: tag
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag (branch + CI)
+        uses: ./.github/actions/verify-release-tag
+        with:
+          sha: ${{ steps.tag.outputs.sha }}
+          default_branch: ${{ steps.repo.outputs.default_branch }}
+          force: ${{ inputs.force }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-tag each service's content-addressed image as :prod
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RELEASE_TAG}" ]; then
+            echo "No release tag to promote." >&2
+            exit 1
+          fi
+
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          SERVICES=(raincloud rainbot pranjeet hungerbot)
+
+          for name in "${SERVICES[@]}"; do
+            hash=$(node scripts/service-content-hash.cjs "$name")
+            image="ghcr.io/${REPO_LC}-${name}"
+            src="${image}:tree-${hash}"
+
+            # A release published moments after the merge can outrun
+            # build-images.yml. Wait rather than fail — but bound the wait, so a
+            # genuinely missing image still fails the promotion loudly.
+            attempt=1
+            until docker buildx imagetools inspect "${src}" >/dev/null 2>&1; do
+              if [ "${attempt}" -ge "${IMAGE_WAIT_ATTEMPTS}" ]; then
+                echo "::error::${src} never appeared after $((IMAGE_WAIT_ATTEMPTS * IMAGE_WAIT_SECONDS))s. Is build-images.yml green for this commit?"
+                exit 1
+              fi
+              echo "waiting for ${src} (attempt ${attempt}/${IMAGE_WAIT_ATTEMPTS})"
+              attempt=$((attempt + 1))
+              sleep "${IMAGE_WAIT_SECONDS}"
+            done
+
+            # imagetools create copies manifests registry-side: no pull, no push
+            # of layers, and :prod ends up byte-identical to :tree-<hash>.
+            echo "promoting ${src} -> :${RELEASE_TAG}, :prod"
+            docker buildx imagetools create \
+              --tag "${image}:${RELEASE_TAG}" \
+              --tag "${image}:prod" \
+              "${src}"
+          done
+
+      - name: Summary
+        run: |
+          set -euo pipefail
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          {
+            echo "### Promoted to \`:prod\` — ${RELEASE_TAG}"
+            echo
+            echo "| service | image | content hash |"
+            echo "| --- | --- | --- |"
+            for name in raincloud rainbot pranjeet hungerbot; do
+              hash=$(node scripts/service-content-hash.cjs "$name")
+              echo "| ${name} | \`ghcr.io/${REPO_LC}-${name}\` | \`tree-${hash}\` |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
