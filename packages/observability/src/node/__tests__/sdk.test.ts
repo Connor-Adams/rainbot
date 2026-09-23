@@ -18,8 +18,26 @@ describe('startTelemetry', () => {
     expect(isTelemetryStarted()).toBe(true);
   });
 
-  it('never throws when the collector endpoint is unreachable', () => {
-    process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://127.0.0.1:1';
-    expect(() => startTelemetry('test-service')).not.toThrow();
+  it('never crashes the process when NodeSDK.start() throws', () => {
+    // These are long-running Discord gateway clients — an exception escaping
+    // startTelemetry kills the process. Force the failure mode that matters:
+    // NodeSDK itself throwing synchronously on start(), not an unreachable
+    // endpoint (which never triggers synchronous I/O and proves nothing).
+    jest.resetModules();
+    jest.doMock('@opentelemetry/sdk-node', () => ({
+      NodeSDK: jest.fn().mockImplementation(() => ({
+        start: () => {
+          throw new Error('boom');
+        },
+      })),
+    }));
+
+    const isolated: typeof import('../sdk') = require('../sdk');
+
+    expect(() => isolated.startTelemetry('test-service')).not.toThrow();
+    expect(isolated.isTelemetryStarted()).toBe(false);
+
+    jest.dontMock('@opentelemetry/sdk-node');
+    jest.resetModules();
   });
 });
