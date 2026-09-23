@@ -44,12 +44,14 @@ const COMMON = [
 ];
 
 // Each service's build inputs, as git pathspecs. `apps/<svc>` covers that app's
-// source, its tsconfigs and its Dockerfile.
+// source, its tsconfigs and its Dockerfile; `ui` likewise covers the dashboard's
+// source, its Dockerfile, nginx template and entrypoint hook.
 const INPUTS = {
   raincloud: [...COMMON, 'apps/raincloud'],
   rainbot: [...COMMON, 'apps/rainbot'],
   pranjeet: [...COMMON, 'apps/pranjeet'],
   hungerbot: [...COMMON, 'apps/hungerbot'],
+  ui: [...COMMON, 'ui'],
 };
 
 const SERVICES = Object.keys(INPUTS);

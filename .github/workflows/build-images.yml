@@ -66,6 +66,7 @@ jobs:
             "rainbot|.|apps/rainbot/Dockerfile"
             "pranjeet|.|apps/pranjeet/Dockerfile"
             "hungerbot|.|apps/hungerbot/Dockerfile"
+            "ui|.|ui/Dockerfile"
           )
 
           include='[]'
