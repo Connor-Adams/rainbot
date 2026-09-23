@@ -34,11 +34,29 @@ describe('withSpan', () => {
   });
 
   it('records the exception, marks the span as error, and rethrows', async () => {
-    await expect(
-      withSpan('track.resolve', {}, async () => {
-        throw new Error('yt-dlp exited 1');
-      })
-    ).rejects.toThrow('yt-dlp exited 1');
+    class YtDlpError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'YtDlpError';
+      }
+    }
+
+    const originalError = new YtDlpError('yt-dlp exited 1');
+
+    let caughtError: unknown;
+    try {
+      await withSpan('track.resolve', {}, async () => {
+        throw originalError;
+      });
+      fail('Expected withSpan to throw');
+    } catch (error) {
+      caughtError = error;
+    }
+
+    // Enforce error identity: must be the same instance, not a wrapper
+    expect(caughtError).toBe(originalError);
+    expect(caughtError).toBeInstanceOf(YtDlpError);
+    expect((caughtError as Error).name).toBe('YtDlpError');
 
     const [span] = exporter.getFinishedSpans();
     expect(span.status.code).toBe(SpanStatusCode.ERROR);
