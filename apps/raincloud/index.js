@@ -1,6 +1,11 @@
 // Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
 // so path aliases (dist/, apps/raincloud/) resolve correctly.
 
+// Telemetry first: auto-instrumentation patches http/express/redis/etc at require
+// time, so anything required above this line (including the @alias monkeypatch
+// below, which is what pulls in discord.js/express/redis) is invisible to tracing.
+require('@rainbot/observability/node').startTelemetry('raincloud');
+
 // Immediate stdout so Railway/containers always capture at least one line (before logger may load)
 console.log('[Raincloud] Process starting');
 

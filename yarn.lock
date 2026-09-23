@@ -3919,6 +3919,7 @@ __metadata:
     "@google-cloud/speech": "npm:^6.7.0"
     "@google-cloud/text-to-speech": "npm:^5.7.0"
     "@rainbot/db": "npm:*"
+    "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/redis-client": "npm:*"
     "@rainbot/rpc": "npm:*"
