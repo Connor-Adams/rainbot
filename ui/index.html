@@ -13,10 +13,21 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- Classic script, in head, on purpose. This must run BEFORE the app
+         bundle, because src/lib/api.ts and src/main.tsx read
+         globalThis.__RAINBOT_CONFIG__ at module top level.
+         As `<script type="module">` in body it did not: Vite's build hoists its
+         own entry module above the other scripts, so the bundle executed first
+         and always saw the config undefined. A classic script executes during
+         parse, ahead of every deferred module, whatever order Vite emits.
+         The failure was invisible on Railway because api.ts falls back to
+         hardcoded Railway origins when window.location.origin matches the old
+         Railway UI host; on any other domain it fell through to same-origin and
+         the login link pointed at the UI instead of the API. -->
+    <script src="/runtime-config.js"></script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/runtime-config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
