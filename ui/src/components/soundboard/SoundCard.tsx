@@ -10,7 +10,7 @@ interface SoundCardProps {
   isPreviewing: boolean;
   isDisabled: boolean;
   onPlay: (sound: Sound) => void;
-  onMenuToggle: (soundName: string) => void;
+  onMenuToggle: (soundName: string, anchorEl: HTMLButtonElement) => void;
   isMenuOpen: boolean;
   snippet?: string | null;
 }
@@ -58,7 +58,7 @@ export function SoundCard({
         className="absolute top-2 right-2 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors z-10"
         onClick={(e) => {
           e.stopPropagation();
-          onMenuToggle(sound.name);
+          onMenuToggle(sound.name, e.currentTarget);
         }}
         aria-label="Sound options"
         aria-expanded={isMenuOpen}
