@@ -5,6 +5,11 @@ export const TOKEN = process.env['PRANJEET_TOKEN'];
 export const STT_API_KEY = process.env['STT_API_KEY'] || process.env['OPENAI_API_KEY'];
 export const TTS_API_KEY = process.env['TTS_API_KEY'] || process.env['OPENAI_API_KEY'];
 export const TTS_PROVIDER = process.env['TTS_PROVIDER'] || 'openai';
+// Optional OpenAI-compatible proxy (the LiteLLM instance on the Dokploy host).
+// Unset leaves the SDK on its default api.openai.com, so nothing changes until
+// it is configured. TTS_BASE_URL wins over OPENAI_BASE_URL, mirroring how
+// TTS_API_KEY takes precedence over OPENAI_API_KEY above.
+export const TTS_BASE_URL = process.env['TTS_BASE_URL'] || process.env['OPENAI_BASE_URL'];
 export const TTS_VOICE = process.env['TTS_VOICE_NAME'] || 'alloy';
 export const ORCHESTRATOR_BOT_ID =
   process.env['ORCHESTRATOR_BOT_ID'] || process.env['RAINCLOUD_BOT_ID'];
