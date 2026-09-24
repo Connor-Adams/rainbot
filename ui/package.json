@@ -13,6 +13,8 @@
     "start:prod": "serve -s dist -l $PORT"
   },
   "dependencies": {
+    "@connor-adams/designsystem": "^1.0.0",
+    "@connor-adams/tokens": "^0.1.0",
     "@rainbot/protocol": "*",
     "@rainbot/shared": "*",
     "@tanstack/react-query": "^5.90.15",
