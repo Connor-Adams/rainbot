@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { buildApiUrl } from '@/lib/api';
+import { createApiEventSource } from '@/lib/api';
 
 export default function StatsSSE() {
   const qc = useQueryClient();
@@ -27,8 +27,7 @@ export default function StatsSSE() {
 
     const connect = () => {
       try {
-        const url = buildApiUrl('/stats/stream');
-        es = new EventSource(url);
+        es = createApiEventSource('/stats/stream');
       } catch {
         es = null;
       }

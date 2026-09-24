@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { buildApiUrl } from '@/lib/api';
+import { createApiEventSource } from '@/lib/api';
 
 /**
  * Subscribe to SSE bot-status updates (connections, volume).
@@ -14,8 +14,7 @@ export function useStatusEvents(): { connected: boolean } {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const url = buildApiUrl('status/events');
-    const es = new EventSource(url);
+    const es = createApiEventSource('status/events');
     eventSourceRef.current = es;
 
     es.onopen = () => setConnected(true);
