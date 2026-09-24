@@ -8,6 +8,14 @@ env:
   NODE_VERSION: '22.12.0'
   TURBO_CACHE_DIR: .turbo
 
+# The merge action needs write access to contents and pull-requests; the
+# install step additionally needs packages:read for @connor-adams/*.
+# Listing these explicitly narrows the token rather than widening it.
+permissions:
+  contents: write
+  pull-requests: write
+  packages: read
+
 jobs:
   auto-merge:
     name: Auto-merge Dependabot PRs

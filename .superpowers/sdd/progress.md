@@ -248,3 +248,18 @@ yarn validate green (26/26 tasks). New tests: diagLogger.test.ts (4),
 sdk.test.ts +1 (bounded-shutdown-under-hang), processErrorHandlers.test.ts
 +4 (signal-gated-on-telemetry, SIGTERM/SIGINT flush+exit, exit-despite-
 rejected-flush).
+
+FIX WAVE complete (commits 3d8f612..8d2235d, 6 commits).
+Verification review found one Important regression introduced BY the F2 fix:
+the post-race subprocess.catch() fired on any non-zero exit after 4s, and
+normal skip/stop kills yt-dlp via EPIPE — so every /skip incremented the rot
+counter, and signal-kills (exitCode null) re-emitted the bare
+'ChildProcessError' that F12 existed to remove. Fixed with a stream_closed
+outcome excluded from the failure counter, proven with real subprocesses.
+All F1-F15 and all 6 deferred items resolved.
+Remaining for Connor by hand: delete packages/utils/src/voice/
+voiceSessionManager.ts (dead code, annotated; agent file deletion is
+sandbox-blocked).
+Task 12 (deploy) NOT done — needs Connor's approval.
+Note for Task 12: drop OTEL_SERVICE_NAME from the env step; it is inert by
+design and now documented as such in .env.example.

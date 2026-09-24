@@ -150,5 +150,11 @@ jobs:
             ${{ steps.meta.outputs.image }}:tree-${{ matrix.hash }}
             ${{ steps.meta.outputs.image }}:sha-${{ github.sha }}
             ${{ steps.meta.outputs.image }}:main
+          # Authenticates `yarn install` against GitHub Packages for the
+          # @connor-adams/* design system. The job already holds packages:write,
+          # and GITHUB_TOKEN can read packages in this org, so no extra secret
+          # needs to exist. Secret mount → never written to an image layer.
+          secrets: |
+            node_auth_token=${{ secrets.GITHUB_TOKEN }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
