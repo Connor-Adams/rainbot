@@ -1,10 +1,10 @@
 /**
  * Voice manager type definitions
  * Legacy file - use voice-modules.ts for new voice module types.
- * Queue and track shapes align with @rainbot/types (canonical QueueState + MediaItem).
+ * Queue and track shapes align with @rainbot/protocol (canonical QueueState + MediaItem).
  */
 
-import type { QueueState, MediaItem } from '@rainbot/types/media';
+import type { QueueState, MediaItem } from '@rainbot/protocol';
 
 /** Canonical queue + now-playing (same as protocol QueueState). */
 export type QueueInfo = QueueState;

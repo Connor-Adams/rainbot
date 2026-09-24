@@ -53,16 +53,19 @@ export const workerBaseUrls = {
 export const rainbotClient = createTRPCClient<RainbotRouter>({
   baseUrl: RAINBOT_URL,
   secret: RPC_SECRET,
+  worker: 'rainbot',
 });
 
 export const pranjeetClient = createTRPCClient<PranjeetRouter>({
   baseUrl: PRANJEET_URL,
   secret: RPC_SECRET,
+  worker: 'pranjeet',
 });
 
 export const hungerbotClient = createTRPCClient<HungerbotRouter>({
   baseUrl: HUNGERBOT_URL,
   secret: RPC_SECRET,
+  worker: 'hungerbot',
 });
 
 export async function fetchWorkerHealthChecks(): Promise<{

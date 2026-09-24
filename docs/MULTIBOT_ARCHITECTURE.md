@@ -4,7 +4,7 @@ This document describes the multi-bot voice architecture implemented for Rainbot
 
 ## Architecture Overview
 
-The system consists of 4 Discord bots working together:
+The system consists of 4 Discord bots working together (orchestrator + 3 workers). There is no separate Grok worker—Pranjeet handles Grok conversation when `/chat` is on.
 
 ```
 ┌─────────────┐
@@ -15,7 +15,7 @@ The system consists of 4 Discord bots working together:
        │          │          │          │
    ┌───▼────┐ ┌──▼──────┐ ┌─▼─────────┐
    │Rainbot │ │Pranjeet │ │ HungerBot │
-   │(Music) │ │  (TTS)  │ │(Soundboard│
+   │(Music) │ │TTS+Grok │ │(Soundboard│
    └────────┘ └─────────┘ └───────────┘
 ```
 
@@ -36,12 +36,14 @@ The system consists of 4 Discord bots working together:
 - Auto-play related tracks
 - Volume control
 
-**Pranjeet (TTS Worker)**
+**Pranjeet (TTS and Grok Worker)**
 
 - Text-to-speech playback
 - Always connected unless explicitly told to leave
 - Plays TTS overtop everything (no ducking)
 - Supports multiple TTS providers (OpenAI, Google, etc.)
+- **Grok conversation**: when a user turns on `/chat` (conversation mode), pranjeet handles voice conversation via the Grok API and speaks replies with its own TTS
+- Music voice commands (play, skip, pause, etc.) are forwarded to the orchestrator when conversation mode is off
 
 **HungerBot (Soundboard Worker)**
 
@@ -69,6 +71,12 @@ worker:{botType}:{guildId} -> {channelId, connected, lastHeartbeat}
 
 # Volume settings per guild
 volume:{guildId}:{botType} -> 0.0-1.0
+
+# Conversation mode (per user, toggled by /chat)
+conversation:{guildId}:{userId} -> "1" when on
+
+# Grok thread continuity (per user, used by Pranjeet)
+grok:response_id:{guildId}:{userId} -> xAI response_id
 ```
 
 ## Channel Selection Logic

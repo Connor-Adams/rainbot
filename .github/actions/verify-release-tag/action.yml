@@ -1,0 +1,59 @@
+# Composite action: verify a release tag is on default branch and CI passed.
+# Caller must run checkout (fetch-depth: 0) and provide tag sha + default branch.
+name: Verify release tag
+description: Verify tag commit is on default branch and CI checks passed (skip if force)
+inputs:
+  sha:
+    description: Git SHA of the release tag
+    required: true
+  default_branch:
+    description: Repository default branch (e.g. main)
+    required: true
+  force:
+    description: If true, skip verification
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Verify tag on default branch
+      if: inputs.force != 'true'
+      run: |
+        set -euo pipefail
+        git fetch origin "${{ inputs.default_branch }}" --depth=200
+        if ! git merge-base --is-ancestor "${{ inputs.sha }}" "origin/${{ inputs.default_branch }}"; then
+          echo "Tag commit is not on default branch (${{ inputs.default_branch }}). Refusing."
+          exit 1
+        fi
+      shell: bash
+
+    - name: Verify CI status for tag
+      if: inputs.force != 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const sha = '${{ inputs.sha }}';
+          const { data: status } = await github.rest.repos.getCombinedStatusForRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: sha,
+          });
+          const { data: checks } = await github.rest.checks.listSuitesForRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: sha,
+          });
+          const hasChecks = checks.total_count > 0;
+          const hasStatuses = status.total_count > 0;
+          if (!hasChecks && !hasStatuses) {
+            core.warning(`No CI status or check suites found for ${sha}; continuing.`);
+            return;
+          }
+          const failedChecks = checks.check_suites.filter((s) => s.conclusion && s.conclusion !== 'success');
+          if (failedChecks.length > 0) {
+            core.setFailed(`CI checks not successful for ${sha}: ${failedChecks.map((s) => s.conclusion).join(', ')}`);
+            return;
+          }
+          if (hasStatuses && status.state !== 'success') {
+            core.setFailed(`Commit status is ${status.state} for ${sha}`);
+          }

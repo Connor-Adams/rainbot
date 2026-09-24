@@ -1,4 +1,4 @@
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { VoiceStateManager } from './voiceStateManager';
 import { v4 as uuidv4 } from 'uuid';
 import { Queue } from 'bullmq';
@@ -10,7 +10,8 @@ import {
   pranjeetClient,
   hungerbotClient,
 } from '../src/rpc/clients';
-import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/types/media';
+import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/protocol';
+import { recordWorkerOrchestratorHealth } from '@rainbot/observability/node';
 
 const log = createLogger('WORKER-COORDINATOR');
 
@@ -98,7 +99,15 @@ function normalizeQueueState(data: unknown): QueueState {
         : typeof record['paused'] === 'boolean'
           ? record['paused']
           : undefined,
-    isAutoplay: typeof record['autoplay'] === 'boolean' ? record['autoplay'] : undefined,
+    // The rainbot worker's getQueue response carries this as `isAutoplay`
+    // (see QueueResponse in @rainbot/worker-protocol); `autoplay` is kept as a
+    // legacy fallback, mirroring the isPaused/paused pattern above.
+    isAutoplay:
+      typeof record['isAutoplay'] === 'boolean'
+        ? record['isAutoplay']
+        : typeof record['autoplay'] === 'boolean'
+          ? record['autoplay']
+          : undefined,
     ...(positionMs != null && { positionMs }),
     ...(durationMs != null && { durationMs }),
   };
@@ -122,6 +131,9 @@ function normalizeWorkerStatus(data: unknown, botType: BotType, guildId: string)
     record['playback'] && typeof record['playback'] === 'object'
       ? (record['playback'] as PlaybackState)
       : buildLegacyPlayback(record);
+  if (typeof record['lastPlaybackError'] === 'string' && record['lastPlaybackError']) {
+    playback.error = record['lastPlaybackError'];
+  }
 
   const queue =
     record['queue'] && typeof record['queue'] === 'object'
@@ -155,6 +167,7 @@ export class WorkerCoordinator {
     for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
       this.circuit.set(botType, { failureCount: 0, openedUntil: 0 });
       this.health.set(botType, { ready: true, lastChecked: 0 });
+      recordWorkerOrchestratorHealth(botType, true);
     }
 
     // Auto-follow is always enabled - workers join automatically when orchestrator joins
@@ -207,8 +220,15 @@ export class WorkerCoordinator {
 
       for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
         const rpcResult = rpcResults?.[botType];
+        // Log only on transitions. A worker that is simply switched off would
+        // otherwise emit a warning every HEALTH_POLL_MS forever and bury every
+        // other line in the orchestrator's logs.
+        const wasReady = this.health.get(botType)?.ready ?? true;
         if (rpcResult && rpcResult.status === 'fulfilled') {
           this.health.set(botType, { ready: true, lastChecked: Date.now() });
+          if (!wasReady) {
+            log.info(`${botType} health check recovered`);
+          }
         } else {
           const message =
             rpcResult && rpcResult.status === 'rejected'
@@ -219,8 +239,11 @@ export class WorkerCoordinator {
             lastChecked: Date.now(),
             lastError: message,
           });
-          log.warn(`${botType} health check failed: ${message}`);
+          if (wasReady) {
+            log.warn(`${botType} health check failed: ${message}`);
+          }
         }
+        recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
       }
     };
 
@@ -241,6 +264,7 @@ export class WorkerCoordinator {
     if (!state) return;
     state.failureCount = 0;
     state.openedUntil = 0;
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
   }
 
   private recordFailure(botType: BotType): void {
@@ -251,6 +275,7 @@ export class WorkerCoordinator {
     if (state.failureCount >= CIRCUIT_FAILURE_THRESHOLD) {
       state.openedUntil = Date.now() + CIRCUIT_OPEN_MS;
     }
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
   }
 
   private isWorkerReady(botType: BotType): boolean {
@@ -259,8 +284,21 @@ export class WorkerCoordinator {
     return health.ready;
   }
 
+  /**
+   * raincloud's own belief about whether a worker is up: combines the
+   * circuit breaker (recordSuccess/recordFailure, driven by real RPC calls)
+   * with the 15s health poll. Backs rainbot.worker.orchestrator_healthy,
+   * which stays accurate across a raincloud restart (when its in-memory
+   * registry resets) unlike each worker's one-shot self-reported
+   * rainbot.worker.registered gauge.
+   */
+  private isWorkerHealthy(botType: BotType): boolean {
+    return !this.isCircuitOpen(botType) && this.isWorkerReady(botType);
+  }
+
   markWorkerReady(botType: BotType, meta?: { instanceId?: string; startedAt?: string }): void {
     this.health.set(botType, { ready: true, lastChecked: Date.now() });
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
     if (meta?.instanceId) {
       log.info(`${botType} registered (instance=${meta.instanceId})`);
     } else {
@@ -544,6 +582,58 @@ export class WorkerCoordinator {
   }
 
   /**
+   * Get a Grok chat reply (Pranjeet). Does not speak; use speakTTS to speak the reply.
+   */
+  async grokChat(
+    guildId: string,
+    userId: string,
+    text: string
+  ): Promise<{ success: boolean; reply?: string; message?: string }> {
+    const guard = this.guardWorker('pranjeet');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
+    try {
+      const result = await this.requestWithRetry(
+        'pranjeet',
+        () => pranjeetClient.grokChat.mutate({ guildId, userId, text }),
+        true
+      );
+      return { success: true, reply: result.reply };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`Grok chat failed: ${message}`);
+      return { success: false, message };
+    }
+  }
+
+  /**
+   * Toggle conversation listening on Pranjeet. On enable, Pranjeet starts
+   * listening to everyone currently in the voice channel (no rejoin needed).
+   */
+  async setConversationListening(
+    guildId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; message?: string }> {
+    const guard = this.guardWorker('pranjeet');
+    if (!guard.ok) {
+      return { success: false, message: guard.error };
+    }
+    try {
+      const result = await this.requestWithRetry(
+        'pranjeet',
+        () => pranjeetClient.setConversationListening.mutate({ guildId, enabled }),
+        true
+      );
+      return { success: result.success };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      log.error(`setConversationListening failed: ${message}`);
+      return { success: false, message };
+    }
+  }
+
+  /**
    * Play sound effect (HungerBot)
    */
   async playSound(
@@ -654,6 +744,7 @@ export class WorkerCoordinator {
             playing: state.playing,
             volume: state.volume,
             queue,
+            lastPlaybackError: state.lastPlaybackError,
           };
           statuses[botType] = normalizeWorkerStatus(record, botType, guildId);
         } else if (botType === 'pranjeet') {

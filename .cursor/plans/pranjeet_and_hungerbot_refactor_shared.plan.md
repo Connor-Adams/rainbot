@@ -70,13 +70,11 @@ isProject: false
 
 ### 1.1 Required additions
 
-
 | Piece               | Purpose                                                          | API                                                                 |
 | ------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
 | **Auth middleware** | Skip `/health`, require `x-internal-secret` or `x-worker-secret` | `createWorkerAuthMiddleware(workerSecret: string                    |
 | **Health routes**   | GET `/health/live`, GET `/health/ready`                          | `addWorkerHealthRoutes(app, { botType, getReady, getQueueReady? })` |
 | **Server start**    | Single listen with guard and log                                 | `startWorkerServer(app, port, log)` (module-level serverStarted)    |
-
 
 Workers continue to mount tRPC themselves (each worker has access to its router and createContext from @rainbot/rpc). No new dependency on @rainbot/rpc or @trpc/server in worker-shared for 1.1.
 
@@ -100,10 +98,9 @@ Recommendation: Start with **Option A** (shared middleware + health + start only
 
 ### Target layout
 
-
 | File                      | Purpose                                                                                                                                                                                                                                                                           |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **config.ts**             | Env (PORT, TOKEN, TTS_*, REDIS_URL, VOICE_*, ORCHESTRATOR_BOT_ID, WORKER_SECRET, etc.), log, hasToken, hasOrchestrator                                                                                                                                                            |
+| **config.ts**             | Env (PORT, TOKEN, TTS*\*, REDIS_URL, VOICE*\*, ORCHESTRATOR_BOT_ID, WORKER_SECRET, etc.), log, hasToken, hasOrchestrator                                                                                                                                                          |
 | **state/guild-state.ts**  | PranjeetGuildState, guildStates Map, getOrCreateGuildState, buildPlaybackState, getStateForRpc                                                                                                                                                                                    |
 | **audio/utils.ts**        | waitForPlaybackEnd, chunkPcmIntoFrames, framesToReadable, resample24to48, monoToStereoPcm                                                                                                                                                                                         |
 | **tts/index.ts**          | initTTS, generateTTS, normalizeSpeakKey; internal OpenAI/Google                                                                                                                                                                                                                   |
@@ -114,7 +111,6 @@ Recommendation: Start with **Option A** (shared middleware + health + start only
 | **events/voice-state.ts** | registerVoiceStateHandlers(client): user join/leave → start/stop voice listening                                                                                                                                                                                                  |
 | **queue/tts-worker.ts**   | startTtsQueue(options), getRedisClient(), queueReady                                                                                                                                                                                                                              |
 | **index.ts**              | Thin: config, client, requestCache, router(createRpcHandlers), app, setupAutoFollowVoiceStateHandler, registerVoiceStateHandlers, setupDiscordClientReadyHandler (initTTS, initVoiceInteractionManager, startServer, registerWithOrchestrator, startTtsQueue), loginDiscordClient |
-
 
 ### Order of work
 
@@ -130,17 +126,15 @@ Recommendation: Start with **Option A** (shared middleware + health + start only
 
 ### Target layout
 
-
 | File                      | Purpose                                                                                                                                                                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **config.ts**             | PORT, TOKEN, SOUNDS_DIR, S3_*, ORCHESTRATOR_BOT_ID, RAINCLOUD_URL, WORKER_SECRET, log, hasToken, hasOrchestrator                                                                                                     |
+| **config.ts**             | PORT, TOKEN, SOUNDS*DIR, S3*\*, ORCHESTRATOR_BOT_ID, RAINCLOUD_URL, WORKER_SECRET, log, hasToken, hasOrchestrator                                                                                                    |
 | **state/guild-state.ts**  | HungerbotGuildState, guildStates, getOrCreateGuildState, getStateForRpc                                                                                                                                              |
 | **storage/sounds.ts**     | S3 client (if configured), getSoundStream(sfxId), responseBodyToStream, getOggVariant, normalizeSoundName, getSoundInputType                                                                                         |
 | **handlers/rpc.ts**       | createRpcHandlers(client, requestCache) → getState, join, leave, volume, playSound, cleanupUser; playSound uses storage + createAudioResource + reportSoundStat                                                      |
 | **app.ts**                | createWorkerExpressApp(), createWorkerAuthMiddleware(), tRPC mount, addWorkerHealthRoutes(), startServer = startWorkerServer()                                                                                       |
 | **events/voice-state.ts** | VoiceStateUpdate: when orchestrator leaves channel, state.player.stop(true)                                                                                                                                          |
 | **index.ts**              | Thin: config, client, requestCache, router(createRpcHandlers), app, setupAutoFollowVoiceStateHandler, events/voice-state, setupDiscordClientReadyHandler (startServer, registerWithOrchestrator), loginDiscordClient |
-
 
 ### Order of work
 
@@ -188,16 +182,13 @@ Execute in order. After each step (or step group), run `**yarn validate**` and f
 
 ### Phase 1: worker-shared
 
-
 | Step | Action                                                                                                                                                         | Validate        |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | 1.1  | Add `createWorkerAuthMiddleware(workerSecret)` in `packages/worker-shared/src` (e.g. new file `middleware.ts` or extend `express.ts`). Export from `index.ts`. | `yarn validate` |
 | 1.2  | Add `addWorkerHealthRoutes(app, { botType, getReady, getQueueReady? })` in worker-shared. Export from `index.ts`.                                              | `yarn validate` |
 | 1.3  | Add `startWorkerServer(app, port, log)` in worker-shared (module-level `serverStarted` guard). Export from `index.ts`.                                         | `yarn validate` |
 
-
 ### Phase 2: Pranjeet refactor
-
 
 | Step | Action                                                                                                                                                                                                                                                                   | Validate        |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
@@ -209,9 +200,7 @@ Execute in order. After each step (or step group), run `**yarn validate**` and f
 | 2.6  | Create `apps/pranjeet/src/app.ts` (createWorkerExpressApp, createWorkerAuthMiddleware, tRPC mount, addWorkerHealthRoutes, startServer = startWorkerServer). Create `events/voice-state.ts` (registerVoiceStateHandlers).                                                 | `yarn validate` |
 | 2.7  | Rewrite `apps/pranjeet/src/index.ts` to import and wire config, client, requestCache, router, app, auto-follow, voice-state, onReady, login. Remove duplicated logic.                                                                                                    | `yarn validate` |
 
-
 ### Phase 3: Hungerbot refactor
-
 
 | Step | Action                                                                                                                                                 | Validate        |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
@@ -221,14 +210,11 @@ Execute in order. After each step (or step group), run `**yarn validate**` and f
 | 3.4  | Create `apps/hungerbot/src/app.ts` (shared auth, health, startWorkerServer). Create `events/voice-state.ts` (orchestrator leave → player.stop).        | `yarn validate` |
 | 3.5  | Rewrite `apps/hungerbot/src/index.ts` to import and wire everything. Remove duplicated logic.                                                          | `yarn validate` |
 
-
 ### Phase 4: Final validation
-
 
 | Step | Action                                                                                | Validate                                                                |
 | ---- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | 4.1  | Run full monorepo validation. Fix any remaining type, lint, format, or test failures. | `**yarn validate**` (required before considering the refactor complete) |
-
 
 ---
 
@@ -240,4 +226,3 @@ Execute in order. After each step (or step group), run `**yarn validate**` and f
 - **Pranjeet-only**: config, guild state, audio utils, TTS, speak, voice-interaction, RPC handlers, app composition, voice-state events, TTS queue.
 - **Hungerbot-only**: config, guild state, storage/sounds, RPC handlers, app composition, voice-state events (orchestrator leave cleanup).
 - **New worker**: Implement config, guild state, handlers, add router in rpc package, compose app with shared middleware + health + startServer, optional voice-state extension, thin index; orchestrator changes (BotType, env, client, coordinator) documented separately.
-

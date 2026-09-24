@@ -3,7 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
+import PlayerTab from './components/tabs/PlayerTab';
+import SoundboardTab from './components/tabs/SoundboardTab';
+import RecordingsTab from './components/tabs/RecordingsTab';
+import StatisticsTab from './components/tabs/stats/StatisticsTab';
+import StatusTab from './components/tabs/StatusTab';
+import AdminTab from './components/tabs/AdminTab';
 import LoadingOverlay from './components/LoadingOverlay';
 
 const debugEnabled = import.meta.env.DEV;
@@ -49,18 +54,16 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/*"
-        element={
-          isAuthenticated ? (
-            <Layout>
-              <DashboardPage />
-            </Layout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+      <Route element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}>
+        <Route index element={<Navigate to="/player" replace />} />
+        <Route path="player" element={<PlayerTab />} />
+        <Route path="soundboard" element={<SoundboardTab />} />
+        <Route path="recordings" element={<RecordingsTab />} />
+        <Route path="stats" element={<StatisticsTab />} />
+        <Route path="status" element={<StatusTab />} />
+        <Route path="admin" element={<AdminTab />} />
+        <Route path="*" element={<Navigate to="/player" replace />} />
+      </Route>
     </Routes>
   );
 }

@@ -12,12 +12,12 @@ import { WorkerCoordinator } from './workerCoordinator';
 import { VoiceStateManager } from './voiceStateManager';
 import { ChannelResolver } from './channelResolver';
 import { RedisClient } from '@rainbot/redis-client';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { registerWorkerCoordinator } from './workerCoordinatorRegistry';
-import * as voiceManager from '@utils/voiceManager';
-import * as storage from '@utils/storage';
-import type { BotType } from '@rainbot/types/core';
-import type { MediaState, QueueState, PlaybackState } from '@rainbot/types/media';
+import * as voiceManager from '@rainbot/utils/voiceManager';
+import * as storage from '@rainbot/utils/storage';
+import type { BotType } from '@rainbot/protocol';
+import type { MediaState, QueueState, PlaybackState } from '@rainbot/protocol';
 import type { Client, VoiceBasedChannel } from 'discord.js';
 
 const log = createLogger('MULTIBOT-SERVICE');
@@ -306,6 +306,44 @@ export class MultiBotService {
   }
 
   /**
+   * Get a Grok chat reply. Optionally speak the reply in the user's voice channel (Pranjeet).
+   */
+  async grokChat(
+    guildId: string,
+    userId: string,
+    text: string,
+    options?: { speakReply?: boolean }
+  ): Promise<{ success: boolean; reply?: string; message?: string }> {
+    const result = await this.coordinator.grokChat(guildId, userId, text);
+    if (!result.success || !result.reply) {
+      return result;
+    }
+    if (options?.speakReply) {
+      const channelResult = await this.channelResolver.resolveTargetChannel(guildId, userId);
+      if (!channelResult.error && channelResult.channelId) {
+        await this.coordinator.ensureWorkerConnected('pranjeet', guildId, channelResult.channelId);
+        await this.coordinator.speakTTS(guildId, result.reply, undefined, userId);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Turn conversation mode listening on/off. On enable, also flips the voice-
+   * interaction flag and tells Pranjeet to start listening to everyone already
+   * in the channel so the user does not have to rejoin.
+   */
+  async setConversationListening(
+    guildId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; message?: string }> {
+    if (enabled) {
+      await this.voiceStateManager.setVoiceInteractionEnabled(guildId, true);
+    }
+    return this.coordinator.setConversationListening(guildId, enabled);
+  }
+
+  /**
    * Play soundboard effect via HungerBot worker
    */
   async playSoundboard(
@@ -352,6 +390,31 @@ export class MultiBotService {
   }
 
   /**
+   * Set volume for every worker currently connected in the guild.
+   * Used by /vol so that volume applies to whichever bot(s) are in voice.
+   */
+  async setVolumeForConnectedWorkers(
+    guildId: string,
+    volume: number
+  ): Promise<{ success: boolean; message?: string }> {
+    const status = await this.getStatus(guildId);
+    if (!status?.workers) {
+      return { success: false, message: 'Not in voice' };
+    }
+    const botTypes: BotType[] = ['rainbot', 'pranjeet', 'hungerbot'];
+    let lastResult: { success: boolean; message?: string } = { success: false, message: '' };
+    let anySuccess = false;
+    for (const botType of botTypes) {
+      if (status.workers[botType]?.connected) {
+        lastResult = await this.setVolume(guildId, volume, botType);
+        if (lastResult.success) anySuccess = true;
+        else return lastResult;
+      }
+    }
+    return anySuccess ? { success: true } : { success: false, message: 'No worker connected' };
+  }
+
+  /**
    * Get status for all workers in a guild
    */
   async getStatus(guildId: string): Promise<VoiceStatus | null> {
@@ -380,11 +443,17 @@ export class MultiBotService {
       const playback = rainbotStatus?.playback ?? buildPlaybackState(false, undefined);
       const queue: QueueState = rainbotStatus?.queue ?? { queue: [] };
 
+      // Consider connected if any worker (rainbot, pranjeet, hungerbot) is in voice
+      const anyConnected =
+        rainbotStatus?.connected ||
+        workerStatuses.pranjeet?.connected ||
+        workerStatuses.hungerbot?.connected;
+
       return {
         guildId,
         channelId: session.channelId,
         channelName,
-        connected: rainbotStatus?.connected || false,
+        connected: anyConnected || false,
         kind: 'music',
         playback,
         queue,

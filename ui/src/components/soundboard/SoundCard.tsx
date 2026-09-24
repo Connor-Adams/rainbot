@@ -10,8 +10,9 @@ interface SoundCardProps {
   isPreviewing: boolean;
   isDisabled: boolean;
   onPlay: (sound: Sound) => void;
-  onMenuToggle: (soundName: string) => void;
+  onMenuToggle: (soundName: string, anchorEl: HTMLButtonElement) => void;
   isMenuOpen: boolean;
+  snippet?: string | null;
 }
 
 export function SoundCard({
@@ -23,6 +24,7 @@ export function SoundCard({
   onPlay,
   onMenuToggle,
   isMenuOpen,
+  snippet,
 }: SoundCardProps) {
   const displayName = customization?.displayName || sound.name.replace(/\.[^/.]+$/, '');
   const emoji = customization?.emoji || '🎵';
@@ -56,7 +58,7 @@ export function SoundCard({
         className="absolute top-2 right-2 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors z-10"
         onClick={(e) => {
           e.stopPropagation();
-          onMenuToggle(sound.name);
+          onMenuToggle(sound.name, e.currentTarget);
         }}
         aria-label="Sound options"
         aria-expanded={isMenuOpen}
@@ -78,6 +80,11 @@ export function SoundCard({
           {displayName}
         </div>
         <div className="text-xs text-text-muted font-mono mt-1">{formatSize(sound.size)}</div>
+        {snippet && (
+          <div className="text-[11px] text-text-muted italic mt-1 line-clamp-2" title={snippet}>
+            "{snippet}"
+          </div>
+        )}
       </div>
 
       {/* Playing indicator */}

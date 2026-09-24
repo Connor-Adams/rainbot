@@ -1,19 +1,19 @@
 ---
-name: "Discord Activity for now-playing video"
-overview: "Fleshed-out plan to build a Discord Activity that displays the current YouTube video in the voice-call UI, backed by a read-only API and a /watch slash command that creates an Activity invite."
+name: 'Discord Activity for now-playing video'
+overview: 'Fleshed-out plan to build a Discord Activity that displays the current YouTube video in the voice-call UI, backed by a read-only API and a /watch slash command that creates an Activity invite.'
 todos:
   - id: portal-setup
-    content: "Enable Activities and configure URL mapping in Discord Developer Portal"
+    content: 'Enable Activities and configure URL mapping in Discord Developer Portal'
   - id: activity-api
-    content: "Add GET /api/activity/now-playing/:guildId (requireAuth, same Discord OAuth as UI)"
+    content: 'Add GET /api/activity/now-playing/:guildId (requireAuth, same Discord OAuth as UI)'
   - id: activity-app
-    content: "Create Activity app (Vite + Embedded App SDK, getSelectedVoiceChannel, YouTube embed)"
+    content: 'Create Activity app (Vite + Embedded App SDK, getSelectedVoiceChannel, YouTube embed)'
   - id: activity-host
-    content: "Host Activity frontend and set production URL mapping"
+    content: 'Host Activity frontend and set production URL mapping'
   - id: watch-command
-    content: "Add /watch slash command (voice invite with targetApplication)"
+    content: 'Add /watch slash command (voice invite with targetApplication)'
   - id: playback-sync
-    content: "Playback sync (default): positionMs/isPaused in API; video starts when audio starts, pauses when paused, seeks to position"
+    content: 'Playback sync (default): positionMs/isPaused in API; video starts when audio starts, pauses when paused, seeks to position'
 isProject: false
 ---
 

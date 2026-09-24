@@ -1,6 +1,6 @@
 import { logErrorWithStack } from '@rainbot/worker-shared';
 import { resample24to48 } from '../audio/utils';
-import { log, TTS_API_KEY, TTS_PROVIDER, TTS_VOICE } from '../config';
+import { log, TTS_API_KEY, TTS_BASE_URL, TTS_PROVIDER, TTS_VOICE } from '../config';
 
 let ttsClient: unknown = null;
 
@@ -12,8 +12,15 @@ export async function initTTS(): Promise<void> {
   if (TTS_PROVIDER === 'openai' && TTS_API_KEY) {
     try {
       const { OpenAI } = await import('openai');
-      ttsClient = new OpenAI({ apiKey: TTS_API_KEY });
-      log.info('OpenAI TTS client initialized');
+      ttsClient = new OpenAI({
+        apiKey: TTS_API_KEY,
+        ...(TTS_BASE_URL ? { baseURL: TTS_BASE_URL } : {}),
+      });
+      log.info(
+        TTS_BASE_URL
+          ? `OpenAI TTS client initialized via ${TTS_BASE_URL}`
+          : 'OpenAI TTS client initialized (direct to OpenAI)'
+      );
     } catch (error) {
       logErrorWithStack(log, 'Failed to initialize OpenAI TTS', error);
     }

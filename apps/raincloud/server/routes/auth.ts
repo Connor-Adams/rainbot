@@ -2,15 +2,15 @@ import crypto from 'crypto';
 import express, { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { Strategy as OAuth2Strategy } from 'passport-oauth2';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { verifyUserRole } from '../utils/roleVerifier';
 import { getClient } from '../client';
-import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/types/server';
+import type { DiscordUser, AuthenticatedRequest, AppConfig } from '@rainbot/protocol';
 
 const log = createLogger('AUTH_ROUTES');
 const router = express.Router();
 
-const { loadConfig } = require('@utils/config');
+const { loadConfig } = require('@rainbot/utils/config');
 
 interface OAuthConfig {
   clientId: string;

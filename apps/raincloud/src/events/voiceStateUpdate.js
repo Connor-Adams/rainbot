@@ -5,9 +5,9 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
-const listeningHistory = require('../../dist/utils/listeningHistory');
-const stats = require('../../dist/utils/statistics');
+const { createLogger } = require('@rainbot/utils/logger');
+const listeningHistory = require('@rainbot/utils/listeningHistory');
+const stats = require('@rainbot/utils/statistics');
 
 const log = createLogger('VOICE_STATE');
 
@@ -15,7 +15,7 @@ const log = createLogger('VOICE_STATE');
 let voiceManager = null;
 function getVoiceManager() {
   if (!voiceManager) {
-    voiceManager = require('../../dist/utils/voiceManager');
+    voiceManager = require('@rainbot/utils/voiceManager');
   }
   return voiceManager;
 }

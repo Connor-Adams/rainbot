@@ -15,6 +15,11 @@
       "import": "./dist/esm/youtubeUrl.js",
       "require": "./dist/youtubeUrl.js",
       "types": "./dist/youtubeUrl.d.ts"
+    },
+    "./search": {
+      "import": "./dist/esm/soundSearchText.js",
+      "require": "./dist/soundSearchText.js",
+      "types": "./dist/soundSearchText.d.ts"
     }
   },
   "scripts": {
@@ -26,7 +31,8 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "@rainbot/types": "*",
+    "@rainbot/observability": "*",
+    "@rainbot/protocol": "*",
     "winston": "^3.19.0"
   },
   "devDependencies": {

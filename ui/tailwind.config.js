@@ -4,61 +4,63 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Semantic color system
+        // Values come from the design system's semantic layer; Rainbot's brand
+        // re-points those tokens in src/styles/rainbot-brand.css. Class names
+        // here (bg-surface, text-text-secondary, border-border) are unchanged,
+        // so component code does not move — only where the colour comes from.
         primary: {
-          DEFAULT: '#3b82f6', // blue-500
-          light: '#60a5fa', // blue-400
-          dark: '#2563eb', // blue-600
-          glow: 'rgba(59, 130, 246, 0.4)',
+          DEFAULT: 'var(--primary)',
+          light: 'var(--rb-blue-400)',
+          dark: 'var(--primary-hover)',
+          glow: 'color-mix(in oklch, var(--primary) 40%, transparent)',
         },
         secondary: {
-          DEFAULT: '#8b5cf6', // violet-500
-          light: '#a78bfa', // violet-400
-          dark: '#7c3aed', // violet-600
+          DEFAULT: 'var(--secondary)',
+          light: 'var(--rb-violet-400)',
+          dark: 'var(--secondary-hover)',
         },
         accent: {
-          DEFAULT: '#ec4899', // pink-500
-          light: '#f472b6', // pink-400
-          dark: '#db2777', // pink-600
+          DEFAULT: 'var(--accent)',
+          light: 'var(--rb-pink-400)',
+          dark: 'var(--rb-pink-600)',
         },
         surface: {
-          DEFAULT: '#131318', // card background
-          elevated: '#181820',
-          hover: '#1c1c24',
-          input: '#0f0f14',
+          DEFAULT: 'var(--card)',
+          elevated: 'var(--popover)',
+          hover: 'var(--muted)',
+          input: 'var(--input)',
         },
         background: {
-          DEFAULT: '#0a0a0f', // main bg
-          secondary: '#131318',
+          DEFAULT: 'var(--background)',
+          secondary: 'var(--card)',
         },
         border: {
-          DEFAULT: '#252530',
-          hover: '#2d2d3a',
-          focus: '#3b82f6',
+          DEFAULT: 'var(--border)',
+          hover: 'var(--rb-ink-600)',
+          focus: 'var(--ring)',
         },
         text: {
-          primary: '#ffffff',
-          secondary: '#a1a1b0',
-          muted: '#6b6b7a',
-          disabled: '#4a4a55',
+          primary: 'var(--foreground)',
+          secondary: 'var(--muted-foreground)',
+          muted: 'var(--rb-ink-400)',
+          disabled: 'var(--rb-ink-500)',
         },
         success: {
-          DEFAULT: '#10b981', // emerald-500
-          light: '#34d399',
-          dark: '#059669', // emerald-600
-          glow: 'rgba(16, 185, 129, 0.3)',
+          DEFAULT: 'var(--success)',
+          light: 'color-mix(in oklch, var(--success) 75%, white)',
+          dark: 'color-mix(in oklch, var(--success) 80%, black)',
+          glow: 'color-mix(in oklch, var(--success) 30%, transparent)',
         },
         danger: {
-          DEFAULT: '#ef4444', // red-500
-          light: '#f87171',
-          dark: '#dc2626', // red-600
-          glow: 'rgba(239, 68, 68, 0.3)',
+          DEFAULT: 'var(--danger)',
+          light: 'color-mix(in oklch, var(--danger) 75%, white)',
+          dark: 'color-mix(in oklch, var(--danger) 80%, black)',
+          glow: 'color-mix(in oklch, var(--danger) 30%, transparent)',
         },
         warning: {
-          DEFAULT: '#f59e0b', // amber-500
-          light: '#fbbf24',
-          dark: '#d97706', // amber-600
-          glow: 'rgba(245, 158, 11, 0.3)',
+          DEFAULT: 'var(--warning)',
+          light: 'color-mix(in oklch, var(--warning) 75%, white)',
+          dark: 'color-mix(in oklch, var(--warning) 80%, black)',
         },
         info: {
           DEFAULT: '#06b6d4', // cyan-500
