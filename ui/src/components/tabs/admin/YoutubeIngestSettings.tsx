@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { Button, Input } from '@/components/ui';
 
 export default function YoutubeIngestSettings() {
   const queryClient = useQueryClient();
@@ -65,10 +66,10 @@ export default function YoutubeIngestSettings() {
           change within about five minutes.
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <input
+          <Input
             ref={proxyInputRef}
             type="password"
-            className="input flex-1 min-w-[18rem]"
+            className="flex-1 min-w-[18rem]"
             placeholder="socks5://user:password@host:1080"
             value={proxyInput}
             autoComplete="off"
@@ -76,23 +77,23 @@ export default function YoutubeIngestSettings() {
             onChange={(e) => setProxyInput(e.target.value)}
             aria-label="Proxy URL"
           />
-          <button
+          <Button
             type="button"
-            className="btn btn-secondary"
+            variant="secondary"
             onClick={() => saveProxyMutation.mutate(proxyInput)}
             disabled={saveProxyMutation.isPending || proxyInput.trim().length === 0}
           >
             {saveProxyMutation.isPending ? 'Saving...' : 'Save proxy'}
-          </button>
+          </Button>
           {youtubeProxy?.hasProxy && (
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="secondary"
               onClick={() => setRemoveProxyDialogOpen(true)}
               disabled={deleteProxyMutation.isPending}
             >
               {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
-            </button>
+            </Button>
           )}
         </div>
         <div className="mt-2 text-xs text-text-secondary">
@@ -141,24 +142,24 @@ export default function YoutubeIngestSettings() {
             }}
             aria-label="Upload cookies file"
           />
-          <button
+          <Button
             ref={uploadCookiesButtonRef}
             type="button"
-            className="btn btn-secondary"
+            variant="secondary"
             onClick={() => cookiesFileRef.current?.click()}
             disabled={uploadCookiesMutation.isPending}
           >
             {uploadCookiesMutation.isPending ? 'Uploading...' : 'Upload cookies (.txt)'}
-          </button>
+          </Button>
           {youtubeCookies?.hasCookies && (
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="secondary"
               onClick={() => setRemoveCookiesDialogOpen(true)}
               disabled={deleteCookiesMutation.isPending}
             >
               {deleteCookiesMutation.isPending ? 'Removing...' : 'Remove cookies'}
-            </button>
+            </Button>
           )}
           <span className="text-xs text-text-secondary">
             {youtubeCookies?.hasCookies ? '✓ Cookies configured' : 'No cookies set'}

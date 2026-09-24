@@ -193,7 +193,7 @@ export default function PlayerTab() {
           Add to Queue
         </h2>
         <div className="url-player space-y-4">
-          <div className="input-group flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={urlInput}

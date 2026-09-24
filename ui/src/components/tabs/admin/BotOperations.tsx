@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useIsMutating, useMutation } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
+import { Button } from '@/components/ui';
 
 // Stable mutation key so an in-flight redeploy stays visible in the query
 // client's mutation cache after this section unmounts (switching admin
@@ -36,14 +37,14 @@ export default function BotOperations() {
         Re-register Discord slash commands with Discord. Use this after adding or changing commands
         so they appear in your server (e.g. after a new chat command).
       </div>
-      <button
+      <Button
         type="button"
-        className="btn btn-primary"
+        variant="primary"
         onClick={handleDeployCommands}
         disabled={deployRunning}
       >
         {deployRunning ? 'Deploying...' : 'Redeploy commands'}
-      </button>
+      </Button>
       {deployCommandsMutation.isError && deployMessage && (
         <div className="mt-3 text-xs text-danger-light">{deployMessage}</div>
       )}
