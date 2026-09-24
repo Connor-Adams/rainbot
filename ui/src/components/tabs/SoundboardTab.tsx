@@ -8,7 +8,6 @@ import { soundsApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useSoundCustomization } from '@/hooks/useSoundCustomization';
 import { useAudioPreview } from '@/hooks/useAudioPreview';
-import { useClickOutside } from '@/hooks/useClickOutside';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { SoundCard } from '@/components/soundboard/SoundCard';
@@ -25,19 +24,17 @@ export default function SoundboardTab() {
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ name: string; el: HTMLButtonElement } | null>(
+    null
+  );
   const [editingSound, setEditingSound] = useState<string | null>(null);
 
   // Refs
-  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Custom hooks
   const { updateCustomization, deleteCustomization, getCustomization } = useSoundCustomization();
   const { previewingSound, playPreview, stopPreview } = useAudioPreview();
-
-  // Close menu when clicking outside
-  useClickOutside(menuRef, () => setOpenMenuId(null));
 
   // Queries
   const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({
@@ -171,7 +168,7 @@ export default function SoundboardTab() {
 
   const handleDelete = useCallback(
     (name: string) => {
-      setOpenMenuId(null);
+      setMenuAnchor(null);
       if (window.confirm(`Delete "${name}"?`)) {
         deleteMutation.mutate(name);
       }
@@ -181,7 +178,7 @@ export default function SoundboardTab() {
 
   const handleEdit = useCallback((soundName: string) => {
     setEditingSound(soundName);
-    setOpenMenuId(null);
+    setMenuAnchor(null);
   }, []);
 
   const handleSaveEdit = useCallback(
@@ -223,8 +220,8 @@ export default function SoundboardTab() {
       {
         key: 'Escape',
         handler: () => {
-          if (openMenuId) {
-            setOpenMenuId(null);
+          if (menuAnchor) {
+            setMenuAnchor(null);
           } else if (searchQuery) {
             setSearchQuery('');
           } else {
@@ -286,7 +283,7 @@ export default function SoundboardTab() {
           <EmptyState hasSearch={searchQuery.length > 0} searchQuery={searchQuery} />
         ) : (
           filteredSounds.map((sound: Sound) => (
-            <div key={sound.name} className="relative">
+            <div key={sound.name}>
               <SoundCard
                 sound={sound}
                 customization={getCustomization(sound.name)}
@@ -294,19 +291,21 @@ export default function SoundboardTab() {
                 isPreviewing={previewingSound === sound.name}
                 isDisabled={!selectedGuildId || playMutation.isPending}
                 onPlay={handlePlay}
-                onMenuToggle={setOpenMenuId}
-                isMenuOpen={openMenuId === sound.name}
+                onMenuToggle={(name, el) =>
+                  setMenuAnchor((prev) => (prev?.name === name ? null : { name, el }))
+                }
+                isMenuOpen={menuAnchor?.name === sound.name}
                 snippet={snippets.get(sound.name) ?? null}
               />
-              {openMenuId === sound.name && (
+              {menuAnchor?.name === sound.name && (
                 <SoundMenu
-                  ref={menuRef}
+                  anchorEl={menuAnchor.el}
                   soundName={sound.name}
                   isPreviewing={previewingSound === sound.name}
                   onPreview={() => handlePreview(sound.name)}
                   onEdit={() => handleEdit(sound.name)}
                   onDelete={() => handleDelete(sound.name)}
-                  onClose={() => setOpenMenuId(null)}
+                  onClose={() => setMenuAnchor(null)}
                 />
               )}
             </div>
