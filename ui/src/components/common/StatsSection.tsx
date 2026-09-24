@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Card, CardHeader, CardTitle } from '@connor-adams/designsystem';
 
 interface StatsSectionProps {
   title?: string;
@@ -6,13 +7,19 @@ interface StatsSectionProps {
   className?: string;
 }
 
+/**
+ * Thin wrapper around the design system's Card that keeps rainbot's existing
+ * title/children API so the ~20 stats components using it don't need to change.
+ */
 export default function StatsSection({ title, children, className = '' }: StatsSectionProps) {
   return (
-    <div
-      className={`stats-section bg-surface border border-border rounded-xl p-4 sm:p-6 ${className}`}
-    >
-      {title && <h3 className="text-lg sm:text-xl text-text-primary mb-4">{title}</h3>}
+    <Card className={className}>
+      {title && (
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+      )}
       {children}
-    </div>
+    </Card>
   );
 }
