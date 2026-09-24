@@ -96,6 +96,24 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
       markVoiceConnected(connection, guildId);
       logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
 
+      // VoiceConnection is an EventEmitter: without an 'error' listener a voice
+      // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
+      // exception and takes the whole worker down.
+      connection.on('error', (error: Error) => {
+        logger.warn(`Voice connection error in guild ${guildId}: ${error.message}`);
+        try {
+          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+            connection.destroy();
+          }
+        } catch {
+          // connection was already torn down
+        }
+        markVoiceDisconnected(connection, guildId);
+        if (state.connection === connection) {
+          state.connection = null;
+        }
+      });
+
       // Auto-rejoin on disconnect (network issues only)
       connection.on(VoiceConnectionStatus.Disconnected, async () => {
         try {
