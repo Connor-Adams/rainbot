@@ -58,6 +58,14 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     },
   });
 
+  const replayMutation = useMutation({
+    mutationFn: () => playbackApi.replay(guildId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue', guildId] });
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+    },
+  });
+
   const seekMutation = useMutation({
     mutationFn: (positionSeconds: number) => playbackApi.seek(guildId, positionSeconds),
     onSuccess: (_, positionSeconds) => {
@@ -116,16 +124,36 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
   };
 
   return (
-    <MediaPlayer
-      track={track}
-      currentTime={currentTime}
-      duration={durationSec}
-      isPaused={isPaused}
-      isLoading={pauseMutation.isPending || skipMutation.isPending || seekMutation.isPending}
-      onPlayPause={() => pauseMutation.mutate()}
-      onSkip={() => skipMutation.mutate()}
-      onSeek={handleSeek}
-      autoTick
-    />
+    <>
+      <MediaPlayer
+        track={track}
+        currentTime={currentTime}
+        duration={durationSec}
+        isPaused={isPaused}
+        isLoading={
+          pauseMutation.isPending ||
+          skipMutation.isPending ||
+          seekMutation.isPending ||
+          replayMutation.isPending
+        }
+        onPlayPause={() => pauseMutation.mutate()}
+        onSkip={() => skipMutation.mutate()}
+        onPrevious={() => replayMutation.mutate()}
+        onSeek={handleSeek}
+        autoTick
+      />
+      {replayMutation.isError && (
+        <p className="text-xs text-danger mt-2">
+          {(
+            replayMutation.error as {
+              response?: { data?: { error?: string } };
+              message?: string;
+            }
+          )?.response?.data?.error ??
+            (replayMutation.error as Error)?.message ??
+            'Failed to replay'}
+        </p>
+      )}
+    </>
   );
 }

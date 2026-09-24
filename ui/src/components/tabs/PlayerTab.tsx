@@ -4,7 +4,7 @@ import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
-import { Slider } from '@connor-adams/designsystem';
+import { Slider, Switch } from '@connor-adams/designsystem';
 import NowPlayingCard from '../NowPlayingCard';
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
@@ -18,6 +18,9 @@ export default function PlayerTab() {
     pranjeet: number | null;
     hungerbot: number | null;
   }>({ rainbot: null, pranjeet: null, hungerbot: null }); // Only set while dragging
+  // Optimistic override for the autoplay toggle, held until fresh server state
+  // arrives (same shape as localVolumes — see volumeMutation for why).
+  const [localAutoplay, setLocalAutoplay] = useState<boolean | null>(null);
   const volumeDebounceRefs = useRef<{
     rainbot: ReturnType<typeof setTimeout> | null;
     pranjeet: ReturnType<typeof setTimeout> | null;
@@ -59,6 +62,8 @@ export default function PlayerTab() {
     pranjeet: localVolumes.pranjeet ?? serverVolumes.pranjeet,
     hungerbot: localVolumes.hungerbot ?? serverVolumes.hungerbot,
   };
+
+  const autoplayEnabled = localAutoplay ?? queueData?.isAutoplay ?? false;
 
   const playMutation = useMutation({
     mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
@@ -102,6 +107,27 @@ export default function PlayerTab() {
       setLocalVolumes((prev) => ({ ...prev, [variables.botType]: null }));
     },
   });
+
+  const autoplayMutation = useMutation({
+    mutationFn: (enabled: boolean) => playbackApi.autoplay(selectedGuildId!, enabled),
+    // Same shape as volumeMutation: hold the optimistic value until the queue
+    // query has actually refetched, instead of clearing it the moment the
+    // request fires (which would snap the switch back to stale polled state).
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
+      setLocalAutoplay(null);
+    },
+    // On failure, drop the override so the switch reflects the truth the
+    // server last reported, rather than sitting on a value that never applied.
+    onError: () => {
+      setLocalAutoplay(null);
+    },
+  });
+
+  const handleAutoplayChange = (enabled: boolean) => {
+    setLocalAutoplay(enabled);
+    autoplayMutation.mutate(enabled);
+  };
 
   // A debounce timer that survives unmount fires a mutation and a setState on a
   // component that no longer exists — most visible when switching guilds mid-drag.
@@ -183,6 +209,31 @@ export default function PlayerTab() {
               <span className="btn-icon">■</span> Stop
             </button>
           </div>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div>
+              <span className="text-sm text-text-primary">Autoplay</span>
+              <p className="text-xs text-text-muted">
+                Automatically play related tracks when the queue is empty.
+              </p>
+            </div>
+            <Switch
+              checked={autoplayEnabled}
+              onCheckedChange={handleAutoplayChange}
+              disabled={!selectedGuildId || autoplayMutation.isPending}
+            />
+          </div>
+          {autoplayMutation.isError && (
+            <p className="text-xs text-danger">
+              {(
+                autoplayMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (autoplayMutation.error as Error)?.message ??
+                'Failed to toggle autoplay'}
+            </p>
+          )}
         </div>
 
         {/* Say (TTS) - Pranjeet speaks whatever you type */}
