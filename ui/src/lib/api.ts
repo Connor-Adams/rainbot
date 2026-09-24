@@ -36,6 +36,20 @@ export function buildApiUrl(path: string): string {
   return `${base}${normalizedPath}`;
 }
 
+/**
+ * Open an SSE stream against the API, with session cookies attached.
+ *
+ * `EventSource` defaults to `withCredentials: false`, so a bare
+ * `new EventSource(url)` sends no cookies cross-origin. In production the UI
+ * and the API are on different hosts (dash.rainbot.win vs api.rainbot.win), so
+ * every such stream is rejected by `requireAuth` with a 401. Always create SSE
+ * connections through this helper rather than constructing `EventSource`
+ * directly.
+ */
+export function createApiEventSource(path: string): EventSource {
+  return new EventSource(buildApiUrl(path), { withCredentials: true });
+}
+
 const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,

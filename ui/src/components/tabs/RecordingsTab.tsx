@@ -17,7 +17,9 @@ export default function RecordingsTab() {
   const loadRecordings = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(buildApiUrl('/recordings'));
+      const response = await fetch(buildApiUrl('/recordings'), {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to load recordings');
       const data = await response.json();
       setRecordings(data);
@@ -37,6 +39,7 @@ export default function RecordingsTab() {
       setPlaying(name);
       const response = await fetch(buildApiUrl('/play'), {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sound: `records/${name}` }),
       });
@@ -60,6 +63,7 @@ export default function RecordingsTab() {
     try {
       const response = await fetch(buildApiUrl(`/sounds/records%2F${encodeURIComponent(name)}`), {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Failed to delete recording');

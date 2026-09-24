@@ -6,11 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "type-check": "tsc -b --force",
+    "type-check": "tsc -b --noEmit",
     "lint": "eslint .",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
-    "type-check": "tsc -b --noEmit",
     "preview": "vite preview",
     "start:prod": "serve -s dist -l $PORT"
   },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { buildApiUrl } from '@/lib/api';
+import { createApiEventSource } from '@/lib/api';
 
 /**
  * Subscribe to SSE queue/now-playing updates for a guild.
@@ -19,8 +19,7 @@ export function useQueueEvents(guildId: string | null): { connected: boolean } {
       return;
     }
 
-    const url = buildApiUrl(`queue/${guildId}/events`);
-    const es = new EventSource(url);
+    const es = createApiEventSource(`queue/${guildId}/events`);
     eventSourceRef.current = es;
 
     es.onopen = () => setConnected(true);
