@@ -1629,6 +1629,70 @@ router.post(
   }
 );
 
+// POST /api/autoplay - Toggle (or query) autoplay mode
+router.post(
+  '/autoplay',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, enabled } = req.body;
+
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    try {
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+
+      const result = await multiBot.toggleAutoplay(guildId, enabled);
+      if (result.success) {
+        if (userId) {
+          stats.trackCommand(
+            'autoplay',
+            userId,
+            guildId,
+            'api',
+            true,
+            null,
+            username,
+            discriminator
+          );
+        }
+        void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
+        res.json({
+          message: `Autoplay ${result.enabled ? 'enabled' : 'disabled'}`,
+          enabled: result.enabled,
+        });
+        return;
+      }
+      res.status(400).json({ error: result.message || 'Failed to toggle autoplay' });
+    } catch (error) {
+      const err = error as Error;
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      if (userId) {
+        stats.trackCommand(
+          'autoplay',
+          userId,
+          guildId,
+          'api',
+          false,
+          err.message,
+          username,
+          discriminator
+        );
+      }
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 // POST /api/pause - Toggle pause/resume
 router.post(
   '/pause',

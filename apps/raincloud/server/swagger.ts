@@ -303,6 +303,54 @@ const options: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/autoplay': {
+        post: {
+          summary: 'Toggle (or query) autoplay mode for a guild',
+          description:
+            'Enables/disables autoplay on Rainbot, or omit `enabled` to just read the current ' +
+            'state without changing it. Always returns the resulting `enabled` value.',
+          tags: ['Playback'],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['guildId'],
+                  properties: {
+                    guildId: { type: 'string' },
+                    enabled: { type: 'boolean', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Resulting autoplay state',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: { type: 'string' },
+                      enabled: { type: 'boolean' },
+                    },
+                  },
+                },
+              },
+            },
+            '400': {
+              description: 'Missing/invalid input, or the toggle failed',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   },
   apis: ['./server/routes/*.js', './server/routes/*.ts', './server/*.js', './server/*.ts'],
