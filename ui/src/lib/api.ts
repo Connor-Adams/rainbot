@@ -122,6 +122,8 @@ export const playbackApi = {
     api.post('/volume', { guildId, level, botType }),
   speak: (guildId: string, text: string) => api.post('/speak', { guildId, text }),
   replay: (guildId: string) => api.post('/replay', { guildId }),
+  autoplay: (guildId: string, enabled?: boolean) =>
+    api.post<{ message: string; enabled: boolean }>('/autoplay', { guildId, enabled }),
 };
 
 // Sounds API
