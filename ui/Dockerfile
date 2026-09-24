@@ -25,6 +25,7 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # workspace. service-content-hash.cjs hashes the same set.
 COPY package.json yarn.lock .yarnrc.yml turbo.json tsconfig.json ./
 COPY packages/db/package.json ./packages/db/
+COPY packages/observability/package.json ./packages/observability/
 COPY packages/protocol/package.json ./packages/protocol/
 COPY packages/redis-client/package.json ./packages/redis-client/
 COPY packages/rpc/package.json ./packages/rpc/
