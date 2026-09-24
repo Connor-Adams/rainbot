@@ -5,6 +5,7 @@ import Logo from './header/Logo';
 import NavTabs from './header/NavTabs';
 import UserInfo from './header/UserInfo';
 import StatusIndicator from './header/StatusIndicator';
+import GuildPicker from './header/GuildPicker';
 
 interface HeaderProps {
   user: User | null;
@@ -31,6 +32,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
       </div>
       <NavTabs />
       <div className="flex items-center flex-wrap gap-3 lg:gap-4 flex-shrink-0">
+        <GuildPicker />
         {user && <UserInfo user={user} onLogout={onLogout} />}
         <div className="hidden lg:block">
           <StatusIndicator
