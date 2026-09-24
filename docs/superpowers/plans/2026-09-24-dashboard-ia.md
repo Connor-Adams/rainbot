@@ -210,6 +210,34 @@ Default section: `Playback`.
 
 ---
 
+### Task 6: One server selection, app-wide
+
+**Problem:** Task 2 put a `GuildPicker` in the header. Task 4 revealed that Admin carries its own, separate server dropdown (`useAdminRunGuildId()` in `ui/src/components/tabs/admin/shared.ts`, surfaced as a `CustomDropdown` in `CommandRunner.tsx`), which governs `CommandRunner` and all of `GrokVoiceSettings`. So on `/admin` you pick a server twice, and the two picks can disagree. That is the same ill-conceived-navigation complaint this whole plan exists to fix.
+
+Task 4 also left three copy strings that referred to sibling sections by page position ("above" / "below"), which stopped being true once the sections became sub-tabs.
+
+**Files:**
+
+- Modify: `ui/src/components/tabs/admin/shared.ts`
+- Modify: `ui/src/components/tabs/admin/CommandRunner.tsx`
+- Modify: `ui/src/components/tabs/admin/GrokVoiceSettings.tsx`
+
+**Steps:**
+
+- [ ] **Step 1: Delete the second source of truth.** Replace every use of `useAdminRunGuildId()` with `useGuildStore()`'s `selectedGuildId`. The header `GuildPicker` becomes the only server control in the application. Remove `useAdminRunGuildId` and its module-level store from `shared.ts`; if `shared.ts` is then empty, leave the file and say so.
+
+- [ ] **Step 2: Remove Admin's own server dropdown.** The `CustomDropdown` in `CommandRunner.tsx` and its label go away — deliberately, not by accident. Nothing replaces it in the section body.
+
+- [ ] **Step 3: Handle no-server-selected in the two guild-scoped sections.** `CommandRunner` and `GrokVoiceSettings` both become useless without a guild. Each returns the DS `EmptyState` when `!selectedGuildId`, after all hooks, exactly as Task 3 did in `PlayerTab`. Title `"No server selected"`, description `"Pick a server from the menu in the header."`
+
+- [ ] **Step 4: Fix the three stale copy strings.** Find every string in `ui/src/components/tabs/admin/` that locates another section by page position — the known three are "Run commands above", "Manage personas below", and the Grok persona dropdown's reference to "above". Rewrite each to name the sub-tab it means (the sub-tab labels are `Playback`, `Grok`, `Personas`, `YouTube`, `Sounds`, `Bot`). Grep for `above` and `below` across that directory to catch any the plan missed.
+
+- [ ] **Step 5: Verify.** Build and lint. Grep for `useAdminRunGuildId` — must return nothing. Check whether `CustomDropdown` and `Displaycard` still have consumers and report the answer.
+
+- [ ] **Step 6: Commit.** `feat(ui): make the header server picker govern admin too`
+
+---
+
 ## Out of scope, deliberately
 
 - **Authorization.** `requireAuth` (`apps/raincloud/server/middleware/auth.ts:16-79`) is the only session gate; with `REQUIRED_ROLE_ID` unset it grants every authenticated Discord user access to every destructive endpoint. `ServerSelector` also lists every guild the bot is in, not the user's guilds (`apps/raincloud/server/routes/api.ts:236-253`). Both are real, both need backend work, neither belongs in a layout change.
