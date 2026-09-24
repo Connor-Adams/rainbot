@@ -7,6 +7,7 @@
 export const RainbotAttr = Object.freeze({
   guildId: 'rainbot.guild_id',
   userId: 'rainbot.user_id',
+  commandName: 'rainbot.command_name',
   worker: 'rainbot.worker',
   sound: 'rainbot.sound',
   trackUrl: 'rainbot.track_url',

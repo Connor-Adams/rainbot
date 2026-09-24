@@ -1,6 +1,14 @@
 // Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
 // so path aliases (dist/, apps/raincloud/) resolve correctly.
 
+// dotenv first, ahead of the telemetry bootstrap below: startTelemetry() reads
+// OTEL_SDK_DISABLED and OTEL_EXPORTER_OTLP_ENDPOINT synchronously at call time,
+// so a value set only in a local .env (e.g. the OTEL_SDK_DISABLED=true escape
+// hatch) must already be in process.env before that call, not after it.
+// dotenv itself is not a module OpenTelemetry auto-instruments, so loading it
+// first has no effect on tracing.
+const dotenvResult = require('dotenv').config();
+
 // Telemetry first: auto-instrumentation patches http/express/redis/etc at require
 // time, so anything required above this line (including the @alias monkeypatch
 // below, which is what pulls in discord.js/express/redis) is invisible to tracing.
@@ -11,7 +19,6 @@ console.log('[Raincloud] Process starting');
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
-const dotenvResult = require('dotenv').config();
 if (dotenvResult.error) {
   // .env file doesn't exist - that's fine, we'll use system env vars
 } else if (dotenvResult.parsed) {

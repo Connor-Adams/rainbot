@@ -6,6 +6,7 @@ const { createLogger } = require('@rainbot/utils/logger');
 const { listSounds } = require('@rainbot/utils/storage');
 const stats = require('@rainbot/utils/statistics');
 const { searchSounds } = require('@rainbot/utils');
+const { withSpan, RainbotAttr } = require('@rainbot/observability/node');
 
 const log = createLogger('INTERACTION');
 
@@ -110,7 +111,37 @@ module.exports = {
     }
 
     try {
-      await command.execute(interaction);
+      // Root span for the whole command: Discord commands arrive over the
+      // gateway websocket, not HTTP, so nothing else roots a trace for them.
+      // Without this, the first span raincloud creates is the client-side
+      // `worker.rpc` span in packages/rpc/src/client.ts, and everything
+      // before that (Redis/Postgres/embed work) shows up as disconnected,
+      // single-span traces. Everything `command.execute` does — including
+      // the downstream worker RPC — becomes a child of this span because
+      // OpenTelemetry's context manager propagates the active span through
+      // the awaited call chain.
+      //
+      // Note on the resolve-with-failure-value trap: withSpan only marks
+      // ERROR when the wrapped call throws. Several commands (e.g.
+      // commands/voice/play.js) catch their own errors internally and reply
+      // with an error embed, resolving normally rather than throwing — so
+      // this span (and the legacy `stats.trackCommand` success flag below,
+      // which has the same blind spot already) won't see those as failures.
+      // There's no generic signal to inspect here: `command.execute` is a
+      // heterogeneous, untyped Discord.js handler with no result value, so
+      // unlike `packages/rpc/src/trpc.ts` or `voiceRpcHandlers.ts` there is
+      // nothing shaped like `{ status: 'error' }` to check via
+      // `trace.getActiveSpan()`. Only a genuine throw (handled by the catch
+      // block below) marks this span ERROR.
+      await withSpan(
+        'command.execute',
+        {
+          [RainbotAttr.commandName]: interaction.commandName,
+          [RainbotAttr.guildId]: interaction.guildId,
+          [RainbotAttr.userId]: interaction.user.id,
+        },
+        () => command.execute(interaction)
+      );
       log.debug(`Executed: ${interaction.commandName} by ${interaction.user.tag}`);
 
       const responseTime = Date.now() - startTime;
