@@ -5,6 +5,7 @@ import type { ListeningHistoryEntry } from '@/types';
 import { escapeHtml, formatDurationLong } from '@/lib/utils';
 import { StatsLoading, StatsError, StatsSection } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
+import { Button } from '@/components/ui';
 
 export default function HistoryStats() {
   const { selectedGuildId } = useGuildStore();
@@ -51,9 +52,9 @@ export default function HistoryStats() {
           className="px-4 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="End date"
         />
-        <button className="btn btn-secondary px-4 py-2 w-full sm:w-auto" onClick={handleFilter}>
+        <Button variant="secondary" className="px-4 py-2 w-full sm:w-auto" onClick={handleFilter}>
           Filter
-        </button>
+        </Button>
       </div>
       <div className="history-list overflow-x-auto">
         {history.length === 0 ? (

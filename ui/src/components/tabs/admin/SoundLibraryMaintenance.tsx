@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
 import { soundsApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { Button } from '@/components/ui';
 
 type SweepResult = {
   converted: number;
@@ -89,14 +90,14 @@ export default function SoundLibraryMaintenance() {
         <div className="text-xs text-text-secondary mb-4">
           Re-encode all sounds to Ogg Opus and archive non-Ogg originals.
         </div>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
+          variant="primary"
           onClick={() => setSweepDialogOpen(true)}
           disabled={sweepRunning}
         >
           {sweepRunning ? 'Working...' : 'Run Transcode Sweep'}
-        </button>
+        </Button>
         {sweepMutation.isError && (
           <div className="mt-3 text-xs text-danger-light">Failed to start sweep.</div>
         )}
@@ -115,14 +116,14 @@ export default function SoundLibraryMaintenance() {
           tags and a transcript so it can be found by what it sounds like or by what is said in it.
           Leaves audio files untouched.
         </div>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
+          variant="primary"
           onClick={() => analyzeSweepMutation.mutate({ force: false })}
           disabled={analyzeRunning}
         >
           {analyzeRunning ? 'Analyzing...' : 'Analyze sounds for search'}
-        </button>
+        </Button>
         {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
       </div>
 
@@ -134,14 +135,14 @@ export default function SoundLibraryMaintenance() {
           only, keeping the sound itself bit-for-bit identical and its name unchanged. A copy of
           every original is archived first.
         </div>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
+          variant="primary"
           onClick={() => setStripVideoDialogOpen(true)}
           disabled={stripVideoRunning}
         >
           {stripVideoRunning ? 'Rewriting...' : 'Strip video from sounds'}
-        </button>
+        </Button>
         {stripVideoResult && (
           <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
         )}

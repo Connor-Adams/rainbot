@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import type { ReactNode } from 'react';
+import { Button } from '@/components/ui';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -61,9 +62,9 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
               </pre>
             </details>
           )}
-          <button onClick={this.handleRetry} className="btn btn-primary">
+          <Button onClick={this.handleRetry} variant="primary">
             Try Again
-          </button>
+          </Button>
         </div>
       );
     }

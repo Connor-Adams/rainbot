@@ -1153,22 +1153,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@connor-adams/designsystem@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "@connor-adams/designsystem@npm:1.0.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Fdesignsystem%2F1.0.0%2F6f427bce7bbb143a728a28bc4441b77dd50cc167"
+"@connor-adams/designsystem@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@connor-adams/designsystem@npm:2.0.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Fdesignsystem%2F2.0.0%2F928913f395ba68d2263ec0a1778c1854457749ca"
   dependencies:
-    "@connor-adams/tokens": "npm:0.1.1"
+    "@connor-adams/tokens": "npm:0.2.0"
   peerDependencies:
     react: ">=18"
     react-dom: ">=18"
-  checksum: 10c0/05abc2723d07fa2309373e92f83a2d4c66c344bf812de7e7b07f0c8070179f7919f80ce8cecf6b2ab3d91db2abd9d2611355a75bf52468f935ce47e0f4c67619
+  checksum: 10c0/82ec7c40b79e6d2240f455af468d3d56bb573236a4ca839f146b2f462a87380a0bd74844690b02677a5567b48f1572727862dae4c121c37c7a07b38a42ae4011
   languageName: node
   linkType: hard
 
-"@connor-adams/tokens@npm:0.1.1, @connor-adams/tokens@npm:^0.1.0":
-  version: 0.1.1
-  resolution: "@connor-adams/tokens@npm:0.1.1::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Ftokens%2F0.1.1%2F98325711f1a3aff1d7a77c64e1766dfcf9669720"
-  checksum: 10c0/aa128bd5845ae93d12dfe76a4da4e29b7f00f4837cc6efba7890bd47f236a7f9c695dd1a7b8383b6438e318fe52d682f1c3635b5778be1140376491d921cc489
+"@connor-adams/tokens@npm:0.2.0, @connor-adams/tokens@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@connor-adams/tokens@npm:0.2.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Ftokens%2F0.2.0%2F97ce2223e8e5ad9913cdfd824628d9f974836079"
+  checksum: 10c0/f2a1c2e7f9d0e7da732bd6b565d9c92ac6d0f6b27ac676af03193aa7aba15b891a8ff0b9118864874d718602b0f649412eb500431ef3705877de2efcbfe68b35
   languageName: node
   linkType: hard
 
@@ -4064,8 +4064,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/ui@workspace:ui"
   dependencies:
-    "@connor-adams/designsystem": "npm:^1.0.0"
-    "@connor-adams/tokens": "npm:^0.1.0"
+    "@connor-adams/designsystem": "npm:^2.0.0"
+    "@connor-adams/tokens": "npm:^0.2.0"
     "@eslint/js": "npm:^9.39.1"
     "@rainbot/protocol": "npm:*"
     "@rainbot/shared": "npm:*"

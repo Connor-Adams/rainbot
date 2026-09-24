@@ -105,7 +105,7 @@ export default function RecordingsTab() {
         <h2 className="text-xl sm:text-2xl font-bold text-text-primary">Voice Recordings</h2>
         <button
           onClick={loadRecordings}
-          className="px-4 py-2 bg-surface-light text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
+          className="px-4 py-2 bg-surface-elevated text-text-primary rounded-lg hover:bg-surface-hover transition-colors w-full sm:w-auto"
         >
           Refresh
         </button>
@@ -115,7 +115,7 @@ export default function RecordingsTab() {
         {recordings.map((recording) => (
           <div
             key={recording.name}
-            className="bg-surface-light rounded-lg p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-surface-lighter transition-colors"
+            className="bg-surface-elevated rounded-lg p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-surface-hover transition-colors"
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -131,13 +131,13 @@ export default function RecordingsTab() {
               <button
                 onClick={() => playRecording(recording.name)}
                 disabled={playing === recording.name}
-                className="px-3 py-2 bg-primary text-text-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors w-full sm:w-auto"
+                className="px-3 py-2 bg-primary text-text-primary rounded-lg hover:bg-primary-dark disabled:opacity-50 transition-colors w-full sm:w-auto"
               >
                 {playing === recording.name ? 'Playing...' : 'Play'}
               </button>
               <button
                 onClick={() => downloadRecording(recording.name)}
-                className="px-3 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface-lighter transition-colors w-full sm:w-auto"
+                className="px-3 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface-hover transition-colors w-full sm:w-auto"
               >
                 Download
               </button>

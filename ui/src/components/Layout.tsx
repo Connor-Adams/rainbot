@@ -2,11 +2,9 @@ import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '../stores/authStore';
-import { useToast } from '../hooks/useToast';
 
 export default function Layout() {
   const { user, logout } = useAuthStore();
-  const { ToastContainer } = useToast();
 
   return (
     <div className="app flex flex-col min-h-screen">
@@ -17,7 +15,6 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
-      <ToastContainer />
     </div>
   );
 }

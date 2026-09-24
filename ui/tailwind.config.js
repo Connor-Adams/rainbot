@@ -5,24 +5,38 @@ export default {
     extend: {
       colors: {
         // Values come from the design system's semantic layer; Rainbot's brand
-        // re-points those tokens in src/styles/rainbot-brand.css. Class names
-        // here (bg-surface, text-text-secondary, border-border) are unchanged,
-        // so component code does not move — only where the colour comes from.
+        // re-points a subset of those tokens upstream, in
+        // @connor-adams/tokens/brands/rainbot.css. Class names here
+        // (bg-surface, text-text-secondary, border-border) are unchanged, so
+        // component code does not move — only where the colour comes from.
+        //
+        // The brand is a DELTA: it names the hues and lets surfaces, borders and
+        // greys fall through to the active theme. So anything below that needs a
+        // step the semantic layer has no name for is derived with color-mix from
+        // a token, never hardcoded — that is what keeps it following the brand.
         primary: {
           DEFAULT: 'var(--primary)',
           light: 'var(--rb-blue-400)',
           dark: 'var(--primary-hover)',
           glow: 'color-mix(in oklch, var(--primary) 40%, transparent)',
         },
+        // Rainbot's second brand hue. Deliberately NOT --secondary: that token
+        // means "quiet neutral chip surface" to every component that reads it,
+        // so re-pointing it at a saturated colour would make the design
+        // system's own secondary surfaces violet. The brand exposes the hue as a
+        // primitive instead.
         secondary: {
-          DEFAULT: 'var(--secondary)',
+          DEFAULT: 'var(--rb-violet-500)',
           light: 'var(--rb-violet-400)',
-          dark: 'var(--secondary-hover)',
+          dark: 'color-mix(in oklch, var(--rb-violet-500) 85%, black)',
         },
+        // Same reasoning as secondary: --accent is the design system's subtle
+        // hover FILL (Button outline/ghost read it as a background), not a hue.
+        // Rainbot's pink comes from the primitive.
         accent: {
-          DEFAULT: 'var(--accent)',
+          DEFAULT: 'var(--rb-pink-500)',
           light: 'var(--rb-pink-400)',
-          dark: 'var(--rb-pink-600)',
+          dark: 'color-mix(in oklch, var(--rb-pink-500) 85%, black)',
         },
         surface: {
           DEFAULT: 'var(--card)',
@@ -36,14 +50,14 @@ export default {
         },
         border: {
           DEFAULT: 'var(--border)',
-          hover: 'var(--rb-ink-600)',
+          hover: 'color-mix(in oklch, var(--border) 70%, var(--muted-foreground))',
           focus: 'var(--ring)',
         },
         text: {
           primary: 'var(--foreground)',
           secondary: 'var(--muted-foreground)',
-          muted: 'var(--rb-ink-400)',
-          disabled: 'var(--rb-ink-500)',
+          muted: 'color-mix(in oklch, var(--muted-foreground) 80%, var(--background))',
+          disabled: 'color-mix(in oklch, var(--muted-foreground) 55%, var(--background))',
         },
         success: {
           DEFAULT: 'var(--success)',
@@ -63,10 +77,10 @@ export default {
           dark: 'color-mix(in oklch, var(--warning) 80%, black)',
         },
         info: {
-          DEFAULT: '#06b6d4', // cyan-500
-          light: '#22d3ee',
-          dark: '#0891b2', // cyan-600
-          glow: 'rgba(6, 182, 212, 0.3)',
+          DEFAULT: 'var(--info)',
+          light: 'color-mix(in oklch, var(--info) 75%, white)',
+          dark: 'color-mix(in oklch, var(--info) 80%, black)',
+          glow: 'color-mix(in oklch, var(--info) 30%, transparent)',
         },
       },
       fontFamily: {
@@ -74,10 +88,10 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        glow: '0 0 20px rgba(59, 130, 246, 0.4)',
-        'glow-strong': '0 0 30px rgba(59, 130, 246, 0.6)',
-        'glow-success': '0 0 20px rgba(16, 185, 129, 0.4)',
-        'glow-danger': '0 0 20px rgba(239, 68, 68, 0.4)',
+        glow: '0 0 20px color-mix(in oklch, var(--primary) 40%, transparent)',
+        'glow-strong': '0 0 30px color-mix(in oklch, var(--primary) 60%, transparent)',
+        'glow-success': '0 0 20px color-mix(in oklch, var(--success) 40%, transparent)',
+        'glow-danger': '0 0 20px color-mix(in oklch, var(--danger) 40%, transparent)',
       },
       zIndex: {
         header: '50',

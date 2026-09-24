@@ -4,10 +4,12 @@ import { Button as DSButton, Spinner } from '@connor-adams/designsystem';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  /** `icon` is a square control for icon-only buttons with no visible label. */
+  size?: 'sm' | 'md' | 'lg' | 'icon';
   isLoading?: boolean;
   icon?: ReactNode;
-  children: ReactNode;
+  /** Optional so icon-only buttons can pass just `icon`, or an icon as children. */
+  children?: ReactNode;
 }
 
 // Rainbot's variant/size names predate the design system; map them onto its API
@@ -23,6 +25,8 @@ const SIZE_MAP = {
   sm: 'sm',
   md: 'default',
   lg: 'lg',
+  // The design system's 40x40 square — the icon-only affordance.
+  icon: 'icon',
 } as const;
 
 /**
