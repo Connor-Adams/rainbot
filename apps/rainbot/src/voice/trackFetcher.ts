@@ -15,7 +15,7 @@ import {
   recordTrackResolveFailure,
   RainbotAttr,
 } from '@rainbot/observability/node';
-import { getYtdlpOptions } from './audioResource';
+import { getYtdlpOptions, classifyYtdlpFailure } from './audioResource';
 
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
@@ -133,7 +133,7 @@ export async function fetchTracks(source: string, _guildId?: string): Promise<Tr
           recordTrackResolveFailure({
             [RainbotAttr.trackSource]: 'youtube',
             [RainbotAttr.extractionPath]: 'metadata',
-            [RainbotAttr.outcome]: error instanceof Error ? error.name : 'unknown',
+            [RainbotAttr.outcome]: classifyYtdlpFailure(error),
           });
           // Keep existing title/duration
         }

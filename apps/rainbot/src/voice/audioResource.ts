@@ -95,6 +95,58 @@ async function createVolumeResource(
   );
 }
 
+/**
+ * Shared failure vocabulary for `RainbotAttr.outcome` on a track-resolve
+ * failure, used by every yt-dlp call site (pipe, get-url, metadata) so a
+ * single Grafana breakdown reads as one thing instead of three. `error.name`
+ * on a youtube-dl-exec rejection is almost always the literal string "Error"
+ * — it discards the one thing that actually says what happened: exit code or
+ * stderr. Priority, most to least specific:
+ *   1. a recognised stderr/message pattern — 'bot_check' | 'video_unavailable'
+ *      | 'network_error' (bot checks and IP/network refusals are exactly the
+ *      yt-dlp rot docs/YOUTUBE_403_FIX.md describes)
+ *   2. `exit_<code>` — a numeric non-zero exit code with no recognised
+ *      pattern. This is the only signal available on the pipe path: its
+ *      rejection never carries stderr text (see createTrackResourcePipe).
+ *   3. 'spawn_error' — the yt-dlp binary itself could not be spawned (ENOENT)
+ *   4. `error.name` — last resort, for a genuinely unclassified error
+ *   5. 'unknown' — not even an Error instance
+ */
+export function classifyYtdlpFailure(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const err = error as {
+      exitCode?: unknown;
+      code?: unknown;
+      stderr?: unknown;
+      message?: unknown;
+      name?: unknown;
+    };
+    const haystack = [err.stderr, err.message]
+      .filter((value): value is string => typeof value === 'string')
+      .join('\n');
+
+    if (/sign in to confirm|not a bot|login_required/i.test(haystack)) {
+      return 'bot_check';
+    }
+    if (/video (is )?unavailable|this video is (private|unavailable)/i.test(haystack)) {
+      return 'video_unavailable';
+    }
+    if (/ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|network error/i.test(haystack)) {
+      return 'network_error';
+    }
+    if (typeof err.exitCode === 'number' && err.exitCode !== 0) {
+      return `exit_${err.exitCode}`;
+    }
+    if (err.code === 'ENOENT') {
+      return 'spawn_error';
+    }
+    if (typeof err.name === 'string' && err.name) {
+      return err.name;
+    }
+  }
+  return error instanceof Error ? error.name : 'unknown';
+}
+
 async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> {
   const cacheKey = seekSeconds > 0 ? `${videoUrl}#seek=${seekSeconds}` : videoUrl;
   const cached = urlCache.get(cacheKey);
@@ -129,7 +181,7 @@ async function getStreamUrl(videoUrl: string, seekSeconds = 0): Promise<string> 
     recordTrackResolveFailure({
       [RainbotAttr.trackSource]: 'youtube',
       [RainbotAttr.extractionPath]: 'get-url',
-      [RainbotAttr.outcome]: error instanceof Error ? error.name : 'unknown',
+      [RainbotAttr.outcome]: classifyYtdlpFailure(error),
     });
     throw error;
   }
@@ -195,6 +247,7 @@ async function createTrackResourceAsync(
           [RainbotAttr.streamType]: StreamType.Arbitrary,
           [RainbotAttr.transcoded]: true,
           [RainbotAttr.trackSource]: track.sourceType ?? 'unknown',
+          [RainbotAttr.resolutionPath]: 'yt-dlp-async-fetch',
         },
         async () =>
           createAudioResource(nodeStream, {
@@ -260,32 +313,73 @@ async function createTrackResourcePipe(
     log.warn(`yt-dlp pipe stdout error: ${err.message}`);
   });
 
+  const resolveAttrs = {
+    [RainbotAttr.trackSource]: 'youtube',
+    [RainbotAttr.extractionPath]: 'pipe',
+  };
+
+  // Time to first stdout byte is the real resolve latency for this path — it
+  // moves with actual yt-dlp health (extraction retries, slow format
+  // negotiation), unlike PIPE_START_TIMEOUT_MS below, which is a fixed
+  // fallback deadline and must stay constant regardless of how fast yt-dlp
+  // actually is. Captured independently of the race so a byte that arrives
+  // before the race resolves is still timed correctly.
+  let firstByteAt: number | null = null;
+  subprocess.stdout?.once('data', () => {
+    firstByteAt ??= Date.now();
+  });
+
   // No exception crosses this boundary on failure — a dead-on-arrival or
   // erroring subprocess resolves to 'exited'/'failed' rather than rejecting,
   // so withSpan (which only reacts to a thrown/rejected fn) would see this as
   // a clean, unremarkable return. Record resolve outcome directly instead of
   // relying on withSpan's exception-based error detection.
   const started = Date.now();
-  const outcome = await Promise.race([
-    subprocess.then(() => 'exited' as const).catch(() => 'failed' as const),
-    new Promise<'timeout'>((resolve) =>
-      setTimeout(() => resolve('timeout'), PIPE_START_TIMEOUT_MS)
+  const raceResult = await Promise.race([
+    subprocess
+      .then(() => ({ kind: 'exited' as const }))
+      .catch((err: unknown) => ({ kind: 'failed' as const, err })),
+    new Promise<{ kind: 'timeout' }>((resolve) =>
+      setTimeout(() => resolve({ kind: 'timeout' }), PIPE_START_TIMEOUT_MS)
     ),
   ]);
 
-  if (outcome !== 'timeout') {
-    log.debug(`yt-dlp pipe ${outcome} within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
+  if (raceResult.kind !== 'timeout') {
+    log.debug(`yt-dlp pipe ${raceResult.kind} within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
     recordTrackResolveFailure({
-      [RainbotAttr.trackSource]: 'youtube',
-      [RainbotAttr.extractionPath]: 'pipe',
-      [RainbotAttr.outcome]: outcome,
+      ...resolveAttrs,
+      [RainbotAttr.outcome]:
+        raceResult.kind === 'exited' ? 'exited' : classifyYtdlpFailure(raceResult.err),
     });
     return null;
   }
 
-  recordTrackResolve(Date.now() - started, {
-    [RainbotAttr.trackSource]: 'youtube',
-    [RainbotAttr.extractionPath]: 'pipe',
+  // Subprocess is still alive past the start window, so this function will
+  // return it as the resource: record the real resolve duration now (or as
+  // soon as the first byte actually arrives, if it hasn't yet), and keep
+  // listening for a later failure. A yt-dlp process that dies mid-stream
+  // after this point — network retry exhausted, extraction fallback failed —
+  // is exactly what rot looks like, and must still increment the failure
+  // counter even though this function is about to return a "successful"
+  // resource. This can never double-count against the recordTrackResolveFailure
+  // call above: that branch only runs when the subprocess promise has already
+  // settled, which is mutually exclusive with reaching this point.
+  if (firstByteAt !== null) {
+    recordTrackResolve(firstByteAt - started, resolveAttrs);
+  } else {
+    subprocess.stdout?.once('data', () => {
+      recordTrackResolve((firstByteAt ?? Date.now()) - started, resolveAttrs);
+    });
+  }
+  subprocess.catch((err: unknown) => {
+    try {
+      recordTrackResolveFailure({
+        ...resolveAttrs,
+        [RainbotAttr.outcome]: classifyYtdlpFailure(err),
+      });
+    } catch (telemetryError) {
+      log.debug(`telemetry recordTrackResolveFailure threw: ${telemetryError}`);
+    }
   });
 
   return withSpan(
@@ -294,6 +388,7 @@ async function createTrackResourcePipe(
       [RainbotAttr.streamType]: StreamType.Arbitrary,
       [RainbotAttr.transcoded]: true,
       [RainbotAttr.trackSource]: track.sourceType ?? 'unknown',
+      [RainbotAttr.resolutionPath]: 'yt-dlp-pipe',
     },
     async () =>
       createAudioResource(subprocess.stdout as Readable, {
