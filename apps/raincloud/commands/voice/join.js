@@ -5,7 +5,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { checkVoicePermissions, getMultiBotService } = require('../utils/commandHelpers');
 const { replyError, replyWorkerUnavailable } = require('../utils/responseBuilder');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('JOIN');
 
@@ -50,7 +50,7 @@ module.exports = {
         return;
       }
 
-      const voiceManager = require('../../dist/utils/voiceManager');
+      const voiceManager = require('@rainbot/utils/voiceManager');
       await voiceManager.joinChannel(voiceChannel);
       log.info(`Joined ${voiceChannel.name} in ${interaction.guild.name} (orchestrator only)`);
       await interaction.reply({

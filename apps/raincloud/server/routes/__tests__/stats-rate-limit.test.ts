@@ -4,11 +4,11 @@ import request from 'supertest';
 const ENV_BACKUP = { ...process.env };
 
 // Mock dependencies
-jest.mock('@utils/database', () => ({
+jest.mock('@rainbot/utils/database', () => ({
   query: jest.fn(async () => ({ rows: [] })),
 }));
 
-jest.mock('@utils/statistics', () => ({
+jest.mock('@rainbot/utils/statistics', () => ({
   statsEmitter: {
     on: jest.fn(),
     off: jest.fn(),

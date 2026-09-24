@@ -3,7 +3,7 @@
  */
 
 import { ActionRowBuilder, ButtonBuilder } from 'discord.js';
-import type { ButtonMetadata } from '@rainbot/types/buttons';
+import type { ButtonMetadata } from '@rainbot/protocol';
 import {
   createSuccessButton,
   createDangerButton,

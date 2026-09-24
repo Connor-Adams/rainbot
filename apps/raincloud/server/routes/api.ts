@@ -2,12 +2,20 @@ import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { Readable } from 'stream';
 import { spawn } from 'child_process';
-import * as voiceManager from '@utils/voiceManager';
-import * as storage from '@utils/storage';
-import { query } from '@utils/database';
+import * as voiceManager from '@rainbot/utils/voiceManager';
+import * as storage from '@rainbot/utils/storage';
+import { query } from '@rainbot/utils/database';
+import { deployCommands } from '@rainbot/utils/deployCommands';
+import {
+  searchSounds,
+  enqueueAnalyzeSound,
+  sweepAnalyzeSounds,
+  deleteAnalysis,
+} from '@rainbot/utils';
+import { normalizeProxyUrl, maskProxyUrl } from '@rainbot/shared';
 import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
-import * as stats from '@utils/statistics';
+import * as stats from '@rainbot/utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
 import {
   addQueueSubscriber,
@@ -322,10 +330,23 @@ const upload = multer({
   },
 });
 
+// Multer for YouTube cookies (single .txt file, max 256KB)
+const cookiesUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 256 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.txt$/i.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error('YouTube cookies must be a .txt file (Netscape format)'));
+    }
+  },
+});
+
 // GET /api/sounds - List all sounds
 router.get('/sounds', requireAuth, async (_req, res: Response) => {
   try {
-    const sounds = await voiceManager.listSounds();
+    const sounds = await storage.listSounds();
     res.json(sounds);
   } catch (error) {
     const err = error as Error;
@@ -357,6 +378,70 @@ router.get('/recordings', requireAuth, async (req, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+const MAX_SEARCH_LIMIT = 100;
+
+/** Exported for tests; mounted below as GET /api/sounds/search. */
+export async function searchSoundsHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const rawQuery = typeof req.query['q'] === 'string' ? req.query['q'] : '';
+    const rawLimit = Number(req.query['limit'] ?? 50);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_SEARCH_LIMIT)
+      : 50;
+
+    const sounds = await storage.listSounds();
+
+    const customizations = await query(`SELECT sound_name, display_name FROM sound_customizations`);
+    const displayNames = new Map<string, string | null>();
+    if (customizations) {
+      for (const row of customizations.rows as Array<{
+        sound_name: string;
+        display_name: string | null;
+      }>) {
+        displayNames.set(row.sound_name, row.display_name);
+      }
+    }
+
+    const results = await searchSounds({
+      query: rawQuery,
+      limit,
+      sounds: sounds.map((sound) => ({
+        name: sound.name,
+        displayName: displayNames.get(sound.name) ?? null,
+      })),
+    });
+
+    res.json({ results });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/sounds/search - Search sounds by name, transcript, or description
+// Registered ahead of /sounds/:name/* so "search" is never captured as a sound name.
+router.get('/sounds/search', requireAuth, searchSoundsHandler);
+
+// POST /api/sounds/analyze-sweep - Backfill analysis across the sound library
+router.post(
+  '/sounds/analyze-sweep',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const force = req.body?.force === true;
+      const rawLimit = Number(req.body?.limit || 0);
+      const result = await sweepAnalyzeSounds({
+        force,
+        limit: Number.isFinite(rawLimit) ? rawLimit : 0,
+      });
+      res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // GET /api/sounds/:name/download - Download a sound file
 router.get('/sounds/:name/download', requireAuth, async (req, res: Response) => {
@@ -435,6 +520,22 @@ router.post(
           originalName: file.originalname,
           size: file.size,
         });
+
+        // Analysis runs after the upload has been transcoded, since transcode
+        // rewrites the stored object. No `size` is passed on purpose: multer's
+        // file.size is the pre-transcode upload size, while the sweep compares
+        // the recorded source_size against the stored S3 object's size. Letting
+        // analyzeSound default to the length of the object it actually read
+        // keeps those two in the same unit, so an uploaded clip is not
+        // re-analyzed at full API cost on the next sweep.
+        //
+        // Queued rather than awaited: upload latency must not depend on an
+        // audio model, but a request may carry MAX_UPLOAD_FILES clips and
+        // firing them all at once would mean that many concurrent ffmpeg
+        // spawns on top of the transcode each upload already does. The queue
+        // shares the sweep's concurrency ceiling and absorbs its own
+        // rejections; a clip that fails is retried by the next sweep.
+        enqueueAnalyzeSound(filename);
       } catch (error) {
         const err = error as Error;
         errors.push({
@@ -468,9 +569,14 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
       res.status(400).json({ error: 'Sound name is required' });
       return;
     }
-    await voiceManager.deleteSound(filename);
+    await storage.deleteSound(filename);
     try {
       await deleteSoundCustomization(filename);
+    } catch {
+      // Best-effort cleanup if DB is unavailable.
+    }
+    try {
+      await deleteAnalysis(filename);
     } catch {
       // Best-effort cleanup if DB is unavailable.
     }
@@ -480,6 +586,115 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
     res.status(404).json({ error: err.message });
   }
 });
+
+// GET /api/settings/youtube-cookies - Check if YouTube cookies are configured
+router.get('/settings/youtube-cookies', requireAuth, async (_req, res: Response): Promise<void> => {
+  try {
+    const hasCookies = await storage.hasYoutubeCookies();
+    res.json({ hasCookies });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/youtube-cookies - Upload YouTube cookies (Netscape format)
+router.post(
+  '/settings/youtube-cookies',
+  requireAuth,
+  cookiesUpload.single('cookies'),
+  async (req: Request, res: Response): Promise<void> => {
+    const file = req.file;
+    if (!file || !file.buffer) {
+      res
+        .status(400)
+        .json({ error: 'No cookies file uploaded. Upload a .txt file (Netscape format).' });
+      return;
+    }
+    try {
+      await storage.uploadYoutubeCookies(file.buffer);
+      res.json({ message: 'YouTube cookies saved. Rainbot will use them on next fetch.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// DELETE /api/settings/youtube-cookies - Remove stored YouTube cookies
+router.delete(
+  '/settings/youtube-cookies',
+  requireAuth,
+  async (_req, res: Response): Promise<void> => {
+    try {
+      await storage.deleteYoutubeCookies();
+      res.json({ message: 'YouTube cookies removed.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/settings/youtube-proxy - Current outbound proxy, password redacted
+router.get('/settings/youtube-proxy', requireAuth, async (_req, res: Response): Promise<void> => {
+  try {
+    const proxyUrl = await storage.getYoutubeProxy();
+    // The stored value usually embeds credentials, so only the redacted form
+    // ever leaves the server.
+    res.json({
+      hasProxy: proxyUrl !== null,
+      proxyUrl: proxyUrl ? maskProxyUrl(proxyUrl) : null,
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/youtube-proxy - Set the outbound proxy used for YouTube
+router.put(
+  '/settings/youtube-proxy',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const raw = typeof req.body?.proxyUrl === 'string' ? req.body.proxyUrl : '';
+
+    let proxyUrl: string;
+    try {
+      proxyUrl = normalizeProxyUrl(raw);
+    } catch (error) {
+      // ProxyUrlError messages describe the problem without echoing the value.
+      res.status(400).json({ error: (error as Error).message });
+      return;
+    }
+
+    try {
+      await storage.setYoutubeProxy(proxyUrl);
+      res.json({
+        message: 'Proxy saved. Rainbot picks it up within a few minutes.',
+        proxyUrl: maskProxyUrl(proxyUrl),
+      });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// DELETE /api/settings/youtube-proxy - Stop proxying YouTube requests
+router.delete(
+  '/settings/youtube-proxy',
+  requireAuth,
+  async (_req, res: Response): Promise<void> => {
+    try {
+      await storage.deleteYoutubeProxy();
+      res.json({ message: 'Proxy removed. Rainbot goes direct within a few minutes.' });
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // PUT /api/sounds/:name/customization - Set display name/emoji for a sound
 router.put(
@@ -558,6 +773,59 @@ router.post(
         limit: Number.isFinite(limit) ? limit : 0,
       });
       res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/sounds/strip-video-sweep - Re-mux stored Ogg clips that carry a
+// video stream down to audio only, archiving each original first.
+router.post(
+  '/sounds/strip-video-sweep',
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const dryRun = req.body?.dryRun === true;
+      const limit = Number(req.body?.limit || 0);
+      const result = await storage.sweepStripSoundVideo({
+        dryRun,
+        limit: Number.isFinite(limit) ? limit : 0,
+      });
+      res.json(result);
+    } catch (error) {
+      const err = error as Error;
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/deploy-commands - Redeploy Discord slash commands
+router.post(
+  '/deploy-commands',
+  requireAuth,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const { loadConfig } = require('@rainbot/utils/config');
+      const config = loadConfig();
+      if (!config.token || !config.clientId) {
+        res.status(503).json({
+          error:
+            'Bot token or client ID not configured. Set DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID.',
+        });
+        return;
+      }
+      const data = await deployCommands(config.token, config.clientId, config.guildId ?? null);
+      if (!data) {
+        res.status(500).json({ error: 'No commands found to deploy' });
+        return;
+      }
+      res.json({
+        message: `Successfully deployed ${data.length} command(s)`,
+        count: data.length,
+        guildId: config.guildId ?? null,
+      });
     } catch (error) {
       const err = error as Error;
       res.status(500).json({ error: err.message });
@@ -770,6 +1038,446 @@ router.post(
   }
 );
 
+// POST /api/grok-chat - Send text to Grok and get (optionally speak) reply
+router.post(
+  '/grok-chat',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, text, speak: speakReply } = req.body;
+
+    if (!guildId || text == null || String(text).trim() === '') {
+      res.status(400).json({ error: 'guildId and text are required' });
+      return;
+    }
+
+    try {
+      const { id: userId } = getAuthUser(req);
+      const effectiveUserId = userId || 'unknown';
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+
+      const result = await multiBot.grokChat(guildId, effectiveUserId, String(text).trim(), {
+        speakReply: !!speakReply,
+      });
+      if (!result.success) {
+        throw new Error(result.message || 'Grok chat failed');
+      }
+      res.json({ reply: result.reply ?? '', message: result.reply ? 'OK' : result.message });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/conversation-mode/:guildId - Get Grok conversation mode for the guild
+router.get(
+  '/conversation-mode/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const enabled = await multiBot.getVoiceStateManager().getConversationMode(guildId);
+      res.json({ enabled });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/conversation-mode - Turn Grok conversation mode on or off for the guild
+router.post(
+  '/conversation-mode',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, enabled } = req.body;
+    if (!guildId || typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'guildId and enabled (boolean) are required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const voiceStateManager = multiBot.getVoiceStateManager();
+      await voiceStateManager.setConversationMode(guildId, userId, enabled);
+      // When turning on Grok conversation, enable voice interaction for this guild so the bot
+      // actually starts listening when you join the VC (otherwise nothing happens).
+      if (enabled) {
+        await voiceStateManager.setVoiceInteractionEnabled(guildId, true);
+      }
+      res.json({ enabled });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/grok-voice/:guildId - Get Grok Voice Agent voice for the current user in the guild
+router.get(
+  '/grok-voice/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const voice = await multiBot.getVoiceStateManager().getGrokVoice(guildId, userId);
+      res.json({ voice: voice ?? null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/grok-voice - Set Grok Voice Agent voice for the current user in the guild
+router.post(
+  '/grok-voice',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, voice } = req.body;
+    if (!guildId || typeof voice !== 'string' || !voice.trim()) {
+      res.status(400).json({ error: 'guildId and voice (string) are required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      await multiBot.getVoiceStateManager().setGrokVoice(guildId, userId, voice.trim());
+      res.json({ voice: voice.trim() });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Built-in Grok personas (id and name for list; full content lives in Pranjeet).
+const BUILT_IN_PERSONAS = [
+  { id: 'default', name: 'Convenience store philosopher', isBuiltIn: true as const },
+];
+
+const PERSONA_NAME_MAX = 100;
+const PERSONA_SYSTEM_PROMPT_MAX = 20_000;
+
+// GET /api/grok-persona/:guildId - Get selected Grok persona for the current user in the guild
+router.get(
+  '/grok-persona/:guildId',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const guildId = getParamValue(req.params['guildId']);
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const personaId = await multiBot.getVoiceStateManager().getGrokPersona(guildId, userId);
+      res.json({ personaId: personaId ?? null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/grok-persona - Set selected Grok persona for the current user in the guild
+router.post(
+  '/grok-persona',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, personaId } = req.body;
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    try {
+      const { id: userId } = getAuthUser(req);
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+      const value = typeof personaId === 'string' ? personaId : '';
+      await multiBot.getVoiceStateManager().setGrokPersona(guildId, userId, value);
+      res.json({ personaId: value || null });
+    } catch (error) {
+      const err = error as Error;
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/personas - List built-in + current user's custom personas
+router.get('/personas', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const customResult = await query(
+      `SELECT id, name FROM grok_personas WHERE user_id = $1 ORDER BY created_at ASC`,
+      [userId]
+    );
+    const custom = (customResult?.rows ?? []).map((r: { id: string; name: string }) => ({
+      id: r.id,
+      name: r.name,
+      isBuiltIn: false as const,
+    }));
+    res.json({
+      personas: [...BUILT_IN_PERSONAS, ...custom],
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/personas/:id - Get one persona (built-in or custom owned by user)
+router.get('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const builtIn = BUILT_IN_PERSONAS.find((p) => p.id === id);
+    if (builtIn) {
+      res.json({ id: builtIn.id, name: builtIn.name, isBuiltIn: true, systemPrompt: null });
+      return;
+    }
+    const result = await query(
+      `SELECT id, name, system_prompt FROM grok_personas WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+    const row = result?.rows?.[0] as
+      | { id: string; name: string; system_prompt: string }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    res.json({
+      id: row.id,
+      name: row.name,
+      isBuiltIn: false,
+      systemPrompt: row.system_prompt,
+    });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/personas - Create custom persona
+router.post('/personas', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { name, systemPrompt } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+  if (!systemPrompt || typeof systemPrompt !== 'string') {
+    res.status(400).json({ error: 'systemPrompt is required' });
+    return;
+  }
+  const trimmedName = name.trim();
+  const trimmedPrompt = systemPrompt.trim();
+  if (trimmedName.length > PERSONA_NAME_MAX) {
+    res.status(400).json({ error: `name must be at most ${PERSONA_NAME_MAX} characters` });
+    return;
+  }
+  if (trimmedPrompt.length > PERSONA_SYSTEM_PROMPT_MAX) {
+    res.status(400).json({
+      error: `systemPrompt must be at most ${PERSONA_SYSTEM_PROMPT_MAX} characters`,
+    });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    const insertResult = await query(
+      `INSERT INTO grok_personas (user_id, name, system_prompt) VALUES ($1, $2, $3) RETURNING id, name`,
+      [userId, trimmedName, trimmedPrompt]
+    );
+    const row = insertResult?.rows?.[0] as { id: string; name: string } | undefined;
+    if (!row) {
+      res.status(500).json({ error: 'Failed to create persona' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().setCustomPersonaCache(row.id, {
+        id: row.id,
+        name: row.name,
+        systemPrompt: trimmedPrompt,
+      });
+    }
+    res.status(201).json({ id: row.id, name: row.name });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /api/personas/:id - Update custom persona
+router.put('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { name, systemPrompt } = req.body;
+  const trimmedName = name != null && typeof name === 'string' ? name.trim() : undefined;
+  const trimmedPrompt =
+    systemPrompt != null && typeof systemPrompt === 'string' ? systemPrompt.trim() : undefined;
+  if (trimmedName !== undefined && trimmedName.length > PERSONA_NAME_MAX) {
+    res.status(400).json({ error: `name must be at most ${PERSONA_NAME_MAX} characters` });
+    return;
+  }
+  if (trimmedPrompt !== undefined && trimmedPrompt.length > PERSONA_SYSTEM_PROMPT_MAX) {
+    res.status(400).json({
+      error: `systemPrompt must be at most ${PERSONA_SYSTEM_PROMPT_MAX} characters`,
+    });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    if (BUILT_IN_PERSONAS.some((p) => p.id === id)) {
+      res.status(403).json({ error: 'Cannot edit built-in persona' });
+      return;
+    }
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+    if (trimmedName !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      params.push(trimmedName);
+    }
+    if (trimmedPrompt !== undefined) {
+      updates.push(`system_prompt = $${paramIndex++}`);
+      params.push(trimmedPrompt);
+    }
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'Provide name or systemPrompt to update' });
+      return;
+    }
+    params.push(id, userId);
+    const result = await query(
+      `UPDATE grok_personas SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex} RETURNING id, name, system_prompt`,
+      params
+    );
+    const row = result?.rows?.[0] as
+      | { id: string; name: string; system_prompt: string }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().setCustomPersonaCache(row.id, {
+        id: row.id,
+        name: row.name,
+        systemPrompt: row.system_prompt,
+      });
+    }
+    res.json({ id: row.id, name: row.name });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /api/personas/:id - Delete custom persona
+router.delete('/personas/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = getParamValue(req.params['id']);
+  if (!id) {
+    res.status(400).json({ error: 'id is required' });
+    return;
+  }
+  const { id: userId } = getAuthUser(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  try {
+    if (BUILT_IN_PERSONAS.some((p) => p.id === id)) {
+      res.status(403).json({ error: 'Cannot delete built-in persona' });
+      return;
+    }
+    const result = await query(
+      `DELETE FROM grok_personas WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [id, userId]
+    );
+    if (!result || result.rowCount === 0) {
+      res.status(404).json({ error: 'Persona not found' });
+      return;
+    }
+    const multiBot = getMultiBotService();
+    if (multiBot) {
+      await multiBot.getVoiceStateManager().deleteCustomPersonaCache(id);
+    }
+    res.status(204).send();
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // POST /api/stop - Stop playback
 router.post(
   '/stop',
@@ -907,6 +1615,70 @@ router.post(
       if (userId) {
         stats.trackCommand(
           'replay',
+          userId,
+          guildId,
+          'api',
+          false,
+          err.message,
+          username,
+          discriminator
+        );
+      }
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/autoplay - Toggle (or query) autoplay mode
+router.post(
+  '/autoplay',
+  requireAuth,
+  requireGuildMember,
+  async (req: Request, res: Response): Promise<void> => {
+    const { guildId, enabled } = req.body;
+
+    if (!guildId) {
+      res.status(400).json({ error: 'guildId is required' });
+      return;
+    }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    try {
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      const multiBot = requireMultiBot(res);
+      if (!multiBot) return;
+
+      const result = await multiBot.toggleAutoplay(guildId, enabled);
+      if (result.success) {
+        if (userId) {
+          stats.trackCommand(
+            'autoplay',
+            userId,
+            guildId,
+            'api',
+            true,
+            null,
+            username,
+            discriminator
+          );
+        }
+        void broadcastQueueUpdate(guildId, (id) => multiBot.getQueue(id));
+        res.json({
+          message: `Autoplay ${result.enabled ? 'enabled' : 'disabled'}`,
+          enabled: result.enabled,
+        });
+        return;
+      }
+      res.status(400).json({ error: result.message || 'Failed to toggle autoplay' });
+    } catch (error) {
+      const err = error as Error;
+      const { id: userId, username, discriminator } = getAuthUser(req);
+      if (userId) {
+        stats.trackCommand(
+          'autoplay',
           userId,
           guildId,
           'api',

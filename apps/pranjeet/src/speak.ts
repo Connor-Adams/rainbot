@@ -1,4 +1,5 @@
 import { createAudioResource, StreamType } from '@discordjs/voice';
+import { withSpan, RainbotAttr } from '@rainbot/observability/node';
 import {
   chunkPcmIntoFrames,
   framesToReadable,
@@ -6,6 +7,7 @@ import {
   waitForPlaybackEnd,
 } from './audio/utils';
 import { getOrCreateGuildState } from './state/guild-state';
+import { TTS_PROVIDER, TTS_VOICE } from './config';
 import { generateTTS, normalizeSpeakKey } from './tts';
 
 const PCM_48K_FRAME_SAMPLES = 960;
@@ -35,7 +37,15 @@ export async function speakInGuild(
   state.speakQueue = state.speakQueue
     .catch(() => undefined)
     .then(async () => {
-      const pcm48kMono = await generateTTS(text, voice);
+      const pcm48kMono = await withSpan(
+        'tts.speak',
+        {
+          [RainbotAttr.ttsProvider]: TTS_PROVIDER,
+          [RainbotAttr.ttsVoice]: voice ?? TTS_VOICE,
+          [RainbotAttr.textLength]: text.length,
+        },
+        () => generateTTS(text, voice)
+      );
       if (!pcm48kMono || pcm48kMono.length === 0) return;
 
       const pcm48kStereo = monoToStereoPcm(pcm48kMono);
@@ -49,8 +59,10 @@ export async function speakInGuild(
       });
 
       if (resource.volume) resource.volume.setVolume(state.volume);
+      state.currentResource = resource;
       state.player.play(resource);
       await waitForPlaybackEnd(state.player, 60_000);
+      state.currentResource = null;
     });
 
   return { status: 'success', message: 'TTS queued' };

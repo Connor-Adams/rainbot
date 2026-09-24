@@ -1,0 +1,106 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * Rainbot brand — the brand axis of @connor-adams/tokens
+ *
+ * The shared token package ships primitives (colors.css) and a semantic layer
+ * (semantic.css) with a light/dark axis, currently painted in Cashflow's
+ * zinc + oxblood. Components only ever read the semantic layer, so a second
+ * brand is expressed by re-pointing those same semantic names at a different
+ * primitive ramp — no component changes, no fork of the design system.
+ *
+ * This file is that re-pointing for Rainbot. It is deliberately a leaf: it
+ * defines primitives under a `--rb-` prefix so they cannot collide with the
+ * shared ramps, then aliases the semantic names the components consume.
+ *
+ * Rainbot is dark-only by design — it is a Discord dashboard, and Discord is
+ * dark. There is no light block here on purpose; if a light mode is ever
+ * wanted it belongs upstream in the token package, not bolted on here.
+ *
+ * INTENDED TO MOVE UPSTREAM. Once the palette settles, this becomes a
+ * `[data-brand="rainbot"]` block in @connor-adams/tokens so Cashflow and
+ * Rainbot share one multi-tenant design system rather than drifting.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Primitives ───────────────────────────────────────────────────────
+   * Carried over from the palette Rainbot already shipped, so this change is
+   * structural rather than a re-skin: the hues are the product's identity,
+   * what changes is that they now flow through tokens instead of being
+   * hardcoded hexes in tailwind.config.js. */
+
+  /* Near-black ground. Discord's own surfaces sit around #313338, so going
+   * darker keeps the dashboard from looking like a Discord clone. */
+  --rb-ink-950: #0a0a0f;
+  --rb-ink-900: #0f0f14;
+  --rb-ink-850: #131318;
+  --rb-ink-800: #181820;
+  --rb-ink-750: #1c1c24;
+  --rb-ink-700: #252530;
+  --rb-ink-600: #2d2d3a;
+  --rb-ink-500: #4a4a55;
+  --rb-ink-400: #6b6b7a;
+  --rb-ink-300: #a1a1b0;
+  --rb-ink-50: #ffffff;
+
+  /* The signature triad: blue → violet → pink. Used as a gradient for brand
+   * moments and individually as primary / secondary / accent. */
+  --rb-blue-400: #60a5fa;
+  --rb-blue-500: #3b82f6;
+  --rb-blue-600: #2563eb;
+  --rb-violet-400: #a78bfa;
+  --rb-violet-500: #8b5cf6;
+  --rb-violet-600: #7c3aed;
+  --rb-pink-400: #f472b6;
+  --rb-pink-500: #ec4899;
+  --rb-pink-600: #db2777;
+
+  /* Status. Kept distinct from the brand triad so "it worked" and "it is a
+   * brand surface" never read as the same colour. */
+  --rb-green-500: #10b981;
+  --rb-amber-500: #f59e0b;
+  --rb-red-500: #ef4444;
+
+  /* ── Semantic layer ───────────────────────────────────────────────────
+   * These names are the contract with the design system's components. Values
+   * are Rainbot's; names are the shared vocabulary. */
+
+  --background: var(--rb-ink-950);
+  --card: var(--rb-ink-850);
+  --popover: var(--rb-ink-800);
+  --muted: var(--rb-ink-750);
+  --input: var(--rb-ink-900);
+
+  --foreground: var(--rb-ink-50);
+  --card-foreground: var(--rb-ink-50);
+  --popover-foreground: var(--rb-ink-50);
+  --muted-foreground: var(--rb-ink-300);
+
+  --border: var(--rb-ink-700);
+  --ring: var(--rb-blue-500);
+
+  --primary: var(--rb-blue-500);
+  --primary-hover: var(--rb-blue-600);
+  --primary-foreground: var(--rb-ink-50);
+
+  --secondary: var(--rb-violet-500);
+  --secondary-hover: var(--rb-violet-600);
+  --secondary-foreground: var(--rb-ink-50);
+
+  --accent: var(--rb-pink-500);
+  --accent-foreground: var(--rb-ink-50);
+
+  --text-link: var(--rb-blue-400);
+  --text-link-hover: var(--rb-blue-300, var(--rb-blue-400));
+
+  --success: var(--rb-green-500);
+  --success-foreground: var(--rb-ink-950);
+  --warning: var(--rb-amber-500);
+  --warning-foreground: var(--rb-ink-950);
+  --danger: var(--rb-red-500);
+  --danger-foreground: var(--rb-ink-50);
+  --destructive: var(--rb-red-500);
+  --destructive-foreground: var(--rb-ink-50);
+
+  /* Cashflow's money semantics (--positive / --negative) are deliberately not
+   * aliased: Rainbot has no money, and leaving them unset makes it obvious if
+   * a component that assumes them is ever pulled in by mistake. */
+}

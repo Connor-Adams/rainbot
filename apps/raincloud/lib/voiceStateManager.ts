@@ -1,5 +1,5 @@
 import { RedisClient } from '@rainbot/redis-client';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 
 const log = createLogger('VOICE-STATE');
 
@@ -180,5 +180,124 @@ export class VoiceStateManager {
     const key = `voice:interaction:enabled:${guildId}`;
     const data = await this.redis.get(key);
     return data === '1'; // Default false if not set
+  }
+
+  /** Canonical guild-scoped conversation mode state (1=on, 0=off). */
+  private conversationModeKey(guildId: string): string {
+    return `conversation:active_count:${guildId}`;
+  }
+
+  /**
+   * Set conversation mode (Grok chat) for a guild.
+   * When disabling, also clears the requester's Grok session state so the next session starts fresh.
+   */
+  async setConversationMode(guildId: string, userId: string, enabled: boolean): Promise<void> {
+    const modeKey = this.conversationModeKey(guildId);
+    await this.redis.set(modeKey, enabled ? '1' : '0');
+
+    if (!enabled) {
+      const grokResponseKey = `grok:response_id:${guildId}:${userId}`;
+      const grokHistoryKey = `grok:history:${guildId}:${userId}`;
+      await this.redis.del(grokResponseKey);
+      await this.redis.del(grokHistoryKey);
+    }
+    log.debug(`Set conversation mode ${enabled ? 'on' : 'off'} for guild ${guildId}`);
+  }
+
+  /** Get conversation mode for the guild-scoped behavior expected by chat controls. */
+  async getConversationMode(guildId: string): Promise<boolean> {
+    return await this.isGuildConversationModeActive(guildId);
+  }
+
+  /** Guild-scoped conversation mode state used by voice routing. */
+  async isGuildConversationModeActive(guildId: string): Promise<boolean> {
+    const countKey = this.conversationModeKey(guildId);
+    const raw = await this.redis.get(countKey);
+    const n = raw ? parseInt(raw, 10) : 0;
+    return !Number.isNaN(n) && n > 0;
+  }
+
+  /** Valid xAI Voice Agent voices. */
+  static readonly GROK_VOICES = ['Ara', 'Rex', 'Sal', 'Eve', 'Leo'] as const;
+
+  /**
+   * Get Grok Voice Agent voice preference for a user in a guild.
+   * Returns null if not set (caller should use config default).
+   */
+  async getGrokVoice(guildId: string, userId: string): Promise<string | null> {
+    const key = `grok:voice:${guildId}:${userId}`;
+    return await this.redis.get(key);
+  }
+
+  /**
+   * Set Grok Voice Agent voice preference for a user in a guild.
+   * Voice must be one of: Ara, Rex, Sal, Eve, Leo.
+   */
+  async setGrokVoice(guildId: string, userId: string, voice: string): Promise<void> {
+    const valid = VoiceStateManager.GROK_VOICES.includes(
+      voice as (typeof VoiceStateManager.GROK_VOICES)[number]
+    );
+    if (!valid) {
+      throw new Error(
+        `Invalid Grok voice. Must be one of: ${VoiceStateManager.GROK_VOICES.join(', ')}`
+      );
+    }
+    const key = `grok:voice:${guildId}:${userId}`;
+    await this.redis.set(key, voice);
+    log.debug(`Set Grok voice for user ${userId} in guild ${guildId}: ${voice}`);
+  }
+
+  /** Redis key for selected Grok persona per user per guild. */
+  private static grokPersonaKey(guildId: string, userId: string): string {
+    return `grok:persona:${guildId}:${userId}`;
+  }
+
+  /**
+   * Get selected Grok persona id for a user in a guild.
+   * Returns null if not set (caller uses default).
+   */
+  async getGrokPersona(guildId: string, userId: string): Promise<string | null> {
+    return await this.redis.get(VoiceStateManager.grokPersonaKey(guildId, userId));
+  }
+
+  /**
+   * Set selected Grok persona id for a user in a guild.
+   * Use empty string to clear (revert to default).
+   */
+  async setGrokPersona(guildId: string, userId: string, personaId: string): Promise<void> {
+    const key = VoiceStateManager.grokPersonaKey(guildId, userId);
+    if (personaId.trim() === '') {
+      await this.redis.del(key);
+    } else {
+      await this.redis.set(key, personaId.trim());
+    }
+    log.debug(
+      `Set Grok persona for user ${userId} in guild ${guildId}: ${personaId.trim() || '(default)'}`
+    );
+  }
+
+  /** Redis key for custom persona payload (so Pranjeet can resolve without DB). */
+  private static customPersonaKey(id: string): string {
+    return `persona:custom:${id}`;
+  }
+
+  /**
+   * Write custom persona to Redis cache so Pranjeet can resolve it by id.
+   */
+  async setCustomPersonaCache(
+    id: string,
+    data: { id: string; name: string; systemPrompt: string }
+  ): Promise<void> {
+    const key = VoiceStateManager.customPersonaKey(id);
+    await this.redis.set(key, JSON.stringify(data));
+    log.debug(`Cached custom persona ${id} in Redis`);
+  }
+
+  /**
+   * Remove custom persona from Redis cache (e.g. when deleted).
+   */
+  async deleteCustomPersonaCache(id: string): Promise<void> {
+    await this.redis.del(VoiceStateManager.customPersonaKey(id));
+    log.debug(`Removed custom persona cache ${id} from Redis`);
   }
 }

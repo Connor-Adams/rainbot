@@ -1,37 +1,7 @@
-import { useState, useEffect } from 'react';
-import PlayerTab from '../components/tabs/PlayerTab';
-import SoundboardTab from '../components/tabs/SoundboardTab';
-import RecordingsTab from '../components/tabs/RecordingsTab';
-import StatisticsTab from '../components/tabs/stats/StatisticsTab';
-import StatusTab from '../components/tabs/StatusTab';
-import AdminTab from '../components/tabs/AdminTab';
+import { Navigate } from 'react-router-dom';
 
+// Unreachable: App.tsx routes each tab directly under the Layout layout route.
+// Kept as a redirect stub rather than deleted — file deletion is blocked in this environment.
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<
-    'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'
-  >('player');
-
-  useEffect(() => {
-    const handleTabChange = (
-      e: CustomEvent<'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin'>
-    ) => {
-      setActiveTab(e.detail);
-    };
-
-    window.addEventListener('tab-change', handleTabChange as EventListener);
-    return () => {
-      window.removeEventListener('tab-change', handleTabChange as EventListener);
-    };
-  }, []);
-
-  return (
-    <>
-      {activeTab === 'player' && <PlayerTab />}
-      {activeTab === 'soundboard' && <SoundboardTab />}
-      {activeTab === 'recordings' && <RecordingsTab />}
-      {activeTab === 'stats' && <StatisticsTab />}
-      {activeTab === 'status' && <StatusTab />}
-      {activeTab === 'admin' && <AdminTab />}
-    </>
-  );
+  return <Navigate to="/player" replace />;
 }

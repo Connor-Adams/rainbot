@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
-import { query } from '@utils/database';
+import { query } from '@rainbot/utils/database';
 import { requireAuth } from '../middleware/auth';
-import { statsEmitter } from '@utils/statistics';
+import { statsEmitter } from '@rainbot/utils/statistics';
 
 const router = express.Router();
 
@@ -644,7 +644,7 @@ router.get('/history', requireAuth, async (req: Request, res: Response): Promise
     const startDate = parseValidDate(req.query['startDate'] as string | undefined);
     const endDate = parseValidDate(req.query['endDate'] as string | undefined);
 
-    const listeningHistory = require('@utils/listeningHistory');
+    const listeningHistory = require('@rainbot/utils/listeningHistory');
     const history = await listeningHistory.getListeningHistory(
       userId,
       guildId,

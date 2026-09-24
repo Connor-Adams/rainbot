@@ -1,26 +1,35 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import { forwardRef } from 'react';
+import {
+  Card as DSCard,
+  CardHeader as DSCardHeader,
+  CardTitle as DSCardTitle,
+  CardContent as DSCardContent,
+} from '@connor-adams/designsystem';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   hover?: boolean;
 }
 
+/**
+ * Thin wrapper around the design system's Card that keeps rainbot's existing
+ * `hover` convenience prop so call sites don't need to change.
+ */
 const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ children, hover = false, className = '', ...props }, ref) => {
     return (
-      <div
+      <DSCard
         ref={ref}
-        className={`
-          bg-surface rounded-2xl border border-border shadow-sm
-          transition-all duration-300 ease-out
-          ${hover ? 'hover:border-primary hover:shadow-md hover:-translate-y-0.5' : ''}
-          ${className}
-        `}
+        className={`${
+          hover
+            ? 'transition-all duration-300 ease-out hover:border-primary hover:shadow-md hover:-translate-y-0.5'
+            : ''
+        } ${className}`.trim()}
         {...props}
       >
         {children}
-      </div>
+      </DSCard>
     );
   }
 );
@@ -29,25 +38,17 @@ Card.displayName = 'Card';
 
 export function CardHeader({ children, className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`px-6 py-4 border-b border-border ${className}`} {...props}>
+    <DSCardHeader className={className} {...props}>
       {children}
-    </div>
+    </DSCardHeader>
   );
 }
 
-export function CardTitle({
-  children,
-  className = '',
-  ...props
-}: HTMLAttributes<HTMLHeadingElement>) {
+export function CardTitle({ children, className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <h3
-      className={`text-sm font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-2 ${className}`}
-      {...props}
-    >
-      <span className="w-0.5 h-4 bg-gradient-to-b from-primary to-secondary rounded-full shadow-glow" />
+    <DSCardTitle className={className} {...props}>
       {children}
-    </h3>
+    </DSCardTitle>
   );
 }
 
@@ -57,9 +58,9 @@ export function CardContent({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`px-6 py-4 ${className}`} {...props}>
+    <DSCardContent className={className} {...props}>
       {children}
-    </div>
+    </DSCardContent>
   );
 }
 

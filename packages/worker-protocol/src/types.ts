@@ -2,7 +2,7 @@
  * Common request/response types for worker protocol
  */
 
-import type { BotType } from '@rainbot/types/core';
+import type { BotType } from '@rainbot/protocol';
 
 export type { BotType };
 
@@ -64,6 +64,7 @@ export interface StatusResponse {
   playing: boolean;
   queueLength?: number;
   volume?: number;
+  lastPlaybackError?: string;
 }
 
 /**

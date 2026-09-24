@@ -1,4 +1,13 @@
 import type { ReactNode } from 'react';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@connor-adams/designsystem';
+import EmptyState from './EmptyState';
 
 interface Column<T = Record<string, unknown>> {
   header: string;
@@ -24,48 +33,35 @@ export default function StatsTable<T = Record<string, unknown>>({
   getRowKey,
 }: StatsTableProps<T>) {
   if (data.length === 0) {
-    return (
-      <p className="empty-state text-text-muted text-sm text-center py-8 px-6 flex flex-col items-center gap-2">
-        <span className="text-2xl opacity-50">📭</span>
-        {emptyMessage}
-      </p>
-    );
+    return <EmptyState icon="📭" message={emptyMessage} />;
   }
 
   return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="stats-table w-full">
-        <thead>
-          <tr>
-            {columns.map((col, idx) => (
-              <th key={col.id || col.header || idx} className={col.className}>
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, rowIdx) => (
-            <tr
-              key={getRowKey ? getRowKey(row, rowIdx) : rowIdx}
-              className="hover:bg-surface-hover transition-colors"
-            >
-              {columns.map((col, colIdx) => (
-                <td
-                  key={col.id || col.header || colIdx}
-                  className={col.className || 'px-4 py-3 text-sm text-text-secondary'}
-                >
-                  {col.render
-                    ? col.render(row)
-                    : col.key
-                      ? String((row as Record<string, unknown>)[col.key] ?? '')
-                      : null}
-                </td>
-              ))}
-            </tr>
+    <Table className={className}>
+      <TableHeader>
+        <TableRow>
+          {columns.map((col, idx) => (
+            <TableHead key={col.id || col.header || idx} className={col.className}>
+              {col.header}
+            </TableHead>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((row, rowIdx) => (
+          <TableRow key={getRowKey ? getRowKey(row, rowIdx) : rowIdx}>
+            {columns.map((col, colIdx) => (
+              <TableCell key={col.id || col.header || colIdx} className={col.className}>
+                {col.render
+                  ? col.render(row)
+                  : col.key
+                    ? String((row as Record<string, unknown>)[col.key] ?? '')
+                    : null}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

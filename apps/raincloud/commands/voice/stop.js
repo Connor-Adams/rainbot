@@ -2,7 +2,7 @@
  * Stop command - Multi-bot architecture version
  */
 const { SlashCommandBuilder } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 const { getMultiBotService } = require('../utils/commandHelpers');
 const {
   replySuccess,

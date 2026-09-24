@@ -1,3 +1,14 @@
+// Telemetry must be the first import: OpenTelemetry's auto-instrumentation
+// patches http/express/redis/etc at require time, so anything imported above
+// this line would be invisible to tracing. Preferred long-term fix is a
+// `--require ./dist/telemetry.js` preload on the node invocation, which makes
+// this ordering structurally impossible to break instead of relying on
+// convention — deferred because it needs a Dockerfile CMD change across all
+// three worker images, and this branch is about to ship to production
+// containers that can't be test-built locally right now. Until then,
+// __tests__/telemetry-import-order.test.ts asserts this stays first.
+import './telemetry';
+
 import type {
   VoiceInteractionSession,
   ParsedVoiceCommand,
@@ -15,7 +26,10 @@ import {
   setupAutoFollowVoiceStateHandler,
   type GuildState,
 } from '@rainbot/worker-shared';
-import { initVoiceInteractionManager } from '@voice/voiceInteractionInstance';
+import {
+  getVoiceInteractionManager,
+  initVoiceInteractionManager,
+} from '@rainbot/utils/voice/voiceInteractionInstance';
 import {
   log,
   PORT,
@@ -28,6 +42,11 @@ import {
   WORKER_SECRET,
   VOICE_INTERACTION_ENABLED,
   VOICE_TRIGGER_WORD,
+  GROK_ENABLED,
+  GROK_API_KEY,
+  STT_API_KEY,
+  TTS_API_KEY,
+  TTS_VOICE,
 } from './config';
 import { createApp } from './app';
 import { getOrCreateGuildState, guildStates } from './state/guild-state';
@@ -36,14 +55,33 @@ import { registerVoiceStateHandlers } from './events/voice-state';
 import { initTTS } from './tts';
 import { speakInGuild } from './speak';
 import { startTtsQueue } from './queue/tts-worker';
+import { getGrokPersona, isGuildConversationModeActive } from './redis';
+import { getGrokReply } from './chat/grok';
+import { createGrokVoiceAgentClient } from './voice-agent/grokVoiceAgent';
+import { playVoiceAgentAudio } from './voice-agent/playVoiceAgentAudio';
+import type { VoiceConnection } from '@discordjs/voice';
 
 setupProcessErrorHandlers(log);
 
+log.info('Starting Pranjeet');
 log.info(`Starting (pid=${process.pid}, node=${process.version})`);
 log.info(`Config: port=${PORT}, hasToken=${hasToken}, hasOrchestrator=${hasOrchestrator}`);
 log.info(
   `Worker registration config: raincloudUrl=${RAINCLOUD_URL || 'unset'}, hasWorkerSecret=${!!WORKER_SECRET}`
 );
+log.info(
+  `Grok chat: ${GROK_ENABLED ? 'enabled' : 'disabled'} (set GROK_API_KEY and LOG_LEVEL=debug for details)`
+);
+log.info(
+  `Realtime Voice Agent: ${GROK_ENABLED && !!GROK_API_KEY ? 'available (use when conversation mode is on)' : 'disabled (set GROK_API_KEY or XAI_API_KEY)'}`
+);
+if (!REDIS_URL) {
+  log.warn(
+    'REDIS_URL not set on Pranjeet — conversation mode and voice state will not sync with Raincloud; set REDIS_URL to use realtime Voice Agent'
+  );
+} else {
+  log.info('REDIS_URL set — conversation mode and voice state will sync with Raincloud');
+}
 console.log(`[PRANJEET] Worker registration target: ${getOrchestratorBaseUrl() || 'unset'}`);
 
 if (!hasToken) {
@@ -86,6 +124,154 @@ setupDiscordClientReadyHandler(client, {
     initVoiceInteractionManager(client, {
       enabled: VOICE_INTERACTION_ENABLED,
       triggerWord: VOICE_TRIGGER_WORD,
+      sttProvider: 'openai',
+      ttsProvider: 'openai',
+      sttApiKey: STT_API_KEY ?? undefined,
+      ttsApiKey: TTS_API_KEY ?? undefined,
+      voiceName: TTS_VOICE,
+      getConversationMode: async (guildId: string, _userId: string) =>
+        isGuildConversationModeActive(guildId),
+      createVoiceAgentClient: (session) => {
+        const connection = (session as { connection?: VoiceConnection }).connection;
+        if (!connection) {
+          log.warn('Voice Agent: no connection on session (ensure you are in a VC with the bot)');
+          return null;
+        }
+        const baseUrl = getOrchestratorBaseUrl();
+        const executeCommand = async (
+          commandName: string,
+          args: Record<string, unknown>
+        ): Promise<string> => {
+          if (!baseUrl || !WORKER_SECRET) {
+            throw new Error(
+              'Cannot execute command: Raincloud URL or Worker Secret not configured'
+            );
+          }
+          const headers = {
+            'Content-Type': 'application/json',
+            'x-worker-secret': WORKER_SECRET,
+          };
+          const baseBody = {
+            guildId: session.guildId,
+            userId: session.userId,
+            username: session.username,
+          };
+
+          try {
+            if (commandName === 'get_playback_status') {
+              const res = await fetch(`${baseUrl}/internal/playback-status`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ guildId: session.guildId }),
+              });
+              if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Playback status failed: ${text}`);
+              }
+              const data = (await res.json()) as {
+                playback?: { status?: string; volume?: number; error?: string };
+                nowPlaying?: string | null;
+                queueLength?: number;
+              };
+              const status = data.playback?.status ?? 'idle';
+              const nowPlaying = data.nowPlaying ?? null;
+              const err = data.playback?.error;
+              const parts: string[] = [];
+              if (status === 'playing' && nowPlaying) {
+                parts.push(`Playing "${nowPlaying}".`);
+              } else if (status === 'paused' && nowPlaying) {
+                parts.push(`Paused on "${nowPlaying}".`);
+              } else {
+                parts.push('Nothing playing.');
+              }
+              if (data.queueLength != null && data.queueLength > 0) {
+                parts.push(`${data.queueLength} in queue.`);
+              }
+              if (err) {
+                parts.push(`Last error: ${err}`);
+              } else {
+                parts.push('No recent errors.');
+              }
+              return parts.join(' ');
+            }
+
+            // skip_and_play: skip first (so current track is removed even when paused), then play if query provided
+            if (commandName === 'skip_and_play') {
+              const skipRes = await fetch(`${baseUrl}/internal/skip`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ ...baseBody, count: 1 }),
+              });
+              if (!skipRes.ok) {
+                const text = await skipRes.text();
+                throw new Error(`Skip failed: ${text}`);
+              }
+              const query = typeof args['query'] === 'string' ? args['query'].trim() : '';
+              if (query) {
+                const playRes = await fetch(`${baseUrl}/internal/play`, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({ ...baseBody, source: query }),
+                });
+                if (!playRes.ok) {
+                  const text = await playRes.text();
+                  throw new Error(`Play failed: ${text}`);
+                }
+                const playResult = (await playRes.json()) as { message?: string };
+                return playResult.message ?? 'Skipped and playing.';
+              }
+              return 'Skipped.';
+            }
+
+            // Map other function names to internal endpoints
+            const commandMap: Record<string, string> = {
+              play_music: 'play',
+              skip_song: 'skip',
+              pause_music: 'pause',
+              resume_music: 'resume',
+              stop_music: 'stop',
+              set_volume: 'volume',
+              clear_queue: 'clear',
+            };
+            const endpoint = commandMap[commandName];
+            if (endpoint === undefined) {
+              throw new Error(`Unknown command: ${commandName}`);
+            }
+            const body: Record<string, unknown> = { ...baseBody };
+            if (commandName === 'play_music' && args['query']) {
+              body['source'] = args['query'];
+            } else if (commandName === 'skip_song') {
+              body['count'] = args['count'] ?? 1;
+            } else if (commandName === 'set_volume') {
+              body['volume'] = args['volume'];
+            }
+            const response = await fetch(`${baseUrl}/internal/${endpoint}`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+              const text = await response.text();
+              throw new Error(`Command failed: ${text}`);
+            }
+            const result = (await response.json()) as { success?: boolean; message?: string };
+            return result.message || 'Command executed successfully';
+          } catch (error) {
+            const err = error as Error;
+            log.error(`Error executing ${commandName}: ${err.message}`);
+            throw err;
+          }
+        };
+        return createGrokVoiceAgentClient(session.guildId, session.userId, {
+          onAudioDone: (pcm) => playVoiceAgentAudio(session.guildId, connection, pcm),
+          executeCommand,
+          // Socket dropped (idle timeout / blip / server close): evict the dead
+          // client so the next utterance recreates a fresh one. Without this the
+          // zombie client stays cached and swallows all later audio → silence.
+          onClose: () =>
+            getVoiceInteractionManager()?.removeVoiceAgentClient(session.guildId, session.userId),
+        });
+      },
       ttsHandler: async (guildId: string, text: string, userId?: string) => {
         if (!userId) return;
         try {
@@ -98,6 +284,18 @@ setupDiscordClientReadyHandler(client, {
         session: VoiceInteractionSession,
         command: ParsedVoiceCommand
       ): Promise<VoiceCommandResult | null> => {
+        const inConversationMode = await isGuildConversationModeActive(session.guildId);
+        if (inConversationMode) {
+          const personaId = await getGrokPersona(session.guildId, session.userId);
+          const reply = await getGrokReply(
+            session.guildId,
+            session.userId,
+            command.rawText,
+            personaId ?? undefined
+          );
+          return { success: true, command, response: reply };
+        }
+
         const baseUrl = getOrchestratorBaseUrl();
         if (!baseUrl || !WORKER_SECRET) {
           log.warn('Cannot route command: Raincloud URL or Worker Secret not configured');

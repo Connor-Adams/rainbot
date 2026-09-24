@@ -9,12 +9,15 @@
     "lint": "eslint .",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
+    "type-check": "tsc -b --noEmit",
     "preview": "vite preview",
     "start:prod": "serve -s dist -l $PORT"
   },
   "dependencies": {
+    "@connor-adams/designsystem": "^1.0.0",
+    "@connor-adams/tokens": "^0.1.0",
+    "@rainbot/protocol": "*",
     "@rainbot/shared": "*",
-    "@rainbot/types": "*",
     "@tanstack/react-query": "^5.90.15",
     "axios": "^1.13.2",
     "emoji-picker-react": "^4.13.2",

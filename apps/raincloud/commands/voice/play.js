@@ -3,7 +3,7 @@
  * Soundboard choices (from autocomplete) → HungerBot. Music/URLs → Rainbot.
  */
 const { SlashCommandBuilder } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 const { getMultiBotService } = require('../utils/commandHelpers');
 const { replyError, replyWorkerUnavailable } = require('../utils/responseBuilder');
 

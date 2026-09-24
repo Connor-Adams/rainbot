@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { playbackApi } from '@/lib/api';
 import { YouTubeUrl } from '@rainbot/shared/youtube';
 import type { QueueData } from '@/types';
-import { useState, useEffect, useRef } from 'react';
-import { NowPlayingArtwork, TrackInfo, ProgressBar, PlaybackControls } from './player';
+import { useState, useEffect } from 'react';
+import { MediaPlayer, type MediaTrack } from '@connor-adams/designsystem';
 
 interface NowPlayingCardProps {
   queueData: QueueData;
@@ -36,11 +36,9 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     duration: 0,
   };
   const trackKey = `${currentTrack.title}-${currentTrack.url ?? ''}-${durationSec}`;
-  const trackKeyRef = useRef(trackKey);
 
   // Reset position when track changes (defer setState to avoid set-state-in-effect)
   useEffect(() => {
-    trackKeyRef.current = trackKey;
     queueMicrotask(() => setCurrentTime(initialPosition));
   }, [trackKey, initialPosition]);
 
@@ -54,6 +52,14 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
 
   const skipMutation = useMutation({
     mutationFn: () => playbackApi.skip(guildId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue', guildId] });
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+    },
+  });
+
+  const replayMutation = useMutation({
+    mutationFn: () => playbackApi.replay(guildId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['queue', guildId] });
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
@@ -77,22 +83,6 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
       queueMicrotask(() => setCurrentTime(queueData.positionMs! / 1000));
     }
   }, [queueData.positionMs, trackKey]);
-
-  // Tick progress locally when playing (smooth UX; API/SSE resyncs on state change)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime((prev) => {
-        if (trackKeyRef.current !== trackKey) {
-          trackKeyRef.current = trackKey;
-          return initialPosition;
-        }
-        if (isPaused || durationSec <= 0) return prev;
-        if (prev >= durationSec) return prev;
-        return prev + 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPaused, durationSec, trackKey, initialPosition]);
 
   const getSourceInfo = () => {
     if (currentTrack.isLocal) {
@@ -119,38 +109,51 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
     currentTrack?.thumbnail ??
     (currentTrack?.url ? YouTubeUrl.getThumbnailUrl(currentTrack.url) : null);
 
-  const handleProgressClick = (positionSeconds: number) => {
+  const handleSeek = (positionSeconds: number) => {
     if (durationSec <= 0) return;
     const clamped = Math.max(0, Math.min(Math.floor(positionSeconds), durationSec));
     seekMutation.mutate(clamped);
   };
 
+  const track: MediaTrack = {
+    title: currentTrack.title ?? 'Unknown',
+    source: sourceInfo.text,
+    sourceLink: sourceInfo.link,
+    thumbnailUrl,
+    duration: durationSec,
+  };
+
   return (
-    <section className="panel now-playing-card bg-surface rounded-2xl border border-border overflow-hidden">
-      <div className="now-playing-content flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 items-center lg:items-start">
-        <NowPlayingArtwork isPlaying={!isPaused} thumbnailUrl={thumbnailUrl} />
-
-        <div className="now-playing-info flex-1 flex flex-col gap-6 min-w-0 w-full">
-          <TrackInfo
-            title={currentTrack.title ?? 'Unknown'}
-            source={sourceInfo.text}
-            sourceLink={sourceInfo.link}
-          />
-
-          <ProgressBar
-            currentTime={currentTime}
-            duration={durationSec}
-            onClick={handleProgressClick}
-          />
-
-          <PlaybackControls
-            isPaused={isPaused}
-            isLoading={pauseMutation.isPending || skipMutation.isPending || seekMutation.isPending}
-            onPlayPause={() => pauseMutation.mutate()}
-            onSkip={() => skipMutation.mutate()}
-          />
-        </div>
-      </div>
-    </section>
+    <>
+      <MediaPlayer
+        track={track}
+        currentTime={currentTime}
+        duration={durationSec}
+        isPaused={isPaused}
+        isLoading={
+          pauseMutation.isPending ||
+          skipMutation.isPending ||
+          seekMutation.isPending ||
+          replayMutation.isPending
+        }
+        onPlayPause={() => pauseMutation.mutate()}
+        onSkip={() => skipMutation.mutate()}
+        onPrevious={() => replayMutation.mutate()}
+        onSeek={handleSeek}
+        autoTick
+      />
+      {replayMutation.isError && (
+        <p className="text-xs text-danger mt-2">
+          {(
+            replayMutation.error as {
+              response?: { data?: { error?: string } };
+              message?: string;
+            }
+          )?.response?.data?.error ??
+            (replayMutation.error as Error)?.message ??
+            'Failed to replay'}
+        </p>
+      )}
+    </>
   );
 }

@@ -1,7 +1,6 @@
 export * from './buttons';
 export * from './common';
 export * from './core';
-export * from './di.symbols';
 export * from './media';
 export * from './server';
 export * from './services';

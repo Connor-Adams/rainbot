@@ -2,8 +2,11 @@
 // Note: Commands are automatically deployed on bot startup, but you can use this script
 // to deploy commands without starting the bot
 
-const { deployCommands } = require('./utils/deployCommands');
-const { loadConfig } = require('./utils/config');
+// Must be run from the repo root after `yarn build:ts` - the @rainbot/utils
+// subpath exports resolve against packages/utils/dist/, which only exists once built.
+
+const { deployCommands } = require('@rainbot/utils/deployCommands');
+const { loadConfig } = require('@rainbot/utils/config');
 
 const config = loadConfig();
 

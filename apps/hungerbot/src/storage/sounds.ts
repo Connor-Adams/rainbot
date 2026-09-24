@@ -2,7 +2,6 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StreamType } from '@discordjs/voice';
 import { logErrorWithStack } from '@rainbot/worker-shared';
 import {
   log,
@@ -59,17 +58,6 @@ export function getOggVariant(filename: string): string {
 
 export function normalizeSoundName(sfxId: string): string {
   return sfxId.includes('.') ? sfxId : `${sfxId}.mp3`;
-}
-
-export function getSoundInputType(sfxId: string): StreamType {
-  const ext = path.extname(normalizeSoundName(sfxId)).toLowerCase();
-  if (ext === '.ogg' || ext === '.opus' || ext === '.oga') {
-    return StreamType.OggOpus;
-  }
-  if (ext === '.webm') {
-    return StreamType.WebmOpus;
-  }
-  return StreamType.Arbitrary;
 }
 
 export async function getSoundStream(sfxId: string): Promise<Readable> {
