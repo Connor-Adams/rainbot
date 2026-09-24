@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@connor-adams/designsystem';
 import { adminApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
+import { Button } from '@/components/ui';
 
 const GROK_VOICES = [
   { value: 'Ara', label: 'Ara (female, warm)' },
@@ -116,9 +117,9 @@ export default function GrokVoiceSettings() {
             </strong>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
-              className="btn btn-primary"
+              variant="primary"
               disabled={
                 conversationMode === undefined ||
                 conversationModeMutation.isPending ||
@@ -129,10 +130,10 @@ export default function GrokVoiceSettings() {
               }
             >
               {conversationModeMutation.isPending ? '…' : 'Turn on'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="secondary"
               disabled={
                 conversationMode === undefined ||
                 conversationModeMutation.isPending ||
@@ -143,7 +144,7 @@ export default function GrokVoiceSettings() {
               }
             >
               {conversationModeMutation.isPending ? '…' : 'Turn off'}
-            </button>
+            </Button>
           </div>
           {conversationModeMutation.isError && (
             <div className="text-xs text-danger-light">

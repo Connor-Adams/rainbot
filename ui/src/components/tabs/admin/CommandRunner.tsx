@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@connor-adams/designsystem';
 import { soundsApi, adminApi, botApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
+import { Button } from '@/components/ui';
 
 type RunCommandType =
   | 'play'
@@ -220,14 +221,14 @@ export default function CommandRunner() {
             </label>
           </div>
         )}
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
+          variant="primary"
           onClick={handleRunCommand}
           disabled={runCommandMutation.isPending || !canRun}
         >
           {runCommandMutation.isPending ? 'Running...' : 'Run command'}
-        </button>
+        </Button>
         {runError && <div className="text-xs text-danger-light">{runError}</div>}
         {runResult && <div className="text-xs text-text-secondary">{runResult}</div>}
       </div>

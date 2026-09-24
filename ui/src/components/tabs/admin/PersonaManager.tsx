@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { Button } from '@/components/ui';
 
 export default function PersonaManager() {
   const queryClient = useQueryClient();
@@ -64,9 +65,10 @@ export default function PersonaManager() {
         persona dropdown in the Grok sub-tab when a server is selected.
       </div>
       {!personaFormOpen && !editingPersonaId && (
-        <button
+        <Button
           type="button"
-          className="btn btn-primary mb-4"
+          variant="primary"
+          className="mb-4"
           onClick={() => {
             setPersonaFormOpen(true);
             setPersonaName('');
@@ -74,7 +76,7 @@ export default function PersonaManager() {
           }}
         >
           Create persona
-        </button>
+        </Button>
       )}
       {(personaFormOpen || editingPersonaId) && (
         <div className="mb-4 space-y-2 rounded-lg border border-border p-3 bg-surface-elevated">
@@ -103,9 +105,9 @@ export default function PersonaManager() {
           <div className="flex gap-2">
             {editingPersonaId ? (
               <>
-                <button
+                <Button
                   type="button"
-                  className="btn btn-primary"
+                  variant="primary"
                   disabled={
                     updatePersonaMutation.isPending ||
                     !personaName.trim() ||
@@ -120,10 +122,10 @@ export default function PersonaManager() {
                   }
                 >
                   {updatePersonaMutation.isPending ? 'Saving...' : 'Save'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="btn btn-secondary"
+                  variant="secondary"
                   onClick={() => {
                     setEditingPersonaId(null);
                     setPersonaName('');
@@ -131,13 +133,13 @@ export default function PersonaManager() {
                   }}
                 >
                   Cancel
-                </button>
+                </Button>
               </>
             ) : (
               <>
-                <button
+                <Button
                   type="button"
-                  className="btn btn-primary"
+                  variant="primary"
                   disabled={
                     createPersonaMutation.isPending ||
                     !personaName.trim() ||
@@ -151,10 +153,10 @@ export default function PersonaManager() {
                   }
                 >
                   {createPersonaMutation.isPending ? 'Creating...' : 'Create'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="btn btn-secondary"
+                  variant="secondary"
                   onClick={() => {
                     setPersonaFormOpen(false);
                     setPersonaName('');
@@ -162,7 +164,7 @@ export default function PersonaManager() {
                   }}
                 >
                   Cancel
-                </button>
+                </Button>
               </>
             )}
           </div>

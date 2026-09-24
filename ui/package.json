@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "type-check": "tsc -b --force",
     "lint": "eslint .",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
@@ -14,8 +15,8 @@
     "start:prod": "serve -s dist -l $PORT"
   },
   "dependencies": {
-    "@connor-adams/designsystem": "^1.0.0",
-    "@connor-adams/tokens": "^0.1.0",
+    "@connor-adams/designsystem": "^2.0.0",
+    "@connor-adams/tokens": "^0.2.0",
     "@rainbot/protocol": "*",
     "@rainbot/shared": "*",
     "@tanstack/react-query": "^5.90.15",

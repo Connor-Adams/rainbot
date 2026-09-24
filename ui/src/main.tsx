@@ -7,6 +7,7 @@ import './index.css';
 import App from './App.tsx';
 import { apiBaseUrl, authBaseUrl } from './lib/api';
 import ErrorBoundary from './components/ErrorBoundary';
+import ToastProvider from './components/ToastProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,7 +52,11 @@ createRoot(document.getElementById('root')!).render(
         onError={(error, errorInfo) => console.error('[UI] Uncaught error:', error, errorInfo)}
       >
         <BrowserRouter>
-          <App />
+          {/* One toast host for the whole app, above every route, so showToast
+              from anywhere reaches it. */}
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </BrowserRouter>
       </ErrorBoundary>
     </QueryClientProvider>

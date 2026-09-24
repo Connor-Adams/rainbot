@@ -42,11 +42,14 @@ export default function AdminTab() {
         </div>
       </div>
 
-      <div className="mb-4 overflow-x-auto no-scrollbar">
+      {/* overflow="scroll" replaces the overflow-x-auto + no-scrollbar wrapper this
+          used to need: Tabs owns the scroll and pulls the selected pill into view. */}
+      <div className="mb-4">
         <Tabs
           items={SECTION_ITEMS}
           value={section}
           onValueChange={(value) => setSection(value as AdminSection)}
+          overflow="scroll"
         />
       </div>
 
