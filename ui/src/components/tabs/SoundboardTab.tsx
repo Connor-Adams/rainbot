@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // fs/path and breaks the Vite browser build - use the subpath export instead,
 // matching the existing '@rainbot/shared/youtube' pattern in NowPlayingCard.
 import { normalizeForSearch } from '@rainbot/shared/search';
+import { Alert } from '@connor-adams/designsystem';
 import { soundsApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useSoundCustomization } from '@/hooks/useSoundCustomization';
@@ -266,6 +267,12 @@ export default function SoundboardTab() {
           />
         </div>
       </div>
+
+      {!selectedGuildId && (
+        <Alert variant="info" title="No server selected" className="mb-6">
+          Pick a server from the menu in the header to play sounds.
+        </Alert>
+      )}
 
       {/* Search Bar */}
       <div className="mb-6">
