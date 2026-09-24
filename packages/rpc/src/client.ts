@@ -30,6 +30,16 @@ type TRPCClientOptions<TRouter extends AnyRouter> = {
 const INSTRUMENTED_METHODS = new Set(['query', 'mutate']);
 
 /**
+ * Procedures that fire on a tight poll (health checks, and any future
+ * equivalent status probe) rather than in response to real user/bot activity.
+ * raincloud polls `health` every 15s per worker — every root trace in Tempo
+ * would otherwise be a health check, burying real RPC traces. Duration is
+ * still recorded (recordRpcDuration, below) since the histogram already
+ * carries `rpcProcedure` as an attribute and can be filtered by it.
+ */
+const UNTRACED_PROCEDURES = new Set(['health']);
+
+/**
  * Wraps a tRPC proxy client so every `.query()`/`.mutate()` call is timed and
  * traced, without changing what the call returns or throws. The tRPC proxy
  * client builds its procedure calls lazily via nested Proxies keyed by
@@ -55,11 +65,15 @@ function instrumentClient<T>(value: T, worker: string, path: string[]): T {
           [RainbotAttr.rpcProcedure]: procedure,
           [RainbotAttr.worker]: worker,
         };
+        const call = child as (...a: unknown[]) => Promise<unknown>;
         return async (...args: unknown[]) => {
           const startedAt = Date.now();
           try {
+            if (UNTRACED_PROCEDURES.has(procedure)) {
+              return await Reflect.apply(call, target, args);
+            }
             return await withSpan('worker.rpc', attributes, () =>
-              Reflect.apply(child as (...a: unknown[]) => Promise<unknown>, target, args)
+              Reflect.apply(call, target, args)
             );
           } finally {
             recordRpcDuration(Date.now() - startedAt, attributes);

@@ -48,10 +48,13 @@ describe('hungerbot sound.play R2/local fetch timing', () => {
     expect(getSoundStream).toHaveBeenCalledWith('airhorn');
     expect(sniffSoundStream).toHaveBeenCalledWith(fakeStream);
     expect(result).toBe(sniffed);
+    // No RainbotAttr.sound on the metric: it's a user-uploaded R2 object key
+    // and this is a histogram, so per-sound cardinality would grow unbounded.
     expect(recordSoundPlay).toHaveBeenCalledWith(expect.any(Number), {
-      [RainbotAttr.sound]: 'airhorn',
       [RainbotAttr.phase]: 'fetch',
     });
+    const recordedAttrs = (recordSoundPlay as jest.Mock).mock.calls[0][1];
+    expect(recordedAttrs).not.toHaveProperty(RainbotAttr.sound);
   });
 
   it('does not record a fetch duration when the fetch itself fails (no clean-looking metric on a real failure)', async () => {

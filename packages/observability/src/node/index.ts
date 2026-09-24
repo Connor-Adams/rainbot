@@ -7,6 +7,7 @@ export {
   recordRpcDuration,
   recordWorkerRegistered,
   recordSoundPlay,
+  recordWorkerOrchestratorHealth,
 } from './metrics';
 export { RainbotAttr } from '../semconv';
 export { createOtlpTransport } from './winstonTransport';

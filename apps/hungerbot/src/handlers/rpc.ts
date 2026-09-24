@@ -49,8 +49,12 @@ export function createRpcHandlers(deps: HungerbotRpcDeps) {
       // in the rainbot.sound.play.duration histogram.
       const fetchStarted = Date.now();
       const stream = await getSoundStream(input.sfxId);
+      // No RainbotAttr.sound: it's a user-uploaded R2 object key, and this is
+      // a histogram — per-sound cardinality on it grows unbounded with every
+      // upload (~14 series per phase). The enclosing sound.play span (set in
+      // voiceRpcHandlers.ts's createPlaySoundHandler, which calls this) still
+      // carries the sound id for per-sound investigation in Tempo.
       recordSoundPlay(Date.now() - fetchStarted, {
-        [RainbotAttr.sound]: input.sfxId,
         [RainbotAttr.phase]: 'fetch',
       });
       return sniffSoundStream(stream);

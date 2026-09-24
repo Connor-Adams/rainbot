@@ -51,7 +51,7 @@ function fakeLog() {
 }
 
 describe('createPlaySoundHandler telemetry', () => {
-  it('spans sound.play, times the play phase separately, and stays UNSET on success', async () => {
+  it('spans sound.play, times the dispatch phase separately, and stays UNSET on success', async () => {
     const player = { stop: jest.fn(), play: jest.fn(), state: { status: 'idle' } };
     const state = {
       connection: { state: { status: 'ready' } },
@@ -78,10 +78,14 @@ describe('createPlaySoundHandler telemetry', () => {
 
     expect(response).toEqual({ status: 'success', message: 'Sound playing' });
     expect(player.play).toHaveBeenCalled();
+    // No RainbotAttr.sound on the metric (unbounded cardinality on a
+    // histogram) — only phase. The span (asserted below) still carries the
+    // sound id for per-sound investigation in Tempo.
     expect(recordSoundPlay).toHaveBeenCalledWith(expect.any(Number), {
-      [RainbotAttr.sound]: 'airhorn',
-      [RainbotAttr.phase]: 'play',
+      [RainbotAttr.phase]: 'dispatch',
     });
+    const recordedAttrs = (recordSoundPlay as jest.Mock).mock.calls[0][1];
+    expect(recordedAttrs).not.toHaveProperty(RainbotAttr.sound);
 
     const span = findSpan();
     expect(span).toBeDefined();

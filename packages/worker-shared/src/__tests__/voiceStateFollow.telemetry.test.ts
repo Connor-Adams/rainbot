@@ -129,6 +129,50 @@ describe('setupAutoFollowVoiceStateHandler telemetry (second connect/disconnect 
     expect(markVoiceConnected).toHaveBeenCalledWith(newConnection, 'guild-1');
   });
 
+  // F7: this path had the same bug as voiceRpcHandlers.ts's join handler —
+  // markVoiceConnected fired right after joinVoiceChannel() returns
+  // (synchronously in `Signalling`), counting attempts rather than
+  // established connections. It now waits for Ready first.
+  it('does not count a follow-join until the connection reaches ready', async () => {
+    const client = fakeClient();
+    const newConnection = new FakeConnection();
+    newConnection.state = { status: 'signalling' };
+    joinVoiceChannel.mockReturnValue(newConnection);
+
+    const state = { connection: null, player: fakePlayer() } as unknown as GuildState;
+    const guildStates = new Map([['guild-1', state]]);
+    const channel = { id: 'chan-2', isVoiceBased: () => true };
+    const guild = {
+      id: 'guild-1',
+      channels: { cache: new Map([['chan-2', channel]]) },
+      voiceAdapterCreator: jest.fn(),
+    };
+    client.guilds.cache.set('guild-1', guild);
+
+    setupAutoFollowVoiceStateHandler(client as never, {
+      orchestratorBotId: 'orch-bot',
+      guildStates,
+      getOrCreateGuildState: () => state,
+    });
+
+    const oldState = { member: { id: 'orch-bot' }, guild: { id: 'guild-1' }, channelId: null };
+    const newState = {
+      member: { id: 'orch-bot' },
+      guild: { id: 'guild-1' },
+      channelId: 'chan-2',
+    };
+    client.emit(Events.VoiceStateUpdate, oldState, newState);
+    await flush();
+
+    expect(markVoiceConnected).not.toHaveBeenCalled();
+
+    newConnection.state = { status: 'ready' };
+    newConnection.emit('ready');
+    await flush();
+
+    expect(markVoiceConnected).toHaveBeenCalledWith(newConnection, 'guild-1');
+  });
+
   it('ignores voice state updates for members other than the orchestrator bot', async () => {
     const client = fakeClient();
     const state = { connection: null, player: fakePlayer() } as unknown as GuildState;

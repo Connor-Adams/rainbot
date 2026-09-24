@@ -12,6 +12,16 @@ export function isTelemetryStarted(): boolean {
 }
 
 /**
+ * Railway/container liveness and readiness probes hit `/health/live` and
+ * `/health/ready` on a tight interval — every one would otherwise become its
+ * own root HTTP span, burying real traffic in Tempo. Exported so it can be
+ * unit-tested directly without spinning up NodeSDK's http instrumentation.
+ */
+export function shouldIgnoreIncomingRequest(request: { url?: string }): boolean {
+  return (request.url ?? '').startsWith('/health');
+}
+
+/**
  * Must run before anything requires http/redis/pg/express — auto-instrumentation
  * patches modules at require time, so a late start yields spans with none of the
  * surrounding I/O attached.
@@ -78,6 +88,9 @@ export function startTelemetry(serviceName: string): void {
           // only because that package isn't installed; pin it explicitly so
           // a future transitive install can't quietly double the Loki volume.
           '@opentelemetry/instrumentation-winston': { disableLogSending: true },
+          '@opentelemetry/instrumentation-http': {
+            ignoreIncomingRequestHook: shouldIgnoreIncomingRequest,
+          },
         }),
       ],
     });

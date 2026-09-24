@@ -83,6 +83,29 @@ const getSoundPlayDuration = lazy(() =>
   })
 );
 
+const orchestratorHealthState = new Map<string, number>();
+
+/**
+ * Distinct from rainbot.worker.registered (each worker's self-report, set
+ * once at boot with no heartbeat) so the two are comparable on a dashboard.
+ * This one is raincloud's own belief about a worker — its circuit-breaker
+ * state and 15s health poll result — so it stays accurate even when
+ * raincloud restarts and loses its in-memory registry while a worker's
+ * stale self-report would keep reading 1.
+ */
+const getWorkerOrchestratorHealthGauge = lazy(() => {
+  const gauge = getMeter().createObservableGauge('rainbot.worker.orchestrator_healthy', {
+    description:
+      "1 when raincloud's own health/circuit-breaker state considers the worker up, else 0",
+  });
+  gauge.addCallback((observer) => {
+    for (const [worker, value] of orchestratorHealthState) {
+      observer.observe(value, { [RainbotAttr.worker]: worker });
+    }
+  });
+  return gauge;
+});
+
 export function recordVoiceConnections(delta: number, attributes: Attributes): void {
   getVoiceConnections().add(delta, attributes);
 }
@@ -112,4 +135,13 @@ export function recordWorkerRegistered(worker: string, registered: boolean): voi
 
 export function recordSoundPlay(durationMs: number, attributes: Attributes): void {
   getSoundPlayDuration().record(durationMs, attributes);
+}
+
+/**
+ * Takes the worker name positionally, like recordWorkerRegistered — this
+ * drives its own observable gauge backed by orchestratorHealthState.
+ */
+export function recordWorkerOrchestratorHealth(worker: string, healthy: boolean): void {
+  getWorkerOrchestratorHealthGauge();
+  orchestratorHealthState.set(worker, healthy ? 1 : 0);
 }

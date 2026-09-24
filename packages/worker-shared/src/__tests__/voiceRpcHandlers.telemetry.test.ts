@@ -4,7 +4,8 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import { RainbotAttr } from '@rainbot/observability/node';
 
 const joinVoiceChannel = jest.fn();
@@ -39,6 +40,11 @@ beforeAll(() => {
   trace.setGlobalTracerProvider(
     new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
   );
+  // F7's Ready-timeout path calls trace.getActiveSpan() to mark the span
+  // ERROR without throwing. Without a registered ContextManager,
+  // context.active() always returns ROOT_CONTEXT and that call silently
+  // finds nothing across the `await entersState(...)` boundary.
+  context.setGlobalContextManager(new AsyncHooksContextManager().enable());
 });
 
 beforeEach(() => {
@@ -96,6 +102,75 @@ describe('createJoinHandler telemetry', () => {
     expect(span!.attributes[RainbotAttr.guildId]).toBe('guild-1');
     expect(span!.attributes[RainbotAttr.voiceChannel]).toBe('channel-1');
     expect(span!.status.code).toBe(SpanStatusCode.UNSET);
+  });
+
+  // F7: the span used to wrap only joinVoiceChannel() (synchronous, returns
+  // in `Signalling`) plus two listener registrations, so its duration was
+  // always ~0ms regardless of whether voice ever came up. It now awaits
+  // entersState(Ready), so the span's duration should reflect real
+  // wall-clock time spent waiting, not near-instant handler overhead.
+  it('measures real time-to-ready in the span duration, not just handler overhead', async () => {
+    const { handler, connection } = buildJoinHandler();
+    connection.state = { status: 'signalling' };
+
+    const promise = handler({
+      requestId: 'r1',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+    } as never);
+
+    const READY_DELAY_MS = 60;
+    await new Promise((resolve) => setTimeout(resolve, READY_DELAY_MS));
+    connection.state = { status: 'ready' };
+    connection.emit(VoiceConnectionStatus.Ready);
+
+    const response = await promise;
+    expect(response).toEqual({ status: 'joined', channelId: 'channel-1' });
+    expect(markVoiceConnected).toHaveBeenCalledWith(connection, 'guild-1');
+
+    const span = findJoinSpan();
+    expect(span).toBeDefined();
+    const durationMs = span!.duration[0] * 1000 + span!.duration[1] / 1e6;
+    // Loose lower bound (well under READY_DELAY_MS) to absorb scheduler
+    // jitter while still failing hard against the old ~0ms behaviour.
+    expect(durationMs).toBeGreaterThanOrEqual(READY_DELAY_MS / 2);
+  });
+
+  // F7 mutation check: a connection that never reaches Ready must not be
+  // counted as an established connection (the bug was counting attempts).
+  // We also deliberately do NOT destroy the connection on timeout — see the
+  // comment in voiceRpcHandlers.ts — so it must still be countable later if
+  // it recovers on its own after this handler has already returned.
+  it('does not count the connection until Ready, even past the join timeout, but still counts a late recovery', async () => {
+    jest.useFakeTimers();
+    try {
+      const { handler, connection } = buildJoinHandler();
+      connection.state = { status: 'signalling' };
+
+      const promise = handler({
+        requestId: 'r1',
+        guildId: 'guild-1',
+        channelId: 'channel-1',
+      } as never);
+
+      await jest.advanceTimersByTimeAsync(30_000);
+      const response = await promise;
+
+      // Response contract is unchanged even on a Ready timeout (see F7 note
+      // on why we don't turn this into an 'error' response).
+      expect(response).toEqual({ status: 'joined', channelId: 'channel-1' });
+      expect(markVoiceConnected).not.toHaveBeenCalled();
+
+      const span = findJoinSpan();
+      expect(span).toBeDefined();
+      expect(span!.status.code).toBe(SpanStatusCode.ERROR);
+
+      connection.state = { status: 'ready' };
+      connection.emit(VoiceConnectionStatus.Ready);
+      expect(markVoiceConnected).toHaveBeenCalledWith(connection, 'guild-1');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('uncounts the connection when its error listener tears it down', async () => {

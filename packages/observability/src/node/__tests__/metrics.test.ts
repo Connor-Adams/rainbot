@@ -5,7 +5,12 @@ import {
   AggregationTemporality,
 } from '@opentelemetry/sdk-metrics';
 import { metrics, type Attributes } from '@opentelemetry/api';
-import { recordTrackResolveFailure, recordRpcDuration, recordWorkerRegistered } from '../metrics';
+import {
+  recordTrackResolveFailure,
+  recordRpcDuration,
+  recordWorkerRegistered,
+  recordWorkerOrchestratorHealth,
+} from '../metrics';
 import { RainbotAttr } from '../../semconv';
 
 let exporter: InMemoryMetricExporter;
@@ -61,6 +66,44 @@ describe('metrics', () => {
 
     expect(gaugeMetric).toBeDefined();
 
+    const dataPoints = gaugeMetric?.dataPoints as Array<{
+      value: number;
+      attributes: Attributes;
+    }>;
+    const rainbotPoint = dataPoints.find((p) => p.attributes[RainbotAttr.worker] === 'rainbot');
+    const pranjeetPoint = dataPoints.find((p) => p.attributes[RainbotAttr.worker] === 'pranjeet');
+
+    expect(rainbotPoint?.value).toBe(1);
+    expect(pranjeetPoint?.value).toBe(0);
+  });
+
+  // F8: rainbot.worker.orchestrator_healthy must be a distinct metric from
+  // rainbot.worker.registered — the two represent different views (a
+  // worker's one-shot self-report vs. raincloud's own live circuit/health
+  // belief) and need to be independently queryable/comparable on a
+  // dashboard.
+  it('drives a distinct orchestrator-health gauge from recordWorkerOrchestratorHealth, per worker', async () => {
+    recordWorkerOrchestratorHealth('rainbot', true);
+    recordWorkerOrchestratorHealth('pranjeet', false);
+    await reader.forceFlush();
+
+    const names = exporter
+      .getMetrics()
+      .flatMap((m) => m.scopeMetrics)
+      .flatMap((s) => s.metrics)
+      .map((m) => m.descriptor.name);
+    expect(names).toContain('rainbot.worker.orchestrator_healthy');
+    // Must be a name of its own, not a reuse of the self-reported gauge's
+    // name/series — the two views need to stay independently queryable.
+    expect('rainbot.worker.orchestrator_healthy').not.toBe('rainbot.worker.registered');
+
+    const gaugeMetric = exporter
+      .getMetrics()
+      .flatMap((m) => m.scopeMetrics)
+      .flatMap((s) => s.metrics)
+      .find((m) => m.descriptor.name === 'rainbot.worker.orchestrator_healthy');
+
+    expect(gaugeMetric).toBeDefined();
     const dataPoints = gaugeMetric?.dataPoints as Array<{
       value: number;
       attributes: Attributes;

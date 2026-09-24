@@ -10,6 +10,9 @@ import { createLogger } from '@rainbot/shared';
 import { logVoiceConnectionState } from './voiceDiagnostics';
 import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
 
+/** Matches packages/utils/src/voice/connectionManager.ts's own join-Ready wait. */
+const JOIN_READY_TIMEOUT_MS = 30_000;
+
 export interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
@@ -93,7 +96,6 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       connection.subscribe(state.player);
       state.connection = connection;
-      markVoiceConnected(connection, guildId);
       logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
 
       // VoiceConnection is an EventEmitter: without an 'error' listener a voice
@@ -130,6 +132,24 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
           markVoiceDisconnected(connection, guildId);
         }
       });
+
+      // Count established connections, not attempts: joinVoiceChannel()
+      // returns synchronously in `Signalling`, so only mark the gauge once
+      // the connection actually reaches Ready. On timeout we deliberately do
+      // not destroy the connection — see the matching comment in
+      // voiceRpcHandlers.ts's createJoinHandler, which applies here too — and
+      // instead count it later if/when it does become ready.
+      try {
+        await entersState(connection, VoiceConnectionStatus.Ready, JOIN_READY_TIMEOUT_MS);
+        markVoiceConnected(connection, guildId);
+      } catch (error) {
+        logger.warn(
+          `Voice connection in guild ${guildId} did not become ready within ${JOIN_READY_TIMEOUT_MS}ms: ${(error as Error).message}`
+        );
+        connection.once(VoiceConnectionStatus.Ready, () => {
+          markVoiceConnected(connection, guildId);
+        });
+      }
     }
   });
 }

@@ -46,8 +46,18 @@ export const t = initTRPC.context<RPCContext>().create();
  * `withSpan`'s try/catch never sees it. We inspect the resolved result
  * ourselves and mark the active span as an error when `ok` is false, without
  * altering what this middleware returns to tRPC.
+ *
+ * `health` (and any future equivalent status procedure) is excluded: raincloud
+ * polls it every 15s per worker, which would otherwise make nearly every root
+ * trace in Tempo a health check instead of real RPC traffic. See the matching
+ * exclusion on the client side in client.ts.
  */
+const UNTRACED_PROCEDURES = new Set(['health']);
+
 export const withRpcSpan = t.middleware(({ path, next }) => {
+  if (UNTRACED_PROCEDURES.has(path)) {
+    return next();
+  }
   return withSpan('worker.rpc.handler', { [RainbotAttr.rpcProcedure]: path }, async () => {
     const result = await next();
     if (!result.ok) {

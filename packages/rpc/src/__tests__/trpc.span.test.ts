@@ -53,6 +53,22 @@ describe('worker.rpc.handler server span', () => {
     expect(span.status.code).toBe(SpanStatusCode.UNSET);
   });
 
+  // F11: raincloud polls `health` every 15s per worker; left spanned, nearly
+  // every root trace in Tempo would be a health check instead of real RPC
+  // traffic. See the matching client-side exclusion in client.telemetry.test.ts.
+  it('does not span the health procedure, but still resolves it normally', async () => {
+    const router = t.router({
+      health: publicProcedure.query(() => ({ ok: true })),
+    });
+    const createCaller = t.createCallerFactory(router);
+    const caller = createCaller(fakeContext(null));
+
+    const result = await caller.health();
+
+    expect(result).toEqual({ ok: true });
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+  });
+
   it('propagates an error thrown by a procedure as the same instance', async () => {
     // Call the middleware function directly with a `next` that rejects,
     // bypassing tRPC's own call machinery — going through a real router

@@ -1,4 +1,26 @@
-import { startTelemetry, shutdownTelemetry, isTelemetryStarted } from '../sdk';
+import {
+  startTelemetry,
+  shutdownTelemetry,
+  isTelemetryStarted,
+  shouldIgnoreIncomingRequest,
+} from '../sdk';
+
+// F11: Railway/container health probes hit /health/live and /health/ready on
+// a tight interval; without this, every one becomes its own root HTTP span
+// in Tempo, on top of the health-check RPC spans (see packages/rpc's
+// client.ts/trpc.ts exclusions).
+describe('shouldIgnoreIncomingRequest', () => {
+  it('ignores /health/live and /health/ready', () => {
+    expect(shouldIgnoreIncomingRequest({ url: '/health/live' })).toBe(true);
+    expect(shouldIgnoreIncomingRequest({ url: '/health/ready' })).toBe(true);
+  });
+
+  it('does not ignore real traffic, including paths that merely start similarly', () => {
+    expect(shouldIgnoreIncomingRequest({ url: '/trpc' })).toBe(false);
+    expect(shouldIgnoreIncomingRequest({ url: '/api/health-check' })).toBe(false);
+    expect(shouldIgnoreIncomingRequest({ url: undefined })).toBe(false);
+  });
+});
 
 describe('startTelemetry', () => {
   afterEach(async () => {

@@ -26,6 +26,9 @@ import { createSoundAudioResource } from './soundResource';
 import { logVoiceConnectionState } from './voiceDiagnostics';
 import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
 
+/** Matches packages/utils/src/voice/connectionManager.ts's own join-Ready wait. */
+const JOIN_READY_TIMEOUT_MS = 30_000;
+
 export interface VoiceRpcHandlerOptions {
   client: ReturnType<typeof createWorkerDiscordClient>;
   requestCache: RequestCache;
@@ -88,7 +91,6 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
           });
           connection.subscribe(state.player);
           state.connection = connection;
-          markVoiceConnected(connection, input.guildId);
           logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
           // VoiceConnection is an EventEmitter: without an 'error' listener a voice
           // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
@@ -120,6 +122,43 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
               state.connection = null;
             }
           });
+          // joinVoiceChannel() returns synchronously in the `Signalling` state,
+          // so measuring only up to here says nothing about whether voice ever
+          // came up. Wait for Ready so the span's duration is real (time to
+          // ready), and only count the connection in rainbot.voice.connections
+          // once it has actually connected, not merely attempted to.
+          //
+          // On timeout we deliberately do NOT destroy the connection or
+          // reject this handler. packages/utils/src/voice/connectionManager.ts
+          // hits this identical entersState(Ready) timeout for the
+          // orchestrator's own join and explicitly "continue[s] anyway -
+          // connection may still work" rather than tearing down — a
+          // connection stuck in `signalling` has recovered on its own before
+          // (see the 2026-09-09 RainSwarm incident, resolved without ever
+          // destroying the stuck connections). We mirror that choice here so
+          // the RPC's response contract and the connection's fate are
+          // unchanged from today: still returns 'joined' immediately-ish, and
+          // the connection is left alone to keep trying. The only change on
+          // timeout is telemetry: the span is marked ERROR, and the gauge
+          // only increments if/when the connection actually reaches Ready
+          // (possibly after this handler has already returned).
+          try {
+            await entersState(connection, VoiceConnectionStatus.Ready, JOIN_READY_TIMEOUT_MS);
+            markVoiceConnected(connection, input.guildId);
+          } catch (error) {
+            log.warn(
+              `Voice connection in guild ${input.guildId} did not become ready within ${JOIN_READY_TIMEOUT_MS}ms: ${(error as Error).message}`
+            );
+            const span = trace.getActiveSpan();
+            span?.recordException(error as Error);
+            span?.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: 'Voice connection did not become ready in time',
+            });
+            connection.once(VoiceConnectionStatus.Ready, () => {
+              markVoiceConnected(connection, input.guildId);
+            });
+          }
           return { status: 'joined', channelId: input.channelId };
         }
       );
@@ -269,9 +308,19 @@ export function createPlaySoundHandler(options: PlaySoundHandlerOptions) {
             );
             state.player.stop(true);
             state.player.play(resource);
+            // Deliberately no RainbotAttr.sound here: it's a user-uploaded R2
+            // object key, and on a histogram each distinct value multiplies
+            // into a full set of bucket series (~14 per phase) that never get
+            // reclaimed as sounds accumulate. It's still on the sound.play
+            // span above, where high cardinality is free and still gives
+            // per-sound investigation in Tempo.
+            //
+            // phase is 'dispatch', not 'play': player.play() only hands the
+            // resource to the AudioPlayer and returns immediately — actual
+            // playback happens afterwards, asynchronously, so this phase can
+            // only ever measure the near-zero cost of the handoff itself.
             recordSoundPlay(Date.now() - playStarted, {
-              [RainbotAttr.sound]: input.sfxId,
-              [RainbotAttr.phase]: 'play',
+              [RainbotAttr.phase]: 'dispatch',
             });
             log.debug(`Soundboard play issued status=${state.player.state.status}`);
             log.info(
