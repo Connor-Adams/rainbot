@@ -18,6 +18,12 @@ RUN apt-get update \
 
 RUN corepack enable
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# youtube-dl-exec's postinstall downloads a yt-dlp binary from GitHub releases.
+# These images do not use it — yt-dlp comes from pip, and youtube-dl-exec only
+# shells out to whatever `yt-dlp` is on PATH — so the download is pure waste and
+# a flake source (it has already failed a build). CI's setup action skips it for
+# the same reason; this brings the images in line.
+ENV YOUTUBE_DL_SKIP_DOWNLOAD=true
 
 # Manifests before source so the install layer survives source-only changes.
 # EVERY workspace manifest is copied, not just ui's: `yarn install --immutable`
