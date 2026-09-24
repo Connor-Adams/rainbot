@@ -4,7 +4,7 @@ import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
-import { Slider, Switch } from '@connor-adams/designsystem';
+import { EmptyState, Slider, Switch } from '@connor-adams/designsystem';
 import NowPlayingCard from '../NowPlayingCard';
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
@@ -170,6 +170,15 @@ export default function PlayerTab() {
       handlePlay();
     }
   };
+
+  if (!selectedGuildId) {
+    return (
+      <EmptyState
+        title="No server selected"
+        description="Pick a server from the menu in the header to control playback."
+      />
+    );
+  }
 
   return (
     <>
