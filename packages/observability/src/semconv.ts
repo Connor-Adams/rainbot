@@ -26,6 +26,11 @@ export const RainbotAttr = Object.freeze({
   ttsVoice: 'rainbot.tts_voice',
   textLength: 'rainbot.text_length',
   grokModel: 'rainbot.grok_model',
+  queueOperation: 'rainbot.queue_operation',
+  queueLengthAfter: 'rainbot.queue_length_after',
+  grokPromptTokens: 'rainbot.grok_prompt_tokens',
+  grokCompletionTokens: 'rainbot.grok_completion_tokens',
+  grokTotalTokens: 'rainbot.grok_total_tokens',
 } as const);
 
 export type RainbotAttrName = (typeof RainbotAttr)[keyof typeof RainbotAttr];

@@ -173,9 +173,13 @@ export async function joinChannel(
 
               // Mutate the queue under the queue lock to avoid race conditions
               const { withQueueLock } = await import('./queueManager');
-              await withQueueLock(guildId, () => {
-                state.queue.push(autoplayTrack);
-              });
+              await withQueueLock(
+                guildId,
+                () => {
+                  state.queue.push(autoplayTrack);
+                },
+                'autoplayAdd'
+              );
               log.info(`Added autoplay track: "${autoplayTrack.title}"`);
 
               const { playNext } = await import('./playbackManager');

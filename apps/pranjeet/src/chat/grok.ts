@@ -23,9 +23,16 @@ interface ChatCompletionChoice {
   index?: number;
 }
 
+interface ChatCompletionUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 interface ChatCompletionResponse {
   choices?: ChatCompletionChoice[];
   id?: string;
+  usage?: ChatCompletionUsage;
 }
 
 function normalizeContent(msg: ChatCompletionMessage): string {
@@ -102,8 +109,15 @@ export async function getGrokReply(
     // exception-based error detection would never see either failure as an
     // error. Mark the active span ERROR explicitly inside the withSpan
     // callback (where it's still the active span) whenever that's the case.
+    //
+    // Named grok.chat.completion (not grok.converse) because this is the
+    // STT/text fallback path via xAI's Chat Completions API, not the
+    // realtime Voice Agent (apps/pranjeet/src/voice-agent/grokVoiceAgent.ts)
+    // that users actually talk to during a live conversation — that path is
+    // still untraced and needs its own websocket span-lifecycle design.
+    // grok.converse is reserved for that eventual realtime span.
     const { reply, httpFailed } = await withSpan(
-      'grok.converse',
+      'grok.chat.completion',
       { [RainbotAttr.grokModel]: GROK_MODEL, [RainbotAttr.guildId]: guildId },
       async (): Promise<{ reply: string; httpFailed: boolean }> => {
         const res = await fetch(url, {
@@ -126,11 +140,25 @@ export async function getGrokReply(
         const message = choice?.message;
         const parsedReply = message ? normalizeContent(message as ChatCompletionMessage) : '';
 
+        const span = trace.getActiveSpan();
+        if (data.usage) {
+          if (typeof data.usage.prompt_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokPromptTokens, data.usage.prompt_tokens);
+          }
+          if (typeof data.usage.completion_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokCompletionTokens, data.usage.completion_tokens);
+          }
+          if (typeof data.usage.total_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokTotalTokens, data.usage.total_tokens);
+          }
+        }
+
         if (!parsedReply) {
           log.warn('Grok response had no message content');
-          trace
-            .getActiveSpan()
-            ?.setStatus({ code: SpanStatusCode.ERROR, message: 'xAI returned no message content' });
+          span?.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'xAI returned no message content',
+          });
         }
 
         return { reply: parsedReply, httpFailed: false };

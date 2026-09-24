@@ -33,10 +33,10 @@ beforeAll(() => {
     new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
   );
   // Without a real context manager, trace.getActiveSpan() inside the
-  // grok.converse withSpan callback (used to mark the span ERROR on a
-  // resolve-with-failure-value) would silently find nothing across the
-  // `await fetch(...)` boundary. Production registers one via
-  // `startTelemetry()`.
+  // grok.chat.completion withSpan callback (used to mark the span ERROR on a
+  // resolve-with-failure-value, and to record token-count attributes) would
+  // silently find nothing across the `await fetch(...)` boundary. Production
+  // registers one via `startTelemetry()`.
   context.setGlobalContextManager(new AsyncHooksContextManager().enable());
 });
 
@@ -52,10 +52,10 @@ afterEach(() => {
 });
 
 function findSpan() {
-  return exporter.getFinishedSpans().find((s) => s.name === 'grok.converse');
+  return exporter.getFinishedSpans().find((s) => s.name === 'grok.chat.completion');
 }
 
-describe('getGrokReply grok.converse span', () => {
+describe('getGrokReply grok.chat.completion span', () => {
   it('spans a successful reply with the model and guild attributes, UNSET status', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -120,5 +120,39 @@ describe('getGrokReply grok.converse span', () => {
     const span = findSpan();
     expect(span).toBeDefined();
     expect(span!.status.code).toBe(SpanStatusCode.ERROR);
+  });
+
+  it('records token-count attributes from the response usage field', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { role: 'assistant', content: 'Hi there!' } }],
+        usage: { prompt_tokens: 42, completion_tokens: 8, total_tokens: 50 },
+      }),
+    }) as unknown as typeof fetch;
+
+    const reply = await getGrokReply('guild-1', 'user-1', 'hello');
+
+    expect(reply).toBe('Hi there!');
+    const span = findSpan();
+    expect(span).toBeDefined();
+    expect(span!.attributes[RainbotAttr.grokPromptTokens]).toBe(42);
+    expect(span!.attributes[RainbotAttr.grokCompletionTokens]).toBe(8);
+    expect(span!.attributes[RainbotAttr.grokTotalTokens]).toBe(50);
+  });
+
+  it('omits token-count attributes when the response has no usage field', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { role: 'assistant', content: 'Hi there!' } }] }),
+    }) as unknown as typeof fetch;
+
+    await getGrokReply('guild-1', 'user-1', 'hello');
+
+    const span = findSpan();
+    expect(span).toBeDefined();
+    expect(span!.attributes[RainbotAttr.grokPromptTokens]).toBeUndefined();
+    expect(span!.attributes[RainbotAttr.grokCompletionTokens]).toBeUndefined();
+    expect(span!.attributes[RainbotAttr.grokTotalTokens]).toBeUndefined();
   });
 });

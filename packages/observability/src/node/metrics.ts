@@ -125,8 +125,11 @@ export function recordRpcDuration(durationMs: number, attributes: Attributes): v
 /**
  * Takes the worker name positionally rather than an attributes object: it
  * drives an observable gauge backed by `registrationState`, not a direct
- * counter/histogram recording. Ensures the gauge (and its callback) exist
- * before writing to the map, so the first registration is never dropped.
+ * counter/histogram recording. The gauge callback reads `registrationState`
+ * at collection time (not at write time), so call order relative to the map
+ * write doesn't matter for correctness — this call is still required,
+ * though, since it's what registers the gauge and its callback at all; skip
+ * it and no callback ever exists to read the map.
  */
 export function recordWorkerRegistered(worker: string, registered: boolean): void {
   getWorkerRegisteredGauge();
