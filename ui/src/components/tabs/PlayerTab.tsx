@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
@@ -87,23 +87,42 @@ export default function PlayerTab() {
   const volumeMutation = useMutation({
     mutationFn: (payload: { level: number; botType: BotType }) =>
       playbackApi.volume(selectedGuildId!, payload.level, payload.botType),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+    // The optimistic value is held until fresh server state has actually
+    // arrived. Awaiting the invalidation matters: clearing the override the
+    // moment the request is fired drops the slider back to the last polled
+    // value — which can be up to 5s stale — so the handle visibly snaps back
+    // and then jumps again when the poll catches up.
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+      setLocalVolumes((prev) => ({ ...prev, [variables.botType]: null }));
     },
-    onError: () => {
-      setLocalVolumes((prev) => ({ ...prev }));
+    // On failure, drop the override so the slider returns to the truth the
+    // server last reported, rather than sitting on a value that never applied.
+    onError: (_error, variables) => {
+      setLocalVolumes((prev) => ({ ...prev, [variables.botType]: null }));
     },
   });
+
+  // A debounce timer that survives unmount fires a mutation and a setState on a
+  // component that no longer exists — most visible when switching guilds mid-drag.
+  useEffect(() => {
+    const refs = volumeDebounceRefs.current;
+    return () => {
+      for (const timer of Object.values(refs)) {
+        if (timer) clearTimeout(timer);
+      }
+    };
+  }, []);
 
   const handleVolumeChange = (botType: BotType, newVolume: number) => {
     setLocalVolumes((prev) => ({ ...prev, [botType]: newVolume }));
 
-    // Debounce API call
+    // Debounced so dragging the slider doesn't fire a request per pixel. The
+    // override is deliberately NOT cleared here — see the mutation's callbacks.
     const ref = volumeDebounceRefs.current;
     if (ref[botType]) clearTimeout(ref[botType]!);
     ref[botType] = setTimeout(() => {
       volumeMutation.mutate({ level: newVolume, botType });
-      setLocalVolumes((prev) => ({ ...prev, [botType]: null }));
     }, 150);
   };
 
@@ -260,6 +279,18 @@ export default function PlayerTab() {
               />
             </div>
           </div>
+          {volumeMutation.isError && (
+            <p className="text-xs text-danger mt-3">
+              {(
+                volumeMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (volumeMutation.error as Error)?.message ??
+                'Failed to set volume'}
+            </p>
+          )}
         </div>
       </section>
     </>
