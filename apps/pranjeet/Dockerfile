@@ -39,7 +39,13 @@ COPY apps/pranjeet/package.json ./apps/pranjeet/
 COPY apps/hungerbot/package.json ./apps/hungerbot/
 COPY ui/package.json ./ui/
 
-RUN yarn install --immutable
+# node_auth_token authenticates @connor-adams/* (the shared design system,
+# published to GitHub Packages) during install. Mounted as a BuildKit secret so
+# it never lands in an image layer; .yarnrc.yml reads it via ${NODE_AUTH_TOKEN:-}.
+# CI passes secrets.GITHUB_TOKEN, which can read packages in this org.
+RUN --mount=type=secret,id=node_auth_token \
+    NODE_AUTH_TOKEN="$(cat /run/secrets/node_auth_token 2>/dev/null || true)" \
+    yarn install --immutable
 
 COPY packages/ ./packages/
 COPY apps/pranjeet/ ./apps/pranjeet/

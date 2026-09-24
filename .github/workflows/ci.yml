@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: ['**']
 
+# Least privilege, made explicit: the install step needs packages:read to pull
+# @connor-adams/* (the shared design system) from GitHub Packages, and a
+# workflow-level block restricts the token to exactly what is listed.
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

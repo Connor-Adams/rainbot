@@ -37,5 +37,10 @@ runs:
     - name: Install
       env:
         YOUTUBE_DL_SKIP_DOWNLOAD: 'true'
+        # Authenticates @connor-adams/* (the shared design system) against
+        # GitHub Packages. GITHUB_TOKEN can read packages in this org, so no
+        # dedicated secret is needed — but the caller's job must grant
+        # `permissions: packages: read`, or this 401s.
+        NODE_AUTH_TOKEN: ${{ github.token }}
       run: yarn install --immutable --check-cache
       shell: bash
