@@ -63,7 +63,7 @@ export default function StatisticsTab() {
         <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-4">
           Statistics Dashboard
         </h2>
-        <div className="stats-tabs flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="stats-tabs flex gap-2 overflow-x-auto ca-no-scrollbar pb-1">
           <button className={tabClass('summary')} onClick={() => setActiveTab('summary')}>
             Summary
           </button>
