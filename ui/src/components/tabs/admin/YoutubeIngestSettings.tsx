@@ -1,9 +1,12 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '@/lib/api';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function YoutubeIngestSettings() {
   const queryClient = useQueryClient();
+  const [removeProxyDialogOpen, setRemoveProxyDialogOpen] = useState(false);
+  const [removeCookiesDialogOpen, setRemoveCookiesDialogOpen] = useState(false);
 
   const { data: youtubeCookies } = useQuery({
     queryKey: ['youtube-cookies'],
@@ -78,7 +81,7 @@ export default function YoutubeIngestSettings() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => deleteProxyMutation.mutate()}
+              onClick={() => setRemoveProxyDialogOpen(true)}
               disabled={deleteProxyMutation.isPending}
             >
               {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
@@ -138,7 +141,7 @@ export default function YoutubeIngestSettings() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => deleteCookiesMutation.mutate()}
+              onClick={() => setRemoveCookiesDialogOpen(true)}
               disabled={deleteCookiesMutation.isPending}
             >
               {deleteCookiesMutation.isPending ? 'Removing...' : 'Remove cookies'}
@@ -171,6 +174,31 @@ export default function YoutubeIngestSettings() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={removeProxyDialogOpen}
+        title="Remove the YouTube proxy?"
+        description="Playback will fall back to direct connections, which may be rate-limited."
+        pending={deleteProxyMutation.isPending}
+        onCancel={() => setRemoveProxyDialogOpen(false)}
+        onConfirm={() =>
+          deleteProxyMutation.mutate(undefined, {
+            onSuccess: () => setRemoveProxyDialogOpen(false),
+          })
+        }
+      />
+      <ConfirmDialog
+        open={removeCookiesDialogOpen}
+        title="Remove the YouTube cookies?"
+        description="Age-restricted and members-only videos will stop playing until new cookies are uploaded."
+        pending={deleteCookiesMutation.isPending}
+        onCancel={() => setRemoveCookiesDialogOpen(false)}
+        onConfirm={() =>
+          deleteCookiesMutation.mutate(undefined, {
+            onSuccess: () => setRemoveCookiesDialogOpen(false),
+          })
+        }
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function PersonaManager() {
   const queryClient = useQueryClient();
@@ -8,12 +9,14 @@ export default function PersonaManager() {
   const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
   const [personaName, setPersonaName] = useState('');
   const [personaSystemPrompt, setPersonaSystemPrompt] = useState('');
+  const [personaPendingDeleteId, setPersonaPendingDeleteId] = useState<string | null>(null);
 
   const { data: personasData } = useQuery({
     queryKey: ['personas'],
     queryFn: () => adminApi.getPersonas().then((res) => res.data),
   });
   const personas = personasData?.personas ?? [];
+  const personaPendingDelete = personas.find((p) => p.id === personaPendingDeleteId) ?? null;
 
   const createPersonaMutation = useMutation({
     mutationFn: (data: { name: string; systemPrompt: string }) => adminApi.createPersona(data),
@@ -208,11 +211,7 @@ export default function PersonaManager() {
                       type="button"
                       className="text-xs text-danger-light hover:underline"
                       disabled={deletePersonaMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm(`Delete persona "${p.name}"?`)) {
-                          deletePersonaMutation.mutate(p.id);
-                        }
-                      }}
+                      onClick={() => setPersonaPendingDeleteId(p.id)}
                     >
                       Delete
                     </button>
@@ -222,6 +221,25 @@ export default function PersonaManager() {
           </ul>
         )}
       </div>
+
+      <ConfirmDialog
+        open={personaPendingDeleteId !== null}
+        title="Delete this persona?"
+        description={
+          personaPendingDelete
+            ? `"${personaPendingDelete.name}" will be permanently deleted. This cannot be undone.`
+            : 'This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        pending={deletePersonaMutation.isPending}
+        onCancel={() => setPersonaPendingDeleteId(null)}
+        onConfirm={() => {
+          if (!personaPendingDeleteId) return;
+          deletePersonaMutation.mutate(personaPendingDeleteId, {
+            onSuccess: () => setPersonaPendingDeleteId(null),
+          });
+        }}
+      />
     </div>
   );
 }

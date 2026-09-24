@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { soundsApi } from '@/lib/api';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 type SweepResult = {
   converted: number;
@@ -11,6 +12,8 @@ type SweepResult = {
 export default function SoundLibraryMaintenance() {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<SweepResult | null>(null);
+  const [sweepDialogOpen, setSweepDialogOpen] = useState(false);
+  const [stripVideoDialogOpen, setStripVideoDialogOpen] = useState(false);
 
   const sweepMutation = useMutation({
     mutationFn: () => soundsApi.sweepTranscode({ deleteOriginal: true }),
@@ -53,19 +56,16 @@ export default function SoundLibraryMaintenance() {
   });
 
   const handleSweep = () => {
-    if (!window.confirm('Transcode all sounds to Ogg Opus and archive originals?')) return;
-    sweepMutation.mutate();
+    sweepMutation.mutate(undefined, {
+      onSuccess: () => setSweepDialogOpen(false),
+    });
   };
 
   const handleStripVideo = () => {
-    if (
-      !window.confirm(
-        'Rewrite every sound that secretly contains a video stream as audio only? The originals are archived first.'
-      )
-    )
-      return;
     setStripVideoResult(null);
-    stripVideoMutation.mutate();
+    stripVideoMutation.mutate(undefined, {
+      onSuccess: () => setStripVideoDialogOpen(false),
+    });
   };
 
   return (
@@ -78,7 +78,7 @@ export default function SoundLibraryMaintenance() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={handleSweep}
+          onClick={() => setSweepDialogOpen(true)}
           disabled={sweepMutation.isPending}
         >
           {sweepMutation.isPending ? 'Working...' : 'Run Transcode Sweep'}
@@ -123,7 +123,7 @@ export default function SoundLibraryMaintenance() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={handleStripVideo}
+          onClick={() => setStripVideoDialogOpen(true)}
           disabled={stripVideoMutation.isPending}
         >
           {stripVideoMutation.isPending ? 'Rewriting...' : 'Strip video from sounds'}
@@ -132,6 +132,25 @@ export default function SoundLibraryMaintenance() {
           <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={sweepDialogOpen}
+        title="Run the transcode sweep?"
+        description="This rewrites sound files and deletes the originals. This cannot be undone."
+        confirmLabel="Run sweep"
+        pending={sweepMutation.isPending}
+        onCancel={() => setSweepDialogOpen(false)}
+        onConfirm={handleSweep}
+      />
+      <ConfirmDialog
+        open={stripVideoDialogOpen}
+        title="Strip video from all sounds?"
+        description="This rewrites every sound in the library. Originals are archived, not kept in place."
+        confirmLabel="Strip video"
+        pending={stripVideoMutation.isPending}
+        onCancel={() => setStripVideoDialogOpen(false)}
+        onConfirm={handleStripVideo}
+      />
     </>
   );
 }
