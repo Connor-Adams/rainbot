@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { EmptyState } from '@connor-adams/designsystem';
 import { soundsApi, adminApi, botApi, playbackApi } from '@/lib/api';
-import type { Guild } from '@/types';
-import CustomDropdown from '../../CustomDropdown';
-import DisplayCard from '../../Displaycard';
-import { useAdminRunGuildId } from './shared';
+import { useGuildStore } from '@/stores/guildStore';
 
 type RunCommandType =
   | 'play'
@@ -31,7 +29,7 @@ const RUN_COMMAND_LABELS: Record<RunCommandType, string> = {
 
 export default function CommandRunner() {
   const queryClient = useQueryClient();
-  const [runGuildId, setRunGuildId] = useAdminRunGuildId();
+  const { selectedGuildId: runGuildId } = useGuildStore();
   const [runCommand, setRunCommand] = useState<RunCommandType>('play');
   const [playSource, setPlaySource] = useState('');
   const [speakText, setSpeakText] = useState('');
@@ -41,16 +39,10 @@ export default function CommandRunner() {
   const [runResult, setRunResult] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
-  const { data: botStatus } = useQuery({
-    queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
-    refetchInterval: 10000,
-  });
   const { data: soundsData } = useQuery({
     queryKey: ['sounds'],
     queryFn: () => soundsApi.list().then((res) => res.data),
   });
-  const guilds = botStatus?.guilds ?? [];
   const sounds = soundsData ?? [];
 
   const runCommandMutation = useMutation({
@@ -120,27 +112,23 @@ export default function CommandRunner() {
         (runCommand === 'grok' && grokText.trim())
       : true);
 
+  if (!runGuildId) {
+    return (
+      <EmptyState
+        title="No server selected"
+        description="Pick a server from the menu in the header."
+      />
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-surface-input p-4">
       <div className="text-sm font-semibold text-text-primary mb-1">Run commands</div>
       <div className="text-xs text-text-secondary mb-4">
-        Run bot actions from the UI. Pick a server and command, then run. You must be in a voice
-        channel for playback commands to take effect.
+        Run bot actions from the UI. Pick a command, then run. You must be in a voice channel for
+        playback commands to take effect.
       </div>
       <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Server</label>
-          <CustomDropdown<Guild>
-            items={guilds}
-            selectedValue={runGuildId}
-            onSelect={setRunGuildId}
-            getItemId={(g) => g.id}
-            getItemLabel={(g) => g.name}
-            renderItem={(g) => <DisplayCard name={g.name} />}
-            placeholder="Select a server..."
-            emptyMessage="No servers"
-          />
-        </div>
         <div>
           <label className="block text-xs font-medium text-text-secondary mb-1">Command</label>
           <select

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { EmptyState } from '@connor-adams/designsystem';
 import { adminApi } from '@/lib/api';
-import { useAdminRunGuildId } from './shared';
+import { useGuildStore } from '@/stores/guildStore';
 
 const GROK_VOICES = [
   { value: 'Ara', label: 'Ara (female, warm)' },
@@ -12,7 +13,7 @@ const GROK_VOICES = [
 
 export default function GrokVoiceSettings() {
   const queryClient = useQueryClient();
-  const [runGuildId] = useAdminRunGuildId();
+  const { selectedGuildId: runGuildId } = useGuildStore();
 
   const { data: conversationMode } = useQuery({
     queryKey: ['conversation-mode', runGuildId],
@@ -86,141 +87,142 @@ export default function GrokVoiceSettings() {
     },
   });
 
+  if (!runGuildId) {
+    return (
+      <EmptyState
+        title="No server selected"
+        description="Pick a server from the menu in the header."
+      />
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-surface-input p-4">
       <div className="text-sm font-semibold text-text-primary mb-1">
         Grok conversation mode (voice)
       </div>
       <div className="text-xs text-text-secondary mb-4">
-        For the server selected in Run commands: when on, everyone in the active voice channel can
+        For the server selected in the header: when on, everyone in the active voice channel can
         talk to Grok in real time (Voice Agent). Turning on also enables voice listening for this
         server. Join a voice channel with the bot and speak; ensure GROK_API_KEY is set on the voice
         worker. If nothing happens, try turning off then on again.
       </div>
-      {runGuildId ? (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <div className="text-xs text-text-secondary">
-              Currently:{' '}
-              <strong>
-                {conversationMode === undefined ? '…' : conversationMode.enabled ? 'On' : 'Off'}
-              </strong>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={
-                  conversationMode === undefined ||
-                  conversationModeMutation.isPending ||
-                  conversationMode.enabled === true
-                }
-                onClick={() =>
-                  conversationModeMutation.mutate({ guildId: runGuildId, enabled: true })
-                }
-              >
-                {conversationModeMutation.isPending ? '…' : 'Turn on'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={
-                  conversationMode === undefined ||
-                  conversationModeMutation.isPending ||
-                  conversationMode.enabled === false
-                }
-                onClick={() =>
-                  conversationModeMutation.mutate({ guildId: runGuildId, enabled: false })
-                }
-              >
-                {conversationModeMutation.isPending ? '…' : 'Turn off'}
-              </button>
-            </div>
-            {conversationModeMutation.isError && (
-              <div className="text-xs text-danger-light">
-                {(conversationModeMutation.error as Error)?.message ?? 'Failed to update'}
-              </div>
-            )}
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <div className="text-xs text-text-secondary">
+            Currently:{' '}
+            <strong>
+              {conversationMode === undefined ? '…' : conversationMode.enabled ? 'On' : 'Off'}
+            </strong>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">Grok voice</label>
-            <select
-              value={grokVoice?.voice ?? 'Ara'}
-              onChange={(e) =>
-                grokVoiceMutation.mutate({ guildId: runGuildId, voice: e.target.value })
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={
+                conversationMode === undefined ||
+                conversationModeMutation.isPending ||
+                conversationMode.enabled === true
               }
-              disabled={grokVoiceMutation.isPending}
-              className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              onClick={() =>
+                conversationModeMutation.mutate({ guildId: runGuildId, enabled: true })
+              }
             >
-              {GROK_VOICES.map((v) => (
-                <option key={v.value} value={v.value}>
-                  {v.label}
+              {conversationModeMutation.isPending ? '…' : 'Turn on'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={
+                conversationMode === undefined ||
+                conversationModeMutation.isPending ||
+                conversationMode.enabled === false
+              }
+              onClick={() =>
+                conversationModeMutation.mutate({ guildId: runGuildId, enabled: false })
+              }
+            >
+              {conversationModeMutation.isPending ? '…' : 'Turn off'}
+            </button>
+          </div>
+          {conversationModeMutation.isError && (
+            <div className="text-xs text-danger-light">
+              {(conversationModeMutation.error as Error)?.message ?? 'Failed to update'}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-text-secondary mb-1">Grok voice</label>
+          <select
+            value={grokVoice?.voice ?? 'Ara'}
+            onChange={(e) =>
+              grokVoiceMutation.mutate({ guildId: runGuildId, voice: e.target.value })
+            }
+            disabled={grokVoiceMutation.isPending}
+            className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            {GROK_VOICES.map((v) => (
+              <option key={v.value} value={v.value}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+          <div className="text-xs text-text-secondary mt-1">
+            Voice for the Grok Voice Agent. Takes effect for your next conversation.
+          </div>
+          {grokVoiceMutation.isError && (
+            <div className="text-xs text-danger-light mt-1">
+              {(
+                grokVoiceMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (grokVoiceMutation.error as Error)?.message ??
+                'Failed to update voice'}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-text-secondary mb-1">Grok persona</label>
+          <select
+            value={grokPersona?.personaId ?? ''}
+            onChange={(e) =>
+              grokPersonaMutation.mutate({
+                guildId: runGuildId,
+                personaId: e.target.value || null,
+              })
+            }
+            disabled={grokPersonaMutation.isPending}
+            className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="">Default (Convenience store philosopher)</option>
+            {personas
+              .filter((p) => p.id !== 'default')
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.isBuiltIn ? ' (built-in)' : ''}
                 </option>
               ))}
-            </select>
-            <div className="text-xs text-text-secondary mt-1">
-              Voice for the Grok Voice Agent. Takes effect for your next conversation.
-            </div>
-            {grokVoiceMutation.isError && (
-              <div className="text-xs text-danger-light mt-1">
-                {(
-                  grokVoiceMutation.error as {
-                    response?: { data?: { error?: string } };
-                    message?: string;
-                  }
-                )?.response?.data?.error ??
-                  (grokVoiceMutation.error as Error)?.message ??
-                  'Failed to update voice'}
-              </div>
-            )}
+          </select>
+          <div className="text-xs text-text-secondary mt-1">
+            Persona for chat and voice. Change in the Personas sub-tab.
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">
-              Grok persona
-            </label>
-            <select
-              value={grokPersona?.personaId ?? ''}
-              onChange={(e) =>
-                grokPersonaMutation.mutate({
-                  guildId: runGuildId,
-                  personaId: e.target.value || null,
-                })
-              }
-              disabled={grokPersonaMutation.isPending}
-              className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-            >
-              <option value="">Default (Convenience store philosopher)</option>
-              {personas
-                .filter((p) => p.id !== 'default')
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.isBuiltIn ? ' (built-in)' : ''}
-                  </option>
-                ))}
-            </select>
-            <div className="text-xs text-text-secondary mt-1">
-              Persona for chat and voice. Change in &quot;Manage personas&quot; below.
+          {grokPersonaMutation.isError && (
+            <div className="text-xs text-danger-light mt-1">
+              {(
+                grokPersonaMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (grokPersonaMutation.error as Error)?.message ??
+                'Failed to update persona'}
             </div>
-            {grokPersonaMutation.isError && (
-              <div className="text-xs text-danger-light mt-1">
-                {(
-                  grokPersonaMutation.error as {
-                    response?: { data?: { error?: string } };
-                    message?: string;
-                  }
-                )?.response?.data?.error ??
-                  (grokPersonaMutation.error as Error)?.message ??
-                  'Failed to update persona'}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      ) : (
-        <p className="text-xs text-text-secondary">
-          Select a server in Run commands above to turn Grok conversation on or off.
-        </p>
-      )}
+      </div>
     </div>
   );
 }

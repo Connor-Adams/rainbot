@@ -57,7 +57,7 @@ export default function PersonaManager() {
       <div className="text-sm font-semibold text-text-primary mb-1">Manage personas</div>
       <div className="text-xs text-text-secondary mb-4">
         Create custom personas (name + system prompt) for Grok. Custom personas appear in the Grok
-        persona dropdown above when a server is selected.
+        persona dropdown in the Grok sub-tab when a server is selected.
       </div>
       {!personaFormOpen && !editingPersonaId && (
         <button
