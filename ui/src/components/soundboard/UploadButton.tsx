@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Button } from '@/components/ui';
 
 interface UploadButtonProps {
   onUpload: (files: File[]) => void;
@@ -32,8 +33,9 @@ export function UploadButton({ onUpload, isUploading, disabled }: UploadButtonPr
         onChange={handleFileChange}
         aria-label="Upload sound files"
       />
-      <button
-        className="btn btn-secondary flex items-center gap-2 px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+      <Button
+        variant="secondary"
+        className="flex items-center gap-2 px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
         onClick={handleClick}
         disabled={isUploading || disabled}
         aria-busy={isUploading}
@@ -49,7 +51,7 @@ export function UploadButton({ onUpload, isUploading, disabled }: UploadButtonPr
             <span>Upload</span>
           </>
         )}
-      </button>
+      </Button>
     </>
   );
 }

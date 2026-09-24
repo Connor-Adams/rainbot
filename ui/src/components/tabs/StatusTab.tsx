@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { botApi } from '@/lib/api';
+import { Button } from '@/components/ui';
 
 type WorkerStatus = {
   connected?: boolean;
@@ -55,13 +56,14 @@ export default function StatusTab() {
             {status?.username ? `as ${status.username}` : ''}
           </p>
         </div>
-        <button
+        <Button
           onClick={() => refetch()}
-          className="btn btn-secondary w-full sm:w-auto"
+          variant="secondary"
+          className="w-full sm:w-auto"
           disabled={isFetching}
         >
           {isFetching ? 'Refreshing...' : 'Refresh'}
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-4">

@@ -6,6 +6,7 @@ import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
 import { Slider } from '@connor-adams/designsystem';
 import NowPlayingCard from '../NowPlayingCard';
+import { Button } from '@/components/ui';
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
 
@@ -149,20 +150,24 @@ export default function PlayerTab() {
             />
           </div>
           <div className="player-controls flex flex-col sm:flex-row gap-3">
-            <button
-              className="btn btn-primary w-full sm:w-auto"
+            <Button
+              variant="primary"
+              className="w-full sm:w-auto"
               onClick={handlePlay}
               disabled={playMutation.isPending || !selectedGuildId}
+              icon="▶"
             >
-              <span className="btn-icon">▶</span> Add to Queue
-            </button>
-            <button
-              className="btn btn-danger w-full sm:w-auto"
+              Add to Queue
+            </Button>
+            <Button
+              variant="danger"
+              className="w-full sm:w-auto"
               onClick={() => stopMutation.mutate()}
               disabled={stopMutation.isPending || !selectedGuildId}
+              icon="■"
             >
-              <span className="btn-icon">■</span> Stop
-            </button>
+              Stop
+            </Button>
           </div>
         </div>
 
@@ -191,9 +196,10 @@ export default function PlayerTab() {
               placeholder="Type what you want the bot to say..."
               disabled={!selectedGuildId}
             />
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary w-full sm:w-auto shrink-0"
+              variant="secondary"
+              className="w-full sm:w-auto shrink-0"
               onClick={() => {
                 const t = ttsInput.trim();
                 if (t && selectedGuildId) speakMutation.mutate(t);
@@ -201,7 +207,7 @@ export default function PlayerTab() {
               disabled={speakMutation.isPending || !ttsInput.trim() || !selectedGuildId}
             >
               {speakMutation.isPending ? '…' : 'Say'}
-            </button>
+            </Button>
           </div>
           {speakMutation.isError && (
             <p className="text-xs text-red-500 mt-2">

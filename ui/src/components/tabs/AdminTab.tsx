@@ -4,6 +4,7 @@ import { soundsApi, adminApi, botApi, playbackApi, settingsApi } from '@/lib/api
 import type { Guild } from '@/types';
 import CustomDropdown from '../CustomDropdown';
 import DisplayCard from '../Displaycard';
+import { Button, Input } from '@/components/ui';
 
 type SweepResult = {
   converted: number;
@@ -370,14 +371,14 @@ export default function AdminTab() {
             Re-register Discord slash commands with Discord. Use this after adding or changing
             commands so they appear in your server (e.g. after a new chat command).
           </div>
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={handleDeployCommands}
             disabled={deployCommandsMutation.isPending}
           >
             {deployCommandsMutation.isPending ? 'Deploying...' : 'Redeploy commands'}
-          </button>
+          </Button>
           {deployCommandsMutation.isError && deployMessage && (
             <div className="mt-3 text-xs text-danger-light">{deployMessage}</div>
           )}
@@ -397,9 +398,9 @@ export default function AdminTab() {
             Rainbot picks up a change within about five minutes.
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <input
+            <Input
               type="password"
-              className="input flex-1 min-w-[18rem]"
+              className="flex-1 min-w-[18rem]"
               placeholder="socks5://user:password@host:1080"
               value={proxyInput}
               autoComplete="off"
@@ -407,23 +408,23 @@ export default function AdminTab() {
               onChange={(e) => setProxyInput(e.target.value)}
               aria-label="Proxy URL"
             />
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="secondary"
               onClick={() => saveProxyMutation.mutate(proxyInput)}
               disabled={saveProxyMutation.isPending || proxyInput.trim().length === 0}
             >
               {saveProxyMutation.isPending ? 'Saving...' : 'Save proxy'}
-            </button>
+            </Button>
             {youtubeProxy?.hasProxy && (
-              <button
+              <Button
                 type="button"
-                className="btn btn-secondary"
+                variant="secondary"
                 onClick={() => deleteProxyMutation.mutate()}
                 disabled={deleteProxyMutation.isPending}
               >
                 {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
-              </button>
+              </Button>
             )}
           </div>
           <div className="mt-2 text-xs text-text-secondary">
@@ -467,23 +468,23 @@ export default function AdminTab() {
               }}
               aria-label="Upload cookies file"
             />
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="secondary"
               onClick={() => cookiesFileRef.current?.click()}
               disabled={uploadCookiesMutation.isPending}
             >
               {uploadCookiesMutation.isPending ? 'Uploading...' : 'Upload cookies (.txt)'}
-            </button>
+            </Button>
             {youtubeCookies?.hasCookies && (
-              <button
+              <Button
                 type="button"
-                className="btn btn-secondary"
+                variant="secondary"
                 onClick={() => deleteCookiesMutation.mutate()}
                 disabled={deleteCookiesMutation.isPending}
               >
                 {deleteCookiesMutation.isPending ? 'Removing...' : 'Remove cookies'}
-              </button>
+              </Button>
             )}
             <span className="text-xs text-text-secondary">
               {youtubeCookies?.hasCookies ? '✓ Cookies configured' : 'No cookies set'}
@@ -626,14 +627,14 @@ export default function AdminTab() {
                 </label>
               </div>
             )}
-            <button
+            <Button
               type="button"
-              className="btn btn-primary"
+              variant="primary"
               onClick={handleRunCommand}
               disabled={runCommandMutation.isPending || !canRun}
             >
               {runCommandMutation.isPending ? 'Running...' : 'Run command'}
-            </button>
+            </Button>
             {runError && <div className="text-xs text-danger-light">{runError}</div>}
             {runResult && <div className="text-xs text-text-secondary">{runResult}</div>}
           </div>
@@ -659,9 +660,9 @@ export default function AdminTab() {
                   </strong>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-primary"
+                    variant="primary"
                     disabled={
                       conversationMode === undefined ||
                       conversationModeMutation.isPending ||
@@ -672,10 +673,10 @@ export default function AdminTab() {
                     }
                   >
                     {conversationModeMutation.isPending ? '…' : 'Turn on'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="btn btn-secondary"
+                    variant="secondary"
                     disabled={
                       conversationMode === undefined ||
                       conversationModeMutation.isPending ||
@@ -686,7 +687,7 @@ export default function AdminTab() {
                     }
                   >
                     {conversationModeMutation.isPending ? '…' : 'Turn off'}
-                  </button>
+                  </Button>
                 </div>
                 {conversationModeMutation.isError && (
                   <div className="text-xs text-danger-light">
@@ -784,9 +785,10 @@ export default function AdminTab() {
             Grok persona dropdown above when a server is selected.
           </div>
           {!personaFormOpen && !editingPersonaId && (
-            <button
+            <Button
               type="button"
-              className="btn btn-primary mb-4"
+              variant="primary"
+              className="mb-4"
               onClick={() => {
                 setPersonaFormOpen(true);
                 setPersonaName('');
@@ -794,7 +796,7 @@ export default function AdminTab() {
               }}
             >
               Create persona
-            </button>
+            </Button>
           )}
           {(personaFormOpen || editingPersonaId) && (
             <div className="mb-4 space-y-2 rounded-lg border border-border p-3 bg-surface-elevated">
@@ -823,9 +825,9 @@ export default function AdminTab() {
               <div className="flex gap-2">
                 {editingPersonaId ? (
                   <>
-                    <button
+                    <Button
                       type="button"
-                      className="btn btn-primary"
+                      variant="primary"
                       disabled={
                         updatePersonaMutation.isPending ||
                         !personaName.trim() ||
@@ -840,10 +842,10 @@ export default function AdminTab() {
                       }
                     >
                       {updatePersonaMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="btn btn-secondary"
+                      variant="secondary"
                       onClick={() => {
                         setEditingPersonaId(null);
                         setPersonaName('');
@@ -851,13 +853,13 @@ export default function AdminTab() {
                       }}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button
+                    <Button
                       type="button"
-                      className="btn btn-primary"
+                      variant="primary"
                       disabled={
                         createPersonaMutation.isPending ||
                         !personaName.trim() ||
@@ -871,10 +873,10 @@ export default function AdminTab() {
                       }
                     >
                       {createPersonaMutation.isPending ? 'Creating...' : 'Create'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="btn btn-secondary"
+                      variant="secondary"
                       onClick={() => {
                         setPersonaFormOpen(false);
                         setPersonaName('');
@@ -882,7 +884,7 @@ export default function AdminTab() {
                       }}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -957,14 +959,14 @@ export default function AdminTab() {
           <div className="text-xs text-text-secondary mb-4">
             Re-encode all sounds to Ogg Opus and archive non-Ogg originals.
           </div>
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={handleSweep}
             disabled={sweepMutation.isPending}
           >
             {sweepMutation.isPending ? 'Working...' : 'Run Transcode Sweep'}
-          </button>
+          </Button>
           {sweepMutation.isError && (
             <div className="mt-3 text-xs text-danger-light">Failed to start sweep.</div>
           )}
@@ -983,14 +985,14 @@ export default function AdminTab() {
             description, tags and a transcript so it can be found by what it sounds like or by what
             is said in it. Leaves audio files untouched.
           </div>
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={() => analyzeSweepMutation.mutate({ force: false })}
             disabled={analyzeSweepMutation.isPending}
           >
             {analyzeSweepMutation.isPending ? 'Analyzing...' : 'Analyze sounds for search'}
-          </button>
+          </Button>
           {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
         </div>
 
@@ -1002,14 +1004,14 @@ export default function AdminTab() {
             only, keeping the sound itself bit-for-bit identical and its name unchanged. A copy of
             every original is archived first.
           </div>
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={handleStripVideo}
             disabled={stripVideoMutation.isPending}
           >
             {stripVideoMutation.isPending ? 'Rewriting...' : 'Strip video from sounds'}
-          </button>
+          </Button>
           {stripVideoResult && (
             <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
           )}

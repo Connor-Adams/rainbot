@@ -1,41 +1,35 @@
-import { useState, useCallback, type ReactNode } from 'react';
-import Toast from '@/components/Toast';
+import { createContext, useContext } from 'react';
 
-interface ToastData {
+export type ToastType = 'success' | 'error' | 'warning';
+
+export interface ToastData {
   id: number;
   message: string;
-  type: 'success' | 'error' | 'warning';
+  type: ToastType;
 }
 
-let toastId = 0;
+export interface ToastContextValue {
+  showToast: (message: string, type?: ToastType) => void;
+}
 
-export function useToast() {
-  const [toasts, setToasts] = useState<ToastData[]>([]);
+/**
+ * Shared toast state, provided once by `ToastProvider`. Consumers reach it only
+ * through `useToast()`.
+ */
+export const ToastContext = createContext<ToastContextValue | null>(null);
 
-  const showToast = useCallback(
-    (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-      const id = toastId++;
-      setToasts((prev) => [...prev, { id, message, type }]);
-    },
-    []
-  );
-
-  const removeToast = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
-  const ToastContainer = (): ReactNode => (
-    <div className="toast-container fixed bottom-6 right-6 flex flex-col gap-3 z-1000">
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => removeToast(toast.id)}
-        />
-      ))}
-    </div>
-  );
-
-  return { showToast, ToastContainer };
+/**
+ * Fire a toast from anywhere under `ToastProvider`.
+ *
+ * Throws when no provider is above it. That is deliberate: this used to be a
+ * plain hook holding its own `useState`, so every caller got a private,
+ * unrendered toast list — RecordingsTab lost every toast it fired without a
+ * single error. Failing loudly is what keeps that from recurring.
+ */
+export function useToast(): ToastContextValue {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
 }

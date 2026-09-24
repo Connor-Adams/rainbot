@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '../stores/authStore';
-import { useToast } from '../hooks/useToast';
 
 interface LayoutProps {
   children: ReactNode;
@@ -10,7 +9,6 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuthStore();
-  const { ToastContainer } = useToast();
 
   return (
     <div className="app flex flex-col min-h-screen">
@@ -19,7 +17,6 @@ export default function Layout({ children }: LayoutProps) {
         <Sidebar />
         <div className="content flex-1 flex flex-col gap-8 min-w-0">{children}</div>
       </main>
-      <ToastContainer />
     </div>
   );
 }

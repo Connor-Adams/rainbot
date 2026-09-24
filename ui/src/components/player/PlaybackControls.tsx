@@ -1,4 +1,5 @@
 import { PlayIcon, PauseIcon, SkipPreviousIcon, SkipNextIcon } from '@/components/icons';
+import { Button } from '@/components/ui';
 
 interface PlaybackControlsProps {
   isPaused: boolean;
@@ -28,32 +29,29 @@ export default function PlaybackControls({
 }: PlaybackControlsProps) {
   return (
     <div className="player-controls-main flex items-center justify-center gap-6">
-      <button
-        className="control-btn control-btn-large"
+      <Button
+        variant="secondary"
+        size="icon"
         title="Previous"
         disabled={!onPrevious}
         onClick={onPrevious}
       >
         <SkipPreviousIcon size={24} />
-      </button>
+      </Button>
 
-      <button
-        className="control-btn control-btn-primary control-btn-large"
+      <Button
+        variant="primary"
+        size="icon"
         onClick={onPlayPause}
         disabled={isLoading}
         title={isPaused ? 'Resume' : 'Pause'}
       >
         {isPaused ? <PlayIcon size={24} /> : <PauseIcon size={24} />}
-      </button>
+      </Button>
 
-      <button
-        className="control-btn control-btn-large"
-        onClick={onSkip}
-        disabled={isLoading}
-        title="Next"
-      >
+      <Button variant="secondary" size="icon" onClick={onSkip} disabled={isLoading} title="Next">
         <SkipNextIcon size={24} />
-      </button>
+      </Button>
     </div>
   );
 }
