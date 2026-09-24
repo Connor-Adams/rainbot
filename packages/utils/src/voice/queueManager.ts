@@ -95,10 +95,10 @@ export async function withQueueLock<T>(
       mutex.acquire()
     );
 
-    const span = trace.getActiveSpan();
-    span?.setAttribute(RainbotAttr.queueLength, getVoiceState(guildId)?.queue.length ?? 0);
-
     try {
+      const span = trace.getActiveSpan();
+      span?.setAttribute(RainbotAttr.queueLength, getVoiceState(guildId)?.queue.length ?? 0);
+
       const result = await fn();
       span?.setAttribute(RainbotAttr.queueLengthAfter, getVoiceState(guildId)?.queue.length ?? 0);
       return result;

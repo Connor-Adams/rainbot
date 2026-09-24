@@ -161,4 +161,46 @@ describe('withQueueLock telemetry', () => {
     expect(lockWaitDurationMs).toBeLessThan(parentDurationMs);
     expect(lockWaitDurationMs).toBeLessThan(25);
   });
+
+  it('records a materially non-zero wait for a caller blocked behind a lock holder', async () => {
+    // All 8 tests above use an uncontended lock, so `mutex.acquire()` being
+    // moved outside the queue.lock_wait span (recording a ~0ms span
+    // regardless of real wait time) would pass every one of them. This is
+    // the F15 regression guard: a genuinely contended lock must show up as a
+    // genuinely non-trivial wait.
+    const HOLD_MS = 80;
+    let unblockHolder!: () => void;
+    const holderGate = new Promise<void>((resolve) => {
+      unblockHolder = resolve;
+    });
+
+    const holderPromise = withQueueLock('guild-9', async () => {
+      await holderGate;
+      return 'holder-done';
+    });
+
+    // Give the holder a tick to actually acquire the mutex before the second
+    // caller starts queuing behind it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const waiterPromise = withQueueLock('guild-9', async () => 'waiter-done');
+
+    setTimeout(unblockHolder, HOLD_MS);
+
+    const [holderResult, waiterResult] = await Promise.all([holderPromise, waiterPromise]);
+    expect(holderResult).toBe('holder-done');
+    expect(waiterResult).toBe('waiter-done');
+
+    const lockWaitSpans = exporter.getFinishedSpans().filter((s) => s.name === 'queue.lock_wait');
+    expect(lockWaitSpans).toHaveLength(2);
+
+    const durations = lockWaitSpans
+      .map((s) => s.duration[0] * 1000 + s.duration[1] / 1e6)
+      .sort((a, b) => a - b);
+
+    // The holder acquires uncontended (near-zero wait); the second caller is
+    // blocked for ~HOLD_MS behind it.
+    expect(durations[0]).toBeLessThan(25);
+    expect(durations[1]).toBeGreaterThan(HOLD_MS / 2);
+  });
 });

@@ -66,4 +66,65 @@ describe('createDeduplicatingDiagLogger', () => {
 
     expect(delegate.calls).toHaveLength(2);
   });
+
+  describe('dedup window re-arm', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('forwards a repeat again once the dedup window resets', () => {
+      jest.useFakeTimers();
+      const delegate = createSpyLogger();
+      const REARM_MS = 1000;
+      const logger = createDeduplicatingDiagLogger(delegate, REARM_MS);
+
+      logger.error('collector unreachable');
+      logger.error('collector unreachable');
+      expect(delegate.calls).toHaveLength(1);
+
+      // A second, later incident sharing the same message must not stay
+      // silent for the rest of the process's life — that's exactly the gap
+      // this re-arm closes.
+      jest.advanceTimersByTime(REARM_MS);
+      logger.error('collector unreachable');
+
+      expect(
+        delegate.calls.filter(([, message]) => message === 'collector unreachable')
+      ).toHaveLength(2);
+    });
+
+    it('logs a suppressed-repeat summary at reset only when something was suppressed', () => {
+      jest.useFakeTimers();
+      const delegate = createSpyLogger();
+      const REARM_MS = 1000;
+      const logger = createDeduplicatingDiagLogger(delegate, REARM_MS);
+
+      logger.error('collector unreachable');
+      logger.error('collector unreachable');
+      logger.error('collector unreachable');
+
+      jest.advanceTimersByTime(REARM_MS);
+
+      const summaries = delegate.calls.filter(([, message]) =>
+        message.includes('dedup window reset')
+      );
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0]![1]).toContain('2');
+    });
+
+    it('does not log a summary at reset when nothing was suppressed', () => {
+      jest.useFakeTimers();
+      const delegate = createSpyLogger();
+      const REARM_MS = 1000;
+      const logger = createDeduplicatingDiagLogger(delegate, REARM_MS);
+
+      logger.error('collector unreachable');
+      jest.advanceTimersByTime(REARM_MS);
+
+      const summaries = delegate.calls.filter(([, message]) =>
+        message.includes('dedup window reset')
+      );
+      expect(summaries).toHaveLength(0);
+    });
+  });
 });

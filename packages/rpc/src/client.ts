@@ -1,6 +1,7 @@
 import { createTRPCProxyClient, httpBatchLink, type CreateTRPCClientOptions } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { withSpan, recordRpcDuration, RainbotAttr } from '@rainbot/observability/node';
+import { UNTRACED_PROCEDURES } from './untracedProcedures';
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/$/, '');
@@ -28,16 +29,6 @@ type TRPCClientOptions<TRouter extends AnyRouter> = {
  * No router in this codebase uses subscriptions today.
  */
 const INSTRUMENTED_METHODS = new Set(['query', 'mutate']);
-
-/**
- * Procedures that fire on a tight poll (health checks, and any future
- * equivalent status probe) rather than in response to real user/bot activity.
- * raincloud polls `health` every 15s per worker — every root trace in Tempo
- * would otherwise be a health check, burying real RPC traces. Duration is
- * still recorded (recordRpcDuration, below) since the histogram already
- * carries `rpcProcedure` as an attribute and can be filtered by it.
- */
-const UNTRACED_PROCEDURES = new Set(['health']);
 
 /**
  * Wraps a tRPC proxy client so every `.query()`/`.mutate()` call is timed and

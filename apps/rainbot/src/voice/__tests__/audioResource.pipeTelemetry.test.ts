@@ -248,6 +248,51 @@ describe('createTrackResourcePipe telemetry (F2)', () => {
     }
   });
 
+  it('records no failure when the process is killed by signal after the race already resolved (skip/stop)', async () => {
+    jest.useFakeTimers();
+    try {
+      const proc = createFakeSubprocess();
+      mockYtdlpExec.mockReturnValueOnce(proc.subprocess);
+
+      const resultPromise = createTrackResourceForAny(youtubeTrack());
+      await jest.advanceTimersByTimeAsync(100);
+      proc.emitStdoutData();
+      await jest.advanceTimersByTimeAsync(3900);
+      await expect(resultPromise).resolves.toEqual({ fakeResource: true });
+
+      jest.useRealTimers();
+      await metricsReader.forceFlush();
+      jest.useFakeTimers();
+      expect(
+        getCounterPoints('rainbot.track.resolve.failures').filter(
+          (p) => p.attributes[RainbotAttr.extractionPath] === 'pipe'
+        )
+      ).toHaveLength(0);
+
+      // @discordjs/voice destroying the play stream on /skip or /stop breaks
+      // the pipe and kills yt-dlp via a signal: tinyspawn/Node report that as
+      // exitCode: null, signalCode: '<SIG>'. That is deliberate shutdown, not
+      // yt-dlp rot, and must not increment the failure counter.
+      const killed = Object.assign(new Error('killed'), {
+        name: 'ChildProcessError',
+        exitCode: null,
+        signalCode: 'SIGTERM',
+      });
+      proc.exitWithError(killed);
+      await jest.advanceTimersByTimeAsync(0);
+      jest.useRealTimers();
+      await metricsReader.forceFlush();
+
+      expect(
+        getCounterPoints('rainbot.track.resolve.failures').filter(
+          (p) => p.attributes[RainbotAttr.extractionPath] === 'pipe'
+        )
+      ).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('classifies an immediate pipe failure by exit code rather than the bare outcome literal', async () => {
     // Fake timers here too: the pipe rejects on the next microtask, well
     // before PIPE_START_TIMEOUT_MS, but that setTimeout is still scheduled as

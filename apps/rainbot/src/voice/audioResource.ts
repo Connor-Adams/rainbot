@@ -105,18 +105,27 @@ async function createVolumeResource(
  *   1. a recognised stderr/message pattern — 'bot_check' | 'video_unavailable'
  *      | 'network_error' (bot checks and IP/network refusals are exactly the
  *      yt-dlp rot docs/YOUTUBE_403_FIX.md describes)
- *   2. `exit_<code>` — a numeric non-zero exit code with no recognised
- *      pattern. This is the only signal available on the pipe path: its
- *      rejection never carries stderr text (see createTrackResourcePipe).
- *   3. 'spawn_error' — the yt-dlp binary itself could not be spawned (ENOENT)
- *   4. `error.name` — last resort, for a genuinely unclassified error
- *   5. 'unknown' — not even an Error instance
+ *   2. 'stream_closed' — the child was killed by signal (tinyspawn/Node sets
+ *      `exitCode: null`, `signalCode: '<SIG>'` in that case). On the pipe path
+ *      this means something closed the pipe deliberately — most commonly
+ *      @discordjs/voice destroying the play stream on /skip or /stop, which
+ *      breaks the pipe and kills yt-dlp via EPIPE/SIGPIPE — not yt-dlp
+ *      failing. See createTrackResourcePipe for why this outcome is not
+ *      counted as a resolve failure.
+ *   3. `exit_<code>` — a numeric non-zero exit code with no recognised
+ *      pattern. tinyspawn's rejection (createChildProcessError) does copy
+ *      `stdout`/`stderr` onto the error, so this branch doesn't mean stderr
+ *      is unavailable — only that nothing above matched it.
+ *   4. 'spawn_error' — the yt-dlp binary itself could not be spawned (ENOENT)
+ *   5. `error.name` — last resort, for a genuinely unclassified error
+ *   6. 'unknown' — not even an Error instance
  */
 export function classifyYtdlpFailure(error: unknown): string {
   if (error && typeof error === 'object') {
     const err = error as {
       exitCode?: unknown;
       code?: unknown;
+      signalCode?: unknown;
       stderr?: unknown;
       message?: unknown;
       name?: unknown;
@@ -133,6 +142,9 @@ export function classifyYtdlpFailure(error: unknown): string {
     }
     if (/ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|network error/i.test(haystack)) {
       return 'network_error';
+    }
+    if (typeof err.signalCode === 'string' && err.signalCode) {
+      return 'stream_closed';
     }
     if (typeof err.exitCode === 'number' && err.exitCode !== 0) {
       return `exit_${err.exitCode}`;
@@ -373,9 +385,20 @@ async function createTrackResourcePipe(
   }
   subprocess.catch((err: unknown) => {
     try {
+      const outcome = classifyYtdlpFailure(err);
+      // A user /skip or /stop makes @discordjs/voice destroy the play stream
+      // (subprocess.stdout), which breaks the pipe and kills yt-dlp via
+      // EPIPE/signal — that is normal, deliberate shutdown, not yt-dlp rot.
+      // Counting it here would make rainbot.track.resolve.failures dominated
+      // by ordinary skips instead of tracking real yt-dlp health, so it's
+      // logged but not recorded as a resolve failure.
+      if (outcome === 'stream_closed') {
+        log.debug(`yt-dlp pipe closed after start window (deliberate stream close)`);
+        return;
+      }
       recordTrackResolveFailure({
         ...resolveAttrs,
-        [RainbotAttr.outcome]: classifyYtdlpFailure(err),
+        [RainbotAttr.outcome]: outcome,
       });
     } catch (telemetryError) {
       log.debug(`telemetry recordTrackResolveFailure threw: ${telemetryError}`);

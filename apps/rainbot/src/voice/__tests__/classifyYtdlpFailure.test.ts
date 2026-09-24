@@ -28,6 +28,59 @@ describe('classifyYtdlpFailure', () => {
     expect(classifyYtdlpFailure(err)).toBe('exit_1');
   });
 
+  // F-final: a signal-killed child (tinyspawn/Node set exitCode: null,
+  // signalCode: '<SIG>') means something closed the pipe deliberately — most
+  // commonly @discordjs/voice destroying the play stream on /skip or /stop —
+  // not a yt-dlp failure. Before this, a null exitCode fell through every
+  // branch to the bare 'ChildProcessError' name, exactly the uninformative
+  // literal classification exists to eliminate, and every skip/stop was
+  // counted as a resolve failure.
+  it('classifies a signal-killed child as stream_closed, not the bare ChildProcessError name', () => {
+    const err = Object.assign(new Error('killed'), {
+      name: 'ChildProcessError',
+      exitCode: null,
+      signalCode: 'SIGTERM',
+    });
+    expect(classifyYtdlpFailure(err)).toBe('stream_closed');
+  });
+
+  it('recognises stream_closed regardless of which signal killed the child', () => {
+    const err = Object.assign(new Error('killed'), {
+      name: 'ChildProcessError',
+      exitCode: null,
+      signalCode: 'SIGPIPE',
+    });
+    expect(classifyYtdlpFailure(err)).toBe('stream_closed');
+  });
+
+  it('prefers a recognised stderr pattern over a signal kill', () => {
+    const err = Object.assign(new Error('killed'), {
+      exitCode: null,
+      signalCode: 'SIGTERM',
+      stderr: "Sign in to confirm you're not a bot",
+    });
+    expect(classifyYtdlpFailure(err)).toBe('bot_check');
+  });
+
+  it('prefers stream_closed over an exit code when both are present', () => {
+    // Not a real-world combination (a signalled child has a null exitCode in
+    // practice), but pins the intended priority order directly rather than
+    // relying on that invariant holding.
+    const err = Object.assign(new Error('killed'), {
+      exitCode: 1,
+      signalCode: 'SIGTERM',
+    });
+    expect(classifyYtdlpFailure(err)).toBe('stream_closed');
+  });
+
+  it('does not treat a falsy signalCode as a signal kill', () => {
+    const err = Object.assign(new Error('yt-dlp exited with code 2'), {
+      exitCode: 2,
+      signalCode: null,
+    });
+    expect(classifyYtdlpFailure(err)).toBe('exit_2');
+  });
+
   it('prefers a recognised stderr pattern over an available exit code', () => {
     const err = Object.assign(new Error('exited'), {
       exitCode: 1,

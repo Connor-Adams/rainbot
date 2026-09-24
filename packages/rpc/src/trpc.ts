@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import type { Request, Response } from 'express';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { withSpan, RainbotAttr } from '@rainbot/observability/node';
+import { UNTRACED_PROCEDURES } from './untracedProcedures';
 
 export interface RPCContext {
   req: Request;
@@ -50,9 +51,9 @@ export const t = initTRPC.context<RPCContext>().create();
  * `health` (and any future equivalent status procedure) is excluded: raincloud
  * polls it every 15s per worker, which would otherwise make nearly every root
  * trace in Tempo a health check instead of real RPC traffic. See the matching
- * exclusion on the client side in client.ts.
+ * exclusion on the client side in client.ts (both share UNTRACED_PROCEDURES
+ * from ./untracedProcedures so the two can't drift apart).
  */
-const UNTRACED_PROCEDURES = new Set(['health']);
 
 export const withRpcSpan = t.middleware(({ path, next }) => {
   if (UNTRACED_PROCEDURES.has(path)) {
