@@ -2670,6 +2670,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opentelemetry/context-async-hooks@npm:^2.7.1":
+  version: 2.11.0
+  resolution: "@opentelemetry/context-async-hooks@npm:2.11.0"
+  peerDependencies:
+    "@opentelemetry/api": ">=1.0.0 <1.10.0"
+  checksum: 10c0/f4ade428d85b73387597291d3a5eab7ddd113e377467466e92f7154a6d3b7807b3a22b46c4616e5895ffef1f2c85e026d522948ff5a38497f97b657486410e18
+  languageName: node
+  linkType: hard
+
 "@opentelemetry/core@npm:2.11.0, @opentelemetry/core@npm:^2.0.0":
   version: 2.11.0
   resolution: "@opentelemetry/core@npm:2.11.0"
@@ -3804,11 +3813,14 @@ __metadata:
     "@snazzah/davey": "npm:^0.1.12"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
+    "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^25.0.3"
     discord.js: "npm:^14.25.1"
     dotenv: "npm:^16.4.5"
     express: "npm:^5.2.1"
+    jest: "npm:^29.7.0"
     opusscript: "npm:^0.1.1"
+    ts-jest: "npm:^29.2.5"
     typescript: "npm:^5.9.3"
   languageName: unknown
   linkType: soft
@@ -3842,6 +3854,9 @@ __metadata:
     "@discordjs/opus": "npm:^0.10.0"
     "@discordjs/voice": "npm:^0.19.0"
     "@google-cloud/text-to-speech": "npm:^5.8.0"
+    "@opentelemetry/api": "npm:^1.9.1"
+    "@opentelemetry/context-async-hooks": "npm:^2.7.1"
+    "@opentelemetry/sdk-trace-base": "npm:^2.7.1"
     "@rainbot/db": "npm:*"
     "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
@@ -3852,15 +3867,18 @@ __metadata:
     "@snazzah/davey": "npm:^0.1.12"
     "@trpc/server": "npm:^10.45.2"
     "@types/express": "npm:^5.0.0"
+    "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^25.0.3"
     bullmq: "npm:^5.17.0"
     discord.js: "npm:^14.25.1"
     dotenv: "npm:^16.4.5"
     express: "npm:^5.2.1"
     ioredis: "npm:^5.4.1"
+    jest: "npm:^29.7.0"
     openai: "npm:^4.104.0"
     opusscript: "npm:^0.1.1"
     prism-media: "npm:^1.3.4"
+    ts-jest: "npm:^29.2.5"
     typescript: "npm:^5.9.3"
     ws: "npm:^8.18.0"
   dependenciesMeta:
@@ -4116,6 +4134,9 @@ __metadata:
   resolution: "@rainbot/worker-shared@workspace:packages/worker-shared"
   dependencies:
     "@discordjs/voice": "npm:^0.19.0"
+    "@opentelemetry/api": "npm:^1.9.1"
+    "@opentelemetry/context-async-hooks": "npm:^2.7.1"
+    "@opentelemetry/sdk-trace-base": "npm:^2.7.1"
     "@rainbot/observability": "npm:*"
     "@rainbot/protocol": "npm:*"
     "@rainbot/shared": "workspace:*"

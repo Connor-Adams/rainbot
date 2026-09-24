@@ -144,3 +144,49 @@ withQueueLock, mirroring packages/rpc's existing pattern
 (trpc.span.test.ts) rather than the brief's mocked-withSpan style used in
 client.telemetry.test.ts. yarn validate green (26/26, 502 utils tests
 including the 2 new queue.mutate tests, 27 rainbot-worker tests unaffected).
+Task 10: complete (commits d56344d..ba90a8c, review clean after one fix pass)
+withQueueLock instrumented WITHOUT changing locking behaviour — verified
+byte-for-byte; release still runs before span.end() during unwind; the
+pre-existing queueManager suite is untouched and green.
+track.resolve broadened to all three real yt-dlp sites (the plan named one
+that was only the metadata fallback).
+TRAP: createTrackResourcePipe resolves null on failure instead of rejecting,
+so withSpan would miss it — failure counter recorded off the race outcome.
+Fixed: audio.resource.create covered only 2 of 4 sites. The two missed ones
+are the play-dl fallback (used exactly when yt-dlp fails) and all non-
+YouTube sources, so the metric would have read as an outage during a rot
+incident. Added RainbotAttr.resolutionPath. Mutation-verified.
+NOTE: the Task 10 fix re-review is deferred to the final whole-branch
+review — it is test-covered and mutation-verified.
+Task 11: complete — see .superpowers/sdd/task-11-report.md for full detail.
+BRIEF GAP CAUGHT: voice connections are established/torn down from a
+SECOND path the brief didn't name — packages/worker-shared/src/voice-state.ts's
+setupAutoFollowVoiceStateHandler, used by all three workers to follow the
+orchestrator's own voice channel. Instrumenting only voiceRpcHandlers.ts
+would have under-counted every auto-follow join/leave/move. Added a shared
+WeakSet-keyed markVoiceConnected/markVoiceDisconnected helper
+(voiceConnectionMetrics.ts) so both files' destroy() sites stay balanced
+and idempotent regardless of call order.
+TRAP (x2): createPlaySoundHandler and getGrokReply (pranjeet's chat/grok.ts,
+the actual grok.converse call — the realtime voice-agent WS in
+voice-agent/grokVoiceAgent.ts has no discrete request/response shape to
+wrap and was deliberately left uninstrumented, flagged for Connor) both
+resolve normal-looking values on failure instead of throwing. Fixed with
+trace.getActiveSpan() inside the withSpan callback, following trpc.ts's
+precedent; sound.play also calls recordException when there's a real Error.
+Gauge drift: NOT expected under normal operation — VoiceConnectionStatus
+can only reach Destroyed via an explicit .destroy() call, and every
+.destroy() site in both files is now paired with a mark call. Verified
+@discordjs/voice's own heartbeat (3 missed heartbeats force-closes the ws)
+funnels a dead gateway link through the Disconnected state, which IS
+instrumented, so a network zombie doesn't sidestep the accounting.
+Deliberately out of scope: packages/utils/voice/connectionManager.ts's
+joinChannel/leaveChannel — a raincloud-only fallback used exclusively when
+ALL workers are unreachable (`/join` degrades to "orchestrator only" mode);
+flagged rather than instrumented given how rarely it's live.
+hungerbot and pranjeet had no working jest setup (hungerbot: no
+jest.config.js at all; pranjeet: one with no ts-jest preset, so .test.ts
+would never transform) — added jest/ts-jest/@types/jest/@opentelemetry/\*
+devDependencies and configs to both, mirroring apps/rainbot's. yarn
+validate green (26/26 tasks, 806 tests total, including the 502 utils and
+151 raincloud tests unaffected).

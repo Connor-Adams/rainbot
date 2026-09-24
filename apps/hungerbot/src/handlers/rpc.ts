@@ -9,6 +9,7 @@ import {
   sniffSoundStream,
 } from '@rainbot/worker-shared';
 import type { RequestCache } from '@rainbot/worker-shared';
+import { recordSoundPlay, RainbotAttr } from '@rainbot/observability/node';
 import { log } from '../config';
 import { getOrCreateGuildState, getStateForRpc, guildStates } from '../state/guild-state';
 import { getSoundStream } from '../storage/sounds';
@@ -41,7 +42,19 @@ export function createRpcHandlers(deps: HungerbotRpcDeps) {
     log,
     getOrCreateGuildState: (guildId) =>
       getOrCreateGuildState(guildId) as import('@rainbot/worker-shared').GuildState,
-    createSoundResource: async (input) => sniffSoundStream(await getSoundStream(input.sfxId)),
+    createSoundResource: async (input) => {
+      // Timed separately from the rest of sound.play (resource creation +
+      // issuing playback, timed in voiceRpcHandlers.ts): a slow R2 bucket and
+      // a slow decode are different problems and should be distinguishable
+      // in the rainbot.sound.play.duration histogram.
+      const fetchStarted = Date.now();
+      const stream = await getSoundStream(input.sfxId);
+      recordSoundPlay(Date.now() - fetchStarted, {
+        [RainbotAttr.sound]: input.sfxId,
+        [RainbotAttr.phase]: 'fetch',
+      });
+      return sniffSoundStream(stream);
+    },
     reportStat: (input, opts) => {
       void reportSoundStat(
         {

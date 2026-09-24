@@ -1,6 +1,8 @@
 import { joinVoiceChannel, VoiceConnectionStatus, entersState } from '@discordjs/voice';
 import type { StreamType } from '@discordjs/voice';
 import type { Readable } from 'stream';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { withSpan, recordSoundPlay, RainbotAttr } from '@rainbot/observability/node';
 import type {
   JoinRequest,
   JoinResponse,
@@ -22,6 +24,7 @@ import { createWorkerDiscordClient } from './client';
 import type { GuildState } from './voice-state';
 import { createSoundAudioResource } from './soundResource';
 import { logVoiceConnectionState } from './voiceDiagnostics';
+import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
 
 export interface VoiceRpcHandlerOptions {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -71,46 +74,55 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
         requestCache.set(cacheKey, response);
         return response;
       }
-      const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: guild.id,
-        adapterCreator: guild.voiceAdapterCreator as Parameters<
-          typeof joinVoiceChannel
-        >[0]['adapterCreator'],
-        selfDeaf: false,
-      });
-      connection.subscribe(state.player);
-      state.connection = connection;
-      logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
-      // VoiceConnection is an EventEmitter: without an 'error' listener a voice
-      // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
-      // exception and takes the whole worker down.
-      connection.on('error', (error: Error) => {
-        log.warn(`Voice connection error in guild ${input.guildId}: ${error.message}`);
-        try {
-          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-            connection.destroy();
-          }
-        } catch {
-          // connection was already torn down
+      const response = await withSpan(
+        'voice.join',
+        { [RainbotAttr.guildId]: input.guildId, [RainbotAttr.voiceChannel]: input.channelId },
+        async (): Promise<JoinResponse> => {
+          const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: guild.id,
+            adapterCreator: guild.voiceAdapterCreator as Parameters<
+              typeof joinVoiceChannel
+            >[0]['adapterCreator'],
+            selfDeaf: false,
+          });
+          connection.subscribe(state.player);
+          state.connection = connection;
+          markVoiceConnected(connection, input.guildId);
+          logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
+          // VoiceConnection is an EventEmitter: without an 'error' listener a voice
+          // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
+          // exception and takes the whole worker down.
+          connection.on('error', (error: Error) => {
+            log.warn(`Voice connection error in guild ${input.guildId}: ${error.message}`);
+            try {
+              if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                connection.destroy();
+              }
+            } catch {
+              // connection was already torn down
+            }
+            markVoiceDisconnected(connection, input.guildId);
+            if (state.connection === connection) {
+              state.connection = null;
+            }
+          });
+          connection.on(VoiceConnectionStatus.Disconnected, async () => {
+            try {
+              await Promise.race([
+                entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+                entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+              ]);
+            } catch {
+              log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
+              connection.destroy();
+              markVoiceDisconnected(connection, input.guildId);
+              state.connection = null;
+            }
+          });
+          return { status: 'joined', channelId: input.channelId };
         }
-        if (state.connection === connection) {
-          state.connection = null;
-        }
-      });
-      connection.on(VoiceConnectionStatus.Disconnected, async () => {
-        try {
-          await Promise.race([
-            entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-            entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-          ]);
-        } catch {
-          log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
-          connection.destroy();
-          state.connection = null;
-        }
-      });
-      const response: JoinResponse = { status: 'joined', channelId: input.channelId };
+      );
       requestCache.set(cacheKey, response);
       return response;
     } catch (error) {
@@ -138,9 +150,11 @@ export function createLeaveHandler(options: VoiceRpcHandlerOptions) {
       requestCache.set(cacheKey, response);
       return response;
     }
+    const connection = state.connection;
     onBeforeLeave?.(state);
-    state.connection.destroy();
+    connection.destroy();
     state.connection = null;
+    markVoiceDisconnected(connection, input.guildId);
     const response: LeaveResponse = { status: 'left' };
     requestCache.set(cacheKey, response);
     return response;
@@ -230,41 +244,57 @@ export function createPlaySoundHandler(options: PlaySoundHandlerOptions) {
     if (requestCache.has(cacheKey)) {
       return requestCache.get(cacheKey) as PlaySoundResponse;
     }
-    try {
-      const state = getOrCreateGuildState(input.guildId);
-      if (!state.connection) {
-        const response: PlaySoundResponse = {
-          status: 'error',
-          message: 'Not connected to voice channel',
-        };
-        requestCache.set(cacheKey, response);
-        return response;
+    const response = await withSpan(
+      'sound.play',
+      { [RainbotAttr.sound]: input.sfxId, [RainbotAttr.guildId]: input.guildId },
+      async (): Promise<PlaySoundResponse> => {
+        // Every branch below resolves normally (it never throws past this
+        // point) even when it represents a failure, so withSpan's own
+        // exception-based error detection never fires here. Mark the span
+        // ERROR explicitly whenever the response we're about to return is
+        // 'error', instead of relying on a thrown/rejected fn.
+        let result: PlaySoundResponse;
+        let caughtError: Error | undefined;
+        try {
+          const state = getOrCreateGuildState(input.guildId);
+          if (!state.connection) {
+            result = { status: 'error', message: 'Not connected to voice channel' };
+          } else {
+            const { stream, inputType } = await createSoundResource(input);
+            const effectiveVolume = input.volume ?? (state['volume'] as number | undefined) ?? 1;
+            const playStarted = Date.now();
+            const resource = createSoundAudioResource(stream, inputType, effectiveVolume);
+            log.debug(
+              `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+            );
+            state.player.stop(true);
+            state.player.play(resource);
+            recordSoundPlay(Date.now() - playStarted, {
+              [RainbotAttr.sound]: input.sfxId,
+              [RainbotAttr.phase]: 'play',
+            });
+            log.debug(`Soundboard play issued status=${state.player.state.status}`);
+            log.info(
+              `Playing sound ${input.sfxId} for user ${input.userId} in guild ${input.guildId}`
+            );
+            void reportStat?.(input, { logger: log });
+            result = { status: 'success', message: 'Sound playing' };
+          }
+        } catch (error) {
+          logErrorWithStack(log, 'Play sound error', error);
+          caughtError = error as Error;
+          result = { status: 'error', message: caughtError.message };
+        }
+        if (result.status === 'error') {
+          const span = trace.getActiveSpan();
+          if (caughtError) span?.recordException(caughtError);
+          span?.setStatus({ code: SpanStatusCode.ERROR, message: result.message });
+        }
+        return result;
       }
-      const { stream, inputType } = await createSoundResource(input);
-      const effectiveVolume = input.volume ?? (state['volume'] as number | undefined) ?? 1;
-      const resource = createSoundAudioResource(stream, inputType, effectiveVolume);
-      log.debug(
-        `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
-      );
-      state.player.stop(true);
-      state.player.play(resource);
-      log.debug(`Soundboard play issued status=${state.player.state.status}`);
-      log.info(`Playing sound ${input.sfxId} for user ${input.userId} in guild ${input.guildId}`);
-      void reportStat?.(input, { logger: log });
-      const response: PlaySoundResponse = {
-        status: 'success',
-        message: 'Sound playing',
-      };
-      requestCache.set(cacheKey, response);
-      return response;
-    } catch (error) {
-      logErrorWithStack(log, 'Play sound error', error);
-      const response: PlaySoundResponse = {
-        status: 'error',
-        message: (error as Error).message,
-      };
-      return response;
-    }
+    );
+    requestCache.set(cacheKey, response);
+    return response;
   };
 }
 

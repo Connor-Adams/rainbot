@@ -20,6 +20,11 @@ export const RainbotAttr = Object.freeze({
   streamType: 'rainbot.stream_type',
   transcoded: 'rainbot.transcoded',
   resolutionPath: 'rainbot.resolution_path',
+  phase: 'rainbot.phase',
+  ttsProvider: 'rainbot.tts_provider',
+  ttsVoice: 'rainbot.tts_voice',
+  textLength: 'rainbot.text_length',
+  grokModel: 'rainbot.grok_model',
 } as const);
 
 export type RainbotAttrName = (typeof RainbotAttr)[keyof typeof RainbotAttr];

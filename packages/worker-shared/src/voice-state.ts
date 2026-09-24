@@ -8,6 +8,7 @@ import {
 } from '@discordjs/voice';
 import { createLogger } from '@rainbot/shared';
 import { logVoiceConnectionState } from './voiceDiagnostics';
+import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
 
 export interface GuildState {
   connection: VoiceConnection | null;
@@ -52,11 +53,13 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
       logger.info(`Orchestrator left voice in guild ${guildId}, following...`);
       const state = guildStates.get(guildId);
       if (state?.connection) {
+        const connection = state.connection;
         logger.info(
-          `follow-leave guild=${guildId} destroying connection status=${state.connection.state.status} player=${state.player.state.status}`
+          `follow-leave guild=${guildId} destroying connection status=${connection.state.status} player=${state.player.state.status}`
         );
-        state.connection.destroy();
+        connection.destroy();
         state.connection = null;
+        markVoiceDisconnected(connection, guildId);
       }
     } else if (orchestratorJoined || orchestratorMoved) {
       // Orchestrator joined/moved - follow
@@ -71,12 +74,14 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       // Disconnect from old channel if moving
       if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+        const oldConnection = state.connection;
         logger.info(
-          `follow-join guild=${guildId} destroying existing connection status=${state.connection.state.status} joinedChannel=${
-            state.connection.joinConfig.channelId
+          `follow-join guild=${guildId} destroying existing connection status=${oldConnection.state.status} joinedChannel=${
+            oldConnection.joinConfig.channelId
           } targetChannel=${channelId}`
         );
-        state.connection.destroy();
+        oldConnection.destroy();
+        markVoiceDisconnected(oldConnection, guildId);
       }
 
       const connection = joinVoiceChannel({
@@ -88,6 +93,7 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       connection.subscribe(state.player);
       state.connection = connection;
+      markVoiceConnected(connection, guildId);
       logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
 
       // Auto-rejoin on disconnect (network issues only)
@@ -103,6 +109,7 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
           logger.warn(`Connection lost in guild ${guildId}`);
           connection.destroy();
           state.connection = null;
+          markVoiceDisconnected(connection, guildId);
         }
       });
     }
