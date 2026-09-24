@@ -41,3 +41,32 @@ describe('startTelemetry', () => {
     jest.resetModules();
   });
 });
+
+describe('shutdownTelemetry', () => {
+  afterEach(async () => {
+    await shutdownTelemetry();
+    delete process.env['OTEL_SDK_DISABLED'];
+    jest.dontMock('@opentelemetry/sdk-node');
+    jest.resetModules();
+  });
+
+  it('resolves even when the underlying SDK shutdown hangs forever', async () => {
+    // A collector that never responds must not turn a redeploy into a stuck
+    // process — shutdownTelemetry has to give up and resolve on its own.
+    jest.resetModules();
+    jest.doMock('@opentelemetry/sdk-node', () => ({
+      NodeSDK: jest.fn().mockImplementation(() => ({
+        start: jest.fn(),
+        shutdown: () => new Promise(() => {}), // never resolves
+      })),
+    }));
+
+    const isolated: typeof import('../sdk') = require('../sdk');
+    isolated.startTelemetry('test-service');
+    expect(isolated.isTelemetryStarted()).toBe(true);
+
+    await isolated.shutdownTelemetry();
+
+    expect(isolated.isTelemetryStarted()).toBe(false);
+  }, 10_000);
+});

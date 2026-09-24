@@ -190,3 +190,61 @@ would never transform) — added jest/ts-jest/@types/jest/@opentelemetry/\*
 devDependencies and configs to both, mirroring apps/rainbot's. yarn
 validate green (26/26 tasks, 806 tests total, including the 502 utils and
 151 raincloud tests unaffected).
+Task 11: complete (commits ba90a8c..3d8f612, review clean after one fix pass)
+Found a SECOND connect/teardown path the plan missed: voice-state.ts
+auto-follow, used by all three workers. Without it the gauge would have
+drifted upward forever. Idempotent WeakSet-keyed helper prevents double
+decrement. No drift path found by the reviewer's independent audit.
+Two more resolve-with-failure-value traps fixed (createPlaySoundHandler,
+getGrokReply) via trace.getActiveSpan().
+Fixed a PRE-EXISTING crash bug found next to our work: the auto-follow
+connection had no 'error' listener while its sibling did, and this repo
+exits the process on uncaught exceptions — a voice gateway error killed
+the whole worker. Mutation-verified.
+Open (for final review): the realtime Grok Voice Agent is untraced —
+grok.converse landed on the STT/text fallback path. Instrumenting a
+WebSocket realtime session needs its own span-lifecycle design.
+Note: packages/utils/src/voice/voiceSessionManager.ts is a 4th connect/
+destroy path but is entirely dead code (zero references).
+
+FINAL REVIEW returned 15 findings + 6 deferred items. Connor: "get them all
+done". Fixing in five batches, then one whole-branch re-review:
+A: F2 rot-signal timing, F3 resolutionPath on primary paths, F12 outcome
+vocabulary (apps/rainbot/src/voice/\*)
+B: F1 command root span, deferred#4 dotenv order (apps/raincloud)
+C: F4 duplicate runtime instr, F5 .env.example, F6 diag once-only,
+F13 SIGTERM flush, F14 pin instrumentation-winston (observability)
+D: F7 voice.join duration-to-Ready, F8 raincloud worker-health gauge,
+F9 sound cardinality, F10 phase rename, F11 health-poll noise
+E: F15 queue attrs, deferred 1/2/3/5/6
+
+Batch C: complete (packages/observability/src/node/sdk.ts + .env.example).
+F4: removed the explicit `new RuntimeNodeInstrumentation()` — verified in
+node*modules that the auto-instrumentations bundle already carries it and
+only excludes instrumentation-fs by default, so it was double-registered.
+F14: pinned `instrumentation-winston: { disableLogSending: true }` next to
+the fs entry; confirmed it's only inert today because
+@opentelemetry/winston-transport isn't resolvable — an accident, not a
+guarantee.
+F6: new diagLogger.ts wraps DiagConsoleLogger so each distinct
+(level, message) is emitted once per process; first occurrence always
+gets through. Mutation-checked in diagLogger.test.ts.
+F13: shutdownTelemetry() is now internally bounded (5s race). Wired into
+SIGTERM/SIGINT for the three TS workers via worker-shared's
+setupProcessErrorHandlers (they had zero prior signal handling — Node's
+default applied). Raincloud already owns SIGINT/SIGTERM via its own
+gracefulShutdown(); added the flush as one more awaited step there instead
+of a second competing listener pair. Both paths gate on
+isTelemetryStarted() so OTEL_SDK_DISABLED=true stays a true no-op —
+workers skip attaching the listeners entirely (Node suppresses default
+signal behavior once \_any* listener exists, so a no-op handler would have
+made the disabled case worse, not neutral).
+F5: added an OpenTelemetry section to .env.example. Resolved the
+OTEL_SERVICE_NAME question by documenting it as intentionally inert —
+each service's hardcoded name must stay in sync with its identity
+elsewhere (dashboards, worker registration), so letting the env var win
+would be a correctness risk, not a fix.
+yarn validate green (26/26 tasks). New tests: diagLogger.test.ts (4),
+sdk.test.ts +1 (bounded-shutdown-under-hang), processErrorHandlers.test.ts
++4 (signal-gated-on-telemetry, SIGTERM/SIGINT flush+exit, exit-despite-
+rejected-flush).
