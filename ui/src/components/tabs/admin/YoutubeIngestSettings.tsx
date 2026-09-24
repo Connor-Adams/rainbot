@@ -17,6 +17,12 @@ export default function YoutubeIngestSettings() {
     queryFn: () => settingsApi.getYoutubeProxy().then((res) => res.data),
   });
 
+  // Focus fallbacks for the two ConfirmDialogs: a successful delete unmounts
+  // the "Remove ..." button that opened the dialog, so focus has nowhere to go
+  // back to. Point it at the still-mounted control next to it instead.
+  const proxyInputRef = useRef<HTMLInputElement>(null);
+  const uploadCookiesButtonRef = useRef<HTMLButtonElement>(null);
+
   const cookiesFileRef = useRef<HTMLInputElement>(null);
   const uploadCookiesMutation = useMutation({
     mutationFn: (file: File) => settingsApi.uploadYoutubeCookies(file),
@@ -60,6 +66,7 @@ export default function YoutubeIngestSettings() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
+            ref={proxyInputRef}
             type="password"
             className="input flex-1 min-w-[18rem]"
             placeholder="socks5://user:password@host:1080"
@@ -104,6 +111,11 @@ export default function YoutubeIngestSettings() {
             Proxy saved. Rainbot applies it within a few minutes.
           </div>
         )}
+        {deleteProxyMutation.isError && (
+          <div className="mt-2 text-xs text-danger-light">
+            {(deleteProxyMutation.error as Error)?.message ?? 'Delete failed'}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-surface-input p-4">
@@ -130,6 +142,7 @@ export default function YoutubeIngestSettings() {
             aria-label="Upload cookies file"
           />
           <button
+            ref={uploadCookiesButtonRef}
             type="button"
             className="btn btn-secondary"
             onClick={() => cookiesFileRef.current?.click()}
@@ -179,25 +192,23 @@ export default function YoutubeIngestSettings() {
         open={removeProxyDialogOpen}
         title="Remove the YouTube proxy?"
         description="Playback will fall back to direct connections, which may be rate-limited."
-        pending={deleteProxyMutation.isPending}
+        restoreFocusRef={proxyInputRef}
         onCancel={() => setRemoveProxyDialogOpen(false)}
-        onConfirm={() =>
-          deleteProxyMutation.mutate(undefined, {
-            onSuccess: () => setRemoveProxyDialogOpen(false),
-          })
-        }
+        onConfirm={() => {
+          setRemoveProxyDialogOpen(false);
+          deleteProxyMutation.mutate();
+        }}
       />
       <ConfirmDialog
         open={removeCookiesDialogOpen}
         title="Remove the YouTube cookies?"
         description="Age-restricted and members-only videos will stop playing until new cookies are uploaded."
-        pending={deleteCookiesMutation.isPending}
+        restoreFocusRef={uploadCookiesButtonRef}
         onCancel={() => setRemoveCookiesDialogOpen(false)}
-        onConfirm={() =>
-          deleteCookiesMutation.mutate(undefined, {
-            onSuccess: () => setRemoveCookiesDialogOpen(false),
-          })
-        }
+        onConfirm={() => {
+          setRemoveCookiesDialogOpen(false);
+          deleteCookiesMutation.mutate();
+        }}
       />
     </>
   );

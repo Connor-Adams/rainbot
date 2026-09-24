@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -10,6 +10,10 @@ export default function PersonaManager() {
   const [personaName, setPersonaName] = useState('');
   const [personaSystemPrompt, setPersonaSystemPrompt] = useState('');
   const [personaPendingDeleteId, setPersonaPendingDeleteId] = useState<string | null>(null);
+
+  // A confirmed delete unmounts the row (and the Delete button that opened the
+  // dialog), so focus has no trigger to return to. Fall back to the list itself.
+  const personaListRef = useRef<HTMLDivElement>(null);
 
   const { data: personasData } = useQuery({
     queryKey: ['personas'],
@@ -176,7 +180,7 @@ export default function PersonaManager() {
           )}
         </div>
       )}
-      <div className="space-y-2">
+      <div ref={personaListRef} tabIndex={-1} className="space-y-2">
         <div className="text-xs font-medium text-text-secondary">Your custom personas</div>
         {personas.filter((p) => !p.isBuiltIn).length === 0 ? (
           <p className="text-xs text-text-secondary">No custom personas yet.</p>
@@ -231,13 +235,13 @@ export default function PersonaManager() {
             : 'This cannot be undone.'
         }
         confirmLabel="Delete"
-        pending={deletePersonaMutation.isPending}
+        restoreFocusRef={personaListRef}
         onCancel={() => setPersonaPendingDeleteId(null)}
         onConfirm={() => {
           if (!personaPendingDeleteId) return;
-          deletePersonaMutation.mutate(personaPendingDeleteId, {
-            onSuccess: () => setPersonaPendingDeleteId(null),
-          });
+          const id = personaPendingDeleteId;
+          setPersonaPendingDeleteId(null);
+          deletePersonaMutation.mutate(id);
         }}
       />
     </div>

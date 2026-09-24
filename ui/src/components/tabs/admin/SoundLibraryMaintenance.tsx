@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
 import { soundsApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -9,6 +9,14 @@ type SweepResult = {
   skipped: number;
 };
 
+// Stable mutation keys so an in-flight sweep is still visible in the query
+// client's mutation cache after this section unmounts (switching admin
+// sub-tabs unmounts it). Without them `isPending` resets on remount and the
+// button re-enables, letting a second concurrent pass be launched.
+const TRANSCODE_SWEEP_KEY = ['admin', 'sounds', 'transcode-sweep'] as const;
+const STRIP_VIDEO_SWEEP_KEY = ['admin', 'sounds', 'strip-video-sweep'] as const;
+const ANALYZE_SWEEP_KEY = ['admin', 'sounds', 'analyze-sweep'] as const;
+
 export default function SoundLibraryMaintenance() {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<SweepResult | null>(null);
@@ -16,6 +24,7 @@ export default function SoundLibraryMaintenance() {
   const [stripVideoDialogOpen, setStripVideoDialogOpen] = useState(false);
 
   const sweepMutation = useMutation({
+    mutationKey: TRANSCODE_SWEEP_KEY,
     mutationFn: () => soundsApi.sweepTranscode({ deleteOriginal: true }),
     onSuccess: (res) => {
       setLastResult(res.data || null);
@@ -26,6 +35,7 @@ export default function SoundLibraryMaintenance() {
   const [stripVideoResult, setStripVideoResult] = useState<string | null>(null);
 
   const stripVideoMutation = useMutation({
+    mutationKey: STRIP_VIDEO_SWEEP_KEY,
     mutationFn: () => soundsApi.sweepStripVideo(),
     onSuccess: (res) => {
       const data = res.data;
@@ -42,6 +52,7 @@ export default function SoundLibraryMaintenance() {
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
 
   const analyzeSweepMutation = useMutation({
+    mutationKey: ANALYZE_SWEEP_KEY,
     mutationFn: (options: { force: boolean }) => soundsApi.analyzeSweep(options),
     onSuccess: (res) => {
       const data = res.data as { analyzed: number; skipped: number; failed: number };
@@ -55,17 +66,20 @@ export default function SoundLibraryMaintenance() {
     },
   });
 
+  // Live from the mutation cache, so it survives this section unmounting.
+  const sweepRunning = useIsMutating({ mutationKey: TRANSCODE_SWEEP_KEY }) > 0;
+  const stripVideoRunning = useIsMutating({ mutationKey: STRIP_VIDEO_SWEEP_KEY }) > 0;
+  const analyzeRunning = useIsMutating({ mutationKey: ANALYZE_SWEEP_KEY }) > 0;
+
   const handleSweep = () => {
-    sweepMutation.mutate(undefined, {
-      onSuccess: () => setSweepDialogOpen(false),
-    });
+    setSweepDialogOpen(false);
+    sweepMutation.mutate();
   };
 
   const handleStripVideo = () => {
+    setStripVideoDialogOpen(false);
     setStripVideoResult(null);
-    stripVideoMutation.mutate(undefined, {
-      onSuccess: () => setStripVideoDialogOpen(false),
-    });
+    stripVideoMutation.mutate();
   };
 
   return (
@@ -79,9 +93,9 @@ export default function SoundLibraryMaintenance() {
           type="button"
           className="btn btn-primary"
           onClick={() => setSweepDialogOpen(true)}
-          disabled={sweepMutation.isPending}
+          disabled={sweepRunning}
         >
-          {sweepMutation.isPending ? 'Working...' : 'Run Transcode Sweep'}
+          {sweepRunning ? 'Working...' : 'Run Transcode Sweep'}
         </button>
         {sweepMutation.isError && (
           <div className="mt-3 text-xs text-danger-light">Failed to start sweep.</div>
@@ -105,9 +119,9 @@ export default function SoundLibraryMaintenance() {
           type="button"
           className="btn btn-primary"
           onClick={() => analyzeSweepMutation.mutate({ force: false })}
-          disabled={analyzeSweepMutation.isPending}
+          disabled={analyzeRunning}
         >
-          {analyzeSweepMutation.isPending ? 'Analyzing...' : 'Analyze sounds for search'}
+          {analyzeRunning ? 'Analyzing...' : 'Analyze sounds for search'}
         </button>
         {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
       </div>
@@ -124,9 +138,9 @@ export default function SoundLibraryMaintenance() {
           type="button"
           className="btn btn-primary"
           onClick={() => setStripVideoDialogOpen(true)}
-          disabled={stripVideoMutation.isPending}
+          disabled={stripVideoRunning}
         >
-          {stripVideoMutation.isPending ? 'Rewriting...' : 'Strip video from sounds'}
+          {stripVideoRunning ? 'Rewriting...' : 'Strip video from sounds'}
         </button>
         {stripVideoResult && (
           <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
@@ -138,7 +152,6 @@ export default function SoundLibraryMaintenance() {
         title="Run the transcode sweep?"
         description="This rewrites sound files and deletes the originals. This cannot be undone."
         confirmLabel="Run sweep"
-        pending={sweepMutation.isPending}
         onCancel={() => setSweepDialogOpen(false)}
         onConfirm={handleSweep}
       />
@@ -147,7 +160,6 @@ export default function SoundLibraryMaintenance() {
         title="Strip video from all sounds?"
         description="This rewrites every sound in the library. Originals are archived, not kept in place."
         confirmLabel="Strip video"
-        pending={stripVideoMutation.isPending}
         onCancel={() => setStripVideoDialogOpen(false)}
         onConfirm={handleStripVideo}
       />

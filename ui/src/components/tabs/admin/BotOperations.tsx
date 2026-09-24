@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useIsMutating, useMutation } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
+
+// Stable mutation key so an in-flight redeploy stays visible in the query
+// client's mutation cache after this section unmounts (switching admin
+// sub-tabs unmounts it), keeping the button disabled on remount.
+const DEPLOY_COMMANDS_KEY = ['admin', 'bot', 'deploy-commands'] as const;
 
 export default function BotOperations() {
   const [deployMessage, setDeployMessage] = useState<string | null>(null);
 
   const deployCommandsMutation = useMutation({
+    mutationKey: DEPLOY_COMMANDS_KEY,
     mutationFn: () => adminApi.deployCommands(),
     onSuccess: (res) => {
       setDeployMessage(res.data?.message ?? `Deployed ${res.data?.count ?? 0} command(s).`);
@@ -14,6 +20,9 @@ export default function BotOperations() {
       setDeployMessage(err.response?.data?.error ?? err.message ?? 'Deploy failed.');
     },
   });
+
+  // Live from the mutation cache, so it survives this section unmounting.
+  const deployRunning = useIsMutating({ mutationKey: DEPLOY_COMMANDS_KEY }) > 0;
 
   const handleDeployCommands = () => {
     setDeployMessage(null);
@@ -31,9 +40,9 @@ export default function BotOperations() {
         type="button"
         className="btn btn-primary"
         onClick={handleDeployCommands}
-        disabled={deployCommandsMutation.isPending}
+        disabled={deployRunning}
       >
-        {deployCommandsMutation.isPending ? 'Deploying...' : 'Redeploy commands'}
+        {deployRunning ? 'Deploying...' : 'Redeploy commands'}
       </button>
       {deployCommandsMutation.isError && deployMessage && (
         <div className="mt-3 text-xs text-danger-light">{deployMessage}</div>
