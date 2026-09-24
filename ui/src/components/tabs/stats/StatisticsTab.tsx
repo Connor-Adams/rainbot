@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Tabs } from '@connor-adams/designsystem';
 import StatsSummary from './components/StatsSummary';
 import CommandsStats from './components/CommandsStats';
 import SoundsStats from './components/SoundsStats';
@@ -46,15 +47,46 @@ type StatsTab =
   | 'guild-events'
   | 'api-latency';
 
+/**
+ * One panel container holds whichever section is active, so every tab's
+ * `aria-controls` points at that single id and the panel names itself after the
+ * selected tab via `aria-labelledby`.
+ */
+const PANEL_ID = 'stats-content';
+const tabIdFor = (tab: StatsTab) => `stats-tab-${tab}`;
+
+const TAB_ITEMS: { value: StatsTab; label: string }[] = [
+  { value: 'summary', label: 'Summary' },
+  { value: 'commands', label: 'Commands' },
+  { value: 'sounds', label: 'Sounds' },
+  { value: 'users', label: 'Users' },
+  { value: 'guilds', label: 'Guilds' },
+  { value: 'queue', label: 'Queue' },
+  { value: 'time', label: 'Time Trends' },
+  { value: 'history', label: 'History' },
+  { value: 'sessions', label: 'Sessions' },
+  { value: 'performance', label: 'Performance' },
+  { value: 'errors', label: 'Errors' },
+  { value: 'retention', label: 'Retention' },
+  { value: 'search', label: 'Search' },
+  { value: 'user-sessions', label: 'User Sessions' },
+  { value: 'user-tracks', label: 'User Tracks' },
+  { value: 'engagement', label: 'Engagement' },
+  { value: 'interactions', label: 'Interactions' },
+  { value: 'playback-states', label: 'Playback States' },
+  { value: 'web-analytics', label: 'Web Analytics' },
+  { value: 'guild-events', label: 'Guild Events' },
+  { value: 'api-latency', label: 'API Latency' },
+];
+
+const TABS = TAB_ITEMS.map((item) => ({
+  ...item,
+  tabId: tabIdFor(item.value),
+  panelId: PANEL_ID,
+}));
+
 export default function StatisticsTab() {
   const [activeTab, setActiveTab] = useState<StatsTab>('summary');
-  const tabClass = (tab: StatsTab) =>
-    [
-      'px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all whitespace-nowrap',
-      activeTab === tab
-        ? 'text-primary border-primary/60 bg-primary/10'
-        : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border',
-    ].join(' ');
 
   return (
     <section className="panel stats-panel bg-surface rounded-2xl border border-border p-4 sm:p-6">
@@ -63,82 +95,24 @@ export default function StatisticsTab() {
         <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-4">
           Statistics Dashboard
         </h2>
-        <div className="stats-tabs flex gap-2 overflow-x-auto ca-no-scrollbar pb-1">
-          <button className={tabClass('summary')} onClick={() => setActiveTab('summary')}>
-            Summary
-          </button>
-          <button className={tabClass('commands')} onClick={() => setActiveTab('commands')}>
-            Commands
-          </button>
-          <button className={tabClass('sounds')} onClick={() => setActiveTab('sounds')}>
-            Sounds
-          </button>
-          <button className={tabClass('users')} onClick={() => setActiveTab('users')}>
-            Users
-          </button>
-          <button className={tabClass('guilds')} onClick={() => setActiveTab('guilds')}>
-            Guilds
-          </button>
-          <button className={tabClass('queue')} onClick={() => setActiveTab('queue')}>
-            Queue
-          </button>
-          <button className={tabClass('time')} onClick={() => setActiveTab('time')}>
-            Time Trends
-          </button>
-          <button className={tabClass('history')} onClick={() => setActiveTab('history')}>
-            History
-          </button>
-          <button className={tabClass('sessions')} onClick={() => setActiveTab('sessions')}>
-            Sessions
-          </button>
-          <button className={tabClass('performance')} onClick={() => setActiveTab('performance')}>
-            Performance
-          </button>
-          <button className={tabClass('errors')} onClick={() => setActiveTab('errors')}>
-            Errors
-          </button>
-          <button className={tabClass('retention')} onClick={() => setActiveTab('retention')}>
-            Retention
-          </button>
-          <button className={tabClass('search')} onClick={() => setActiveTab('search')}>
-            Search
-          </button>
-          <button
-            className={tabClass('user-sessions')}
-            onClick={() => setActiveTab('user-sessions')}
-          >
-            User Sessions
-          </button>
-          <button className={tabClass('user-tracks')} onClick={() => setActiveTab('user-tracks')}>
-            User Tracks
-          </button>
-          <button className={tabClass('engagement')} onClick={() => setActiveTab('engagement')}>
-            Engagement
-          </button>
-          <button className={tabClass('interactions')} onClick={() => setActiveTab('interactions')}>
-            Interactions
-          </button>
-          <button
-            className={tabClass('playback-states')}
-            onClick={() => setActiveTab('playback-states')}
-          >
-            Playback States
-          </button>
-          <button
-            className={tabClass('web-analytics')}
-            onClick={() => setActiveTab('web-analytics')}
-          >
-            Web Analytics
-          </button>
-          <button className={tabClass('guild-events')} onClick={() => setActiveTab('guild-events')}>
-            Guild Events
-          </button>
-          <button className={tabClass('api-latency')} onClick={() => setActiveTab('api-latency')}>
-            API Latency
-          </button>
-        </div>
+        {/* overflow="scroll" replaces the overflow-x-auto + ca-no-scrollbar
+            wrapper these 21 pills used to need: Tabs owns the single scrolling
+            row, the faded edges and pulling the selected pill into view. */}
+        <Tabs
+          items={TABS}
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as StatsTab)}
+          overflow="scroll"
+          aria-label="Statistics sections"
+        />
       </div>
-      <div id="stats-content" className="space-y-6">
+      <div
+        id={PANEL_ID}
+        role="tabpanel"
+        aria-labelledby={tabIdFor(activeTab)}
+        tabIndex={0}
+        className="space-y-6"
+      >
         <StatsErrorBoundary>
           {activeTab === 'summary' && <StatsSummary key="summary" />}
           {activeTab === 'commands' && <CommandsStats key="commands" />}
