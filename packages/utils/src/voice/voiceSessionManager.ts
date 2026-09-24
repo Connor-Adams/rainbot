@@ -1,3 +1,17 @@
+/**
+ * DEAD CODE — not imported anywhere in this repo (checked exports from
+ * `./index.ts`, every other barrel, and grepped for dynamic
+ * `import()`/`require()` of this module: zero hits). This module has its own
+ * `joinVoiceChannel()`/`connection.destroy()` pair that duplicates
+ * `./connectionManager.ts`'s real, actually-used join/leave path.
+ *
+ * Do NOT instrument this file. It looks like an uninstrumented voice path
+ * that "someone forgot," but it isn't reachable at runtime, so adding spans
+ * here would be telemetry for code that never executes. If you're about to
+ * wire this back up, first check whether `./connectionManager.ts` and
+ * `./voiceSessionManager.ts` (this file) are meant to converge — as it
+ * stands they're two independent implementations of the same idea.
+ */
 import {
   entersState,
   getVoiceConnection,

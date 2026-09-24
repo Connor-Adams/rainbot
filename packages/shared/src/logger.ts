@@ -1,6 +1,7 @@
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
+import { createOtlpTransport } from '@rainbot/observability/node';
 import type { Logger } from '@rainbot/protocol';
 export type { Logger } from '@rainbot/protocol';
 
@@ -68,12 +69,19 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
+// Constructed once: calling the factory twice inside the transports spread
+// would build two OTLP transports and discard one.
+const otlpTransport = createOtlpTransport();
+
 // Create the logger
 const logger = winston.createLogger({
   levels,
   level: process.env['LOG_LEVEL'] || 'debug',
   format: combine(errors({ stack: true }), timestamp({ format: 'HH:mm:ss' })),
   transports: [
+    // Spread, not push: createOtlpTransport returns undefined when
+    // OTEL_SDK_DISABLED is set, and Winston rejects undefined entries.
+    ...(otlpTransport ? [otlpTransport] : []),
     // Console transport with colors
     new winston.transports.Console({
       format: combine(colorize({ all: true }), consoleFormat),

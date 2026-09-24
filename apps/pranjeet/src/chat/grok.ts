@@ -4,6 +4,8 @@
  * Set LOG_LEVEL=debug for verbose request/response logging.
  */
 import { createLogger } from '@rainbot/shared';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { withSpan, RainbotAttr } from '@rainbot/observability/node';
 import { GROK_API_KEY, GROK_MODEL, GROK_ENABLED } from '../config';
 import { getGrokHistory, appendGrokHistory, clearGrokHistory } from '../redis';
 import { getSystemPromptForChat } from '../prompts';
@@ -21,9 +23,16 @@ interface ChatCompletionChoice {
   index?: number;
 }
 
+interface ChatCompletionUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 interface ChatCompletionResponse {
   choices?: ChatCompletionChoice[];
   id?: string;
+  usage?: ChatCompletionUsage;
 }
 
 function normalizeContent(msg: ChatCompletionMessage): string {
@@ -95,32 +104,76 @@ export async function getGrokReply(
     );
     log.debug(`System prompt preview: ${systemPrompt.substring(0, 100)}...`);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
+    // getGrokReply never throws on an API failure — it always resolves to a
+    // friendly string (see the two branches below), so withSpan's own
+    // exception-based error detection would never see either failure as an
+    // error. Mark the active span ERROR explicitly inside the withSpan
+    // callback (where it's still the active span) whenever that's the case.
+    //
+    // Named grok.chat.completion (not grok.converse) because this is the
+    // STT/text fallback path via xAI's Chat Completions API, not the
+    // realtime Voice Agent (apps/pranjeet/src/voice-agent/grokVoiceAgent.ts)
+    // that users actually talk to during a live conversation — that path is
+    // still untraced and needs its own websocket span-lifecycle design.
+    // grok.converse is reserved for that eventual realtime span.
+    const { reply, httpFailed } = await withSpan(
+      'grok.chat.completion',
+      { [RainbotAttr.grokModel]: GROK_MODEL, [RainbotAttr.guildId]: guildId },
+      async (): Promise<{ reply: string; httpFailed: boolean }> => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      log.warn(`Grok API error ${res.status}: ${errText}`);
-      return 'I had trouble thinking of a reply. Try again in a moment.';
-    }
+        if (!res.ok) {
+          const errText = await res.text();
+          log.warn(`Grok API error ${res.status}: ${errText}`);
+          trace
+            .getActiveSpan()
+            ?.setStatus({ code: SpanStatusCode.ERROR, message: `xAI API responded ${res.status}` });
+          return { reply: '', httpFailed: true };
+        }
 
-    const data = (await res.json()) as ChatCompletionResponse;
-    const choice = data.choices?.[0];
-    const message = choice?.message;
-    const reply = message ? normalizeContent(message as ChatCompletionMessage) : '';
+        const data = (await res.json()) as ChatCompletionResponse;
+        const choice = data.choices?.[0];
+        const message = choice?.message;
+        const parsedReply = message ? normalizeContent(message as ChatCompletionMessage) : '';
+
+        const span = trace.getActiveSpan();
+        if (data.usage) {
+          if (typeof data.usage.prompt_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokPromptTokens, data.usage.prompt_tokens);
+          }
+          if (typeof data.usage.completion_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokCompletionTokens, data.usage.completion_tokens);
+          }
+          if (typeof data.usage.total_tokens === 'number') {
+            span?.setAttribute(RainbotAttr.grokTotalTokens, data.usage.total_tokens);
+          }
+        }
+
+        if (!parsedReply) {
+          log.warn('Grok response had no message content');
+          span?.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: 'xAI returned no message content',
+          });
+        }
+
+        return { reply: parsedReply, httpFailed: false };
+      }
+    );
 
     if (reply) {
       await appendGrokHistory(guildId, userId, trimmed, reply);
       log.debug(`Grok reply success len=${reply.length} appended to history`);
+      return reply;
     }
-    if (!reply) {
-      log.warn('Grok response had no message content');
-      return "I didn't get a clear reply. Want to try again?";
-    }
-    return reply;
+
+    return httpFailed
+      ? 'I had trouble thinking of a reply. Try again in a moment.'
+      : "I didn't get a clear reply. Want to try again?";
   } catch (error) {
     log.warn(`Grok request failed: ${(error as Error).message}`);
     return "I couldn't reach Grok right now. Try again in a moment.";

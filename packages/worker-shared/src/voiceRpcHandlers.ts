@@ -1,6 +1,8 @@
 import { joinVoiceChannel, VoiceConnectionStatus, entersState } from '@discordjs/voice';
 import type { StreamType } from '@discordjs/voice';
 import type { Readable } from 'stream';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { withSpan, recordSoundPlay, RainbotAttr } from '@rainbot/observability/node';
 import type {
   JoinRequest,
   JoinResponse,
@@ -22,6 +24,10 @@ import { createWorkerDiscordClient } from './client';
 import type { GuildState } from './voice-state';
 import { createSoundAudioResource } from './soundResource';
 import { logVoiceConnectionState } from './voiceDiagnostics';
+import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
+
+/** Matches packages/utils/src/voice/connectionManager.ts's own join-Ready wait. */
+const JOIN_READY_TIMEOUT_MS = 30_000;
 
 export interface VoiceRpcHandlerOptions {
   client: ReturnType<typeof createWorkerDiscordClient>;
@@ -71,46 +77,91 @@ export function createJoinHandler(options: VoiceRpcHandlerOptions) {
         requestCache.set(cacheKey, response);
         return response;
       }
-      const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: guild.id,
-        adapterCreator: guild.voiceAdapterCreator as Parameters<
-          typeof joinVoiceChannel
-        >[0]['adapterCreator'],
-        selfDeaf: false,
-      });
-      connection.subscribe(state.player);
-      state.connection = connection;
-      logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
-      // VoiceConnection is an EventEmitter: without an 'error' listener a voice
-      // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
-      // exception and takes the whole worker down.
-      connection.on('error', (error: Error) => {
-        log.warn(`Voice connection error in guild ${input.guildId}: ${error.message}`);
-        try {
-          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-            connection.destroy();
+      const response = await withSpan(
+        'voice.join',
+        { [RainbotAttr.guildId]: input.guildId, [RainbotAttr.voiceChannel]: input.channelId },
+        async (): Promise<JoinResponse> => {
+          const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: guild.id,
+            adapterCreator: guild.voiceAdapterCreator as Parameters<
+              typeof joinVoiceChannel
+            >[0]['adapterCreator'],
+            selfDeaf: false,
+          });
+          connection.subscribe(state.player);
+          state.connection = connection;
+          logVoiceConnectionState(connection, log, `join guild=${input.guildId}`);
+          // VoiceConnection is an EventEmitter: without an 'error' listener a voice
+          // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
+          // exception and takes the whole worker down.
+          connection.on('error', (error: Error) => {
+            log.warn(`Voice connection error in guild ${input.guildId}: ${error.message}`);
+            try {
+              if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                connection.destroy();
+              }
+            } catch {
+              // connection was already torn down
+            }
+            markVoiceDisconnected(connection, input.guildId);
+            if (state.connection === connection) {
+              state.connection = null;
+            }
+          });
+          connection.on(VoiceConnectionStatus.Disconnected, async () => {
+            try {
+              await Promise.race([
+                entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+                entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+              ]);
+            } catch {
+              log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
+              connection.destroy();
+              markVoiceDisconnected(connection, input.guildId);
+              state.connection = null;
+            }
+          });
+          // joinVoiceChannel() returns synchronously in the `Signalling` state,
+          // so measuring only up to here says nothing about whether voice ever
+          // came up. Wait for Ready so the span's duration is real (time to
+          // ready), and only count the connection in rainbot.voice.connections
+          // once it has actually connected, not merely attempted to.
+          //
+          // On timeout we deliberately do NOT destroy the connection or
+          // reject this handler. packages/utils/src/voice/connectionManager.ts
+          // hits this identical entersState(Ready) timeout for the
+          // orchestrator's own join and explicitly "continue[s] anyway -
+          // connection may still work" rather than tearing down — a
+          // connection stuck in `signalling` has recovered on its own before
+          // (see the 2026-09-09 RainSwarm incident, resolved without ever
+          // destroying the stuck connections). We mirror that choice here so
+          // the RPC's response contract and the connection's fate are
+          // unchanged from today: still returns 'joined' immediately-ish, and
+          // the connection is left alone to keep trying. The only change on
+          // timeout is telemetry: the span is marked ERROR, and the gauge
+          // only increments if/when the connection actually reaches Ready
+          // (possibly after this handler has already returned).
+          try {
+            await entersState(connection, VoiceConnectionStatus.Ready, JOIN_READY_TIMEOUT_MS);
+            markVoiceConnected(connection, input.guildId);
+          } catch (error) {
+            log.warn(
+              `Voice connection in guild ${input.guildId} did not become ready within ${JOIN_READY_TIMEOUT_MS}ms: ${(error as Error).message}`
+            );
+            const span = trace.getActiveSpan();
+            span?.recordException(error as Error);
+            span?.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: 'Voice connection did not become ready in time',
+            });
+            connection.once(VoiceConnectionStatus.Ready, () => {
+              markVoiceConnected(connection, input.guildId);
+            });
           }
-        } catch {
-          // connection was already torn down
+          return { status: 'joined', channelId: input.channelId };
         }
-        if (state.connection === connection) {
-          state.connection = null;
-        }
-      });
-      connection.on(VoiceConnectionStatus.Disconnected, async () => {
-        try {
-          await Promise.race([
-            entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-            entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-          ]);
-        } catch {
-          log.warn(`Connection lost in guild ${input.guildId}, attempting rejoin...`);
-          connection.destroy();
-          state.connection = null;
-        }
-      });
-      const response: JoinResponse = { status: 'joined', channelId: input.channelId };
+      );
       requestCache.set(cacheKey, response);
       return response;
     } catch (error) {
@@ -138,9 +189,11 @@ export function createLeaveHandler(options: VoiceRpcHandlerOptions) {
       requestCache.set(cacheKey, response);
       return response;
     }
+    const connection = state.connection;
     onBeforeLeave?.(state);
-    state.connection.destroy();
+    connection.destroy();
     state.connection = null;
+    markVoiceDisconnected(connection, input.guildId);
     const response: LeaveResponse = { status: 'left' };
     requestCache.set(cacheKey, response);
     return response;
@@ -230,41 +283,67 @@ export function createPlaySoundHandler(options: PlaySoundHandlerOptions) {
     if (requestCache.has(cacheKey)) {
       return requestCache.get(cacheKey) as PlaySoundResponse;
     }
-    try {
-      const state = getOrCreateGuildState(input.guildId);
-      if (!state.connection) {
-        const response: PlaySoundResponse = {
-          status: 'error',
-          message: 'Not connected to voice channel',
-        };
-        requestCache.set(cacheKey, response);
-        return response;
+    const response = await withSpan(
+      'sound.play',
+      { [RainbotAttr.sound]: input.sfxId, [RainbotAttr.guildId]: input.guildId },
+      async (): Promise<PlaySoundResponse> => {
+        // Every branch below resolves normally (it never throws past this
+        // point) even when it represents a failure, so withSpan's own
+        // exception-based error detection never fires here. Mark the span
+        // ERROR explicitly whenever the response we're about to return is
+        // 'error', instead of relying on a thrown/rejected fn.
+        let result: PlaySoundResponse;
+        let caughtError: Error | undefined;
+        try {
+          const state = getOrCreateGuildState(input.guildId);
+          if (!state.connection) {
+            result = { status: 'error', message: 'Not connected to voice channel' };
+          } else {
+            const { stream, inputType } = await createSoundResource(input);
+            const effectiveVolume = input.volume ?? (state['volume'] as number | undefined) ?? 1;
+            const playStarted = Date.now();
+            const resource = createSoundAudioResource(stream, inputType, effectiveVolume);
+            log.debug(
+              `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
+            );
+            state.player.stop(true);
+            state.player.play(resource);
+            // Deliberately no RainbotAttr.sound here: it's a user-uploaded R2
+            // object key, and on a histogram each distinct value multiplies
+            // into a full set of bucket series (~14 per phase) that never get
+            // reclaimed as sounds accumulate. It's still on the sound.play
+            // span above, where high cardinality is free and still gives
+            // per-sound investigation in Tempo.
+            //
+            // phase is 'dispatch', not 'play': player.play() only hands the
+            // resource to the AudioPlayer and returns immediately — actual
+            // playback happens afterwards, asynchronously, so this phase can
+            // only ever measure the near-zero cost of the handoff itself.
+            recordSoundPlay(Date.now() - playStarted, {
+              [RainbotAttr.phase]: 'dispatch',
+            });
+            log.debug(`Soundboard play issued status=${state.player.state.status}`);
+            log.info(
+              `Playing sound ${input.sfxId} for user ${input.userId} in guild ${input.guildId}`
+            );
+            void reportStat?.(input, { logger: log });
+            result = { status: 'success', message: 'Sound playing' };
+          }
+        } catch (error) {
+          logErrorWithStack(log, 'Play sound error', error);
+          caughtError = error as Error;
+          result = { status: 'error', message: caughtError.message };
+        }
+        if (result.status === 'error') {
+          const span = trace.getActiveSpan();
+          if (caughtError) span?.recordException(caughtError);
+          span?.setStatus({ code: SpanStatusCode.ERROR, message: result.message });
+        }
+        return result;
       }
-      const { stream, inputType } = await createSoundResource(input);
-      const effectiveVolume = input.volume ?? (state['volume'] as number | undefined) ?? 1;
-      const resource = createSoundAudioResource(stream, inputType, effectiveVolume);
-      log.debug(
-        `Soundboard volume=${effectiveVolume} inputType=${inputType} connected=${state.connection.state.status} player=${state.player.state.status}`
-      );
-      state.player.stop(true);
-      state.player.play(resource);
-      log.debug(`Soundboard play issued status=${state.player.state.status}`);
-      log.info(`Playing sound ${input.sfxId} for user ${input.userId} in guild ${input.guildId}`);
-      void reportStat?.(input, { logger: log });
-      const response: PlaySoundResponse = {
-        status: 'success',
-        message: 'Sound playing',
-      };
-      requestCache.set(cacheKey, response);
-      return response;
-    } catch (error) {
-      logErrorWithStack(log, 'Play sound error', error);
-      const response: PlaySoundResponse = {
-        status: 'error',
-        message: (error as Error).message,
-      };
-      return response;
-    }
+    );
+    requestCache.set(cacheKey, response);
+    return response;
   };
 }
 

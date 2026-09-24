@@ -11,6 +11,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
+      "@rainbot/observability/node": ["../../packages/observability/dist/node/index.d.ts"],
       "@rainbot/protocol": ["../../packages/protocol/dist/index.d.ts"],
       "@rainbot/protocol/*": ["../../packages/protocol/dist/*"]
     }

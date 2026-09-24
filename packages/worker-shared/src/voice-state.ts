@@ -8,6 +8,10 @@ import {
 } from '@discordjs/voice';
 import { createLogger } from '@rainbot/shared';
 import { logVoiceConnectionState } from './voiceDiagnostics';
+import { markVoiceConnected, markVoiceDisconnected } from './voiceConnectionMetrics';
+
+/** Matches packages/utils/src/voice/connectionManager.ts's own join-Ready wait. */
+const JOIN_READY_TIMEOUT_MS = 30_000;
 
 export interface GuildState {
   connection: VoiceConnection | null;
@@ -52,11 +56,13 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
       logger.info(`Orchestrator left voice in guild ${guildId}, following...`);
       const state = guildStates.get(guildId);
       if (state?.connection) {
+        const connection = state.connection;
         logger.info(
-          `follow-leave guild=${guildId} destroying connection status=${state.connection.state.status} player=${state.player.state.status}`
+          `follow-leave guild=${guildId} destroying connection status=${connection.state.status} player=${state.player.state.status}`
         );
-        state.connection.destroy();
+        connection.destroy();
         state.connection = null;
+        markVoiceDisconnected(connection, guildId);
       }
     } else if (orchestratorJoined || orchestratorMoved) {
       // Orchestrator joined/moved - follow
@@ -71,12 +77,14 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
 
       // Disconnect from old channel if moving
       if (state.connection && state.connection.state.status !== VoiceConnectionStatus.Destroyed) {
+        const oldConnection = state.connection;
         logger.info(
-          `follow-join guild=${guildId} destroying existing connection status=${state.connection.state.status} joinedChannel=${
-            state.connection.joinConfig.channelId
+          `follow-join guild=${guildId} destroying existing connection status=${oldConnection.state.status} joinedChannel=${
+            oldConnection.joinConfig.channelId
           } targetChannel=${channelId}`
         );
-        state.connection.destroy();
+        oldConnection.destroy();
+        markVoiceDisconnected(oldConnection, guildId);
       }
 
       const connection = joinVoiceChannel({
@@ -89,6 +97,24 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
       connection.subscribe(state.player);
       state.connection = connection;
       logVoiceConnectionState(connection, logger, `follow guild=${guildId}`);
+
+      // VoiceConnection is an EventEmitter: without an 'error' listener a voice
+      // gateway failure (e.g. a 521 from the websocket) becomes an uncaught
+      // exception and takes the whole worker down.
+      connection.on('error', (error: Error) => {
+        logger.warn(`Voice connection error in guild ${guildId}: ${error.message}`);
+        try {
+          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+            connection.destroy();
+          }
+        } catch {
+          // connection was already torn down
+        }
+        markVoiceDisconnected(connection, guildId);
+        if (state.connection === connection) {
+          state.connection = null;
+        }
+      });
 
       // Auto-rejoin on disconnect (network issues only)
       connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -103,8 +129,27 @@ export function setupAutoFollowVoiceStateHandler(client: Client, options: AutoFo
           logger.warn(`Connection lost in guild ${guildId}`);
           connection.destroy();
           state.connection = null;
+          markVoiceDisconnected(connection, guildId);
         }
       });
+
+      // Count established connections, not attempts: joinVoiceChannel()
+      // returns synchronously in `Signalling`, so only mark the gauge once
+      // the connection actually reaches Ready. On timeout we deliberately do
+      // not destroy the connection — see the matching comment in
+      // voiceRpcHandlers.ts's createJoinHandler, which applies here too — and
+      // instead count it later if/when it does become ready.
+      try {
+        await entersState(connection, VoiceConnectionStatus.Ready, JOIN_READY_TIMEOUT_MS);
+        markVoiceConnected(connection, guildId);
+      } catch (error) {
+        logger.warn(
+          `Voice connection in guild ${guildId} did not become ready within ${JOIN_READY_TIMEOUT_MS}ms: ${(error as Error).message}`
+        );
+        connection.once(VoiceConnectionStatus.Ready, () => {
+          markVoiceConnected(connection, guildId);
+        });
+      }
     }
   });
 }

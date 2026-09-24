@@ -1,12 +1,28 @@
 // Raincloud entry point. Run from the repository root (e.g. node apps/raincloud/index.js or yarn start)
 // so path aliases (dist/, apps/raincloud/) resolve correctly.
 
+// dotenv first, ahead of the telemetry bootstrap below: startTelemetry() reads
+// OTEL_SDK_DISABLED and OTEL_EXPORTER_OTLP_ENDPOINT synchronously at call time,
+// so a value set only in a local .env (e.g. the OTEL_SDK_DISABLED=true escape
+// hatch) must already be in process.env before that call, not after it.
+// dotenv itself is not a module OpenTelemetry auto-instruments, so loading it
+// first has no effect on tracing.
+const dotenvResult = require('dotenv').config();
+
+// Telemetry first: auto-instrumentation patches http/express/redis/etc at require
+// time, so anything required above this line (including the @alias monkeypatch
+// below, which is what pulls in discord.js/express/redis) is invisible to tracing.
+// Kept as a variable (rather than re-requiring below) so gracefulShutdown can
+// flush it before exit — require() is cached, so re-requiring costs nothing
+// either way, but this makes the reuse explicit.
+const observability = require('@rainbot/observability/node');
+observability.startTelemetry('raincloud');
+
 // Immediate stdout so Railway/containers always capture at least one line (before logger may load)
 console.log('[Raincloud] Process starting');
 
 // Load environment variables from .env file (if it exists)
 // This must be loaded before any other modules that use process.env
-const dotenvResult = require('dotenv').config();
 if (dotenvResult.error) {
   // .env file doesn't exist - that's fine, we'll use system env vars
 } else if (dotenvResult.parsed) {
@@ -193,6 +209,15 @@ async function gracefulShutdown(signal) {
 
   // Close database connection
   await close();
+
+  // Flush any in-flight spans/metrics. No-op (resolves immediately) when
+  // OTEL_SDK_DISABLED=true, since startTelemetry() never ran — this is not a
+  // new signal handler, just one more step in the existing SIGINT/SIGTERM
+  // path above, so it never fires work telemetry didn't already start.
+  // shutdownTelemetry() is internally bounded, so this can't hang the exit.
+  if (observability.isTelemetryStarted()) {
+    await observability.shutdownTelemetry();
+  }
 
   log.info('Shutdown complete');
   process.exit(0);

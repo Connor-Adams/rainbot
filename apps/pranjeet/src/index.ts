@@ -1,3 +1,14 @@
+// Telemetry must be the first import: OpenTelemetry's auto-instrumentation
+// patches http/express/redis/etc at require time, so anything imported above
+// this line would be invisible to tracing. Preferred long-term fix is a
+// `--require ./dist/telemetry.js` preload on the node invocation, which makes
+// this ordering structurally impossible to break instead of relying on
+// convention — deferred because it needs a Dockerfile CMD change across all
+// three worker images, and this branch is about to ship to production
+// containers that can't be test-built locally right now. Until then,
+// __tests__/telemetry-import-order.test.ts asserts this stays first.
+import './telemetry';
+
 import type {
   VoiceInteractionSession,
   ParsedVoiceCommand,

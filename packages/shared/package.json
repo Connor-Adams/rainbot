@@ -31,6 +31,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@rainbot/observability": "*",
     "@rainbot/protocol": "*",
     "winston": "^3.19.0"
   },

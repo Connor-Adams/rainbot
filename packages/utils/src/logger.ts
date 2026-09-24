@@ -1,6 +1,7 @@
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
+import { createOtlpTransport } from '@rainbot/observability/node';
 import type { Logger } from '@rainbot/protocol';
 export type { Logger } from '@rainbot/protocol';
 
@@ -68,7 +69,14 @@ const consoleTransportFormat = useColors
   ? combine(colorize({ all: true }), consoleFormat)
   : combine(consoleFormat);
 
+// Constructed once: calling the factory twice inside the transports array
+// would build two OTLP transports and discard one.
+const otlpTransport = createOtlpTransport();
+
 const transports: winston.transport[] = [
+  // Spread, not push: createOtlpTransport returns undefined when
+  // OTEL_SDK_DISABLED is set, and Winston rejects undefined entries.
+  ...(otlpTransport ? [otlpTransport] : []),
   new winston.transports.Console({
     format: consoleTransportFormat,
   }),

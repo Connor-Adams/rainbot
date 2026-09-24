@@ -11,6 +11,7 @@ import {
   hungerbotClient,
 } from '../src/rpc/clients';
 import type { MediaKind, MediaState, PlaybackState, QueueState } from '@rainbot/protocol';
+import { recordWorkerOrchestratorHealth } from '@rainbot/observability/node';
 
 const log = createLogger('WORKER-COORDINATOR');
 
@@ -158,6 +159,7 @@ export class WorkerCoordinator {
     for (const botType of ['rainbot', 'pranjeet', 'hungerbot'] as const) {
       this.circuit.set(botType, { failureCount: 0, openedUntil: 0 });
       this.health.set(botType, { ready: true, lastChecked: 0 });
+      recordWorkerOrchestratorHealth(botType, true);
     }
 
     // Auto-follow is always enabled - workers join automatically when orchestrator joins
@@ -233,6 +235,7 @@ export class WorkerCoordinator {
             log.warn(`${botType} health check failed: ${message}`);
           }
         }
+        recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
       }
     };
 
@@ -253,6 +256,7 @@ export class WorkerCoordinator {
     if (!state) return;
     state.failureCount = 0;
     state.openedUntil = 0;
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
   }
 
   private recordFailure(botType: BotType): void {
@@ -263,6 +267,7 @@ export class WorkerCoordinator {
     if (state.failureCount >= CIRCUIT_FAILURE_THRESHOLD) {
       state.openedUntil = Date.now() + CIRCUIT_OPEN_MS;
     }
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
   }
 
   private isWorkerReady(botType: BotType): boolean {
@@ -271,8 +276,21 @@ export class WorkerCoordinator {
     return health.ready;
   }
 
+  /**
+   * raincloud's own belief about whether a worker is up: combines the
+   * circuit breaker (recordSuccess/recordFailure, driven by real RPC calls)
+   * with the 15s health poll. Backs rainbot.worker.orchestrator_healthy,
+   * which stays accurate across a raincloud restart (when its in-memory
+   * registry resets) unlike each worker's one-shot self-reported
+   * rainbot.worker.registered gauge.
+   */
+  private isWorkerHealthy(botType: BotType): boolean {
+    return !this.isCircuitOpen(botType) && this.isWorkerReady(botType);
+  }
+
   markWorkerReady(botType: BotType, meta?: { instanceId?: string; startedAt?: string }): void {
     this.health.set(botType, { ready: true, lastChecked: Date.now() });
+    recordWorkerOrchestratorHealth(botType, this.isWorkerHealthy(botType));
     if (meta?.instanceId) {
       log.info(`${botType} registered (instance=${meta.instanceId})`);
     } else {

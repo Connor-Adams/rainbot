@@ -23,6 +23,7 @@
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.0",
     "@rainbot/db": "*",
+    "@rainbot/observability": "*",
     "@rainbot/protocol": "*",
     "@rainbot/redis-client": "*",
     "@rainbot/rpc": "*",
@@ -56,6 +57,9 @@
     "youtube-dl-exec": "^3.0.28"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "2.7.1",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.18.0",
     "@types/jest": "^29.5.14",
