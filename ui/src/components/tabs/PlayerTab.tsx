@@ -4,7 +4,10 @@ import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
+import { Slider } from '@connor-adams/designsystem';
 import NowPlayingCard from '../NowPlayingCard';
+
+type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
 
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore();
@@ -82,7 +85,7 @@ export default function PlayerTab() {
   });
 
   const volumeMutation = useMutation({
-    mutationFn: (payload: { level: number; botType: 'rainbot' | 'pranjeet' | 'hungerbot' }) =>
+    mutationFn: (payload: { level: number; botType: BotType }) =>
       playbackApi.volume(selectedGuildId!, payload.level, payload.botType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
@@ -92,11 +95,7 @@ export default function PlayerTab() {
     },
   });
 
-  const handleVolumeChange = (
-    botType: 'rainbot' | 'pranjeet' | 'hungerbot',
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const newVolume = parseInt(e.target.value);
+  const handleVolumeChange = (botType: BotType, newVolume: number) => {
     setLocalVolumes((prev) => ({ ...prev, [botType]: newVolume }));
 
     // Debounce API call
@@ -226,14 +225,12 @@ export default function PlayerTab() {
                 <span>Rainbot Volume</span>
                 <span>{volumes.rainbot}%</span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
+              <Slider
+                min={0}
+                max={100}
                 value={volumes.rainbot}
-                onChange={(e) => handleVolumeChange('rainbot', e)}
+                onValueChange={(v) => handleVolumeChange('rainbot', v)}
                 disabled={!selectedGuildId}
-                className="w-full"
               />
             </div>
             <div>
@@ -241,14 +238,12 @@ export default function PlayerTab() {
                 <span>Pranjeet Volume</span>
                 <span>{volumes.pranjeet}%</span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
+              <Slider
+                min={0}
+                max={100}
                 value={volumes.pranjeet}
-                onChange={(e) => handleVolumeChange('pranjeet', e)}
+                onValueChange={(v) => handleVolumeChange('pranjeet', v)}
                 disabled={!selectedGuildId}
-                className="w-full"
               />
             </div>
             <div>
@@ -256,14 +251,12 @@ export default function PlayerTab() {
                 <span>Hungerbot Volume</span>
                 <span>{volumes.hungerbot}%</span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
+              <Slider
+                min={0}
+                max={100}
                 value={volumes.hungerbot}
-                onChange={(e) => handleVolumeChange('hungerbot', e)}
+                onValueChange={(v) => handleVolumeChange('hungerbot', v)}
                 disabled={!selectedGuildId}
-                className="w-full"
               />
             </div>
           </div>
