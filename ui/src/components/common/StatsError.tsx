@@ -1,4 +1,5 @@
 import type { AxiosError } from 'axios';
+import { Alert } from '@connor-adams/designsystem';
 
 interface StatsErrorProps {
   error: unknown;
@@ -24,5 +25,9 @@ export default function StatsError({ error, message }: StatsErrorProps) {
     displayMessage = message || displayMessage;
   }
 
-  return <div className="stats-error text-center py-12 text-danger-light">{displayMessage}</div>;
+  return (
+    <div className="stats-error py-4">
+      <Alert variant="error">{displayMessage}</Alert>
+    </div>
+  );
 }
