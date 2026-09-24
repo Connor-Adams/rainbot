@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { playbackApi, botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
-import { Slider } from '@connor-adams/designsystem';
+import { EmptyState, Slider, Switch } from '@connor-adams/designsystem';
 import NowPlayingCard from '../NowPlayingCard';
 import { Button } from '@/components/ui';
 
@@ -19,6 +19,9 @@ export default function PlayerTab() {
     pranjeet: number | null;
     hungerbot: number | null;
   }>({ rainbot: null, pranjeet: null, hungerbot: null }); // Only set while dragging
+  // Optimistic override for the autoplay toggle, held until fresh server state
+  // arrives (same shape as localVolumes — see volumeMutation for why).
+  const [localAutoplay, setLocalAutoplay] = useState<boolean | null>(null);
   const volumeDebounceRefs = useRef<{
     rainbot: ReturnType<typeof setTimeout> | null;
     pranjeet: ReturnType<typeof setTimeout> | null;
@@ -61,6 +64,8 @@ export default function PlayerTab() {
     hungerbot: localVolumes.hungerbot ?? serverVolumes.hungerbot,
   };
 
+  const autoplayEnabled = localAutoplay ?? queueData?.isAutoplay ?? false;
+
   const playMutation = useMutation({
     mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
     onSuccess: () => {
@@ -88,23 +93,63 @@ export default function PlayerTab() {
   const volumeMutation = useMutation({
     mutationFn: (payload: { level: number; botType: BotType }) =>
       playbackApi.volume(selectedGuildId!, payload.level, payload.botType),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+    // The optimistic value is held until fresh server state has actually
+    // arrived. Awaiting the invalidation matters: clearing the override the
+    // moment the request is fired drops the slider back to the last polled
+    // value — which can be up to 5s stale — so the handle visibly snaps back
+    // and then jumps again when the poll catches up.
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+      setLocalVolumes((prev) => ({ ...prev, [variables.botType]: null }));
     },
-    onError: () => {
-      setLocalVolumes((prev) => ({ ...prev }));
+    // On failure, drop the override so the slider returns to the truth the
+    // server last reported, rather than sitting on a value that never applied.
+    onError: (_error, variables) => {
+      setLocalVolumes((prev) => ({ ...prev, [variables.botType]: null }));
     },
   });
+
+  const autoplayMutation = useMutation({
+    mutationFn: (enabled: boolean) => playbackApi.autoplay(selectedGuildId!, enabled),
+    // Same shape as volumeMutation: hold the optimistic value until the queue
+    // query has actually refetched, instead of clearing it the moment the
+    // request fires (which would snap the switch back to stale polled state).
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
+      setLocalAutoplay(null);
+    },
+    // On failure, drop the override so the switch reflects the truth the
+    // server last reported, rather than sitting on a value that never applied.
+    onError: () => {
+      setLocalAutoplay(null);
+    },
+  });
+
+  const handleAutoplayChange = (enabled: boolean) => {
+    setLocalAutoplay(enabled);
+    autoplayMutation.mutate(enabled);
+  };
+
+  // A debounce timer that survives unmount fires a mutation and a setState on a
+  // component that no longer exists — most visible when switching guilds mid-drag.
+  useEffect(() => {
+    const refs = volumeDebounceRefs.current;
+    return () => {
+      for (const timer of Object.values(refs)) {
+        if (timer) clearTimeout(timer);
+      }
+    };
+  }, []);
 
   const handleVolumeChange = (botType: BotType, newVolume: number) => {
     setLocalVolumes((prev) => ({ ...prev, [botType]: newVolume }));
 
-    // Debounce API call
+    // Debounced so dragging the slider doesn't fire a request per pixel. The
+    // override is deliberately NOT cleared here — see the mutation's callbacks.
     const ref = volumeDebounceRefs.current;
     if (ref[botType]) clearTimeout(ref[botType]!);
     ref[botType] = setTimeout(() => {
       volumeMutation.mutate({ level: newVolume, botType });
-      setLocalVolumes((prev) => ({ ...prev, [botType]: null }));
     }, 150);
   };
 
@@ -126,6 +171,15 @@ export default function PlayerTab() {
       handlePlay();
     }
   };
+
+  if (!selectedGuildId) {
+    return (
+      <EmptyState
+        title="No server selected"
+        description="Pick a server from the menu in the header to control playback."
+      />
+    );
+  }
 
   return (
     <>
@@ -169,6 +223,31 @@ export default function PlayerTab() {
               Stop
             </Button>
           </div>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div>
+              <span className="text-sm text-text-primary">Autoplay</span>
+              <p className="text-xs text-text-muted">
+                Automatically play related tracks when the queue is empty.
+              </p>
+            </div>
+            <Switch
+              checked={autoplayEnabled}
+              onCheckedChange={handleAutoplayChange}
+              disabled={!selectedGuildId || autoplayMutation.isPending}
+            />
+          </div>
+          {autoplayMutation.isError && (
+            <p className="text-xs text-danger">
+              {(
+                autoplayMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (autoplayMutation.error as Error)?.message ??
+                'Failed to toggle autoplay'}
+            </p>
+          )}
         </div>
 
         {/* Say (TTS) - Pranjeet speaks whatever you type */}
@@ -266,6 +345,18 @@ export default function PlayerTab() {
               />
             </div>
           </div>
+          {volumeMutation.isError && (
+            <p className="text-xs text-danger mt-3">
+              {(
+                volumeMutation.error as {
+                  response?: { data?: { error?: string } };
+                  message?: string;
+                }
+              )?.response?.data?.error ??
+                (volumeMutation.error as Error)?.message ??
+                'Failed to set volume'}
+            </p>
+          )}
         </div>
       </section>
     </>

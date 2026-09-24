@@ -1,11 +1,7 @@
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs } from '@connor-adams/designsystem';
 
 type Tab = 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin';
-
-interface NavTabsProps {
-  activeTab: Tab;
-  onTabChange: (tab: Tab) => void;
-}
 
 const TAB_ITEMS: { value: Tab; label: string }[] = [
   { value: 'player', label: 'Player' },
@@ -16,7 +12,12 @@ const TAB_ITEMS: { value: Tab; label: string }[] = [
   { value: 'admin', label: 'Admin' },
 ];
 
-export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
+export default function NavTabs() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const activeTab = (location.pathname.split('/')[1] || 'player') as Tab;
+
   return (
     <div className="w-full lg:flex-1 lg:flex lg:justify-center">
       {/* overflow="scroll" replaces the overflow-x-auto + no-scrollbar wrapper
@@ -25,7 +26,7 @@ export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
       <Tabs
         items={TAB_ITEMS}
         value={activeTab}
-        onValueChange={(value) => onTabChange(value as Tab)}
+        onValueChange={(value) => navigate('/' + value)}
         overflow="scroll"
       />
     </div>

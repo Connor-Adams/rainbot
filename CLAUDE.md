@@ -29,6 +29,14 @@ yarn db:generate / db:migrate   # drizzle-kit (schema: packages/db/src/schema/in
 **Lint has no root script.** It is per-workspace and runs on commit (husky + lint-staged):
 `yarn workspace @rainbot/raincloud lint`, `yarn workspace @rainbot/ui lint`.
 
+**`ui` and the `validate` gate.** A workspace only participates in a Turbo task if it has a script
+by that name — a missing script is a silent no-op cache hit, not a failure. The UI has
+`type-check` (`tsc -b --noEmit`, which honours the `tsconfig.app.json` / `tsconfig.node.json`
+project references) and `prettier:check`, so `yarn validate` covers it on both. It deliberately has
+**no `test` script**: there are no UI tests, and a `jest --passWithNoTests` stub would make
+`yarn test` report a green UI suite that does not exist. Add the script alongside the first real
+test.
+
 **Single package / single test:** `yarn test` (turbo) builds deps first. Invoking one workspace's
 tests directly does **not** — run `yarn build:ts` first, since tests import `@rainbot/*` from `dist/`.
 

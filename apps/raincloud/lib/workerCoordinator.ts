@@ -99,7 +99,15 @@ function normalizeQueueState(data: unknown): QueueState {
         : typeof record['paused'] === 'boolean'
           ? record['paused']
           : undefined,
-    isAutoplay: typeof record['autoplay'] === 'boolean' ? record['autoplay'] : undefined,
+    // The rainbot worker's getQueue response carries this as `isAutoplay`
+    // (see QueueResponse in @rainbot/worker-protocol); `autoplay` is kept as a
+    // legacy fallback, mirroring the isPaused/paused pattern above.
+    isAutoplay:
+      typeof record['isAutoplay'] === 'boolean'
+        ? record['isAutoplay']
+        : typeof record['autoplay'] === 'boolean'
+          ? record['autoplay']
+          : undefined,
     ...(positionMs != null && { positionMs }),
     ...(durationMs != null && { durationMs }),
   };
