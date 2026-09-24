@@ -1,37 +1,26 @@
-interface NavTabsProps {
-  activeTab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin';
-  onTabChange: (tab: 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin') => void;
-}
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Tabs } from '@connor-adams/designsystem';
 
-export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
-  const tabs = [
-    { id: 'player' as const, label: 'Player' },
-    { id: 'soundboard' as const, label: 'Soundboard' },
-    { id: 'recordings' as const, label: 'Recordings' },
-    { id: 'stats' as const, label: 'Statistics' },
-    { id: 'status' as const, label: 'Status' },
-    { id: 'admin' as const, label: 'Admin' },
-  ];
+type Tab = 'player' | 'soundboard' | 'recordings' | 'stats' | 'status' | 'admin';
+
+const TAB_ITEMS: { value: Tab; label: string }[] = [
+  { value: 'player', label: 'Player' },
+  { value: 'soundboard', label: 'Soundboard' },
+  { value: 'recordings', label: 'Recordings' },
+  { value: 'stats', label: 'Statistics' },
+  { value: 'status', label: 'Status' },
+  { value: 'admin', label: 'Admin' },
+];
+
+export default function NavTabs() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const activeTab = (location.pathname.split('/')[1] || 'player') as Tab;
 
   return (
-    <nav className="flex items-center gap-2 w-full lg:flex-1 lg:justify-center overflow-x-auto no-scrollbar">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          className={`
-            px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap
-            rounded-full border
-            ${
-              activeTab === tab.id
-                ? 'text-primary border-primary/60 bg-primary/10'
-                : 'text-text-secondary border-transparent hover:text-text-primary hover:border-border'
-            }
-          `}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </nav>
+    <div className="w-full lg:flex-1 lg:flex lg:justify-center overflow-x-auto no-scrollbar">
+      <Tabs items={TAB_ITEMS} value={activeTab} onValueChange={(value) => navigate('/' + value)} />
+    </div>
   );
 }

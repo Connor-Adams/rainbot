@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
-import * as stats from '@utils/statistics';
-import type { SourceType } from '@rainbot/types/media';
+import * as stats from '@rainbot/utils/statistics';
+import * as storage from '@rainbot/utils/storage';
+import type { SourceType } from '@rainbot/protocol';
 
 const log = createLogger('INTERNAL-ROUTES');
 const router = express.Router();
@@ -26,6 +27,44 @@ function requireWorkerSecret(req: Request, res: Response): boolean {
 
   return true;
 }
+
+router.get('/cookies/youtube', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+
+  try {
+    const buf = await storage.getYoutubeCookies();
+    if (!buf) {
+      res.status(404).json({ error: 'No YouTube cookies configured' });
+      return;
+    }
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(buf);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to get YouTube cookies: ${err.message}`);
+    res.status(500).json({ error: 'Failed to retrieve cookies' });
+  }
+});
+
+router.get('/proxy/youtube', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+
+  try {
+    const proxyUrl = await storage.getYoutubeProxy();
+    if (!proxyUrl) {
+      res.status(404).json({ error: 'No proxy configured' });
+      return;
+    }
+    // Workers need the real URL, credentials included; the worker secret is what
+    // gates this. It is deliberately never echoed to the dashboard unredacted.
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(proxyUrl);
+  } catch (error) {
+    const err = error as Error;
+    log.error(`Failed to get YouTube proxy: ${err.message}`);
+    res.status(500).json({ error: 'Failed to retrieve proxy' });
+  }
+});
 
 router.post('/workers/register', (req: Request, res: Response) => {
   if (!requireWorkerSecret(req, res)) return;
@@ -208,6 +247,42 @@ router.post('/clear', async (req: Request, res: Response) => {
     const multiBot = getMultiBotService();
     const result = await multiBot.clearQueue(guildId);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post('/playback-status', async (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+  const { guildId } = req.body;
+  if (!guildId) {
+    res.status(400).json({ error: 'Missing guildId' });
+    return;
+  }
+  try {
+    const multiBot = getMultiBotService();
+    const status = await multiBot.getStatus(guildId);
+    if (!status) {
+      res.json({
+        playback: { status: 'idle' },
+        nowPlaying: null,
+        queueLength: 0,
+      });
+      return;
+    }
+    const playback = status.playback ?? { status: 'idle' };
+    const queue = status.queue ?? { queue: [] };
+    res.json({
+      playback: {
+        status: playback.status,
+        volume: playback.volume,
+        error: playback.error,
+        positionMs: playback.positionMs,
+        durationMs: playback.durationMs,
+      },
+      nowPlaying: queue.nowPlaying?.title ?? null,
+      queueLength: queue.queue?.length ?? 0,
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

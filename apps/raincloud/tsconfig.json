@@ -10,10 +10,12 @@
     "paths": {
       "@rainbot/db": ["packages/db/src/index.ts"],
       "@rainbot/db/*": ["packages/db/src/*"],
+      "@rainbot/observability/node": ["packages/observability/dist/node/index.d.ts"],
       "@rainbot/protocol": ["packages/protocol/src/index.ts"],
       "@rainbot/protocol/*": ["packages/protocol/src/*"],
       "@commands/*": ["apps/raincloud/commands/*"],
-      "@utils/*": ["utils/*"],
+      "@rainbot/utils": ["packages/utils/dist/index.d.ts"],
+      "@rainbot/utils/*": ["packages/utils/dist/*"],
       "@server/*": ["apps/raincloud/server/*"],
       "@handlers/*": ["apps/raincloud/handlers/*"],
       "@events/*": ["apps/raincloud/src/events/*"],
@@ -23,7 +25,6 @@
   },
   "include": [
     "commands/**/*.ts",
-    "../../utils/**/*.ts",
     "server/**/*.ts",
     "server/**/*.d.ts",
     "handlers/**/*.ts",

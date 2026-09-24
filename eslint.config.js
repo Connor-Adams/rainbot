@@ -127,7 +127,6 @@ module.exports = [
       'sounds/**',
       'eslint.config.js',
       'deploy-commands.js',
-      'dev-server.js',
       '**/*.d.ts',
     ],
   },

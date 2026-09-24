@@ -1,4 +1,11 @@
 @import 'tailwindcss';
+
+/* Shared design tokens: primitives, the semantic layer every component reads,
+ * the type scale and spacing. Rainbot's brand re-points the semantic names at
+ * its own palette, so this import must come first. */
+@import '@connor-adams/tokens/styles.css';
+@import './styles/rainbot-brand.css';
+
 @config "../tailwind.config.js";
 
 @layer base {

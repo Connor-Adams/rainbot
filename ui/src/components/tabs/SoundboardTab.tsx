@@ -1,18 +1,23 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// Barrel import ('@rainbot/shared') pulls in the logger, which imports Node's
+// fs/path and breaks the Vite browser build - use the subpath export instead,
+// matching the existing '@rainbot/shared/youtube' pattern in NowPlayingCard.
+import { normalizeForSearch } from '@rainbot/shared/search';
+import { Alert } from '@connor-adams/designsystem';
 import { soundsApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useSoundCustomization } from '@/hooks/useSoundCustomization';
 import { useAudioPreview } from '@/hooks/useAudioPreview';
-import { useClickOutside } from '@/hooks/useClickOutside';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { SoundCard } from '@/components/soundboard/SoundCard';
 import { SoundMenu } from '@/components/soundboard/SoundMenu';
 import { EditModal } from '@/components/soundboard/EditModal';
 import { SearchBar } from '@/components/soundboard/SearchBar';
 import { EmptyState } from '@/components/soundboard/EmptyState';
 import { UploadButton } from '@/components/soundboard/UploadButton';
-import type { Sound } from '@/types';
+import type { Sound, SoundSearchResult } from '@/types';
 
 export default function SoundboardTab() {
   const { selectedGuildId } = useGuildStore();
@@ -20,25 +25,31 @@ export default function SoundboardTab() {
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ name: string; el: HTMLButtonElement } | null>(
+    null
+  );
   const [editingSound, setEditingSound] = useState<string | null>(null);
 
   // Refs
-  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Custom hooks
   const { updateCustomization, deleteCustomization, getCustomization } = useSoundCustomization();
   const { previewingSound, playPreview, stopPreview } = useAudioPreview();
 
-  // Close menu when clicking outside
-  useClickOutside(menuRef, () => setOpenMenuId(null));
-
   // Queries
   const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({
     queryKey: ['sounds'],
     queryFn: () => soundsApi.list().then((res) => res.data),
     refetchInterval: 10000,
+  });
+
+  const debouncedQuery = useDebouncedValue(searchQuery, 200);
+
+  const { data: searchResults } = useQuery({
+    queryKey: ['sound-search', debouncedQuery],
+    queryFn: () => soundsApi.search(debouncedQuery).then((res) => res.data.results),
+    enabled: debouncedQuery.trim().length > 0,
   });
 
   // Mutations
@@ -120,13 +131,29 @@ export default function SoundboardTab() {
     return !oggBases.has(getBaseName(sound.name).toLowerCase());
   });
 
-  // Filter sounds based on search query
-  const filteredSounds = visibleSounds.filter((sound: Sound) => {
+  // Local filtering is the immediate, always-correct baseline. Server results
+  // replace it once they land, so typing never waits on a round-trip and a
+  // failed request degrades to exactly the old behaviour.
+  const locallyFiltered = visibleSounds.filter((sound: Sound) => {
     const custom = getCustomization(sound.name);
-    const searchTarget =
-      `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`.toLowerCase();
-    return searchTarget.includes(searchQuery.toLowerCase());
+    const searchTarget = `${sound.name} ${custom?.displayName || ''} ${custom?.emoji || ''}`;
+    // The shared normalizer, not a local copy - the client filter and the
+    // server index must agree on what "air horn" reduces to.
+    return normalizeForSearch(searchTarget).includes(normalizeForSearch(searchQuery));
   });
+
+  const snippets = new Map<string, string | null>(
+    (searchResults ?? []).map((result: SoundSearchResult) => [result.name, result.snippet])
+  );
+
+  const isSearchCurrent = debouncedQuery === searchQuery && searchResults !== undefined;
+  const byName = new Map(visibleSounds.map((sound: Sound) => [sound.name, sound]));
+  const filteredSounds =
+    searchQuery.trim() && isSearchCurrent
+      ? (searchResults as SoundSearchResult[])
+          .map((result) => byName.get(result.name))
+          .filter((sound): sound is Sound => sound !== undefined)
+      : locallyFiltered;
 
   // Handlers
   const handlePlay = useCallback(
@@ -142,7 +169,7 @@ export default function SoundboardTab() {
 
   const handleDelete = useCallback(
     (name: string) => {
-      setOpenMenuId(null);
+      setMenuAnchor(null);
       if (window.confirm(`Delete "${name}"?`)) {
         deleteMutation.mutate(name);
       }
@@ -152,7 +179,7 @@ export default function SoundboardTab() {
 
   const handleEdit = useCallback((soundName: string) => {
     setEditingSound(soundName);
-    setOpenMenuId(null);
+    setMenuAnchor(null);
   }, []);
 
   const handleSaveEdit = useCallback(
@@ -194,8 +221,8 @@ export default function SoundboardTab() {
       {
         key: 'Escape',
         handler: () => {
-          if (openMenuId) {
-            setOpenMenuId(null);
+          if (menuAnchor) {
+            setMenuAnchor(null);
           } else if (searchQuery) {
             setSearchQuery('');
           } else {
@@ -241,6 +268,12 @@ export default function SoundboardTab() {
         </div>
       </div>
 
+      {!selectedGuildId && (
+        <Alert variant="info" title="No server selected" className="mb-6">
+          Pick a server from the menu in the header to play sounds.
+        </Alert>
+      )}
+
       {/* Search Bar */}
       <div className="mb-6">
         <SearchBar ref={searchInputRef} value={searchQuery} onChange={setSearchQuery} />
@@ -257,7 +290,7 @@ export default function SoundboardTab() {
           <EmptyState hasSearch={searchQuery.length > 0} searchQuery={searchQuery} />
         ) : (
           filteredSounds.map((sound: Sound) => (
-            <div key={sound.name} className="relative">
+            <div key={sound.name}>
               <SoundCard
                 sound={sound}
                 customization={getCustomization(sound.name)}
@@ -265,18 +298,21 @@ export default function SoundboardTab() {
                 isPreviewing={previewingSound === sound.name}
                 isDisabled={!selectedGuildId || playMutation.isPending}
                 onPlay={handlePlay}
-                onMenuToggle={setOpenMenuId}
-                isMenuOpen={openMenuId === sound.name}
+                onMenuToggle={(name, el) =>
+                  setMenuAnchor((prev) => (prev?.name === name ? null : { name, el }))
+                }
+                isMenuOpen={menuAnchor?.name === sound.name}
+                snippet={snippets.get(sound.name) ?? null}
               />
-              {openMenuId === sound.name && (
+              {menuAnchor?.name === sound.name && (
                 <SoundMenu
-                  ref={menuRef}
+                  anchorEl={menuAnchor.el}
                   soundName={sound.name}
                   isPreviewing={previewingSound === sound.name}
                   onPreview={() => handlePreview(sound.name)}
                   onEdit={() => handleEdit(sound.name)}
                   onDelete={() => handleDelete(sound.name)}
-                  onClose={() => setOpenMenuId(null)}
+                  onClose={() => setMenuAnchor(null)}
                 />
               )}
             </div>

@@ -2,7 +2,7 @@
  * Now Playing command - Multi-bot architecture version
  */
 const { SlashCommandBuilder } = require('discord.js');
-const { createPlayerMessage } = require('../../dist/utils/playerEmbed');
+const { createPlayerMessage } = require('@rainbot/utils/playerEmbed');
 const { getMultiBotService } = require('../utils/commandHelpers');
 const {
   replyWorkerUnavailable,

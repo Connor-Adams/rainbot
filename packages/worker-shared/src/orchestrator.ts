@@ -1,6 +1,7 @@
 import { createLogger } from '@rainbot/shared';
+import { recordWorkerRegistered } from '@rainbot/observability/node';
 import { formatError } from './errors';
-import type { BotType } from '@rainbot/types/core';
+import type { BotType } from '@rainbot/protocol';
 
 export type { BotType };
 
@@ -80,12 +81,14 @@ export async function registerWithOrchestrator(
 
   if (!RAINCLOUD_URL || !workerSecret) {
     logger.warn('Worker registration skipped (missing RAINCLOUD_URL or WORKER_SECRET)');
+    recordWorkerRegistered(botType, false);
     return;
   }
 
   const baseUrl = getOrchestratorBaseUrl(RAINCLOUD_URL);
   if (!baseUrl) {
     logger.warn('Worker registration skipped (invalid RAINCLOUD_URL)');
+    recordWorkerRegistered(botType, false);
     return;
   }
 
@@ -112,9 +115,11 @@ export async function registerWithOrchestrator(
       if (!response.ok) {
         const text = await response.text();
         logger.warn(`Worker registration failed: ${response.status} ${text}`);
+        recordWorkerRegistered(botType, false);
         return;
       }
       logger.info('Worker registered with orchestrator');
+      recordWorkerRegistered(botType, true);
       return;
     } catch (error) {
       const info = formatError(error);
@@ -138,6 +143,7 @@ export async function registerWithOrchestrator(
         if (info.stack) {
           logger.debug(info.stack);
         }
+        recordWorkerRegistered(botType, false);
       }
     }
   }

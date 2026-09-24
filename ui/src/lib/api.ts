@@ -13,30 +13,16 @@ const debugEnabled = import.meta.env.DEV || runtimeConfig['VITE_DEBUG_LOGS'] ===
 const currentOrigin =
   typeof window !== 'undefined' && window.location?.origin ? window.location.origin : defaultOrigin;
 
-// Known Railway layout: UI at rainbot-production, API at raincloud-production. Use when runtime
-// config isn't injected (startCommand env vars missing).
-const RAILWAY_UI_ORIGIN = 'https://rainbot-production.up.railway.app';
-const RAILWAY_API_ORIGIN = 'https://raincloud-production.up.railway.app';
-const useRailwayFallback =
-  currentOrigin === RAILWAY_UI_ORIGIN &&
-  !runtimeConfig['VITE_API_BASE_URL'] &&
-  !import.meta.env.VITE_API_BASE_URL;
-
 const resolvedApiBase =
   runtimeConfig['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || '';
-export const apiBaseUrl = useRailwayFallback
-  ? `${RAILWAY_API_ORIGIN}/api`
-  : resolvedApiBase || defaultApiOrigin;
+export const apiBaseUrl = resolvedApiBase || defaultApiOrigin;
 
 // Auth must hit the backend (OAuth routes). If unset or same as current origin, we'd hit the UI.
 const explicitAuthBase =
   runtimeConfig['VITE_AUTH_BASE_URL'] || import.meta.env.VITE_AUTH_BASE_URL || '';
 const derivedFromApi = apiBaseUrl.replace(/\/api\/?$/, '').trim() || defaultOrigin;
-export const authBaseUrl = useRailwayFallback
-  ? RAILWAY_API_ORIGIN
-  : explicitAuthBase && explicitAuthBase !== currentOrigin
-    ? explicitAuthBase
-    : derivedFromApi;
+export const authBaseUrl =
+  explicitAuthBase && explicitAuthBase !== currentOrigin ? explicitAuthBase : derivedFromApi;
 
 export function buildAuthUrl(path: string): string {
   const base = authBaseUrl.replace(/\/$/, '');
@@ -135,6 +121,9 @@ export const playbackApi = {
   volume: (guildId: string, level: number, botType?: 'rainbot' | 'pranjeet' | 'hungerbot') =>
     api.post('/volume', { guildId, level, botType }),
   speak: (guildId: string, text: string) => api.post('/speak', { guildId, text }),
+  replay: (guildId: string) => api.post('/replay', { guildId }),
+  autoplay: (guildId: string, enabled?: boolean) =>
+    api.post<{ message: string; enabled: boolean }>('/autoplay', { guildId, enabled }),
 };
 
 // Sounds API
@@ -159,10 +148,79 @@ export const soundsApi = {
     api.delete(`/sounds/${encodeURIComponent(name)}/customization`),
   sweepTranscode: (options?: { deleteOriginal?: boolean; limit?: number }) =>
     api.post('/sounds/transcode-sweep', options || {}),
+  sweepStripVideo: (options?: { dryRun?: boolean; limit?: number }) =>
+    api.post<{ stripped: number; archived: number; skipped: number; failed: number }>(
+      '/sounds/strip-video-sweep',
+      options || {}
+    ),
+  search: (query: string) => api.get('/sounds/search', { params: { q: query, limit: 100 } }),
+  analyzeSweep: (options?: { force?: boolean; limit?: number }) =>
+    api.post('/sounds/analyze-sweep', options || {}),
   trim: (name: string, startMs: number, endMs: number) =>
     api.post(`/sounds/${encodeURIComponent(name)}/trim`, { startMs, endMs }),
   downloadUrl: (name: string) => buildApiUrl(`/sounds/${encodeURIComponent(name)}/download`),
   previewUrl: (name: string) => buildApiUrl(`/sounds/${encodeURIComponent(name)}/preview`),
+};
+
+// Admin API
+export const adminApi = {
+  deployCommands: () =>
+    api.post<{ message: string; count: number; guildId: string | null }>('/deploy-commands'),
+  grokChat: (guildId: string, text: string, speakReply?: boolean) =>
+    api.post<{ reply: string; message?: string }>('/grok-chat', {
+      guildId,
+      text,
+      speak: !!speakReply,
+    }),
+  getConversationMode: (guildId: string) =>
+    api.get<{ enabled: boolean }>(`/conversation-mode/${encodeURIComponent(guildId)}`),
+  setConversationMode: (guildId: string, enabled: boolean) =>
+    api.post<{ enabled: boolean }>('/conversation-mode', { guildId, enabled }),
+  getGrokVoice: (guildId: string) =>
+    api.get<{ voice: string | null }>(`/grok-voice/${encodeURIComponent(guildId)}`),
+  setGrokVoice: (guildId: string, voice: string) =>
+    api.post<{ voice: string }>('/grok-voice', { guildId, voice }),
+  getGrokPersona: (guildId: string) =>
+    api.get<{ personaId: string | null }>(`/grok-persona/${encodeURIComponent(guildId)}`),
+  setGrokPersona: (guildId: string, personaId: string | null) =>
+    api.post<{ personaId: string | null }>('/grok-persona', {
+      guildId,
+      personaId: personaId ?? '',
+    }),
+  getPersonas: () =>
+    api.get<{ personas: { id: string; name: string; isBuiltIn: boolean }[] }>('/personas'),
+  getPersona: (id: string) =>
+    api.get<{
+      id: string;
+      name: string;
+      isBuiltIn: boolean;
+      systemPrompt: string | null;
+    }>(`/personas/${encodeURIComponent(id)}`),
+  createPersona: (data: { name: string; systemPrompt: string }) =>
+    api.post<{ id: string; name: string }>('/personas', data),
+  updatePersona: (id: string, data: { name?: string; systemPrompt?: string }) =>
+    api.put<{ id: string; name: string }>(`/personas/${encodeURIComponent(id)}`, data),
+  deletePersona: (id: string) => api.delete(`/personas/${encodeURIComponent(id)}`),
+};
+
+// Settings API
+export const settingsApi = {
+  getYoutubeCookies: () => api.get<{ hasCookies: boolean }>('/settings/youtube-cookies'),
+  uploadYoutubeCookies: (file: File) => {
+    const formData = new FormData();
+    formData.append('cookies', file);
+    return api.post<{ message: string }>('/settings/youtube-cookies', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteYoutubeCookies: () => api.delete<{ message: string }>('/settings/youtube-cookies'),
+  // proxyUrl comes back with its password redacted; the raw value never leaves
+  // the server.
+  getYoutubeProxy: () =>
+    api.get<{ hasProxy: boolean; proxyUrl: string | null }>('/settings/youtube-proxy'),
+  setYoutubeProxy: (proxyUrl: string) =>
+    api.put<{ message: string; proxyUrl: string }>('/settings/youtube-proxy', { proxyUrl }),
+  deleteYoutubeProxy: () => api.delete<{ message: string }>('/settings/youtube-proxy'),
 };
 
 // Stats API

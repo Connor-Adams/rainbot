@@ -1,4 +1,4 @@
-import type { DiscordUser, SessionData } from '@rainbot/types/server';
+import type { DiscordUser, SessionData } from '@rainbot/protocol';
 import type { GuildMember } from 'discord.js';
 
 declare global {

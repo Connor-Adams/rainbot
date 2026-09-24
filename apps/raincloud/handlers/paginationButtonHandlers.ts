@@ -3,10 +3,10 @@
  */
 
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import type { ButtonHandler } from '@rainbot/types/buttons';
-import type { MediaItem } from '@rainbot/types/media';
+import type { ButtonHandler } from '@rainbot/protocol';
+import type { MediaItem } from '@rainbot/protocol';
 import { getYouTubeThumbnailUrl } from '@rainbot/shared';
-import { createLogger } from '@utils/logger';
+import { createLogger } from '@rainbot/utils/logger';
 import MultiBotService, { getMultiBotService } from '../lib/multiBotService';
 import { createSimplePaginationRow } from '../components/buttons/pagination/paginationButtons';
 

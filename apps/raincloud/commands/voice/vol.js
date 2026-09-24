@@ -2,7 +2,7 @@
  * Volume command - Multi-bot architecture version
  */
 const { SlashCommandBuilder } = require('discord.js');
-const { createLogger } = require('../../dist/utils/logger');
+const { createLogger } = require('@rainbot/utils/logger');
 const { getMultiBotService } = require('../utils/commandHelpers');
 const {
   replySuccess,
@@ -46,7 +46,7 @@ module.exports = {
     }
 
     try {
-      const result = await service.setVolume(guildId, level);
+      const result = await service.setVolumeForConnectedWorkers(guildId, level);
 
       if (result.success) {
         log.info(`Volume set to ${level}% by ${user}`);

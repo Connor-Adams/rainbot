@@ -3,7 +3,14 @@
   "build": {
     "builder": "RAILPACK",
     "installCommand": "corepack enable && yarn install --immutable",
-    "buildCommand": "yarn workspace @rainbot/rainbot-worker build"
+    "buildCommand": "yarn workspace @rainbot/rainbot-worker build",
+    "watchPatterns": [
+      "/apps/rainbot/**",
+      "/packages/**",
+      "/Dockerfile",
+      "/yarn.lock",
+      "/package.json"
+    ]
   },
   "deploy": {
     "startCommand": "node apps/rainbot/dist/index.js",
@@ -14,7 +21,7 @@
     "RAINBOT_TOKEN": "",
     "RAINBOT_PORT": "3001",
     "ORCHESTRATOR_BOT_ID": "",
-    "RAINCLOUD_URL": "http://raincloud.railway.internal:3000",
+    "RAINCLOUD_URL": "http://raincloud.railway.internal:8080",
     "WORKER_SECRET": "${{shared.WORKER_SECRET}}"
   }
 }

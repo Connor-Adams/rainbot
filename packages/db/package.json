@@ -13,7 +13,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "@rainbot/types": "*",
+    "@rainbot/protocol": "*",
     "drizzle-orm": "^0.44.6",
     "pg": "^8.11.3"
   },
