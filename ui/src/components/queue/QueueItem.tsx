@@ -17,8 +17,27 @@ function getTrackSource(track: Track) {
   return { icon: '🎵', text: 'Stream' };
 }
 
+/**
+ * `MediaItem` carries both `duration` (SECONDS) and `durationMs`
+ * (MILLISECONDS), both optional, and `formatDuration` takes seconds — so the
+ * two fields have to be normalised before they can be formatted. Reading one as
+ * the other turns a 4-minute track into either 68 hours or a quarter second.
+ *
+ * `duration` wins when both are set, matching how the bots resolve the same
+ * ambiguity (`apps/raincloud/commands/voice/queue.js`,
+ * `apps/raincloud/handlers/musicButtonHandlers.ts`). The ms value is rounded
+ * because `formatDuration` does `seconds % 60` and would otherwise print
+ * `4:5.678000000000004`.
+ */
+function trackDurationSeconds(track: Track): number | undefined {
+  if (track.duration != null) return track.duration;
+  if (track.durationMs != null) return Math.round(track.durationMs / 1000);
+  return undefined;
+}
+
 export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
   const source = getTrackSource(track);
+  const durationSeconds = trackDurationSeconds(track);
 
   return (
     <div
@@ -46,7 +65,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
           <span className="flex items-center gap-1.5">
             {source.icon} {source.text}
           </span>
-          {track.duration && <span>{formatDuration(track.duration)}</span>}
+          {durationSeconds ? <span>{formatDuration(durationSeconds)}</span> : null}
         </div>
       </div>
 

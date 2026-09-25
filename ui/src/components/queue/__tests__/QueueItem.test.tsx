@@ -71,3 +71,72 @@ describe('QueueItem', () => {
     expect(screen.getByRole('button', { name: 'Remove Unknown from queue' })).toBeInTheDocument();
   });
 });
+
+/**
+ * `MediaItem` carries BOTH `duration` (seconds) and `durationMs` (milliseconds)
+ * and both are optional, so a producer that fills in only the ms field left the
+ * queue row with no duration at all.
+ *
+ * Which one does the worker actually send? `apps/rainbot/src/voice/trackFetcher.ts`
+ * builds every queue item from play-dl's `durationInSec`, and `buildQueueState`
+ * in `apps/rainbot/src/state/guild-state.ts` passes `state.queue` through
+ * untouched — so today the queue always carries `duration`, and `durationMs` is
+ * only ever set on `PlaybackState`/`QueueState` (the now-playing progress bar).
+ * The gap is therefore latent rather than visible on the rainbot path, but both
+ * fields are in the shared contract, so both are handled here.
+ *
+ * The unit difference is the whole risk: read as seconds, 245000 ms would
+ * render as 68 hours, and read as ms, 245 s would render as a quarter second.
+ * Both fixtures below describe the same 4:05 track through the two fields, and
+ * both must produce the same string.
+ */
+describe('QueueItem duration', () => {
+  it('renders a duration given only `duration` in seconds', () => {
+    render(<QueueItem track={makeTrack({ duration: 245 })} index={0} onRemove={vi.fn()} />);
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+  });
+
+  it('renders the same duration given only `durationMs` in milliseconds', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: undefined, durationMs: 245_000 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+  });
+
+  it('prefers `duration` when both are present', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: 245, durationMs: 999_000 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+    expect(screen.queryByText('16:39')).not.toBeInTheDocument();
+  });
+
+  it('rounds a millisecond duration to whole seconds', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: undefined, durationMs: 245_678 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:06')).toBeInTheDocument();
+  });
+
+  it('shows no duration at all when neither field is set', () => {
+    render(<QueueItem track={makeTrack({ duration: undefined })} index={0} onRemove={vi.fn()} />);
+
+    expect(screen.queryByText(/^\d+:\d{2}$/)).not.toBeInTheDocument();
+  });
+});
