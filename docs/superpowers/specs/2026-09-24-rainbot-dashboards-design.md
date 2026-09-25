@@ -267,9 +267,11 @@ once real traffic exists; the checklist is part of implementation, not a follow-
 
 ## Out of scope
 
-- Alert rules. Thresholds would be guesses with no observed baseline, and the existing contact
-  point files GitHub issues automatically — noise that teaches you to ignore it. Revisit after a
-  week of real data.
+- Alert rules. Thresholds would be guesses with no observed baseline. Note for whoever revisits
+  this: the stack's GitHub-issue contact point delivers nothing today, because
+  `GITHUB_DISPATCH_TOKEN` is unset by choice — rules evaluate and show state in the Grafana UI
+  only. So the cost of a bad threshold is currently low, but it becomes real the moment that token
+  is set. Revisit after a week of real data.
 - Dokploy container and host metrics (CPU, memory, restarts, Swarm task state). No exporter feeds
   them today; that is its own piece of work.
 - Other tenants' gaps, including homelab's missing boards.
