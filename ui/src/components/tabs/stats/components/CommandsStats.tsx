@@ -15,6 +15,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { pieSliceLabel } from './pieLabel';
 
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -146,9 +147,7 @@ export default function CommandsStats() {
                     innerRadius={50}
                     outerRadius={80}
                     paddingAngle={2}
-                    label={({ name, percent }: { name: string; percent: number }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
+                    label={pieSliceLabel}
                     labelLine={{ stroke: '#6b7280' }}
                   >
                     {doughnutData.map((entry, index) => (

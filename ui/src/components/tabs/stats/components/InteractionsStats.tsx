@@ -13,6 +13,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { pieSliceLabel } from './pieLabel';
 
 interface InteractionType {
   interaction_type: string;
@@ -115,9 +116,7 @@ export default function InteractionsStats() {
                     innerRadius={50}
                     outerRadius={80}
                     paddingAngle={2}
-                    label={({ name, percent }: { name: string; percent: number }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
+                    label={pieSliceLabel}
                     labelLine={{ stroke: '#6b7280' }}
                   >
                     {typeData.map((entry, index) => (
@@ -152,9 +151,7 @@ export default function InteractionsStats() {
                     innerRadius={50}
                     outerRadius={80}
                     paddingAngle={2}
-                    label={({ name, percent }: { name: string; percent: number }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
+                    label={pieSliceLabel}
                     labelLine={{ stroke: '#6b7280' }}
                   >
                     {rtData.map((entry, index) => (
