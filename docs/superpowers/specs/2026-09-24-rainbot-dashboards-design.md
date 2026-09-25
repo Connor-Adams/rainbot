@@ -217,7 +217,7 @@ runtime-node instrumentation's exact metric names have not been observed on this
 | Resolve latency by source | `histogram_quantile(0.95, sum by (le, rainbot_track_source) (rate(rainbot_track_resolve_duration_milliseconds_bucket[5m])))`                                                     |
 | Failures by class         | `sum by (rainbot_outcome, rainbot_track_source) (rate(rainbot_track_resolve_failures_total[15m]))`                                                                               |
 | Failure ratio             | `sum(rate(rainbot_track_resolve_failures_total[1h])) / (sum(rate(rainbot_track_resolve_failures_total[1h])) + sum(rate(rainbot_track_resolve_duration_milliseconds_count[1h])))` |
-| Stream shape              | `sum by (rainbot_stream_type, rainbot_resolution_path) (rate(rainbot_span_calls_total{span_name="track.stream"}[15m]))`                                                          |
+| Stream shape              | `sum by (rainbot_stream_type, rainbot_resolution_path) (rate(rainbot_span_calls_total{span_name="audio.resource.create"}[15m]))`                                                 |
 | Soundboard phases         | `sum by (rainbot_phase) (rate(rainbot_sound_play_duration_milliseconds_count[15m]))`                                                                                             |
 | Music worker logs         | `{service_name="rainbot-rainbot", level=~"ERROR\|WARN"}`                                                                                                                         |
 | Resolve traces            | TraceQL `{resource.service.name="rainbot-rainbot" && name="track.resolve"}`                                                                                                      |
@@ -227,14 +227,23 @@ playback fails outright, which makes the ratio panel the one to watch between we
 
 ### `usage.json` — what is being used
 
-| Panel               | Query                                                                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Commands per hour   | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute"}[1h]))`                                  |
-| Commands over range | `topk(15, sum by (rainbot_command_name) (increase(rainbot_span_calls_total{span_name="command.execute"}[$__range])))`              |
-| Command failures    | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute", status_code="STATUS_CODE_ERROR"}[1h]))` |
-| Top sounds          | `topk(10, sum by (rainbot_sound) (increase(rainbot_sound_play_duration_milliseconds_count[$__range])))`                            |
-| Tracks by source    | `sum by (rainbot_track_source) (increase(rainbot_track_resolve_duration_milliseconds_count[$__range]))`                            |
-| Service graph       | `traces_service_graph_request_total` (node graph panel)                                                                            |
+| Panel                     | Query                                                                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Commands per hour         | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute"}[1h]))`                                         |
+| Commands over range       | `topk(15, sum by (rainbot_command_name) (increase(rainbot_span_calls_total{span_name="command.execute"}[$__range])))`                     |
+| Command failures          | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute", status_code="STATUS_CODE_ERROR"}[1h]))`        |
+| Soundboard plays per hour | `sum(rate(rainbot_sound_play_duration_milliseconds_count{rainbot_phase="dispatch"}[$__rate_interval])) * 3600` — NOT per sound, see below |
+| Tracks by source          | `sum by (rainbot_track_source) (increase(rainbot_track_resolve_duration_milliseconds_count[$__range]))`                                   |
+| Service graph             | `traces_service_graph_request_total` (node graph panel)                                                                                   |
+
+**Per-sound counts are deliberately not metrics.** `rainbot.sound` is a user-uploaded R2 object key,
+and both `recordSoundPlay` call sites (`apps/hungerbot/src/handlers/rpc.ts`,
+`packages/worker-shared/src/voiceRpcHandlers.ts`) carry a comment explaining why it is kept off the
+histogram: each distinct value costs ~14 bucket series that are never reclaimed as sounds
+accumulate. It stays a span attribute on the `sound.play` span, where cardinality is free. So the
+usage board shows soundboard volume only, and links to Explore for the ranking: TraceQL
+`{name="sound.play"}`, inspected by `rainbot.sound` in Tempo. Connor chose this over adding the
+dimension (2026-09-24).
 
 Note on command failures: `command.execute` spans are only marked ERROR when the handler throws.
 Several commands catch internally and reply with an error embed, so this panel undercounts
@@ -254,8 +263,8 @@ once real traffic exists; the checklist is part of implementation, not a follow-
    not observed here yet.
 2. Label values for `rainbot_track_source`, `rainbot_extraction_path`, `rainbot_outcome` and
    `rainbot_phase`.
-3. `span_name="track.stream"` — the span name in `apps/rainbot/src/voice/audioResource.ts` must be
-   read and matched exactly; the stream-shape panel is wrong if it differs.
+3. RESOLVED before implementation: the stream-shape span is `audio.resource.create` (three call
+   sites in `apps/rainbot/src/voice/audioResource.ts`); `track.stream` never existed.
 4. Dimension label sanitisation — `rainbot.command_name` is expected to arrive as
    `rainbot_command_name`.
 5. `status_code` values emitted by the connector (`STATUS_CODE_ERROR` assumed).

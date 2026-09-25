@@ -781,7 +781,7 @@ Complete panel list, all following Task 4's pattern objects:
 | 3   | Resolve failures by class          | timeseries | short       | 8,12,0,8   | `sum by (rainbot_outcome, rainbot_track_source) (rate(rainbot_track_resolve_failures_total[$__rate_interval]))` · legend `{{rainbot_track_source}} / {{rainbot_outcome}}`                                                             |
 | 4   | Failure ratio (1h)                 | stat       | percentunit | 8,6,12,8   | `sum(rate(rainbot_track_resolve_failures_total[1h])) / (sum(rate(rainbot_track_resolve_failures_total[1h])) + sum(rate(rainbot_track_resolve_duration_milliseconds_count[1h])))`, thresholds green `null` / yellow `0.05` / red `0.2` |
 | 5   | Resolutions per minute             | timeseries | short       | 8,6,18,8   | `sum by (rainbot_extraction_path) (rate(rainbot_track_resolve_duration_milliseconds_count[$__rate_interval])) * 60` · legend `{{rainbot_extraction_path}}`                                                                            |
-| 6   | Stream shape                       | timeseries | short       | 8,12,0,16  | `sum by (rainbot_stream_type, rainbot_resolution_path) (rate(rainbot_span_calls_total{span_name="track.stream"}[$__rate_interval]))` · legend `{{rainbot_stream_type}} / {{rainbot_resolution_path}}`                                 |
+| 6   | Stream shape                       | timeseries | short       | 8,12,0,16  | `sum by (rainbot_stream_type, rainbot_resolution_path) (rate(rainbot_span_calls_total{span_name="audio.resource.create"}[$__rate_interval]))` · legend `{{rainbot_stream_type}} / {{rainbot_resolution_path}}`                        |
 | 7   | Soundboard phases                  | timeseries | short       | 8,12,12,16 | `sum by (rainbot_phase) (rate(rainbot_sound_play_duration_milliseconds_count[$__rate_interval]))` · legend `{{rainbot_phase}}`                                                                                                        |
 | 8   | Music worker errors                | logs       | —           | 10,24,0,24 | Loki: `{service_name="rainbot-rainbot", level=~"ERROR\|WARN"}`                                                                                                                                                                        |
 
@@ -865,14 +865,23 @@ Create `services/grafana/provisioning/dashboards/rainbot/usage.json`. Dashboard-
 }
 ```
 
-| id  | Title                    | Type       | Unit  | gridPos   | Query                                                                                                                                                                                |
-| --- | ------------------------ | ---------- | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Commands per hour        | timeseries | short | 8,12,0,0  | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute"}[$__rate_interval])) * 3600` · legend `{{rainbot_command_name}}`                           |
-| 2   | Top commands (range)     | barchart   | short | 8,12,12,0 | `topk(15, sum by (rainbot_command_name) (increase(rainbot_span_calls_total{span_name="command.execute"}[$__range])))` · legend `{{rainbot_command_name}}`, `"instant": true`         |
-| 3   | Command failures         | timeseries | short | 8,12,0,8  | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute", status_code="STATUS_CODE_ERROR"}[$__rate_interval]))` · legend `{{rainbot_command_name}}` |
-| 4   | Top sounds (range)       | barchart   | short | 8,12,12,8 | `topk(10, sum by (rainbot_sound) (increase(rainbot_sound_play_duration_milliseconds_count[$__range])))` · legend `{{rainbot_sound}}`, `"instant": true`                              |
-| 5   | Tracks by source (range) | piechart   | short | 8,8,0,16  | `sum by (rainbot_track_source) (increase(rainbot_track_resolve_duration_milliseconds_count[$__range]))` · legend `{{rainbot_track_source}}`, `"instant": true`                       |
-| 6   | Service topology         | nodeGraph  | —     | 8,16,8,16 | `sum by (client, server) (rate(traces_service_graph_request_total[$__rate_interval]))`                                                                                               |
+| id  | Title                     | Type       | Unit  | gridPos   | Query                                                                                                                                                                                         |
+| --- | ------------------------- | ---------- | ----- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Commands per hour         | timeseries | short | 8,12,0,0  | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute"}[$__rate_interval])) * 3600` · legend `{{rainbot_command_name}}`                                    |
+| 2   | Top commands (range)      | barchart   | short | 8,12,12,0 | `topk(15, sum by (rainbot_command_name) (increase(rainbot_span_calls_total{span_name="command.execute"}[$__range])))` · legend `{{rainbot_command_name}}`, `"instant": true`                  |
+| 3   | Command failures          | timeseries | short | 8,12,0,8  | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute", status_code="STATUS_CODE_ERROR"}[$__rate_interval]))` · legend `{{rainbot_command_name}}`          |
+| 4   | Soundboard plays per hour | timeseries | short | 8,12,12,8 | `sum(rate(rainbot_sound_play_duration_milliseconds_count{rainbot_phase="dispatch"}[$__rate_interval])) * 3600` · legend `plays/hour` — per-sound ranking is a Tempo query, see the note below |
+| 5   | Tracks by source (range)  | piechart   | short | 8,8,0,16  | `sum by (rainbot_track_source) (increase(rainbot_track_resolve_duration_milliseconds_count[$__range]))` · legend `{{rainbot_track_source}}`, `"instant": true`                                |
+| 6   | Service topology          | nodeGraph  | —     | 8,16,8,16 | `sum by (client, server) (rate(traces_service_graph_request_total[$__rate_interval]))`                                                                                                        |
+
+**Per-sound counts are deliberately not metrics.** `rainbot.sound` is a user-uploaded R2 object key,
+and both `recordSoundPlay` call sites (`apps/hungerbot/src/handlers/rpc.ts`,
+`packages/worker-shared/src/voiceRpcHandlers.ts`) carry a comment explaining why it is kept off the
+histogram: each distinct value costs ~14 bucket series that are never reclaimed as sounds
+accumulate. It stays a span attribute on the `sound.play` span, where cardinality is free. So the
+usage board shows soundboard volume only, and links to Explore for the ranking: TraceQL
+`{name="sound.play"}`, inspected by `rainbot.sound` in Tempo. Connor chose this over adding the
+dimension (2026-09-24).
 
 Panel 3 carries a caveat that belongs in its description field, not only in this plan — set `"description"` on the panel to:
 
@@ -958,7 +967,7 @@ Then check, and fix each panel that is wrong:
 
 1. `_total` on `rainbot_track_resolve_failures` — correct panels 3 and 4 of playback if the real name differs.
 2. Label values for `rainbot_track_source`, `rainbot_extraction_path`, `rainbot_outcome`, `rainbot_phase` — confirm legends read sensibly.
-3. `span_name="track.stream"` in playback panel 6 — read the actual span name in `apps/rainbot/src/voice/audioResource.ts` and match it exactly.
+3. RESOLVED before implementation: the span is `audio.resource.create`, not the invented `track.stream` — three call sites in `apps/rainbot/src/voice/audioResource.ts` set `rainbot.stream_type` / `rainbot.resolution_path` on it.
 4. Dimension sanitisation — confirm `rainbot_command_name` is the label the connector emits.
 5. `status_code` values — usage panel 3 assumes `STATUS_CODE_ERROR`.
 6. Node runtime metric names — query `{__name__=~"nodejs_.*|v8js_.*", job=~"rainbot-.*"}` and, if present, add the deferred runtime row to overview.
