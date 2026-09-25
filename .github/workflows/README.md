@@ -6,6 +6,7 @@ CI/CD for the Rainbot monorepo. Shared setup is centralized in **composite actio
 
 - **`setup-node-monorepo`** — Node, Corepack (Yarn 4), Yarn + Turbo cache, `yarn install`. Used by CI and Dependabot.
 - **`verify-release-tag`** — Ensures release tag is on default branch and CI passed. Used by both release workflows.
+- **`dokploy-deploy`** — `POST /api/application.deploy` for one application, then polls `project.all` until that application's `applicationStatus` settles. Fails on a missing secret, a non-2xx response, `applicationStatus=error`, or an id that matches no application.
 
 ## Workflows
 
@@ -45,15 +46,33 @@ Bump `EPOCH` in `service-content-hash.cjs` to force a rebuild of all five when s
 
 Builds nothing. Checks out the released commit, recomputes each service's content hash with the **same module** `build-images.yml` used, waits (bounded) for `:tree-<hash>` to exist, then re-tags it as `:<release-tag>` and `:prod` with `docker buildx imagetools create` — a registry-side manifest copy, so `:prod` is byte-identical to the image CI built. Uses `verify-release-tag`.
 
-### ⚠️ `release-ghcr.yml` - DEPRECATED
-
-Superseded by the two workflows above. It built the same image names with Railpack, which never invokes a Dockerfile and so shipped no ffmpeg/yt-dlp. Its `release: published` trigger has been removed so it cannot race over `:prod`. **Delete this file.**
-
-### 🚀 `release-deploy.yml` - Deploy to Railway
+### 🚀 `release-deploy.yml` - Deploy to Dokploy
 
 **Triggers:** Release published, workflow_dispatch (optional force)
 
-Plans changed services, triggers Railway webhooks for changed apps only. Uses `verify-release-tag`.
+Plans changed services from the tag-to-tag diff, waits for `release-promote.yml` to
+finish, then deploys each changed service through the `dokploy-deploy` composite
+action. Uses `verify-release-tag`.
+
+Deploys are **pushed** from CI, not pulled by Dokploy. Dokploy's registry
+auto-deploy webhook only parses DockerHub payloads and GHCR emits no equivalent,
+so the [documented path](https://docs.dokploy.com/docs/core/auto-deploy) for other
+registries is its API. Pushing is also what makes the ordering below expressible —
+a registry watcher would restart all five services at once.
+
+Order is not cosmetic: **raincloud first**, gated on `/health/ready`, then the three
+workers. Workers give up permanently after four failed registrations, so starting
+them against a still-booting orchestrator leaves them at `registered=0`. `ui` is
+independent — no bot serves the dashboard — so a `ui/`-only change deploys nothing
+else, and `packages/` or a root manifest change deploys everything.
+
+The `await-promotion` job exists because Dokploy pulls `:prod`, which
+`release-promote.yml` moves on the same `release: published` event. Deploying first
+would ship the _previous_ release's image and report success.
+
+**A missing secret fails the job.** The Railway workflow this replaced `exit 0`ed on
+an unset webhook, so for months every release showed a green deploy that had done
+nothing — that is the failure mode the loud check is there to prevent.
 
 ### 🤖 `dependabot-auto-merge.yml` - Auto-merge Dependabot PRs
 
@@ -68,10 +87,21 @@ Runs same checks as CI via `setup-node-monorepo`, then auto-merges with `fastify
 
 ## Setup
 
+### Required secrets (release deploys)
+
+`release-deploy.yml` fails loudly without these:
+
+- `DOKPLOY_URL` — Dokploy base URL, no trailing slash.
+- `DOKPLOY_API_KEY` — from Dokploy's profile settings, sent as `x-api-key`.
+- `DOKPLOY_APP_ID_RAINCLOUD`, `DOKPLOY_APP_ID_RAINBOT`, `DOKPLOY_APP_ID_PRANJEET`,
+  `DOKPLOY_APP_ID_HUNGERBOT`, `DOKPLOY_APP_ID_UI` — each application's
+  `applicationId`, listed by `GET /api/project.all`.
+
 ### Optional secrets
 
 - **Turbo Remote Cache:** `TURBO_TEAM`, `TURBO_TOKEN` (Vercel) for faster CI.
-- **Railway:** `RAILWAY_WEBHOOK_*`, `*_HEALTH_URL` for release deploys.
+- `RAINCLOUD_HEALTH_URL` — orchestrator `/health/ready`. Unset only warns, and the
+  workers then deploy without confirming raincloud came back up.
 
 ### Leveraging GitHub CI
 

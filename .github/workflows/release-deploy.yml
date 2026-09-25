@@ -1,4 +1,17 @@
-name: Release Deploy (Railway)
+name: Release Deploy (Dokploy)
+
+# Deploys are pushed from here rather than pulled by Dokploy: Dokploy's registry
+# auto-deploy webhook understands DockerHub payloads only, and GHCR emits no
+# equivalent, so its documented path for other registries is an API call from CI
+# (https://docs.dokploy.com/docs/core/auto-deploy). Pushing also lets us order
+# the deploys, which a registry watcher could not: the workers give up
+# permanently after four failed registrations, so starting them against a
+# raincloud that is still booting leaves them stuck at registered=0.
+#
+# This runs alongside release-promote.yml on the same `release: published` event.
+# Promotion is a registry-side re-tag of :prod and Dokploy pulls :prod when it
+# deploys, so the ordering between the two matters: see the wait-for-promotion
+# step below.
 
 on:
   release:
@@ -14,13 +27,18 @@ on:
 permissions:
   contents: read
   checks: read
+  # await-promotion lists workflow runs to confirm :prod actually moved.
+  actions: read
+
+concurrency:
+  group: release-deploy
+  cancel-in-progress: false
 
 jobs:
   plan:
-    name: Plan Railway Deploys
+    name: Plan Dokploy Deploys
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.detect.outputs.matrix }}
       any: ${{ steps.detect.outputs.any }}
       services: ${{ steps.detect.outputs.services }}
       tag_sha: ${{ steps.tag.outputs.sha }}
@@ -97,164 +115,152 @@ jobs:
 
           # No previous tag => deploy everything (first release)
           if [[ -z "${PREV_TAG}" ]]; then
-            echo 'matrix={"include":[{"service":"raincloud","webhook":"RAILWAY_WEBHOOK_RAINCLOUD","health":"RAINCLOUD_HEALTH_URL"},{"service":"rainbot","webhook":"RAILWAY_WEBHOOK_RAINBOT","health":"RAINBOT_HEALTH_URL"},{"service":"pranjeet","webhook":"RAILWAY_WEBHOOK_PRANJEET","health":"PRANJEET_HEALTH_URL"},{"service":"hungerbot","webhook":"RAILWAY_WEBHOOK_HUNGERBOT","health":"HUNGERBOT_HEALTH_URL"}]}' >> "$GITHUB_OUTPUT"
+            echo "services=raincloud,rainbot,pranjeet,hungerbot,ui" >> "$GITHUB_OUTPUT"
             echo "any=true" >> "$GITHUB_OUTPUT"
-            echo "services=raincloud,rainbot,pranjeet,hungerbot" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           RANGE="${PREV_TAG}..${CURRENT_TAG}"
           changed() { git diff --name-only "${RANGE}" -- "$1" | grep -q .; }
 
+          # packages/ and the root manifests feed every image, the dashboard
+          # included. ui/ is NOT shared: no bot serves the dashboard, so a
+          # ui-only change must not restart the bots.
           SHARED=false
-          if changed "packages/" || changed "ui/" || changed "package.json" || changed "yarn.lock" || changed "turbo.json"; then
+          if changed "packages/" || changed "package.json" || changed "yarn.lock" || changed "turbo.json"; then
             SHARED=true
           fi
 
-          INC=""
           SERVICES=""
           add() {
-            local service="$1" webhook="$2" health="$3"
-            if [[ -n "${INC}" ]]; then INC="${INC},"; fi
-            INC="${INC}{\"service\":\"${service}\",\"webhook\":\"${webhook}\",\"health\":\"${health}\"}"
             if [[ -n "${SERVICES}" ]]; then SERVICES="${SERVICES},"; fi
-            SERVICES="${SERVICES}${service}"
+            SERVICES="${SERVICES}$1"
           }
 
-          if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then
-            add "raincloud" "RAILWAY_WEBHOOK_RAINCLOUD" "RAINCLOUD_HEALTH_URL"
-          fi
+          if [[ "${SHARED}" == "true" ]] || changed "apps/raincloud/"; then add "raincloud"; fi
+          if [[ "${SHARED}" == "true" ]] || changed "apps/rainbot/"; then add "rainbot"; fi
+          if [[ "${SHARED}" == "true" ]] || changed "apps/pranjeet/"; then add "pranjeet"; fi
+          if [[ "${SHARED}" == "true" ]] || changed "apps/hungerbot/"; then add "hungerbot"; fi
+          if [[ "${SHARED}" == "true" ]] || changed "ui/"; then add "ui"; fi
 
-          if [[ "${SHARED}" == "true" ]] || changed "apps/rainbot/"; then
-            add "rainbot" "RAILWAY_WEBHOOK_RAINBOT" "RAINBOT_HEALTH_URL"
-          fi
-
-          if [[ "${SHARED}" == "true" ]] || changed "apps/pranjeet/"; then
-            add "pranjeet" "RAILWAY_WEBHOOK_PRANJEET" "PRANJEET_HEALTH_URL"
-          fi
-
-          if [[ "${SHARED}" == "true" ]] || changed "apps/hungerbot/"; then
-            add "hungerbot" "RAILWAY_WEBHOOK_HUNGERBOT" "HUNGERBOT_HEALTH_URL"
-          fi
-
-          if [[ -z "${INC}" ]]; then
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+          if [[ -z "${SERVICES}" ]]; then
             echo "any=false" >> "$GITHUB_OUTPUT"
-            echo "services=" >> "$GITHUB_OUTPUT"
           else
-            echo "matrix={\"include\":[${INC}]}" >> "$GITHUB_OUTPUT"
             echo "any=true" >> "$GITHUB_OUTPUT"
-            echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
           fi
 
-  deploy-raincloud:
-    name: Deploy raincloud
+  # Dokploy pulls :prod, so deploying before release-promote.yml has moved that
+  # tag would redeploy the PREVIOUS release's image and report success.
+  await-promotion:
+    name: Wait for :prod promotion
     needs: [plan]
-    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'raincloud') }}
+    if: ${{ needs.plan.outputs.any == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Railway deploy
-        env:
-          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_RAINCLOUD }}
-        run: |
-          if [[ -z "${WEBHOOK}" ]]; then
-            echo "RAILWAY_WEBHOOK_RAINCLOUD not set, skipping deploy."
-            exit 0
-          fi
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
-            -X POST "${WEBHOOK}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
-      - name: Smoke check (optional)
+      - name: Wait for Release Promote to finish
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ needs.plan.outputs.tag_sha }}';
+            const deadline = Date.now() + 20 * 60 * 1000;
+            while (Date.now() < deadline) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: sha,
+                per_page: 100,
+              });
+              const runs = data.workflow_runs.filter((r) => r.name === 'Release Promote (GHCR :prod)');
+              if (!runs.length) {
+                core.setFailed(`No Release Promote run found for ${sha}. Refusing to deploy a stale :prod.`);
+                return;
+              }
+              const run = runs[0];
+              if (run.status === 'completed') {
+                if (run.conclusion === 'success') {
+                  core.info(`Promotion succeeded: ${run.html_url}`);
+                  return;
+                }
+                core.setFailed(`Promotion concluded ${run.conclusion}: ${run.html_url}`);
+                return;
+              }
+              core.info(`Promotion still ${run.status}; waiting.`);
+              await new Promise((r) => setTimeout(r, 15000));
+            }
+            core.setFailed('Timed out waiting for the :prod promotion to complete.');
+
+  # Raincloud first, on its own, and only then the workers.
+  deploy-raincloud:
+    name: Deploy raincloud
+    needs: [plan, await-promotion]
+    if: ${{ contains(needs.plan.outputs.services, 'raincloud') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via Dokploy
+        uses: ./.github/actions/dokploy-deploy
+        with:
+          base_url: ${{ secrets.DOKPLOY_URL }}
+          api_key: ${{ secrets.DOKPLOY_API_KEY }}
+          application_id: ${{ secrets.DOKPLOY_APP_ID_RAINCLOUD }}
+          service: raincloud
+
+      # Dokploy reporting the deploy done is not the same as the orchestrator
+      # being ready to register workers, so gate on its own readiness probe when
+      # the URL is configured.
+      - name: Wait for /health/ready
         env:
           HEALTH_URL: ${{ secrets.RAINCLOUD_HEALTH_URL }}
         run: |
+          set -euo pipefail
           if [[ -z "${HEALTH_URL}" ]]; then
-            echo "RAINCLOUD_HEALTH_URL not set, skipping smoke check."
+            echo "::warning::RAINCLOUD_HEALTH_URL not set — deploying workers without confirming the orchestrator is ready."
             exit 0
           fi
-          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
+          curl -fsSL --retry 30 --retry-all-errors --retry-delay 5 "${HEALTH_URL}"
+          echo "raincloud is ready."
 
-  deploy-rainbot:
-    name: Deploy rainbot
-    needs: [plan]
-    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'rainbot') }}
+  deploy-workers:
+    name: Deploy ${{ matrix.service }}
+    needs: [plan, await-promotion, deploy-raincloud]
+    # Workers still deploy when raincloud is unchanged (its job is skipped), but
+    # never when its deploy actually failed.
+    if: ${{ !cancelled() && needs.deploy-raincloud.result != 'failure' && contains(needs.plan.outputs.services, matrix.service) }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: rainbot
+            id_secret: DOKPLOY_APP_ID_RAINBOT
+          - service: pranjeet
+            id_secret: DOKPLOY_APP_ID_PRANJEET
+          - service: hungerbot
+            id_secret: DOKPLOY_APP_ID_HUNGERBOT
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via Dokploy
+        uses: ./.github/actions/dokploy-deploy
+        with:
+          base_url: ${{ secrets.DOKPLOY_URL }}
+          api_key: ${{ secrets.DOKPLOY_API_KEY }}
+          application_id: ${{ secrets[matrix.id_secret] }}
+          service: ${{ matrix.service }}
+
+  # The dashboard is a standalone nginx image that no bot serves, so it has no
+  # ordering relationship to the orchestrator.
+  deploy-ui:
+    name: Deploy ui
+    needs: [plan, await-promotion]
+    if: ${{ contains(needs.plan.outputs.services, 'ui') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Railway deploy
-        env:
-          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_RAINBOT }}
-        run: |
-          if [[ -z "${WEBHOOK}" ]]; then
-            echo "RAILWAY_WEBHOOK_RAINBOT not set, skipping deploy."
-            exit 0
-          fi
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
-            -X POST "${WEBHOOK}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
-      - name: Smoke check (optional)
-        env:
-          HEALTH_URL: ${{ secrets.RAINBOT_HEALTH_URL }}
-        run: |
-          if [[ -z "${HEALTH_URL}" ]]; then
-            echo "RAINBOT_HEALTH_URL not set, skipping smoke check."
-            exit 0
-          fi
-          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
-
-  deploy-pranjeet:
-    name: Deploy pranjeet
-    needs: [plan]
-    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'pranjeet') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Railway deploy
-        env:
-          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_PRANJEET }}
-        run: |
-          if [[ -z "${WEBHOOK}" ]]; then
-            echo "RAILWAY_WEBHOOK_PRANJEET not set, skipping deploy."
-            exit 0
-          fi
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
-            -X POST "${WEBHOOK}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
-      - name: Smoke check (optional)
-        env:
-          HEALTH_URL: ${{ secrets.PRANJEET_HEALTH_URL }}
-        run: |
-          if [[ -z "${HEALTH_URL}" ]]; then
-            echo "PRANJEET_HEALTH_URL not set, skipping smoke check."
-            exit 0
-          fi
-          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
-
-  deploy-hungerbot:
-    name: Deploy hungerbot
-    needs: [plan]
-    if: ${{ needs.plan.outputs.any == 'true' && contains(needs.plan.outputs.services, 'hungerbot') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Railway deploy
-        env:
-          WEBHOOK: ${{ secrets.RAILWAY_WEBHOOK_HUNGERBOT }}
-        run: |
-          if [[ -z "${WEBHOOK}" ]]; then
-            echo "RAILWAY_WEBHOOK_HUNGERBOT not set, skipping deploy."
-            exit 0
-          fi
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 \
-            -X POST "${WEBHOOK}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
-      - name: Smoke check (optional)
-        env:
-          HEALTH_URL: ${{ secrets.HUNGERBOT_HEALTH_URL }}
-        run: |
-          if [[ -z "${HEALTH_URL}" ]]; then
-            echo "HUNGERBOT_HEALTH_URL not set, skipping smoke check."
-            exit 0
-          fi
-          curl -fsSL --retry 10 --retry-all-errors --retry-delay 3 "${HEALTH_URL}"
+      - uses: actions/checkout@v4
+      - name: Deploy via Dokploy
+        uses: ./.github/actions/dokploy-deploy
+        with:
+          base_url: ${{ secrets.DOKPLOY_URL }}
+          api_key: ${{ secrets.DOKPLOY_API_KEY }}
+          application_id: ${{ secrets.DOKPLOY_APP_ID_UI }}
+          service: ui
