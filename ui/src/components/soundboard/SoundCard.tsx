@@ -1,7 +1,7 @@
 import type { Sound } from '@/types';
 import { formatSize } from '@/lib/utils';
 import type { SoundCustomization } from '@/hooks/useSoundCustomization';
-import { MenuIcon } from '@/components/icons';
+import { Icon } from '@connor-adams/designsystem';
 
 interface SoundCardProps {
   sound: Sound;
@@ -63,7 +63,7 @@ export function SoundCard({
         aria-label="Sound options"
         aria-expanded={isMenuOpen}
       >
-        <MenuIcon size={16} />
+        <Icon name="more-vertical" size={16} />
       </button>
 
       {/* Emoji Icon */}
