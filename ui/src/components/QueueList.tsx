@@ -89,7 +89,20 @@ export default function QueueList() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto min-h-0">
+      {/* `contain-layout` is what actually stops a long queue from stretching
+          the page, and it is not interchangeable with the overflow rules next
+          to it. Even with this scroller correctly clipping its 1842px of rows
+          to 394px, Chrome still propagated the *pre-clip* layout overflow up
+          through the height-capped sidebar into the document's scrollable
+          area: measured at 1280x900 the document stayed 2271px tall with
+          nothing painted below 1071px — 1200px of empty scroll. Containing
+          layout here scopes that overflow to this box, and the document drops
+          to 1071px.
+          Deliberately here rather than `overflow-hidden`/`overflow-y-auto` on
+          the sidebar, which also silence the propagation but do it by making
+          the sidebar itself scroll (or clip) 1395px of phantom space — that
+          relocates the dead zone instead of removing it. */}
+      <CardContent className="flex-1 overflow-y-auto min-h-0 contain-layout">
         {queue.length === 0 ? (
           <EmptyState
             icon="🎵"
