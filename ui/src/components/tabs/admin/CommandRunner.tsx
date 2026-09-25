@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState } from '@connor-adams/designsystem';
+import { Card, EmptyState, Field, NativeSelect } from '@connor-adams/designsystem';
 import { soundsApi, adminApi, botApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
-import { Button } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 
 type RunCommandType =
   | 'play'
@@ -123,93 +123,86 @@ export default function CommandRunner() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface-input p-4">
+    <Card variant="nested" padding="sm" radius="xl">
       <div className="text-sm font-semibold text-text-primary mb-1">Run commands</div>
       <div className="text-xs text-text-secondary mb-4">
         Run bot actions from the UI. Pick a command, then run. You must be in a voice channel for
         playback commands to take effect.
       </div>
       <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Command</label>
-          <select
+        <Field label="Command">
+          <NativeSelect
+            className="w-full"
             value={runCommand}
             onChange={(e) => setRunCommand(e.target.value as RunCommandType)}
-            className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             {(Object.keys(RUN_COMMAND_LABELS) as RunCommandType[]).map((cmd) => (
               <option key={cmd} value={cmd}>
                 {RUN_COMMAND_LABELS[cmd]}
               </option>
             ))}
-          </select>
-        </div>
+          </NativeSelect>
+        </Field>
         {runCommand === 'play' && (
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">
-              URL or search query
-            </label>
-            <input
+          <Field label="URL or search query">
+            <Input
               type="text"
               value={playSource}
               onChange={(e) => setPlaySource(e.target.value)}
               placeholder="YouTube, Spotify, or search..."
-              className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-          </div>
+          </Field>
         )}
         {runCommand === 'soundboard' && (
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">Sound name</label>
-            <select
-              value={soundboardSound}
-              onChange={(e) => setSoundboardSound(e.target.value)}
-              className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">Select or type below...</option>
-              {sounds.map((s: { name: string }) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <input
+            <Field label="Sound name">
+              <NativeSelect
+                className="w-full"
+                value={soundboardSound}
+                onChange={(e) => setSoundboardSound(e.target.value)}
+              >
+                <option value="">Select or type below...</option>
+                {sounds.map((s: { name: string }) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            {/* The same `soundboardSound` state as the dropdown above, for a name
+                that is not in the library. The visible "Sound name" label belongs
+                to the dropdown, so this one is named by `aria-label` rather than
+                by a second, duplicate visible label. */}
+            <Input
               type="text"
+              className="mt-2"
               value={soundboardSound}
               onChange={(e) => setSoundboardSound(e.target.value)}
               placeholder="Or type sound name"
-              className="mt-2 w-full px-4 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Or type sound name"
             />
           </div>
         )}
         {runCommand === 'speak' && (
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">
-              Text to speak (TTS)
-            </label>
-            <input
+          <Field label="Text to speak (TTS)">
+            <Input
               type="text"
               value={speakText}
               onChange={(e) => setSpeakText(e.target.value)}
               placeholder="What should the bot say?"
-              className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-          </div>
+          </Field>
         )}
         {runCommand === 'grok' && (
           <div className="space-y-2">
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">
-                Message for Grok
-              </label>
-              <input
+            <Field label="Message for Grok">
+              <Input
                 type="text"
                 value={grokText}
                 onChange={(e) => setGrokText(e.target.value)}
                 placeholder="Ask Grok anything..."
-                className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
               <input
                 type="checkbox"
@@ -232,6 +225,6 @@ export default function CommandRunner() {
         {runError && <div className="text-xs text-danger-light">{runError}</div>}
         {runResult && <div className="text-xs text-text-secondary">{runResult}</div>}
       </div>
-    </div>
+    </Card>
   );
 }

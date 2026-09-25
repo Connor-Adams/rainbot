@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, Field, Textarea } from '@connor-adams/designsystem';
 import { adminApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { Button } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 
 export default function PersonaManager() {
   const queryClient = useQueryClient();
@@ -58,7 +59,7 @@ export default function PersonaManager() {
   });
 
   return (
-    <div className="rounded-xl border border-border bg-surface-input p-4">
+    <Card variant="nested" padding="sm" radius="xl">
       <div className="text-sm font-semibold text-text-primary mb-1">Manage personas</div>
       <div className="text-xs text-text-secondary mb-4">
         Create custom personas (name + system prompt) for Grok. Custom personas appear in the Grok
@@ -80,28 +81,22 @@ export default function PersonaManager() {
       )}
       {(personaFormOpen || editingPersonaId) && (
         <div className="mb-4 space-y-2 rounded-lg border border-border p-3 bg-surface-elevated">
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">Name</label>
-            <input
+          <Field label="Name">
+            <Input
               type="text"
               value={personaName}
               onChange={(e) => setPersonaName(e.target.value)}
               placeholder="e.g. Friendly assistant"
-              className="w-full px-3 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm"
             />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">
-              System prompt
-            </label>
-            <textarea
+          </Field>
+          <Field label="System prompt">
+            <Textarea
               value={personaSystemPrompt}
               onChange={(e) => setPersonaSystemPrompt(e.target.value)}
               placeholder="Instructions for how the AI should behave..."
               rows={5}
-              className="w-full px-3 py-2 bg-surface-input border border-border rounded-lg text-text-primary text-sm resize-y"
             />
-          </div>
+          </Field>
           <div className="flex gap-2">
             {editingPersonaId ? (
               <>
@@ -197,9 +192,10 @@ export default function PersonaManager() {
                 >
                   <span className="text-sm text-text-primary">{p.name}</span>
                   <div className="flex gap-2">
-                    <button
+                    <Button
                       type="button"
-                      className="text-xs text-primary hover:underline"
+                      variant="ghost"
+                      size="sm"
                       onClick={async () => {
                         try {
                           const res = await adminApi.getPersona(p.id);
@@ -212,15 +208,17 @@ export default function PersonaManager() {
                       }}
                     >
                       Edit
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="text-xs text-danger-light hover:underline"
+                      variant="ghost"
+                      size="sm"
+                      className="!text-danger-light"
                       disabled={deletePersonaMutation.isPending}
                       onClick={() => setPersonaPendingDeleteId(p.id)}
                     >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -246,6 +244,6 @@ export default function PersonaManager() {
           deletePersonaMutation.mutate(id);
         }}
       />
-    </div>
+    </Card>
   );
 }

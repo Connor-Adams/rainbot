@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, Field } from '@connor-adams/designsystem';
 import { settingsApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button, Input } from '@/components/ui';
@@ -46,6 +47,15 @@ export default function YoutubeIngestSettings() {
       queryClient.invalidateQueries({ queryKey: ['youtube-proxy'] });
     },
   });
+  // Fed to the proxy `Field` as its `error`, so the message is linked to the
+  // input by `aria-describedby` and sets `aria-invalid`, rather than sitting in
+  // an unassociated `<div>`. Same precedence as before: this branch reads only
+  // `response.data.error` and discards a plain Error's `message`.
+  const saveProxyError = saveProxyMutation.isError
+    ? ((saveProxyMutation.error as { response?: { data?: { error?: string } } })?.response?.data
+        ?.error ?? 'Failed to save proxy')
+    : undefined;
+
   const deleteProxyMutation = useMutation({
     mutationFn: () => settingsApi.deleteYoutubeProxy(),
     onSuccess: () => {
@@ -55,7 +65,7 @@ export default function YoutubeIngestSettings() {
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-surface-input p-4">
+      <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">YouTube proxy</div>
         <div className="text-xs text-text-secondary mb-4">
           YouTube blocks requests from datacenter IPs, which is what Railway runs on—that is the
@@ -65,48 +75,50 @@ export default function YoutubeIngestSettings() {
           <code>socks4a</code>, <code>socks5</code> and <code>socks5h</code>. Rainbot picks up a
           change within about five minutes.
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            ref={proxyInputRef}
-            type="password"
-            className="flex-1 min-w-[18rem]"
-            placeholder="socks5://user:password@host:1080"
-            value={proxyInput}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setProxyInput(e.target.value)}
-            aria-label="Proxy URL"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => saveProxyMutation.mutate(proxyInput)}
-            disabled={saveProxyMutation.isPending || proxyInput.trim().length === 0}
-          >
-            {saveProxyMutation.isPending ? 'Saving...' : 'Save proxy'}
-          </Button>
-          {youtubeProxy?.hasProxy && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setRemoveProxyDialogOpen(true)}
-              disabled={deleteProxyMutation.isPending}
-            >
-              {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
-            </Button>
+        {/* Render-prop form: the input sits inside the button row rather than
+            being `Field`'s direct child, so the label stays above the row and
+            the error grows below it without pushing the buttons out of line
+            with the input. `control` carries the id and the aria wiring. */}
+        <Field label="Proxy URL" error={saveProxyError}>
+          {(control) => (
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                {...control}
+                ref={proxyInputRef}
+                type="password"
+                className="flex-1 min-w-[18rem]"
+                placeholder="socks5://user:password@host:1080"
+                value={proxyInput}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setProxyInput(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => saveProxyMutation.mutate(proxyInput)}
+                disabled={saveProxyMutation.isPending || proxyInput.trim().length === 0}
+              >
+                {saveProxyMutation.isPending ? 'Saving...' : 'Save proxy'}
+              </Button>
+              {youtubeProxy?.hasProxy && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setRemoveProxyDialogOpen(true)}
+                  disabled={deleteProxyMutation.isPending}
+                >
+                  {deleteProxyMutation.isPending ? 'Removing...' : 'Remove proxy'}
+                </Button>
+              )}
+            </div>
           )}
-        </div>
+        </Field>
         <div className="mt-2 text-xs text-text-secondary">
           {youtubeProxy?.hasProxy
             ? `✓ Using ${youtubeProxy.proxyUrl}`
             : 'No proxy set — going direct'}
         </div>
-        {saveProxyMutation.isError && (
-          <div className="mt-2 text-xs text-danger-light">
-            {(saveProxyMutation.error as { response?: { data?: { error?: string } } })?.response
-              ?.data?.error ?? 'Failed to save proxy'}
-          </div>
-        )}
         {saveProxyMutation.isSuccess && (
           <div className="mt-2 text-xs text-text-secondary">
             Proxy saved. Rainbot applies it within a few minutes.
@@ -117,9 +129,9 @@ export default function YoutubeIngestSettings() {
             {(deleteProxyMutation.error as Error)?.message ?? 'Delete failed'}
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-border bg-surface-input p-4">
+      <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">YouTube cookies</div>
         <div className="text-xs text-text-secondary mb-4">
           Fixes &quot;Sign in to confirm you&apos;re not a bot&quot; errors when playing YouTube.
@@ -128,7 +140,7 @@ export default function YoutubeIngestSettings() {
           when playback fails again.
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <input
+          <Input
             ref={cookiesFileRef}
             type="file"
             accept=".txt"
@@ -187,7 +199,7 @@ export default function YoutubeIngestSettings() {
             {(deleteCookiesMutation.error as Error)?.message ?? 'Delete failed'}
           </div>
         )}
-      </div>
+      </Card>
 
       <ConfirmDialog
         open={removeProxyDialogOpen}
