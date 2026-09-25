@@ -1,5 +1,4 @@
 import type { UserStat } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { statsApi } from '@/lib/api';
@@ -7,7 +6,7 @@ import { statsApi } from '@/lib/api';
 export default function UsersStats() {
   const { data, isLoading, error } = useStatsQuery<{ users: UserStat[] }>({
     queryKey: ['stats', 'users'],
-    queryFn: () => statsApi.users(),
+    queryFn: ({ signal }) => statsApi.users({ signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading user statistics..." />;
@@ -22,20 +21,20 @@ export default function UsersStats() {
         const username = user.username
           ? `${user.username}${user.discriminator && user.discriminator !== '0' ? `#${user.discriminator}` : ''}`
           : 'Unknown';
-        return <span className="font-mono">{escapeHtml(username)}</span>;
+        return <span className="font-mono">{username}</span>;
       },
       className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'user_id',
       header: 'User ID',
-      render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.user_id)}</span>,
+      render: (user: UserStat) => <span className="font-mono">{user.user_id}</span>,
       className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
       id: 'guild_id',
       header: 'Guild ID',
-      render: (user: UserStat) => <span className="font-mono">{escapeHtml(user.guild_id)}</span>,
+      render: (user: UserStat) => <span className="font-mono">{user.guild_id}</span>,
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
     {

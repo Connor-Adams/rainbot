@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { safeInt } from '@/lib/chartSafety';
 import {
   StatsLoading,
@@ -53,9 +53,9 @@ interface WebAnalyticsData {
 }
 
 export default function WebAnalyticsStats() {
-  const { data, isLoading, error } = useQuery<WebAnalyticsData>({
+  const { data, isLoading, error } = useStatsQuery<WebAnalyticsData>({
     queryKey: ['stats', 'web-analytics'],
-    queryFn: () => statsApi.webAnalytics().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.webAnalytics({ signal }),
     refetchInterval: 30000,
   });
 

@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import type { QueueOperation } from '@/types';
 import { safeInt } from '@/lib/chartSafety';
 import {
@@ -13,9 +13,9 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function QueueStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'queue'],
-    queryFn: () => statsApi.queue().then((res) => res.data),
+    queryFn: ({ signal }) => statsApi.queue({ signal }),
     refetchInterval: 30000,
   });
 

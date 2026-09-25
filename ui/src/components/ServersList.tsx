@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { botApi } from '@/lib/api';
 import type { Guild } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import EmptyState from '@/components/common/EmptyState';
 import ListItem from '@/components/common/ListItem';
@@ -9,7 +8,7 @@ import ListItem from '@/components/common/ListItem';
 export default function ServersList() {
   const { data: status } = useQuery({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
   });
 
@@ -29,7 +28,7 @@ export default function ServersList() {
               <ListItem
                 key={guild.id}
                 icon="🏠"
-                title={escapeHtml(guild.name)}
+                title={guild.name}
                 subtitle={`${guild.memberCount} members`}
               />
             ))}

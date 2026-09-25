@@ -50,6 +50,60 @@ export function createApiEventSource(path: string): EventSource {
   return new EventSource(buildApiUrl(path), { withCredentials: true });
 }
 
+/**
+ * Options every *read* endpoint accepts, and the only way an `AbortSignal`
+ * reaches Axios.
+ *
+ * React Query hands its `queryFn` a context carrying a `signal` that it aborts
+ * when the query is cancelled — a component unmounting, or a newer fetch
+ * superseding this one. Nothing wired that signal into Axios before, so a
+ * request outlived the component that asked for it: arrowing across the 21
+ * Statistics sections fired ~20 requests and cancelled none of them.
+ *
+ * **Only read (GET) methods take this.** Mutations deliberately have no
+ * parameter to pass a signal through, so a POST/PUT/DELETE that has already
+ * reached the server — a command deploy, a transcode sweep, a persona delete —
+ * *cannot* be aborted by the component that started it unmounting. That
+ * guarantee is enforced by the types here rather than by convention.
+ *
+ * Reading `context.signal` is also what arms cancellation at all: React Query
+ * only aborts a query whose `queryFn` actually touched the signal
+ * (`#abortSignalConsumed`). A call site that ignores it stays uncancellable
+ * however this layer is written, which is why the signal is threaded explicitly
+ * instead of being injected by an interceptor.
+ */
+export interface ApiReadOptions {
+  signal?: AbortSignal | undefined;
+}
+
+/**
+ * Was this rejection a cancellation rather than a failure?
+ *
+ * An aborted request is not a fault and must never reach the user as an error
+ * panel or a toast; a real failure still must. Axios rejects a cancelled
+ * request with `CanceledError` (`code: 'ERR_CANCELED'`), and React Query
+ * rejects its own cancellations with a `CancelledError` that carries
+ * `silent`/`revert`. Recognise both so neither is mistaken for a server error.
+ */
+export function isAbortError(error: unknown): boolean {
+  if (axios.isCancel(error)) return true;
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  const err = error as { code?: string; name?: string } | null;
+  return err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+}
+
+/**
+ * Query `retry` default: retry a real failure once, an aborted request never.
+ *
+ * `retry: 1` on its own would treat a cancellation as a failed attempt and
+ * re-issue the request we just aborted, which is exactly the traffic
+ * cancellation is meant to remove.
+ */
+export function queryRetry(failureCount: number, error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  return failureCount < 1;
+}
+
 const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
@@ -117,8 +171,9 @@ export const authApi = {
 
 // Bot API
 export const botApi = {
-  getStatus: () => api.get('/status'),
-  getQueue: (guildId: string) => api.get(`/queue/${guildId}`),
+  getStatus: ({ signal }: ApiReadOptions = {}) => api.get('/status', { signal }),
+  getQueue: (guildId: string, { signal }: ApiReadOptions = {}) =>
+    api.get(`/queue/${guildId}`, { signal }),
   clearQueue: (guildId: string) => api.post(`/queue/${guildId}/clear`),
   removeFromQueue: (guildId: string, index: number) => api.delete(`/queue/${guildId}/${index}`),
 };
@@ -142,7 +197,7 @@ export const playbackApi = {
 
 // Sounds API
 export const soundsApi = {
-  list: () => api.get('/sounds'),
+  list: ({ signal }: ApiReadOptions = {}) => api.get('/sounds', { signal }),
   upload: (files: File[]) => {
     const formData = new FormData();
     files.forEach((file) => {
@@ -155,7 +210,8 @@ export const soundsApi = {
     });
   },
   delete: (name: string) => api.delete(`/sounds/${encodeURIComponent(name)}`),
-  listCustomizations: () => api.get('/sounds/customizations'),
+  listCustomizations: ({ signal }: ApiReadOptions = {}) =>
+    api.get('/sounds/customizations', { signal }),
   setCustomization: (name: string, displayName?: string, emoji?: string) =>
     api.put(`/sounds/${encodeURIComponent(name)}/customization`, { displayName, emoji }),
   deleteCustomization: (name: string) =>
@@ -167,7 +223,8 @@ export const soundsApi = {
       '/sounds/strip-video-sweep',
       options || {}
     ),
-  search: (query: string) => api.get('/sounds/search', { params: { q: query, limit: 100 } }),
+  search: (query: string, { signal }: ApiReadOptions = {}) =>
+    api.get('/sounds/search', { params: { q: query, limit: 100 }, signal }),
   analyzeSweep: (options?: { force?: boolean; limit?: number }) =>
     api.post('/sounds/analyze-sweep', options || {}),
   trim: (name: string, startMs: number, endMs: number) =>
@@ -186,30 +243,34 @@ export const adminApi = {
       text,
       speak: !!speakReply,
     }),
-  getConversationMode: (guildId: string) =>
-    api.get<{ enabled: boolean }>(`/conversation-mode/${encodeURIComponent(guildId)}`),
+  getConversationMode: (guildId: string, { signal }: ApiReadOptions = {}) =>
+    api.get<{ enabled: boolean }>(`/conversation-mode/${encodeURIComponent(guildId)}`, { signal }),
   setConversationMode: (guildId: string, enabled: boolean) =>
     api.post<{ enabled: boolean }>('/conversation-mode', { guildId, enabled }),
-  getGrokVoice: (guildId: string) =>
-    api.get<{ voice: string | null }>(`/grok-voice/${encodeURIComponent(guildId)}`),
+  getGrokVoice: (guildId: string, { signal }: ApiReadOptions = {}) =>
+    api.get<{ voice: string | null }>(`/grok-voice/${encodeURIComponent(guildId)}`, { signal }),
   setGrokVoice: (guildId: string, voice: string) =>
     api.post<{ voice: string }>('/grok-voice', { guildId, voice }),
-  getGrokPersona: (guildId: string) =>
-    api.get<{ personaId: string | null }>(`/grok-persona/${encodeURIComponent(guildId)}`),
+  getGrokPersona: (guildId: string, { signal }: ApiReadOptions = {}) =>
+    api.get<{ personaId: string | null }>(`/grok-persona/${encodeURIComponent(guildId)}`, {
+      signal,
+    }),
   setGrokPersona: (guildId: string, personaId: string | null) =>
     api.post<{ personaId: string | null }>('/grok-persona', {
       guildId,
       personaId: personaId ?? '',
     }),
-  getPersonas: () =>
-    api.get<{ personas: { id: string; name: string; isBuiltIn: boolean }[] }>('/personas'),
-  getPersona: (id: string) =>
+  getPersonas: ({ signal }: ApiReadOptions = {}) =>
+    api.get<{ personas: { id: string; name: string; isBuiltIn: boolean }[] }>('/personas', {
+      signal,
+    }),
+  getPersona: (id: string, { signal }: ApiReadOptions = {}) =>
     api.get<{
       id: string;
       name: string;
       isBuiltIn: boolean;
       systemPrompt: string | null;
-    }>(`/personas/${encodeURIComponent(id)}`),
+    }>(`/personas/${encodeURIComponent(id)}`, { signal }),
   createPersona: (data: { name: string; systemPrompt: string }) =>
     api.post<{ id: string; name: string }>('/personas', data),
   updatePersona: (id: string, data: { name?: string; systemPrompt?: string }) =>
@@ -219,7 +280,8 @@ export const adminApi = {
 
 // Settings API
 export const settingsApi = {
-  getYoutubeCookies: () => api.get<{ hasCookies: boolean }>('/settings/youtube-cookies'),
+  getYoutubeCookies: ({ signal }: ApiReadOptions = {}) =>
+    api.get<{ hasCookies: boolean }>('/settings/youtube-cookies', { signal }),
   uploadYoutubeCookies: (file: File) => {
     const formData = new FormData();
     formData.append('cookies', file);
@@ -230,24 +292,36 @@ export const settingsApi = {
   deleteYoutubeCookies: () => api.delete<{ message: string }>('/settings/youtube-cookies'),
   // proxyUrl comes back with its password redacted; the raw value never leaves
   // the server.
-  getYoutubeProxy: () =>
-    api.get<{ hasProxy: boolean; proxyUrl: string | null }>('/settings/youtube-proxy'),
+  getYoutubeProxy: ({ signal }: ApiReadOptions = {}) =>
+    api.get<{ hasProxy: boolean; proxyUrl: string | null }>('/settings/youtube-proxy', { signal }),
   setYoutubeProxy: (proxyUrl: string) =>
     api.put<{ message: string; proxyUrl: string }>('/settings/youtube-proxy', { proxyUrl }),
   deleteYoutubeProxy: () => api.delete<{ message: string }>('/settings/youtube-proxy'),
 };
 
 // Stats API
+//
+// Every method here is a read, and every one takes its filters and its
+// `signal` in the same object: `{ signal, ...params }` destructures the signal
+// out before the rest becomes Axios's `params`, so the abort signal can never
+// leak into the query string. Call sites read
+// `queryFn: ({ signal }) => statsApi.x({ signal })`.
 export const statsApi = {
-  summary: () => api.get('/stats/summary'),
-  commands: (params?: {
+  summary: ({ signal }: ApiReadOptions = {}) => api.get('/stats/summary', { signal }),
+  commands: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     userId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/commands', { params }),
-  sounds: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/commands', { params, signal }),
+  sounds: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     userId?: string;
@@ -255,102 +329,169 @@ export const statsApi = {
     isSoundboard?: boolean;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/sounds', { params }),
-  users: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/users', { params }),
-  guilds: (params?: { limit?: number; startDate?: string; endDate?: string }) =>
-    api.get('/stats/guilds', { params }),
-  queue: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/sounds', { params, signal }),
+  users: ({
+    signal,
+    ...params
+  }: {
+    limit?: number;
+    guildId?: string;
+    startDate?: string;
+    endDate?: string;
+  } & ApiReadOptions = {}) => api.get('/stats/users', { params, signal }),
+  guilds: ({
+    signal,
+    ...params
+  }: { limit?: number; startDate?: string; endDate?: string } & ApiReadOptions = {}) =>
+    api.get('/stats/guilds', { params, signal }),
+  queue: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     operationType?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/queue', { params }),
-  time: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/queue', { params, signal }),
+  time: ({
+    signal,
+    ...params
+  }: {
     granularity?: string;
     guildId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/time', { params }),
-  history: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/time', { params, signal }),
+  history: ({
+    signal,
+    ...params
+  }: {
     userId?: string;
     guildId?: string;
     limit?: number;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/history', { params }),
-  userSounds: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/history', { params, signal }),
+  userSounds: ({
+    signal,
+    ...params
+  }: {
     userId: string;
     guildId?: string;
     startDate?: string;
     endDate?: string;
     limit?: number;
-  }) => api.get('/stats/user-sounds', { params }),
+  } & ApiReadOptions) => api.get('/stats/user-sounds', { params, signal }),
   // New stats endpoints
-  errors: (params?: { guildId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/errors', { params }),
-  performance: (params?: {
+  errors: ({
+    signal,
+    ...params
+  }: { guildId?: string; startDate?: string; endDate?: string } & ApiReadOptions = {}) =>
+    api.get('/stats/errors', { params, signal }),
+  performance: ({
+    signal,
+    ...params
+  }: {
     guildId?: string;
     commandName?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/performance', { params }),
-  sessions: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/sessions', { params }),
-  retention: (params?: { guildId?: string }) => api.get('/stats/retention', { params }),
-  search: (params?: { limit?: number; guildId?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/search', { params }),
-  userSessions: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/performance', { params, signal }),
+  sessions: ({
+    signal,
+    ...params
+  }: {
+    limit?: number;
+    guildId?: string;
+    startDate?: string;
+    endDate?: string;
+  } & ApiReadOptions = {}) => api.get('/stats/sessions', { params, signal }),
+  retention: ({ signal, ...params }: { guildId?: string } & ApiReadOptions = {}) =>
+    api.get('/stats/retention', { params, signal }),
+  search: ({
+    signal,
+    ...params
+  }: {
+    limit?: number;
+    guildId?: string;
+    startDate?: string;
+    endDate?: string;
+  } & ApiReadOptions = {}) => api.get('/stats/search', { params, signal }),
+  userSessions: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     userId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/user-sessions', { params }),
-  userTracks: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/user-sessions', { params, signal }),
+  userTracks: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     userId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/user-tracks', { params }),
-  user: (userId: string, params?: { guildId?: string }) =>
-    api.get(`/stats/user/${encodeURIComponent(userId)}`, { params }),
-  engagement: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/user-tracks', { params, signal }),
+  user: (userId: string, { signal, ...params }: { guildId?: string } & ApiReadOptions = {}) =>
+    api.get(`/stats/user/${encodeURIComponent(userId)}`, { params, signal }),
+  engagement: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/engagement', { params }),
-  interactions: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/engagement', { params, signal }),
+  interactions: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     interactionType?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/interactions', { params }),
-  playbackStates: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/interactions', { params, signal }),
+  playbackStates: ({
+    signal,
+    ...params
+  }: {
     guildId?: string;
     stateType?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/playback-states', { params }),
-  webAnalytics: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/playback-states', { params, signal }),
+  webAnalytics: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     guildId?: string;
     userId?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/web-analytics', { params }),
-  guildEvents: (params?: {
+  } & ApiReadOptions = {}) => api.get('/stats/web-analytics', { params, signal }),
+  guildEvents: ({
+    signal,
+    ...params
+  }: {
     limit?: number;
     eventType?: string;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/stats/guild-events', { params }),
-  apiLatency: (params?: { endpoint?: string; startDate?: string; endDate?: string }) =>
-    api.get('/stats/api-latency', { params }),
+  } & ApiReadOptions = {}) => api.get('/stats/guild-events', { params, signal }),
+  apiLatency: ({
+    signal,
+    ...params
+  }: { endpoint?: string; startDate?: string; endDate?: string } & ApiReadOptions = {}) =>
+    api.get('/stats/api-latency', { params, signal }),
 };
 
 export default api;

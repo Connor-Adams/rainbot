@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from '@connor-adams/designsystem';
+import { Button, toast } from '@connor-adams/designsystem';
 import { buildApiUrl } from '@/lib/api';
+import StatsError from '@/components/common/StatsError';
 
 interface Recording {
   name: string;
@@ -8,21 +9,39 @@ interface Recording {
   createdAt: string;
 }
 
+/**
+ * This tab talks to the API with raw `fetch`, not the Axios client the rest of
+ * the dashboard uses, so a failure arrives as a plain `Response` with no Axios
+ * error shape for `StatsError` to narrow on. Carry the HTTP status on the Error
+ * instead, which is the other shape `StatsError` reads — that is what gets a
+ * 401/403 the sentence written for it rather than a bare "failed".
+ */
+function loadError(status: number): Error & { status: number } {
+  return Object.assign(new Error(`Failed to load recordings (HTTP ${status})`), { status });
+}
+
 export default function RecordingsTab() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<Error | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
 
   const loadRecordings = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadFailure(null);
       const response = await fetch(buildApiUrl('/recordings'), {
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to load recordings');
+      if (!response.ok) throw loadError(response.status);
       const data = await response.json();
       setRecordings(data);
     } catch (error) {
+      // The toast alone used to be the whole error path: it expired after four
+      // seconds and left the user looking at "No voice recordings yet", which
+      // is a different claim entirely. Keep it for the nudge, but hold the
+      // failure in state so the view can say so for as long as it is true.
+      setLoadFailure(error as Error);
       toast.error((error as Error).message);
     } finally {
       setLoading(false);
@@ -86,12 +105,31 @@ export default function RecordingsTab() {
     return date.toLocaleString();
   };
 
+  // One element, two placements: on its own when the list failed and there is
+  // nothing to fall back on, and above the list when a refresh failed but the
+  // previously loaded recordings are still on screen.
+  const errorState = loadFailure ? (
+    <StatsError
+      error={loadFailure}
+      subject="recordings"
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={() => void loadRecordings()}>
+          Retry
+        </Button>
+      }
+    />
+  ) : null;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-text-secondary">Loading recordings...</div>
       </div>
     );
+  }
+
+  if (errorState && recordings.length === 0) {
+    return <div className="flex flex-col justify-center h-64">{errorState}</div>;
   }
 
   if (recordings.length === 0) {
@@ -115,6 +153,8 @@ export default function RecordingsTab() {
           Refresh
         </button>
       </div>
+
+      {errorState}
 
       <div className="grid gap-3">
         {recordings.map((recording) => (

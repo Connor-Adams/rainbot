@@ -18,7 +18,7 @@ const STAT_VALUE_CLAMP = '';
 export default function StatsSummary() {
   const { data, isLoading, error } = useStatsQuery<StatsSummaryType>({
     queryKey: ['stats', 'summary'],
-    queryFn: () => statsApi.summary(),
+    queryFn: ({ signal }) => statsApi.summary({ signal }),
   });
 
   if (isLoading) return <StatsLoading />;

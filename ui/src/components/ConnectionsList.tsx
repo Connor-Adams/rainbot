@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { botApi } from '@/lib/api';
 import type { Connection } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import EmptyState from '@/components/common/EmptyState';
 import ListItem from '@/components/common/ListItem';
@@ -9,7 +8,7 @@ import ListItem from '@/components/common/ListItem';
 export default function ConnectionsList() {
   const { data: status } = useQuery({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
   });
 
@@ -33,10 +32,10 @@ export default function ConnectionsList() {
               <ListItem
                 key={conn.guildId}
                 icon="🔊"
-                title={escapeHtml(conn.channelName)}
+                title={conn.channelName}
                 subtitle={
                   conn.nowPlaying ? (
-                    <span className="text-success font-mono">♪ {escapeHtml(conn.nowPlaying)}</span>
+                    <span className="text-success font-mono">♪ {conn.nowPlaying}</span>
                   ) : (
                     'Idle'
                   )

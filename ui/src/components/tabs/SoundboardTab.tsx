@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // fs/path and breaks the Vite browser build - use the subpath export instead,
 // matching the existing '@rainbot/shared/youtube' pattern in NowPlayingCard.
 import { normalizeForSearch } from '@rainbot/shared/search';
-import { Alert } from '@connor-adams/designsystem';
+import { Alert, Button } from '@connor-adams/designsystem';
 import { soundsApi, playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { useSoundCustomization } from '@/hooks/useSoundCustomization';
@@ -16,6 +16,7 @@ import { SoundMenu } from '@/components/soundboard/SoundMenu';
 import { EditModal } from '@/components/soundboard/EditModal';
 import { SearchBar } from '@/components/soundboard/SearchBar';
 import { EmptyState } from '@/components/soundboard/EmptyState';
+import StatsError from '@/components/common/StatsError';
 import { UploadButton } from '@/components/soundboard/UploadButton';
 import type { Sound, SoundSearchResult } from '@/types';
 
@@ -38,9 +39,14 @@ export default function SoundboardTab() {
   const { previewingSound, playPreview, stopPreview } = useAudioPreview();
 
   // Queries
-  const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({
+  const {
+    data: sounds = [],
+    isLoading: isLoadingSounds,
+    error: soundsError,
+    refetch: refetchSounds,
+  } = useQuery({
     queryKey: ['sounds'],
-    queryFn: () => soundsApi.list().then((res) => res.data),
+    queryFn: ({ signal }) => soundsApi.list({ signal }).then((res) => res.data),
     refetchInterval: 10000,
   });
 
@@ -48,7 +54,8 @@ export default function SoundboardTab() {
 
   const { data: searchResults } = useQuery({
     queryKey: ['sound-search', debouncedQuery],
-    queryFn: () => soundsApi.search(debouncedQuery).then((res) => res.data.results),
+    queryFn: ({ signal }) =>
+      soundsApi.search(debouncedQuery, { signal }).then((res) => res.data.results),
     enabled: debouncedQuery.trim().length > 0,
   });
 
@@ -279,15 +286,45 @@ export default function SoundboardTab() {
         <SearchBar ref={searchInputRef} value={searchQuery} onChange={setSearchQuery} />
       </div>
 
-      {/* Sounds Grid */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 max-h-none lg:max-h-[calc(100vh-400px)] overflow-y-auto sm:pr-2">
+      {/* A failed `/api/sounds` must never read as "no sounds uploaded yet".
+          The banner sits ABOVE the grid rather than replacing it because this
+          query polls every 10s: one failed poll leaves the last good list in
+          `data`, and throwing that away would be a worse lie than the one being
+          fixed. When there is nothing left to show, the grid renders nothing
+          and this banner IS the state. */}
+      {soundsError && (
+        <StatsError
+          error={soundsError}
+          subject="the soundboard"
+          message="Could not load sounds"
+          actions={
+            <Button type="button" variant="outline" size="sm" onClick={() => void refetchSounds()}>
+              Retry
+            </Button>
+          }
+        />
+      )}
+
+      {/* Sounds Grid.
+          No `max-h` / `overflow-y-auto`: the page itself scrolls (`Layout` is
+          `min-h-screen`, nothing clips it), so the grid can just be as tall as
+          its contents. It used to be `lg:max-h-[calc(100vh-400px)]`, which at an
+          800px viewport was a 400px porthole onto 15 of 60 sounds with a
+          quarter-screen of blank page under it — the panel does not start at the
+          viewport top, so no constant in that `calc` was ever going to be
+          right. */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
         {isLoadingSounds ? (
           <div className="col-span-full text-center py-12 text-text-muted">
             <div className="animate-spin text-4xl mb-2">⏳</div>
             <p>Loading sounds...</p>
           </div>
         ) : filteredSounds.length === 0 ? (
-          <EmptyState hasSearch={searchQuery.length > 0} searchQuery={searchQuery} />
+          // With the error banner already up, "No sounds uploaded yet" would be
+          // the same lie in smaller type.
+          soundsError ? null : (
+            <EmptyState hasSearch={searchQuery.length > 0} searchQuery={searchQuery} />
+          )
         ) : (
           filteredSounds.map((sound: Sound) => (
             <div key={sound.name}>

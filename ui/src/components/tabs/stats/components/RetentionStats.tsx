@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -35,9 +35,9 @@ interface RetentionData {
 }
 
 export default function RetentionStats() {
-  const { data, isLoading, error } = useQuery<RetentionData>({
+  const { data, isLoading, error } = useStatsQuery<RetentionData>({
     queryKey: ['stats', 'retention'],
-    queryFn: () => statsApi.retention().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.retention({ signal }),
     refetchInterval: 30000,
   });
 

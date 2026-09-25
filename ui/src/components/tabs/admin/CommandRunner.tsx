@@ -42,7 +42,7 @@ export default function CommandRunner() {
 
   const { data: soundsData } = useQuery({
     queryKey: ['sounds'],
-    queryFn: () => soundsApi.list().then((res) => res.data),
+    queryFn: ({ signal }) => soundsApi.list({ signal }).then((res) => res.data),
   });
   const sounds = soundsData ?? [];
 

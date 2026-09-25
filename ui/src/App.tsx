@@ -1,15 +1,50 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import PlayerTab from './components/tabs/PlayerTab';
-import SoundboardTab from './components/tabs/SoundboardTab';
-import RecordingsTab from './components/tabs/RecordingsTab';
-import StatisticsTab from './components/tabs/stats/StatisticsTab';
 import StatusTab from './components/tabs/StatusTab';
-import AdminTab from './components/tabs/AdminTab';
 import LoadingOverlay from './components/LoadingOverlay';
+import {
+  AdminTabFallback,
+  RecordingsTabFallback,
+  SoundboardTabFallback,
+  StatisticsTabFallback,
+} from './components/routeFallbacks';
+
+/*
+ * Route-level code splitting.
+ *
+ * Eager, and staying eager:
+ *   - `PlayerTab` is where `/` redirects, so it is on the critical path by
+ *     definition. Splitting it would buy nothing and cost a round trip before
+ *     the first interactive paint.
+ *   - `StatusTab` shares almost everything it uses with `PlayerTab` — the same
+ *     `bot-status` query, the same api client, the same `Button`. Measured by
+ *     splitting it anyway: its chunk came out at 3.3 kB raw / 0.97 kB gzipped
+ *     while the entry chunk fell by only 0.43 kB gzipped, because the shared
+ *     part stays behind either way. Half a kilobyte is not worth a round trip.
+ *   - `LoginPage` is on the critical path for exactly the users who have no
+ *     session yet, which is the one case where an extra round trip is most
+ *     visible, and it is ~2 kB of source.
+ *
+ * Lazy, each justified by what it drags in:
+ *   - `StatisticsTab` owns all 21 stats sections and is the ONLY consumer of
+ *     recharts in the app (verify with `grep -rl "from 'recharts'" src` — every
+ *     hit is under `components/tabs/stats/`). By far the biggest win.
+ *   - `SoundboardTab` owns the `components/soundboard/*` set, and through
+ *     `EditModal` it is the entry point to the emoji picker's own dynamic
+ *     import — so splitting it keeps `emoji-picker-react` out of the entry
+ *     graph entirely rather than merely deferring it.
+ *   - `AdminTab` eagerly imports all six admin panels and their form state.
+ *   - `RecordingsTab` is smaller than the other three but self-contained, and
+ *     it is the one tab most users never open.
+ */
+const SoundboardTab = lazy(() => import('./components/tabs/SoundboardTab'));
+const RecordingsTab = lazy(() => import('./components/tabs/RecordingsTab'));
+const StatisticsTab = lazy(() => import('./components/tabs/stats/StatisticsTab'));
+const AdminTab = lazy(() => import('./components/tabs/AdminTab'));
 
 const debugEnabled = import.meta.env.DEV;
 
@@ -57,11 +92,43 @@ function App() {
       <Route element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}>
         <Route index element={<Navigate to="/player" replace />} />
         <Route path="player" element={<PlayerTab />} />
-        <Route path="soundboard" element={<SoundboardTab />} />
-        <Route path="recordings" element={<RecordingsTab />} />
-        <Route path="stats" element={<StatisticsTab />} />
+        {/* Each lazy route carries its own fallback so the placeholder matches
+            the shape of the tab that is arriving. The boundary that catches a
+            REJECTED chunk lives in `Layout`, around the `<Outlet />`, so a
+            failed download leaves the header and navigation usable. */}
+        <Route
+          path="soundboard"
+          element={
+            <Suspense fallback={<SoundboardTabFallback />}>
+              <SoundboardTab />
+            </Suspense>
+          }
+        />
+        <Route
+          path="recordings"
+          element={
+            <Suspense fallback={<RecordingsTabFallback />}>
+              <RecordingsTab />
+            </Suspense>
+          }
+        />
+        <Route
+          path="stats"
+          element={
+            <Suspense fallback={<StatisticsTabFallback />}>
+              <StatisticsTab />
+            </Suspense>
+          }
+        />
         <Route path="status" element={<StatusTab />} />
-        <Route path="admin" element={<AdminTab />} />
+        <Route
+          path="admin"
+          element={
+            <Suspense fallback={<AdminTabFallback />}>
+              <AdminTab />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<Navigate to="/player" replace />} />
       </Route>
     </Routes>

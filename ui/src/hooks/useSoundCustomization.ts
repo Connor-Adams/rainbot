@@ -13,7 +13,8 @@ export function useSoundCustomization() {
   const queryClient = useQueryClient();
   const { data: customizations = {} } = useQuery({
     queryKey: ['sound-customizations'],
-    queryFn: () => soundsApi.listCustomizations().then((res) => res.data as Customizations),
+    queryFn: ({ signal }) =>
+      soundsApi.listCustomizations({ signal }).then((res) => res.data as Customizations),
   });
 
   const upsertMutation = useMutation({

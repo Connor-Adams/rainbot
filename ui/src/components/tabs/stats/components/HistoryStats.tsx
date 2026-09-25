@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { statsApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import type { ListeningHistoryEntry } from '@/types';
-import { escapeHtml, formatDurationLong } from '@/lib/utils';
+import { formatDurationLong } from '@/lib/utils';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { Button } from '@/components/ui';
@@ -16,12 +16,13 @@ export default function HistoryStats() {
 
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'history', selectedGuildId, appliedStartDate, appliedEndDate],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       statsApi.history({
         guildId: selectedGuildId || undefined,
         limit: 100,
         startDate: appliedStartDate || undefined,
         endDate: appliedEndDate || undefined,
+        signal,
       }),
   });
 
@@ -42,7 +43,7 @@ export default function HistoryStats() {
       render: (entry: ListeningHistoryEntry) => (
         <div className="flex items-center gap-2">
           {entry.is_soundboard && <span className="text-lg">🔊</span>}
-          <span className="text-sm text-text-primary">{escapeHtml(entry.track_title)}</span>
+          <span className="text-sm text-text-primary">{entry.track_title}</span>
         </div>
       ),
       className: 'px-4 py-3',

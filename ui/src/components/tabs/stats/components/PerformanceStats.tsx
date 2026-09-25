@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -38,9 +38,9 @@ interface PerformanceData {
 }
 
 export default function PerformanceStats() {
-  const { data, isLoading, error } = useQuery<PerformanceData>({
+  const { data, isLoading, error } = useStatsQuery<PerformanceData>({
     queryKey: ['stats', 'performance'],
-    queryFn: () => statsApi.performance().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.performance({ signal }),
     refetchInterval: 30000,
   });
 

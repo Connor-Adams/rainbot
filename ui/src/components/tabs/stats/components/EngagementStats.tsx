@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -45,9 +45,9 @@ interface EngagementData {
 }
 
 export default function EngagementStats() {
-  const { data, isLoading, error } = useQuery<EngagementData>({
+  const { data, isLoading, error } = useStatsQuery<EngagementData>({
     queryKey: ['stats', 'engagement'],
-    queryFn: () => statsApi.engagement().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.engagement({ signal }),
     refetchInterval: 10000,
   });
 
