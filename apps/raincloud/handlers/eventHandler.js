@@ -4,29 +4,43 @@ const { createLogger } = require('@rainbot/utils/logger');
 
 const log = createLogger('EVENTS');
 
-module.exports = (client) => {
-  const distEventsPath = path.join(__dirname, '..', 'dist', 'src', 'events');
-  const srcEventsPath = path.join(__dirname, '..', 'src', 'events');
+// tsconfig.json compiles with rootDir = repo root, so apps/raincloud/src/events/*.ts
+// lands in dist/apps/raincloud/src/events — not dist/src/events.
+const DIST_EVENTS_PATH = path.join(__dirname, '..', 'dist', 'apps', 'raincloud', 'src', 'events');
+const SRC_EVENTS_PATH = path.join(__dirname, '..', 'src', 'events');
+
+/**
+ * Collect event modules by filename, preferring compiled output over source so a
+ * TypeScript event isn't silently skipped (its .ts file is not requireable).
+ */
+function collectEventFiles(dirs) {
   const eventFiles = new Map();
 
-  // Prefer compiled events when available.
-  if (fs.existsSync(distEventsPath)) {
-    for (const file of fs.readdirSync(distEventsPath).filter((name) => name.endsWith('.js'))) {
-      eventFiles.set(file, path.join(distEventsPath, file));
-    }
-  }
-
-  // Fall back to source events for any files not compiled to dist.
-  if (fs.existsSync(srcEventsPath)) {
-    for (const file of fs.readdirSync(srcEventsPath).filter((name) => name.endsWith('.js'))) {
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.js'))) {
       if (!eventFiles.has(file)) {
-        eventFiles.set(file, path.join(srcEventsPath, file));
+        eventFiles.set(file, path.join(dir, file));
       }
     }
   }
 
+  return eventFiles;
+}
+
+module.exports = (client, options = {}) => {
+  const dirs = options.eventDirs || [DIST_EVENTS_PATH, SRC_EVENTS_PATH];
+  const eventFiles = collectEventFiles(dirs);
+
   for (const filePath of eventFiles.values()) {
-    const event = require(filePath);
+    const required = require(filePath);
+    // Compiled TS events use `export default`, plain JS events use module.exports.
+    const event = required && required.default ? required.default : required;
+
+    if (!event || typeof event.name !== 'string' || typeof event.execute !== 'function') {
+      log.warn(`Skipped ${path.basename(filePath)}: not a valid event module`);
+      continue;
+    }
 
     if (event.once) {
       client.once(event.name, (...args) => event.execute(...args));
@@ -37,3 +51,7 @@ module.exports = (client) => {
     log.info(`Loaded: ${event.name}`);
   }
 };
+
+module.exports.collectEventFiles = collectEventFiles;
+module.exports.DIST_EVENTS_PATH = DIST_EVENTS_PATH;
+module.exports.SRC_EVENTS_PATH = SRC_EVENTS_PATH;

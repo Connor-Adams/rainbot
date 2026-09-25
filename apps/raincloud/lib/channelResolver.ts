@@ -31,18 +31,67 @@ export class ChannelResolver {
   }
 
   /**
+   * Read the user's voice channel from Discord's own cache.
+   *
+   * This is the authoritative answer and needs no event bookkeeping: under the
+   * GuildVoiceStates intent discord.js populates `guild.voiceStates` from
+   * GUILD_CREATE at startup and keeps it current from VOICE_STATE_UPDATE.
+   *
+   * Returns the channel id, `null` when Discord says the user is in no voice
+   * channel, or `undefined` when we cannot tell (no client, guild uncached).
+   */
+  private getLiveVoiceChannel(guildId: string, userId: string): string | null | undefined {
+    if (!this.client) return undefined;
+
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) return undefined;
+
+    return guild.voiceStates.cache.get(userId)?.channelId ?? null;
+  }
+
+  /**
+   * Cache the live channel in Redis so the session/last-channel fallbacks below
+   * stay useful. Best-effort: a Redis failure must not fail the resolution.
+   */
+  private async cacheLiveChannel(
+    guildId: string,
+    userId: string,
+    channelId: string
+  ): Promise<void> {
+    try {
+      await this.voiceStateManager.setCurrentChannel(guildId, userId, channelId);
+      await this.voiceStateManager.setLastChannel(guildId, userId, channelId);
+    } catch (error) {
+      log.warn(`Failed to cache live voice channel for user ${userId}: ${error}`);
+    }
+  }
+
+  /**
    * Resolve target voice channel based on rules:
-   * 1. User's current voice channel
+   * 1. User's current voice channel per Discord (Redis only when Discord can't say)
    * 2. If not in voice, check for active session (reject if exists)
    * 3. Fall back to last used channel
    * 4. No valid channel
    */
   async resolveTargetChannel(guildId: string, userId: string): Promise<ChannelResult> {
-    // 1. Check if user is currently in voice
-    const currentChannel = await this.voiceStateManager.getCurrentChannel(guildId, userId);
-    if (currentChannel) {
-      log.debug(`User ${userId} in voice channel ${currentChannel}`);
-      return { channelId: currentChannel };
+    // 1. Check if user is currently in voice. Discord's cache wins over Redis:
+    // the Redis keys are only written by joinChannel and the voiceStateUpdate
+    // handler, so for any user who never triggered a join they are empty, and
+    // they can also be stale after a restart or a missed gateway event.
+    const liveChannel = this.getLiveVoiceChannel(guildId, userId);
+    if (liveChannel) {
+      log.debug(`User ${userId} in voice channel ${liveChannel} (live Discord state)`);
+      await this.cacheLiveChannel(guildId, userId, liveChannel);
+      return { channelId: liveChannel };
+    }
+
+    if (liveChannel === undefined) {
+      // Discord state unavailable — fall back to whatever Redis last recorded.
+      const currentChannel = await this.voiceStateManager.getCurrentChannel(guildId, userId);
+      if (currentChannel) {
+        log.debug(`User ${userId} in voice channel ${currentChannel} (cached)`);
+        return { channelId: currentChannel };
+      }
     }
 
     // 2. Check for active session in different channel
