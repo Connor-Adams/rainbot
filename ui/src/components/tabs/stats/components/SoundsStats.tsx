@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import type { SoundStat, SourceType, SoundboardBreakdown } from '@/types';
 import { safeInt } from '@/lib/chartSafety';
 import {
@@ -24,9 +24,9 @@ import {
 import { pieSliceLabel } from './pieLabel';
 
 export default function SoundsStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'sounds'],
-    queryFn: () => statsApi.sounds().then((res) => res.data),
+    queryFn: ({ signal }) => statsApi.sounds({ signal }),
     refetchInterval: 30000,
   });
 

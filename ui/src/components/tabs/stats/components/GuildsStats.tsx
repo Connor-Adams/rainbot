@@ -7,7 +7,7 @@ import { statsApi } from '@/lib/api';
 export default function GuildsStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'guilds'],
-    queryFn: () => statsApi.guilds(),
+    queryFn: ({ signal }) => statsApi.guilds({ signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading guild statistics..." />;

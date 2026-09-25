@@ -12,11 +12,11 @@ export default function YoutubeIngestSettings() {
 
   const { data: youtubeCookies } = useQuery({
     queryKey: ['youtube-cookies'],
-    queryFn: () => settingsApi.getYoutubeCookies().then((res) => res.data),
+    queryFn: ({ signal }) => settingsApi.getYoutubeCookies({ signal }).then((res) => res.data),
   });
   const { data: youtubeProxy } = useQuery({
     queryKey: ['youtube-proxy'],
-    queryFn: () => settingsApi.getYoutubeProxy().then((res) => res.data),
+    queryFn: ({ signal }) => settingsApi.getYoutubeProxy({ signal }).then((res) => res.data),
   });
 
   // Focus fallbacks for the two ConfirmDialogs: a successful delete unmounts

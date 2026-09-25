@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -40,9 +40,9 @@ interface GuildEventsData {
 }
 
 export default function GuildEventsStats() {
-  const { data, isLoading, error } = useQuery<GuildEventsData>({
+  const { data, isLoading, error } = useStatsQuery<GuildEventsData>({
     queryKey: ['stats', 'guild-events'],
-    queryFn: () => statsApi.guildEvents().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.guildEvents({ signal }),
     refetchInterval: 10000,
   });
 

@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   StatsLoading,
   StatsError,
@@ -48,9 +48,9 @@ interface InteractionsData {
 }
 
 export default function InteractionsStats() {
-  const { data, isLoading, error } = useQuery<InteractionsData>({
+  const { data, isLoading, error } = useStatsQuery<InteractionsData>({
     queryKey: ['stats', 'interactions'],
-    queryFn: () => statsApi.interactions().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.interactions({ signal }),
     refetchInterval: 10000,
   });
 

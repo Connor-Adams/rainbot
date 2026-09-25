@@ -6,14 +6,24 @@ import { Toaster } from '@connor-adams/designsystem';
 import '@connor-adams/designsystem/styles.css';
 import './index.css';
 import App from './App.tsx';
-import { apiBaseUrl, authBaseUrl } from './lib/api';
+import { apiBaseUrl, authBaseUrl, queryRetry } from './lib/api';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      // `queryRetry` is `retry: 1` that refuses to retry an *aborted* request.
+      // Queries now pass React Query's `AbortSignal` into Axios, so a request
+      // whose component unmounted is cancelled — and a plain `retry: 1` would
+      // read that cancellation as a failed attempt and immediately re-issue the
+      // request we just called off. A genuine failure is still retried once.
+      retry: queryRetry,
+      // Stays 5s for the live queries — bot status, the queue, the soundboard.
+      // The Statistics sections deliberately do NOT inherit this: `useStatsQuery`
+      // gives each one a `staleTime` equal to its own `refetchInterval`, because
+      // a section that asks to be refetched every 30s should not also be
+      // refetched every time it is remounted 5s later.
       staleTime: 5000,
     },
   },

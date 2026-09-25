@@ -7,7 +7,7 @@ import { statsApi } from '@/lib/api';
 export default function UsersStats() {
   const { data, isLoading, error } = useStatsQuery<{ users: UserStat[] }>({
     queryKey: ['stats', 'users'],
-    queryFn: () => statsApi.users(),
+    queryFn: ({ signal }) => statsApi.users({ signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading user statistics..." />;

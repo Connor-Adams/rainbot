@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { StatGrid } from '@connor-adams/designsystem';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   StatsLoading,
   StatsError,
@@ -71,9 +71,9 @@ interface ErrorsData {
 const TRUNCATE_VALUE = '';
 
 export default function ErrorsStats() {
-  const { data, isLoading, error } = useQuery<ErrorsData>({
+  const { data, isLoading, error } = useStatsQuery<ErrorsData>({
     queryKey: ['stats', 'errors'],
-    queryFn: () => statsApi.errors().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.errors({ signal }),
     refetchInterval: 30000,
   });
 

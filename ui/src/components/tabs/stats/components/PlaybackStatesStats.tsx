@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { StatsLoading, StatsError, StatsSection } from '@/components/common';
 import { Progress } from '@connor-adams/designsystem';
 
@@ -26,9 +26,9 @@ type PlaybackStatesResponse = {
 };
 
 export default function PlaybackStatesStats() {
-  const { data, isLoading, error } = useQuery<PlaybackStatesResponse>({
+  const { data, isLoading, error } = useStatsQuery<PlaybackStatesResponse>({
     queryKey: ['stats', 'playback-states'],
-    queryFn: () => statsApi.playbackStates().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.playbackStates({ signal }),
     refetchInterval: 10000,
   });
 

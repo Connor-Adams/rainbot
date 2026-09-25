@@ -16,12 +16,13 @@ export default function HistoryStats() {
 
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'history', selectedGuildId, appliedStartDate, appliedEndDate],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       statsApi.history({
         guildId: selectedGuildId || undefined,
         limit: 100,
         startDate: appliedStartDate || undefined,
         endDate: appliedEndDate || undefined,
+        signal,
       }),
   });
 

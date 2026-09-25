@@ -40,7 +40,7 @@ export default function SoundboardTab() {
   // Queries
   const { data: sounds = [], isLoading: isLoadingSounds } = useQuery({
     queryKey: ['sounds'],
-    queryFn: () => soundsApi.list().then((res) => res.data),
+    queryFn: ({ signal }) => soundsApi.list({ signal }).then((res) => res.data),
     refetchInterval: 10000,
   });
 
@@ -48,7 +48,8 @@ export default function SoundboardTab() {
 
   const { data: searchResults } = useQuery({
     queryKey: ['sound-search', debouncedQuery],
-    queryFn: () => soundsApi.search(debouncedQuery).then((res) => res.data.results),
+    queryFn: ({ signal }) =>
+      soundsApi.search(debouncedQuery, { signal }).then((res) => res.data.results),
     enabled: debouncedQuery.trim().length > 0,
   });
 

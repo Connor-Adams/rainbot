@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { StatGrid } from '@connor-adams/designsystem';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   StatsLoading,
   StatsError,
@@ -52,9 +52,9 @@ function formatDuration(seconds: number) {
 }
 
 export default function SessionsStats() {
-  const { data, isLoading, error } = useQuery<SessionsData>({
+  const { data, isLoading, error } = useStatsQuery<SessionsData>({
     queryKey: ['stats', 'sessions'],
-    queryFn: () => statsApi.sessions().then((res) => res.data),
+    queryFn: ({ signal }) => statsApi.sessions({ signal }),
     refetchInterval: 30000,
   });
 

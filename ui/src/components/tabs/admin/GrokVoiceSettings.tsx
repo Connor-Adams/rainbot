@@ -20,21 +20,23 @@ export default function GrokVoiceSettings() {
 
   const { data: conversationMode } = useQuery({
     queryKey: ['conversation-mode', runGuildId],
-    queryFn: () => adminApi.getConversationMode(runGuildId!).then((res) => res.data),
+    queryFn: ({ signal }) =>
+      adminApi.getConversationMode(runGuildId!, { signal }).then((res) => res.data),
     enabled: !!runGuildId,
   });
   const { data: grokVoice } = useQuery({
     queryKey: ['grok-voice', runGuildId],
-    queryFn: () => adminApi.getGrokVoice(runGuildId!).then((res) => res.data),
+    queryFn: ({ signal }) => adminApi.getGrokVoice(runGuildId!, { signal }).then((res) => res.data),
     enabled: !!runGuildId,
   });
   const { data: personasData } = useQuery({
     queryKey: ['personas'],
-    queryFn: () => adminApi.getPersonas().then((res) => res.data),
+    queryFn: ({ signal }) => adminApi.getPersonas({ signal }).then((res) => res.data),
   });
   const { data: grokPersona } = useQuery({
     queryKey: ['grok-persona', runGuildId],
-    queryFn: () => adminApi.getGrokPersona(runGuildId!).then((res) => res.data),
+    queryFn: ({ signal }) =>
+      adminApi.getGrokPersona(runGuildId!, { signal }).then((res) => res.data),
     enabled: !!runGuildId,
   });
   const personas = personasData?.personas ?? [];

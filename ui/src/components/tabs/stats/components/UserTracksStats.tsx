@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   StatsLoading,
   StatsError,
@@ -51,9 +51,9 @@ interface UserTracksData {
 }
 
 export default function UserTracksStats() {
-  const { data, isLoading, error } = useQuery<UserTracksData>({
+  const { data, isLoading, error } = useStatsQuery<UserTracksData>({
     queryKey: ['stats', 'user-tracks'],
-    queryFn: () => statsApi.userTracks().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.userTracks({ signal }),
     refetchInterval: 10000,
   });
 

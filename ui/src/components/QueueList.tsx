@@ -15,7 +15,7 @@ export default function QueueList() {
 
   const { data: queueData } = useQuery({
     queryKey: ['queue', selectedGuildId],
-    queryFn: () => botApi.getQueue(selectedGuildId!).then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getQueue(selectedGuildId!, { signal }).then((res) => res.data),
     enabled: !!selectedGuildId,
     refetchInterval: 5000,
   });
