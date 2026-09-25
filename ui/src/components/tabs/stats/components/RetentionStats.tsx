@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+} from '@/components/common';
+import { Progress } from '@connor-adams/designsystem';
 import { safeInt, safeDateLabel } from '@/lib/chartSafety';
 
 interface CohortAnalysis {
@@ -34,8 +41,8 @@ export default function RetentionStats() {
     refetchInterval: 30000,
   });
 
-  if (isLoading) return <div className="stats-loading text-center py-12">Loading retention...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading retention</div>;
+  if (isLoading) return <StatsLoading message="Loading retention..." />;
+  if (error) return <StatsError error={error} message="Error loading retention" />;
 
   if (!data) {
     return (
@@ -61,90 +68,104 @@ export default function RetentionStats() {
     );
   }
 
+  const cohortColumns = [
+    {
+      id: 'cohort',
+      header: 'Cohort',
+      render: (cohort: CohortAnalysis) => safeDateLabel(cohort.cohort_month),
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'users_joined',
+      header: 'Users Joined',
+      render: (cohort: CohortAnalysis) => cohort.users_joined,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'still_active',
+      header: 'Still Active',
+      render: (cohort: CohortAnalysis) => cohort.still_active,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'retention_rate',
+      header: 'Retention Rate',
+      render: (cohort: CohortAnalysis) => (
+        <span
+          className={`px-2 py-1 rounded text-xs ${parseFloat(cohort.retention_rate) > 50 ? 'bg-success/10 text-success-light' : 'bg-danger/10 text-danger-light'}`}
+        >
+          {parseFloat(cohort.retention_rate || '0').toFixed(1)}%
+        </span>
+      ),
+      className: 'px-4 py-2 text-text-secondary',
+    },
+  ];
+
+  const returningColumns = [
+    {
+      id: 'period',
+      header: 'Period',
+      render: (r: ReturningUser) => safeDateLabel(r.period),
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'returning_users',
+      header: 'Returning Users',
+      render: (r: ReturningUser) => r.returning_users,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'return_rate',
+      header: 'Return Rate',
+      render: (r: ReturningUser) => `${parseFloat(r.return_rate || '0').toFixed(1)}%`,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {activeUsers.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Active Users Over Time</h3>
+        <StatsSection title="Active Users Over Time">
           <div className="space-y-2">
             {activeUsers.slice(-14).map((u, idx) => {
               const maxVal = Math.max(...activeUsers.map((x) => safeInt(x.active_users)), 1);
               const val = safeInt(u.active_users);
               const pct = (val / maxVal) * 100;
               return (
-                <div key={idx} className="flex items-center gap-3">
-                  <span className="text-xs text-text-secondary w-24">
-                    {safeDateLabel(u.period)}
-                  </span>
-                  <div className="flex-1 bg-surface-hover rounded h-4">
-                    <div className="h-full bg-primary rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-xs text-text-secondary w-12 text-right">{val}</span>
-                </div>
+                <Progress
+                  key={idx}
+                  size="lg"
+                  tone="primary"
+                  value={pct}
+                  label={safeDateLabel(u.period)}
+                  valueText={String(val)}
+                />
               );
             })}
           </div>
-        </div>
+        </StatsSection>
       )}
 
       {cohorts.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Cohort Analysis</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Cohort</th>
-                  <th className="pb-2 px-4">Users Joined</th>
-                  <th className="pb-2 px-4">Still Active</th>
-                  <th className="pb-2 px-4">Retention Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cohorts.map((cohort, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">{safeDateLabel(cohort.cohort_month)}</td>
-                    <td className="py-2 px-4">{cohort.users_joined}</td>
-                    <td className="py-2 px-4">{cohort.still_active}</td>
-                    <td className="py-2 px-4">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${parseFloat(cohort.retention_rate) > 50 ? 'bg-success/10 text-success-light' : 'bg-danger/10 text-danger-light'}`}
-                      >
-                        {parseFloat(cohort.retention_rate || '0').toFixed(1)}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Cohort Analysis">
+          <StatsTable<CohortAnalysis>
+            columns={cohortColumns}
+            data={cohorts}
+            emptyMessage="No cohort data available"
+            getRowKey={(cohort) => cohort.cohort_month}
+          />
+        </StatsSection>
       )}
 
       {returning.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Returning Users</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Period</th>
-                  <th className="pb-2 px-4">Returning Users</th>
-                  <th className="pb-2 px-4">Return Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {returning.map((r, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">{safeDateLabel(r.period)}</td>
-                    <td className="py-2 px-4">{r.returning_users}</td>
-                    <td className="py-2 px-4">{parseFloat(r.return_rate || '0').toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Returning Users">
+          <StatsTable<ReturningUser>
+            columns={returningColumns}
+            data={returning}
+            emptyMessage="No returning-user data available"
+            getRowKey={(r) => r.period}
+          />
+        </StatsSection>
       )}
     </div>
   );
