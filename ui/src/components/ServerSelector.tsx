@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { Combobox } from '@connor-adams/designsystem';
 import { botApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import type { Guild } from '@/types';
-import DisplayCard from './Displaycard';
-import CustomDropdown from './CustomDropdown';
 
 export default function ServerSelector() {
   const { selectedGuildId, setSelectedGuildId } = useGuildStore();
@@ -14,20 +13,31 @@ export default function ServerSelector() {
     refetchInterval: 5000,
   });
 
-  const guilds = status?.guilds || [];
+  const guilds: Guild[] = status?.guilds || [];
+  const hasGuilds = guilds.length > 0;
 
   return (
     <div className="server-selector-wrapper bg-surface rounded-2xl border border-border p-5">
-      <label className="block text-sm font-semibold text-text-secondary mb-3">Select Server</label>
-      <CustomDropdown<Guild>
-        items={guilds}
-        selectedValue={selectedGuildId}
-        onSelect={setSelectedGuildId}
-        getItemId={(guild) => guild.id}
-        getItemLabel={(guild) => guild.name}
-        renderItem={(guild) => <DisplayCard name={guild.name} />}
-        placeholder="Select a server..."
-        emptyMessage="Loading servers..."
+      {/* `htmlFor` + the Combobox's `id` is new: the old label wrapped nothing and
+          named nothing. The design system routes `id` to the inner search
+          `<input>` - the element that takes focus - so this actually associates. */}
+      <label
+        htmlFor="server-selector"
+        className="block text-sm font-semibold text-text-secondary mb-3"
+      >
+        Select Server
+      </label>
+      <Combobox
+        id="server-selector"
+        className="w-full"
+        options={guilds.map((guild) => ({ value: guild.id, label: guild.name }))}
+        value={selectedGuildId}
+        onValueChange={setSelectedGuildId}
+        // `Combobox` has no working `disabled` - it would land on the wrapper
+        // `<div>` and do nothing - so the pre-load state is carried by the copy
+        // rather than by disabling the control, as the old trigger button did.
+        placeholder={hasGuilds ? 'Select a server...' : 'Loading servers...'}
+        emptyText={hasGuilds ? 'No servers match' : 'Loading servers...'}
       />
     </div>
   );
