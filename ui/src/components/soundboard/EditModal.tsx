@@ -1,7 +1,23 @@
-import { useRef, useState } from 'react';
-import EmojiPicker, { type EmojiClickData } from 'emoji-picker-react';
+import { Suspense, lazy, useRef, useState } from 'react';
+import type { EmojiClickData } from 'emoji-picker-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { Dialog } from '@connor-adams/designsystem';
+import { EmojiPickerFallback } from '@/components/routeFallbacks';
+
+/*
+ * `emoji-picker-react` is 3.2 MB on disk and this is its only import site in
+ * the app. It renders behind two gates the user has to pass first — open the
+ * sound edit modal, then press "Pick" — so there is no reason for it to be in
+ * any chunk that loads before that.
+ *
+ * The `import type` above is erased at compile time and pulls in nothing.
+ *
+ * `lazy` rather than a hand-rolled `useState` + `import()`: the picker is
+ * already behind an `isPickerOpen` conditional, so `lazy` + `Suspense` slots
+ * into the existing gate with no new state, and the fetch starts on the render
+ * that first mounts the picker — i.e. the click — not on modal open.
+ */
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 interface EditModalProps {
   soundName: string;
@@ -126,17 +142,19 @@ export function EditModal({
                 id="emoji-picker"
                 className="mt-3 rounded-lg border border-border bg-surface-input p-3 shadow-lg max-h-[360px] overflow-hidden"
               >
-                <EmojiPicker
-                  onEmojiClick={(emojiData: EmojiClickData) => {
-                    setEmoji(emojiData.emoji);
-                    setIsPickerOpen(false);
-                  }}
-                  skinTonesDisabled
-                  searchDisabled={false}
-                  lazyLoadEmojis
-                  height={320}
-                  width="100%"
-                />
+                <Suspense fallback={<EmojiPickerFallback />}>
+                  <EmojiPicker
+                    onEmojiClick={(emojiData: EmojiClickData) => {
+                      setEmoji(emojiData.emoji);
+                      setIsPickerOpen(false);
+                    }}
+                    skinTonesDisabled
+                    searchDisabled={false}
+                    lazyLoadEmojis
+                    height={320}
+                    width="100%"
+                  />
+                </Suspense>
               </div>
             )}
             <p className="text-xs text-text-muted">
