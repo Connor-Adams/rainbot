@@ -1,6 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatCard,
+  StatsSection,
+  StatsTable,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
+import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -44,10 +55,8 @@ export default function UserSessionsStats() {
     refetchInterval: 10000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading user sessions...</div>;
-  if (error)
-    return <div className="stats-error text-center py-12">Error loading user sessions</div>;
+  if (isLoading) return <StatsLoading message="Loading user sessions..." />;
+  if (error) return <StatsError error={error} message="Error loading user sessions" />;
   if (!data) return null;
 
   const summary: SessionSummary = data.summary || {
@@ -79,108 +88,86 @@ export default function UserSessionsStats() {
     return `${minutes}m`;
   };
 
+  const avgTracksPerSession = (() => {
+    const avg = parseFloat(summary.avg_tracks_per_session || '0');
+    return isNaN(avg) ? '0.0' : avg.toFixed(1);
+  })();
+
   const chartData = topListeners.slice(0, 10).map((l) => ({
     name: l.username || l.user_id?.substring(0, 8) || 'Unknown',
     value: safeInt(l.total_duration),
   }));
 
+  const listenerColumns = [
+    {
+      id: 'user',
+      header: 'User',
+      render: (listener: TopListener) => listener.username || listener.user_id,
+      className: 'py-2 px-4 text-text-secondary',
+    },
+    {
+      id: 'sessions',
+      header: 'Sessions',
+      render: (listener: TopListener) => listener.session_count,
+      className: 'py-2 px-4 text-text-secondary',
+    },
+    {
+      id: 'total_duration',
+      header: 'Total Duration',
+      render: (listener: TopListener) => formatDuration(safeInt(listener.total_duration)),
+      className: 'py-2 px-4 text-text-secondary',
+    },
+    {
+      id: 'tracks_heard',
+      header: 'Tracks Heard',
+      render: (listener: TopListener) => listener.total_tracks,
+      className: 'py-2 px-4 text-text-secondary',
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-primary-light">
-            {summary.total_sessions || '0'}
-          </div>
-          <div className="text-sm text-text-secondary">Total Sessions</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-success-light">{summary.unique_users || '0'}</div>
-          <div className="text-sm text-text-secondary">Unique Users</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-secondary-light">
-            {formatDuration(safeInt(summary.avg_duration_seconds))}
-          </div>
-          <div className="text-sm text-text-secondary">Avg Duration</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning">
-            {formatDuration(safeInt(summary.total_duration_seconds))}
-          </div>
-          <div className="text-sm text-text-secondary">Total Duration</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning-light">
-            {(() => {
-              const avg = parseFloat(summary.avg_tracks_per_session || '0');
-              return isNaN(avg) ? '0.0' : avg.toFixed(1);
-            })()}
-          </div>
-          <div className="text-sm text-text-secondary">Avg Tracks/Session</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-accent-light">
-            {summary.total_tracks_heard || '0'}
-          </div>
-          <div className="text-sm text-text-secondary">Total Tracks</div>
-        </div>
-      </div>
+      <StatGrid columns="auto" minItemWidth={160} gap="lg">
+        <StatCard value={summary.total_sessions || '0'} label="Total Sessions" />
+        <StatCard value={summary.unique_users || '0'} label="Unique Users" />
+        <StatCard
+          value={formatDuration(safeInt(summary.avg_duration_seconds))}
+          label="Avg Duration"
+        />
+        <StatCard
+          value={formatDuration(safeInt(summary.total_duration_seconds))}
+          label="Total Duration"
+        />
+        <StatCard value={avgTracksPerSession} label="Avg Tracks/Session" />
+        <StatCard value={summary.total_tracks_heard || '0'} label="Total Tracks" />
+      </StatGrid>
 
       {chartData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Top Listeners (by duration)</h3>
-          <div style={{ width: '100%', height: Math.max(200, chartData.length * 32) }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: '#9ca3af', fontSize: 12 }}
-                  width={75}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-                <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartContainer
+          title="Top Listeners (by duration)"
+          height="auto"
+          rowCount={chartData.length}
+          className="mb-0!"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ left: 80, right: 20 }}>
+              <XAxis type="number" tick={chartTheme.axis.tick} />
+              <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
       {topListeners.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Top Listeners Details</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">User</th>
-                  <th className="pb-2 px-4">Sessions</th>
-                  <th className="pb-2 px-4">Total Duration</th>
-                  <th className="pb-2 px-4">Tracks Heard</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topListeners.map((listener, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">{listener.username || listener.user_id}</td>
-                    <td className="py-2 px-4">{listener.session_count}</td>
-                    <td className="py-2 px-4">
-                      {formatDuration(safeInt(listener.total_duration))}
-                    </td>
-                    <td className="py-2 px-4">{listener.total_tracks}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Top Listeners Details">
+          <StatsTable
+            columns={listenerColumns}
+            data={topListeners}
+            getRowKey={(listener: TopListener) => listener.user_id}
+          />
+        </StatsSection>
       )}
     </div>
   );
