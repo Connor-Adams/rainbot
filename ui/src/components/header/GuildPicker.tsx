@@ -8,7 +8,12 @@ import type { Guild } from '@/types';
 export default function GuildPicker() {
   const { selectedGuildId, setSelectedGuildId } = useGuildStore();
 
-  const { data: status, isSuccess } = useQuery({
+  const {
+    data: status,
+    isSuccess,
+    isPending,
+    isError,
+  } = useQuery({
     queryKey: ['bot-status'],
     queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
@@ -16,6 +21,25 @@ export default function GuildPicker() {
 
   const guilds: Guild[] = useMemo(() => status?.guilds ?? [], [status]);
   const isEmpty = guilds.length === 0;
+
+  // An empty guild list is three separate situations and only one of them is
+  // loading. Using "Loading servers..." for all three left a user in no mutual
+  // guilds - or one whose Raincloud is down - watching a placeholder that would
+  // never resolve.
+  //
+  // The non-empty branch is checked first on purpose: once a list has arrived
+  // the control is genuinely usable, and a later poll failing (`isError` with
+  // `data` still cached) must not relabel a working picker as broken.
+  //
+  // None of these three wordings makes the control any more functional than it
+  // is - it stays `disabled` in all of them, exactly as before.
+  const placeholder = !isEmpty
+    ? 'Select a server...'
+    : isPending
+      ? 'Loading servers...'
+      : isError
+        ? 'Servers unavailable'
+        : 'No servers available';
 
   // `selectedGuildId` is persisted to localStorage, so it can outlive the bot's
   // membership of that guild. Every consumer gates only on the id being truthy,
@@ -39,7 +63,7 @@ export default function GuildPicker() {
       options={guilds.map((guild) => ({ value: guild.id, label: guild.name }))}
       value={selectedGuildId}
       onValueChange={setSelectedGuildId}
-      placeholder={isEmpty ? 'Loading servers...' : 'Select a server...'}
+      placeholder={placeholder}
       size="sm"
       // Real `disabled`, not the old `aria-disabled` + `pointer-events-none`
       // shim: that left the control in the tab order and still keyboard-
