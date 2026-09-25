@@ -3,6 +3,7 @@ import { statsApi } from '@/lib/api';
 import { EmptyState } from '@/components/common';
 import { safeInt, safeDateLabel } from '@/lib/chartSafety';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { pieSliceLabel } from './pieLabel';
 
 interface EventSummary {
   event_type: string;
@@ -79,9 +80,7 @@ export default function GuildEventsStats() {
                   innerRadius={50}
                   outerRadius={80}
                   paddingAngle={2}
-                  label={({ name, percent }: { name: string; percent: number }) =>
-                    `${name} (${(percent * 100).toFixed(0)}%)`
-                  }
+                  label={pieSliceLabel}
                   labelLine={{ stroke: '#6b7280' }}
                 >
                   {summaryData.map((entry, index) => (
