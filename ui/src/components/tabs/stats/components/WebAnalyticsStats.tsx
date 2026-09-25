@@ -2,6 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
 import { safeInt } from '@/lib/chartSafety';
 import {
+  StatsLoading,
+  StatsError,
+  EmptyState,
+  StatsSection,
+  StatsTable,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
+import {
   BarChart,
   Bar,
   XAxis,
@@ -49,37 +59,29 @@ export default function WebAnalyticsStats() {
     refetchInterval: 30000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading web analytics...</div>;
-  if (error)
-    return <div className="stats-error text-center py-12">Error loading web analytics</div>;
+  if (isLoading) return <StatsLoading message="Loading web analytics..." />;
+  if (error) return <StatsError error={error} message="Error loading web analytics" />;
 
   const eventTypes = Array.isArray(data?.eventTypes) ? data.eventTypes : [];
   const topTargets = Array.isArray(data?.topTargets) ? data.topTargets : [];
 
   if (!data || eventTypes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
-        <span className="text-3xl opacity-50">📊</span>
-        <p className="text-sm text-text-secondary">No web analytics data available yet</p>
-        <small className="text-xs text-text-muted">
-          Web analytics will appear as users interact with the dashboard
-        </small>
-      </div>
+      <EmptyState
+        icon="📊"
+        message="No web analytics data available yet"
+        submessage="Web analytics will appear as users interact with the dashboard"
+      />
     );
   }
 
-  const eventColors = [
-    'rgb(59, 130, 246)',
-    'rgb(34, 197, 94)',
-    'rgb(251, 146, 60)',
-    'rgb(168, 85, 247)',
-  ];
+  // Colours are assigned before the filter so a zeroed slice never shifts the
+  // remaining slices' colours — same as when these were hard-coded hex.
   const eventData = eventTypes
     .map((e, idx) => ({
       name: e.event_type || 'Unknown',
       value: safeInt(e.count),
-      color: eventColors[idx % 4],
+      color: chartColor(idx),
     }))
     .filter((d) => d.value > 0);
 
@@ -88,96 +90,85 @@ export default function WebAnalyticsStats() {
     value: safeInt(t.count),
   }));
 
+  const detailRows = topTargets.slice(0, 15);
+
+  const detailColumns = [
+    {
+      id: 'event_type',
+      header: 'Event Type',
+      render: (target: TopTarget) => target.event_type,
+      className: 'py-2 px-4 text-text-secondary',
+    },
+    {
+      id: 'event_target',
+      header: 'Target',
+      render: (target: TopTarget) => target.event_target,
+      className: 'py-2 px-4 font-mono text-sm text-text-secondary',
+    },
+    {
+      id: 'count',
+      header: 'Count',
+      render: (target: TopTarget) => target.count,
+      className: 'py-2 px-4 text-text-secondary',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {eventData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Event Types</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={eventData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {eventData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Event Types" height={280} className="mb-0!">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={eventData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {eventData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {targetData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Top Event Targets</h3>
-            <div style={{ width: '100%', height: Math.max(200, targetData.length * 32) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={targetData} layout="vertical" margin={{ left: 100, right: 20 }}>
-                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fill: '#9ca3af', fontSize: 12 }}
-                    width={95}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer
+            title="Top Event Targets"
+            height="auto"
+            rowCount={targetData.length}
+            className="mb-0!"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={targetData} layout="vertical" margin={{ left: 100, right: 20 }}>
+                <XAxis type="number" tick={chartTheme.axis.tick} />
+                <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={95} />
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
 
       {topTargets.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Event Details</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Event Type</th>
-                  <th className="pb-2 px-4">Target</th>
-                  <th className="pb-2 px-4">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topTargets.slice(0, 15).map((target, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">{target.event_type}</td>
-                    <td className="py-2 px-4 font-mono text-sm">{target.event_target}</td>
-                    <td className="py-2 px-4">{target.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Event Details">
+          <StatsTable
+            columns={detailColumns}
+            data={detailRows}
+            getRowKey={(target: TopTarget) => `${target.event_type}:${target.event_target}`}
+          />
+        </StatsSection>
       )}
     </div>
   );
