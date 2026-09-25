@@ -281,6 +281,29 @@ once real traffic exists; the checklist is part of implementation, not a follow-
    the connector's own `service_name` dimension survives.
 8. That `worker.rpc` is the span name the connector actually sees, and that `status_code` carries
    distinguishable values on it — the overview's RPC outcome panel depends on both.
+9. The span-metric family name itself: `namespace: rainbot.span` → `rainbot.span.calls` → sanitised
+   → `rainbot_span_calls_total`. Four panels across two boards match on it.
+10. `span_name` as the label spelling — it is a connector _default_ dimension, not one of the
+    allowlisted `rainbot.*` ones, and it is the matcher on every span-metric panel.
+11. The whole service-graph chain, end to end: Tempo generator → remote write into Prometheus →
+    `traces_service_graph_request_total` → Grafana's `serviceMap` query. The newest and most fragile
+    mechanism here, and the one already found broken once (see the Tempo env-var note below).
+12. `rainbot_voice_connections`: that an UpDownCounter arrives with no suffix, and that it carries the
+    `job` label the overview's per-service panel groups by.
+13. Whether `PROMETHEUS_HOST` being unset ever silently disables the generator again — check
+    `/var/tempo` disk usage for generator-WAL growth, since a failing remote-write does not truncate.
+
+Item 2 above was mislabelled as awaiting traffic: `rainbot_track_source` was statically checkable and
+turned out to be the constant `'youtube'` at every metric call site. That is why the two by-source
+panels now read span metrics instead. Item 7 is also answerable without traffic: the Prometheus
+exporter appends `job` and `instance` from resource attributes, and the connector copies the span's
+resource onto its output, so span metrics carry both `job` and the `service_name` dimension.
+
+**Tempo env-var syntax.** `services/tempo/config.yaml` must use `${PROMETHEUS_HOST}`, not the
+collector's `${env:PROMETHEUS_HOST}`. Tempo expands with drone/envsubst, where `${env:VAR}` parses as
+the variable `env` plus a substring operator, yields an empty string, and renders
+`http://:9090/api/v1/write` with no error — accepted by `-config.verify` and by CI. Caught only in
+final review; `validate-stack.sh` now asserts the exact URL and bans `${env:` in that file.
 
 ## Validation
 
