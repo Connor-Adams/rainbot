@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { SearchIcon, XIcon } from '@/components/icons';
+import { Icon, Input } from '@connor-adams/designsystem';
 
 interface SearchBarProps {
   value: string;
@@ -7,34 +7,38 @@ interface SearchBarProps {
   placeholder?: string;
 }
 
+/**
+ * Sound search field.
+ *
+ * The design system's `Input` owns the leading icon, the conditional clear
+ * button, and the space both occupy - reserved in `Input.css` off
+ * `data-leading` / `data-trailing` rather than measured in JS - so this is now
+ * just a controlled wrapper over it.
+ *
+ * Two details this relies on:
+ * - `Input` forwards its ref to the native `<input>`, never to the adornment
+ *   wrapper, which is what SoundboardTab's `searchInputRef` "/" focus shortcut
+ *   needs.
+ * - `clearable` renders a real `<button>` with an accessible name that is
+ *   `disabled` (and so out of the tab order) while there is nothing to clear,
+ *   replacing the old conditionally-rendered clear button.
+ */
 export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(
-  ({ value, onChange, placeholder = 'Search sounds...' }, ref) => {
-    return (
-      <div className="relative">
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">
-          <SearchIcon size={20} />
-        </div>
-        <input
-          ref={ref}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-12 pr-10 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-text-muted"
-          placeholder={placeholder}
-          aria-label="Search sounds"
-        />
-        {value && (
-          <button
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-text-muted hover:bg-surface-hover hover:text-text-primary transition-all"
-            onClick={() => onChange('')}
-            aria-label="Clear search"
-          >
-            <XIcon size={16} />
-          </button>
-        )}
-      </div>
-    );
-  }
+  ({ value, onChange, placeholder = 'Search sounds...' }, ref) => (
+    <Input
+      ref={ref}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-label="Search sounds"
+      className="w-full"
+      leadingIcon={<Icon name="search" size={20} />}
+      clearable
+      onClear={() => onChange('')}
+      clearLabel="Clear search"
+    />
+  )
 );
 
 SearchBar.displayName = 'SearchBar';
