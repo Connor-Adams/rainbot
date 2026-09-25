@@ -263,3 +263,68 @@ sandbox-blocked).
 Task 12 (deploy) NOT done — needs Connor's approval.
 Note for Task 12: drop OTEL_SERVICE_NAME from the env step; it is inert by
 design and now documented as such in .env.example.
+
+Task 1 (rainbot service rename): complete (commit b9cb357, review clean).
+Implementer dropped the brief-specified jest.isolateModules (broken as written); reviewer
+empirically confirmed the deviation was necessary and that the tests fail on a wrong name.
+LEFTOVER for Connor: delete the untracked review probe at
+apps/rainbot/src/**tests**/\_isolate_probe.test.ts (neutered to it.todo; agent file deletion
+is sandbox-blocked).
+Spawned side task: ui/package.json duplicate type-check key (pre-existing).
+
+Task 2 (spanmetrics connector, telemetry repo): complete (commits 2b0fa6f..59fccb6, PR #13,
+review clean). Extra beyond brief, both judged necessary: f-string SyntaxError fix in the
+assertion, and config.postgres.yaml metrics.receivers override needed spanmetrics too
+(collector --config merges replace lists wholesale).
+MINOR findings deferred to final review, both plan-mandated values:
+M1 validate-stack.sh checks filter/rainbot-spans by NAME only, never its OTTL condition -
+a neutered regex would pass CI while defeating the tenant filter.
+M2 metrics_flush_interval 30s vs Prometheus 15s scrape - every second scrape returns
+identical values; 15s would match cadence.
+
+Task 3 (tempo service-graph generator + prometheus remote-write receiver): complete
+(commits 91e39d6..7adc057, review clean, no findings).
+Noted: telemetry README still says the stack is "not deployed there yet" - stale, it is
+live on Dokploy. Candidate doc fix at the end.
+
+Task 4 (overview.json + datasource-uid assertion): complete (commits a284a60..e0274ac after
+one fix wave, review clean).
+Fix wave: panel 7 grouped the RPC histogram by rainbot_outcome, a label that metric never
+carries (plan defect, corrected in spec+plan at 11295d0); now span-metric status_code on the
+worker.rpc span. Also fixed validate-stack.sh racing Grafana async provisioning - it now polls
+for the expected dashboard set.
+MINOR deferred to final review: datasource-uid assertion only walks top-level panels (a
+collapsed row panel nests its own) and only dict-shaped datasource refs (legacy string refs
+skipped silently).
+
+Task 5 (playback.json): complete (commits 0694854..ec613a9, review clean, no findings).
+Pre-dispatch correction: plan panel 6 queried an invented span_name "track.stream"; real span is
+audio.resource.create (3 call sites in apps/rainbot/src/voice/audioResource.ts).
+Task 6 pre-dispatch: plan "Top sounds" panel grouped the sound-play histogram by rainbot_sound,
+which both call sites deliberately omit (user-uploaded R2 key, ~14 bucket series per value, kept
+on the sound.play span instead). Connor chose: drop the bar chart, show soundboard volume plus a
+Tempo Explore link for per-sound ranking. Docs corrected.
+
+Task 6 (usage.json): complete (commits 3776725..a2cf74c after one fix wave, re-review running).
+Fix wave: the nodeGraph panel queried Prometheus directly, which cannot render - Grafana needs
+nodes/edges frames with id/source/target. Now a Tempo serviceMap query, which also required
+adding jsonData.serviceMap.datasourceUid to the Tempo datasource (absent before, silently
+useless without it).
+MINOR deferred to final review: panel 2 barchart rendering of an instant topk has no in-repo
+precedent; only confirmable in a live Grafana.
+
+Task 6 re-review: clean, approved. All implementation tasks (1-6) complete and reviewed.
+Remaining: Task 7 (deploy + live verification) - needs Connor for Dokploy env + Discord traffic.
+
+FINAL WHOLE-BRANCH REVIEW (opus): do-not-ship, 3 must-fixes, all telemetry-side.
+MF1 services/tempo/config.yaml used ${env:VAR} (collector syntax); Tempo 2.6 uses drone/envsubst
+${VAR}, so the generator remote-wrote to http://:9090 with no error and CI still passed.
+MF2 usage.json panel 2 barchart fed by instant time_series query - no string field, no categories.
+MF3 serviceMap query was unfiltered, so the rainbot board rendered cashflow topology.
+Fix wave applied in 9 commits 92c49b7..c104f48, CI green; plus 8 should-fixes (rainbot.sound added
+to the banned-dimension set, OTTL condition asserted exactly, datasource check recurses, health
+excluded from the p95 panel, error-rate stat gets thresholds, rainbot.track_source added as a span
+dimension because the resolve histogram hardcodes youtube, README staleness + Prometheus
+remote-write security note).
+Outstanding: serviceMapQuery field spelling unconfirmed without a live Grafana; title corrections
+in flight.

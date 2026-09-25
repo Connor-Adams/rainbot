@@ -4,4 +4,4 @@
 // modules at require time.
 import { startTelemetry } from '@rainbot/observability/node';
 
-startTelemetry('pranjeet');
+startTelemetry('rainbot-pranjeet');
