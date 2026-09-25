@@ -5,8 +5,11 @@ import { renderWithQuery } from '@/test/renderWithQuery';
 
 /**
  * CHARACTERIZATION TESTS — see the header comment on BotOperations.test.tsx.
- * Assertions marked ACCESSIBILITY GAP describe markup that is wrong today and
- * are expected to be deleted by the rewrite.
+ *
+ * The ACCESSIBILITY GAP assertion about the two unassociated field labels was
+ * retired when the panel moved onto the design system's `Field`. The row-level
+ * Edit/Delete gap (controls named without their persona) is unchanged and still
+ * asserted below.
  */
 
 vi.mock('@/lib/api', () => ({
@@ -28,12 +31,12 @@ const PERSONAS = [
   { id: 'custom-2', name: 'Overcaffeinated intern', isBuiltIn: false },
 ];
 
-/** Both fields are reachable only by placeholder — see the GAP test. */
+/** `Field` labels both controls, so they are reachable by name. */
 function nameField(): HTMLElement {
-  return screen.getByPlaceholderText('e.g. Friendly assistant');
+  return screen.getByLabelText('Name');
 }
 function promptField(): HTMLElement {
-  return screen.getByPlaceholderText('Instructions for how the AI should behave...');
+  return screen.getByLabelText('System prompt');
 }
 
 beforeEach(() => {
@@ -109,17 +112,22 @@ describe('PersonaManager — create', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create persona' }));
   }
 
-  it('ACCESSIBILITY GAP: neither field label is associated with its control', () => {
+  it('associates both field labels with their controls', () => {
+    // Was an ACCESSIBILITY GAP test: both labels were bare `<label>`s with
+    // neither `htmlFor` nor the control nested inside, so both controls were
+    // reachable only by placeholder. `Field` wires them.
     openCreateForm();
 
     expect(screen.getByText('Name')).toBeInTheDocument();
     expect(screen.getByText('System prompt')).toBeInTheDocument();
-    expect(() => screen.getByLabelText('Name')).toThrow(/no form control was found associated/);
-    expect(() => screen.getByLabelText('System prompt')).toThrow(
-      /no form control was found associated/
+    expect(screen.getByLabelText('Name')).toBe(
+      screen.getByPlaceholderText('e.g. Friendly assistant')
     );
-    expect(nameField()).not.toHaveAccessibleName();
-    expect(promptField()).not.toHaveAccessibleName();
+    expect(screen.getByLabelText('System prompt')).toBe(
+      screen.getByPlaceholderText('Instructions for how the AI should behave...')
+    );
+    expect(nameField()).toHaveAccessibleName('Name');
+    expect(promptField()).toHaveAccessibleName('System prompt');
   });
 
   it('replaces the "Create persona" trigger with a Create/Cancel pair', () => {

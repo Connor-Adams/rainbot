@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState } from '@connor-adams/designsystem';
+import { Card, EmptyState, Field, NativeSelect } from '@connor-adams/designsystem';
 import { adminApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
 import { Button } from '@/components/ui';
@@ -11,6 +11,8 @@ const GROK_VOICES = [
   { value: 'Eve', label: 'Eve (female, energetic)' },
   { value: 'Leo', label: 'Leo (male, authoritative)' },
 ] as const;
+
+type ApiError = { response?: { data?: { error?: string } }; message?: string };
 
 export default function GrokVoiceSettings() {
   const queryClient = useQueryClient();
@@ -88,6 +90,21 @@ export default function GrokVoiceSettings() {
     },
   });
 
+  // Derived once, so the same message can drive `Field`'s `error` (which wires
+  // `aria-describedby` and `aria-invalid` on the control) instead of a loose
+  // `<div>` the select is not associated with. Same precedence as before: API
+  // error body, then the Error message, then the fixed fallback.
+  const grokVoiceError = grokVoiceMutation.isError
+    ? ((grokVoiceMutation.error as ApiError)?.response?.data?.error ??
+      (grokVoiceMutation.error as Error)?.message ??
+      'Failed to update voice')
+    : undefined;
+  const grokPersonaError = grokPersonaMutation.isError
+    ? ((grokPersonaMutation.error as ApiError)?.response?.data?.error ??
+      (grokPersonaMutation.error as Error)?.message ??
+      'Failed to update persona')
+    : undefined;
+
   if (!runGuildId) {
     return (
       <EmptyState
@@ -98,7 +115,7 @@ export default function GrokVoiceSettings() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface-input p-4">
+    <Card variant="nested" padding="sm" radius="xl">
       <div className="text-sm font-semibold text-text-primary mb-1">
         Grok conversation mode (voice)
       </div>
@@ -152,41 +169,33 @@ export default function GrokVoiceSettings() {
             </div>
           )}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Grok voice</label>
-          <select
+        <Field
+          label="Grok voice"
+          hint="Voice for the Grok Voice Agent. Takes effect for your next conversation."
+          error={grokVoiceError}
+        >
+          <NativeSelect
+            className="w-full"
             value={grokVoice?.voice ?? 'Ara'}
             onChange={(e) =>
               grokVoiceMutation.mutate({ guildId: runGuildId, voice: e.target.value })
             }
             disabled={grokVoiceMutation.isPending}
-            className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             {GROK_VOICES.map((v) => (
               <option key={v.value} value={v.value}>
                 {v.label}
               </option>
             ))}
-          </select>
-          <div className="text-xs text-text-secondary mt-1">
-            Voice for the Grok Voice Agent. Takes effect for your next conversation.
-          </div>
-          {grokVoiceMutation.isError && (
-            <div className="text-xs text-danger-light mt-1">
-              {(
-                grokVoiceMutation.error as {
-                  response?: { data?: { error?: string } };
-                  message?: string;
-                }
-              )?.response?.data?.error ??
-                (grokVoiceMutation.error as Error)?.message ??
-                'Failed to update voice'}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Grok persona</label>
-          <select
+          </NativeSelect>
+        </Field>
+        <Field
+          label="Grok persona"
+          hint="Persona for chat and voice. Change in the Personas sub-tab."
+          error={grokPersonaError}
+        >
+          <NativeSelect
+            className="w-full"
             value={grokPersona?.personaId ?? ''}
             onChange={(e) =>
               grokPersonaMutation.mutate({
@@ -195,7 +204,6 @@ export default function GrokVoiceSettings() {
               })
             }
             disabled={grokPersonaMutation.isPending}
-            className="w-full px-4 py-3 bg-surface-input border border-border rounded-lg text-text-primary text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="">Default (Convenience store philosopher)</option>
             {personas
@@ -206,24 +214,9 @@ export default function GrokVoiceSettings() {
                   {p.isBuiltIn ? ' (built-in)' : ''}
                 </option>
               ))}
-          </select>
-          <div className="text-xs text-text-secondary mt-1">
-            Persona for chat and voice. Change in the Personas sub-tab.
-          </div>
-          {grokPersonaMutation.isError && (
-            <div className="text-xs text-danger-light mt-1">
-              {(
-                grokPersonaMutation.error as {
-                  response?: { data?: { error?: string } };
-                  message?: string;
-                }
-              )?.response?.data?.error ??
-                (grokPersonaMutation.error as Error)?.message ??
-                'Failed to update persona'}
-            </div>
-          )}
-        </div>
+          </NativeSelect>
+        </Field>
       </div>
-    </div>
+    </Card>
   );
 }

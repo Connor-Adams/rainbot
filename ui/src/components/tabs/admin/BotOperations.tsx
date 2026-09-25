@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useIsMutating, useMutation } from '@tanstack/react-query';
+import { Card } from '@connor-adams/designsystem';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui';
 
@@ -31,7 +32,7 @@ export default function BotOperations() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-surface-input p-4">
+    <Card variant="nested" padding="sm" radius="xl">
       <div className="text-sm font-semibold text-text-primary mb-1">Redeploy slash commands</div>
       <div className="text-xs text-text-secondary mb-4">
         Re-register Discord slash commands with Discord. Use this after adding or changing commands
@@ -51,6 +52,6 @@ export default function BotOperations() {
       {deployCommandsMutation.isSuccess && deployMessage && (
         <div className="mt-3 text-xs text-text-secondary">{deployMessage}</div>
       )}
-    </div>
+    </Card>
   );
 }

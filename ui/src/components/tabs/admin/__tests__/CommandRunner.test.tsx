@@ -6,8 +6,11 @@ import { renderWithQuery } from '@/test/renderWithQuery';
 
 /**
  * CHARACTERIZATION TESTS — see the header comment on BotOperations.test.tsx.
- * Assertions marked ACCESSIBILITY GAP describe markup that is wrong today and
- * are expected to be deleted by the rewrite.
+ *
+ * The ACCESSIBILITY GAP assertions this file used to carry (labels with no
+ * associated control) were retired when the panel moved onto the design
+ * system's `Field`, which wires `htmlFor` for every control. They now assert the
+ * accessible name is present.
  */
 
 vi.mock('@/lib/api', () => ({
@@ -43,9 +46,9 @@ const COMMAND_LABELS = [
 ];
 
 function commandSelect(): HTMLSelectElement {
-  // The command `<select>` has no accessible name (see the gap test below), so
-  // it can only be reached positionally: it is the first combobox rendered.
-  return screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+  // `Field` associates the visible "Command" label with the `<select>`, so it is
+  // reachable by name rather than positionally.
+  return screen.getByLabelText('Command') as HTMLSelectElement;
 }
 
 function runButton(): HTMLElement {
@@ -106,24 +109,25 @@ describe('CommandRunner — initial render with a server selected', () => {
     expect(commandSelect().value).toBe('play');
   });
 
-  it('ACCESSIBILITY GAP: the "Command" label is not associated with the select', () => {
-    // The label is a bare `<label>` with neither `htmlFor` nor the control
-    // nested inside it, so the `<select>` has no accessible name at all. Delete
-    // this test when the rewrite gives the control a real label.
+  it('associates the "Command" label with the select', () => {
+    // Was an ACCESSIBILITY GAP test: the label used to be a bare `<label>` with
+    // neither `htmlFor` nor the control nested inside it, so the `<select>` had
+    // no accessible name at all. `Field` supplies both.
     renderWithQuery(<CommandRunner />);
 
     expect(screen.getByText('Command')).toBeInTheDocument();
-    expect(() => screen.getByLabelText('Command')).toThrow(/no form control was found associated/);
-    expect(commandSelect()).not.toHaveAccessibleName();
+    expect(screen.getByLabelText('Command').tagName).toBe('SELECT');
+    expect(commandSelect()).toHaveAccessibleName('Command');
   });
 
   it('shows the play input, reachable only by placeholder, and disables Run', () => {
     renderWithQuery(<CommandRunner />);
 
     expect(screen.getByText('URL or search query')).toBeInTheDocument();
-    // ACCESSIBILITY GAP: same unassociated-label problem, so the field is only
-    // findable by its placeholder text.
-    expect(screen.getByPlaceholderText('YouTube, Spotify, or search...')).toBeInTheDocument();
+    // Was only findable by placeholder; `Field` now associates the label too.
+    expect(screen.getByLabelText('URL or search query')).toBe(
+      screen.getByPlaceholderText('YouTube, Spotify, or search...')
+    );
     expect(runButton()).toBeDisabled();
   });
 });
@@ -190,6 +194,18 @@ describe('CommandRunner — "soundboard"', () => {
     );
   });
 
+  it('names both soundboard controls', async () => {
+    // The visible "Sound name" label belongs to the dropdown, so the free-text
+    // field carries an `aria-label` instead of a second, duplicate visible one.
+    renderWithQuery(<CommandRunner />);
+    selectSoundboard();
+
+    expect(screen.getByLabelText('Sound name').tagName).toBe('SELECT');
+    expect(await screen.findByLabelText('Or type sound name')).toBe(
+      screen.getByPlaceholderText('Or type sound name')
+    );
+  });
+
   it('binds the free-text field and the dropdown to the same value', async () => {
     // Both controls write `soundboardSound`, so typing a name moves the
     // dropdown too (and typing a name that is not in the list empties it).
@@ -222,6 +238,9 @@ describe('CommandRunner — "speak"', () => {
     fireEvent.change(commandSelect(), { target: { value: 'speak' } });
 
     expect(screen.getByText('Text to speak (TTS)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Text to speak (TTS)')).toBe(
+      screen.getByPlaceholderText('What should the bot say?')
+    );
     fireEvent.change(screen.getByPlaceholderText('What should the bot say?'), {
       target: { value: '  hello world  ' },
     });
@@ -235,6 +254,15 @@ describe('CommandRunner — "grok"', () => {
   function selectGrok() {
     fireEvent.change(commandSelect(), { target: { value: 'grok' } });
   }
+
+  it('associates the "Message for Grok" label with its input', () => {
+    renderWithQuery(<CommandRunner />);
+    selectGrok();
+
+    expect(screen.getByLabelText('Message for Grok')).toBe(
+      screen.getByPlaceholderText('Ask Grok anything...')
+    );
+  });
 
   it('offers a "speak reply" checkbox, checked by default, with a real label', () => {
     // This label DOES wrap its control, so unlike the others it has an

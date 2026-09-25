@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card } from '@connor-adams/designsystem';
 import { soundsApi } from '@/lib/api';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui';
@@ -85,7 +86,7 @@ export default function SoundLibraryMaintenance() {
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-surface-input p-4">
+      <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">Transcode and Cleanup</div>
         <div className="text-xs text-text-secondary mb-4">
           Re-encode all sounds to Ogg Opus and archive non-Ogg originals.
@@ -107,9 +108,9 @@ export default function SoundLibraryMaintenance() {
             {lastResult.skipped}
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-border bg-surface-input p-4">
+      <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">Search Analysis</div>
         <div className="text-xs text-text-secondary mb-4">
           Listen to every sound that has changed since it was last analysed and store a description,
@@ -125,9 +126,9 @@ export default function SoundLibraryMaintenance() {
           {analyzeRunning ? 'Analyzing...' : 'Analyze sounds for search'}
         </Button>
         {analyzeResult && <div className="mt-3 text-xs text-text-secondary">{analyzeResult}</div>}
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-border bg-surface-input p-4">
+      <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">Strip Hidden Video</div>
         <div className="text-xs text-text-secondary mb-4">
           Around eighteen sounds are secretly video files - a picture track sitting alongside the
@@ -146,7 +147,7 @@ export default function SoundLibraryMaintenance() {
         {stripVideoResult && (
           <div className="mt-3 text-xs text-text-secondary">{stripVideoResult}</div>
         )}
-      </div>
+      </Card>
 
       <ConfirmDialog
         open={sweepDialogOpen}

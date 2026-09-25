@@ -6,8 +6,10 @@ import { renderWithQuery } from '@/test/renderWithQuery';
 
 /**
  * CHARACTERIZATION TESTS — see the header comment on BotOperations.test.tsx.
- * Assertions marked ACCESSIBILITY GAP describe markup that is wrong today and
- * are expected to be deleted by the rewrite.
+ *
+ * The ACCESSIBILITY GAP assertions this file used to carry (labels with no
+ * associated control) were retired when the panel moved onto the design
+ * system's `Field`. They now assert the accessible name is present.
  */
 
 vi.mock('@/lib/api', () => ({
@@ -34,12 +36,12 @@ const VOICE_LABELS = [
   'Leo (male, authoritative)',
 ];
 
-/** The two `<select>`s have no accessible name, so they are found by position. */
+/** `Field` labels both `<select>`s, so they are found by name. */
 function voiceSelect(): HTMLSelectElement {
-  return screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+  return screen.getByLabelText('Grok voice') as HTMLSelectElement;
 }
 function personaSelect(): HTMLSelectElement {
-  return screen.getAllByRole('combobox')[1] as HTMLSelectElement;
+  return screen.getByLabelText('Grok persona') as HTMLSelectElement;
 }
 
 beforeEach(() => {
@@ -158,15 +160,33 @@ describe('GrokVoiceSettings — conversation mode', () => {
 });
 
 describe('GrokVoiceSettings — Grok voice', () => {
-  it('ACCESSIBILITY GAP: the "Grok voice" label is not associated with its select', async () => {
+  it('associates the "Grok voice" label with its select', async () => {
+    // Was an ACCESSIBILITY GAP test; `Field` now wires `htmlFor`.
     renderWithQuery(<GrokVoiceSettings />);
     await screen.findByText('Off');
 
     expect(screen.getByText('Grok voice')).toBeInTheDocument();
-    expect(() => screen.getByLabelText('Grok voice')).toThrow(
-      /no form control was found associated/
+    expect(screen.getByLabelText('Grok voice').tagName).toBe('SELECT');
+    expect(voiceSelect()).toHaveAccessibleName('Grok voice');
+  });
+
+  it('links the hint to the select, and the error in its place once one fails', async () => {
+    renderWithQuery(<GrokVoiceSettings />);
+    await waitFor(() => expect(voiceSelect().value).toBe('Ara'));
+
+    const hintId = voiceSelect().getAttribute('aria-describedby');
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId!)).toHaveTextContent(
+      'Voice for the Grok Voice Agent. Takes effect for your next conversation.'
     );
-    expect(voiceSelect()).not.toHaveAccessibleName();
+    expect(voiceSelect()).not.toHaveAttribute('aria-invalid');
+
+    vi.mocked(adminApi.setGrokVoice).mockRejectedValue({});
+    fireEvent.change(voiceSelect(), { target: { value: 'Rex' } });
+
+    await waitFor(() => expect(voiceSelect()).toHaveAttribute('aria-invalid', 'true'));
+    const errorId = voiceSelect().getAttribute('aria-describedby');
+    expect(document.getElementById(errorId!)).toHaveTextContent('Failed to update voice');
   });
 
   it('lists the five voices and defaults to Ara when the server has none set', async () => {
@@ -247,15 +267,14 @@ describe('GrokVoiceSettings — Grok voice', () => {
 });
 
 describe('GrokVoiceSettings — Grok persona', () => {
-  it('ACCESSIBILITY GAP: the "Grok persona" label is not associated with its select', async () => {
+  it('associates the "Grok persona" label with its select', async () => {
+    // Was an ACCESSIBILITY GAP test; `Field` now wires `htmlFor`.
     renderWithQuery(<GrokVoiceSettings />);
     await screen.findByText('Off');
 
     expect(screen.getByText('Grok persona')).toBeInTheDocument();
-    expect(() => screen.getByLabelText('Grok persona')).toThrow(
-      /no form control was found associated/
-    );
-    expect(personaSelect()).not.toHaveAccessibleName();
+    expect(screen.getByLabelText('Grok persona').tagName).toBe('SELECT');
+    expect(personaSelect()).toHaveAccessibleName('Grok persona');
   });
 
   it('hides the "default" persona behind a hardcoded option and tags built-ins', async () => {
