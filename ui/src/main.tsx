@@ -2,12 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
+import { Toaster } from '@connor-adams/designsystem';
 import '@connor-adams/designsystem/styles.css';
 import './index.css';
 import App from './App.tsx';
 import { apiBaseUrl, authBaseUrl } from './lib/api';
 import ErrorBoundary from './components/ErrorBoundary';
-import ToastProvider from './components/ToastProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,13 +52,24 @@ createRoot(document.getElementById('root')!).render(
         onError={(error, errorInfo) => console.error('[UI] Uncaught error:', error, errorInfo)}
       >
         <BrowserRouter>
-          {/* One toast host for the whole app, above every route, so showToast
-              from anywhere reaches it. */}
-          <ToastProvider>
-            <App />
-          </ToastProvider>
+          <App />
         </BrowserRouter>
       </ErrorBoundary>
+      {/* The one toast host. It is not a provider and holds no state: the queue
+          is a module-level store in the design system, so `toast()` reaches this
+          stack from anywhere — components, fetch layers, non-React code — with
+          no wiring. Mounted outside ErrorBoundary so a crashed tree can still
+          be reported through a toast.
+
+          duration={4000} keeps the app's existing 4s auto-dismiss (the host
+          default is 5s). The enter/exit transition is the design system's
+          (200ms rise-and-scale in, 180ms out) rather than the old 400ms
+          slide-from-right, because the 180ms exit is the store's own removal
+          timer and is not overridable from CSS.
+
+          z-toast (1000) overrides the host's built-in z-index: 80, which would
+          otherwise sit under z-modal (100) and the soundboard menu (900). */}
+      <Toaster duration={4000} className="z-toast" />
     </QueryClientProvider>
   </StrictMode>
 );

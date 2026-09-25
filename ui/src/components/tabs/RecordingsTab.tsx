@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useToast } from '../../hooks/useToast';
+import { toast } from '@connor-adams/designsystem';
 import { buildApiUrl } from '@/lib/api';
 
 interface Recording {
@@ -12,7 +12,6 @@ export default function RecordingsTab() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState<string | null>(null);
-  const { showToast } = useToast();
 
   const loadRecordings = useCallback(async () => {
     try {
@@ -24,11 +23,13 @@ export default function RecordingsTab() {
       const data = await response.json();
       setRecordings(data);
     } catch (error) {
-      showToast((error as Error).message, 'error');
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+    // `toast` is a module-level function, not state, so this callback has no
+    // dependencies and cannot re-fire the load effect on a re-render.
+  }, []);
 
   useEffect(() => {
     loadRecordings();
@@ -45,9 +46,9 @@ export default function RecordingsTab() {
       });
 
       if (!response.ok) throw new Error('Failed to play recording');
-      showToast('Playing recording', 'success');
+      toast.success('Playing recording');
     } catch (error) {
-      showToast((error as Error).message, 'error');
+      toast.error((error as Error).message);
     } finally {
       setPlaying(null);
     }
@@ -67,10 +68,10 @@ export default function RecordingsTab() {
       });
 
       if (!response.ok) throw new Error('Failed to delete recording');
-      showToast('Recording deleted', 'success');
+      toast.success('Recording deleted');
       loadRecordings();
     } catch (error) {
-      showToast((error as Error).message, 'error');
+      toast.error((error as Error).message);
     }
   };
 
