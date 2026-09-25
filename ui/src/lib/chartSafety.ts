@@ -38,6 +38,23 @@ export function safeDateLabel(dateVal: unknown): string {
   }
 }
 
+/**
+ * Date AND time, guarded. `safeDateLabel` above is deliberately date-only, so
+ * a table column that shows a timestamp cannot reuse it without silently
+ * dropping the time. Same contract otherwise: anything unparseable becomes
+ * 'Unknown' rather than the browser's 'Invalid Date'.
+ */
+export function safeDateTimeLabel(dateVal: unknown): string {
+  if (!dateVal) return 'Unknown';
+  try {
+    const date = new Date(dateVal as string | number | Date);
+    if (isNaN(date.getTime())) return 'Unknown';
+    return date.toLocaleString();
+  } catch {
+    return 'Unknown';
+  }
+}
+
 // Validate chart data array - ensures all values are finite numbers
 export function validateChartData(data: number[]): boolean {
   return data.length > 0 && data.every(Number.isFinite);

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { playbackApi, botApi } from '@/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { playbackApi } from '@/lib/api';
 import { useGuildStore } from '@/stores/guildStore';
+import { useBotStatusQuery, useQueueQuery } from '@/hooks/useLiveQuery';
 import { useQueueEvents } from '@/hooks/useQueueEvents';
 import { useStatusEvents } from '@/hooks/useStatusEvents';
 import { EmptyState, Slider, Switch } from '@connor-adams/designsystem';
@@ -9,6 +10,15 @@ import NowPlayingCard from '../NowPlayingCard';
 import { Button } from '@/components/ui';
 
 type BotType = 'rainbot' | 'pranjeet' | 'hungerbot';
+
+/** The slice of `GET /api/status` this tab reads: per-worker volumes. */
+type WorkerVolume = { volume?: number };
+type PlayerConnection = {
+  guildId: string;
+  volume?: number;
+  workers?: { rainbot?: WorkerVolume; pranjeet?: WorkerVolume; hungerbot?: WorkerVolume };
+};
+type PlayerBotStatus = { connections?: PlayerConnection[] };
 
 export default function PlayerTab() {
   const { selectedGuildId } = useGuildStore();
@@ -29,25 +39,18 @@ export default function PlayerTab() {
   }>({ rainbot: null, pranjeet: null, hungerbot: null });
   const queryClient = useQueryClient();
 
-  const { connected: isQueueSSEConnected } = useQueueEvents(selectedGuildId ?? null);
-  const { connected: isStatusSSEConnected } = useStatusEvents();
+  // This tab is the app's SSE owner: it opens both streams, which push straight
+  // into the two query caches below AND suppress their polling for every
+  // observer, not just this one — see `useLiveQuery`.
+  useQueueEvents(selectedGuildId ?? null);
+  useStatusEvents();
 
-  const { data: queueData } = useQuery({
-    queryKey: ['queue', selectedGuildId],
-    queryFn: ({ signal }) => botApi.getQueue(selectedGuildId!, { signal }).then((res) => res.data),
-    enabled: !!selectedGuildId,
-    refetchInterval: isQueueSSEConnected ? false : 5000,
-  });
-
-  const { data: botStatus } = useQuery({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: isStatusSSEConnected ? false : 5000,
-  });
+  const { data: queueData } = useQueueQuery(selectedGuildId);
+  const { data: botStatus } = useBotStatusQuery<PlayerBotStatus>();
 
   const connection = (() => {
     if (botStatus?.connections && selectedGuildId) {
-      return botStatus.connections.find((c: { guildId: string }) => c.guildId === selectedGuildId);
+      return botStatus.connections.find((c) => c.guildId === selectedGuildId);
     }
     return null;
   })();

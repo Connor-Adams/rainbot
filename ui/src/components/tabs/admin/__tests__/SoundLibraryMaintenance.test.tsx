@@ -61,6 +61,45 @@ describe('SoundLibraryMaintenance — layout', () => {
   });
 });
 
+/**
+ * The Strip Hidden Video copy shipped the sentence "Around eighteen sounds are
+ * secretly video files". Nothing on screen derives that figure — the panel's
+ * three endpoints return per-run counts (`stripped`/`archived`/`skipped`/
+ * `failed`, `analyzed`/`skipped`/`failed`, `converted`/`deleted`/`skipped`) and
+ * none of them reports how many library entries carry a video track. It was a
+ * number from a one-off investigation, frozen into product prose, and it goes
+ * stale the moment anyone uploads or strips a sound.
+ *
+ * Since there is no value to derive it from, the claim is removed rather than
+ * computed. This pins that: the description must still explain what the sweep
+ * does, and must assert no quantity at all.
+ */
+describe('SoundLibraryMaintenance — Strip Hidden Video copy', () => {
+  const NUMBER_WORD =
+    /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|dozen)\b/i;
+
+  function description() {
+    const heading = screen.getByText('Strip Hidden Video');
+    const card = heading.parentElement;
+    const text = card?.children[1]?.textContent ?? '';
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
+  it('still explains what the sweep does', () => {
+    renderWithQuery(<SoundLibraryMaintenance />);
+
+    expect(description()).toMatch(/video/i);
+    expect(description()).toMatch(/archiv/i);
+  });
+
+  it('makes no numeric claim about how many sounds are affected', () => {
+    renderWithQuery(<SoundLibraryMaintenance />);
+
+    expect(description()).not.toMatch(NUMBER_WORD);
+    expect(description()).not.toMatch(/\d/);
+  });
+});
+
 describe('SoundLibraryMaintenance — transcode sweep', () => {
   it('confirms before running, and does not run on cancel', async () => {
     renderWithQuery(<SoundLibraryMaintenance />);

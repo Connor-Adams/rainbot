@@ -2,6 +2,7 @@ import type { UserStat } from '@/types';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { statsApi } from '@/lib/api';
+import { safeDateTimeLabel } from '@/lib/chartSafety';
 
 export default function UsersStats() {
   const { data, isLoading, error } = useStatsQuery<{ users: UserStat[] }>({
@@ -66,7 +67,7 @@ export default function UsersStats() {
       id: 'last_active',
       header: 'Last Active',
       render: (user: UserStat) =>
-        user.last_active ? new Date(user.last_active).toLocaleString() : 'Never',
+        user.last_active ? safeDateTimeLabel(user.last_active) : 'Never',
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ];

@@ -3,6 +3,21 @@ import { formatDuration } from '@/lib/utils';
 import { Button, Badge } from '@/components/ui';
 import { Icon } from '@connor-adams/designsystem';
 
+/**
+ * Entry-animation stagger, in milliseconds per row, and its ceiling.
+ *
+ * The delay used to be an uncapped `index * 0.05s`. The queue polls, so every
+ * refresh re-mounts the rows and replays the animation — at 25 tracks the last
+ * row finished appearing 1.25s after the first and the list visibly rippled on
+ * each poll. Clamping the total keeps the effect for the first rows (the point
+ * of a stagger) and makes a long queue cost the same as a short one.
+ *
+ * Whole milliseconds rather than fractional seconds: `index * 0.05` produced
+ * `animationDelay: 0.15000000000000002s` from binary floating point.
+ */
+const STAGGER_STEP_MS = 50;
+const STAGGER_MAX_MS = 300;
+
 interface QueueItemProps {
   track: Track;
   index: number;
@@ -17,8 +32,43 @@ function getTrackSource(track: Track) {
   return { icon: '🎵', text: 'Stream' };
 }
 
+/**
+ * `MediaItem` carries both `duration` (SECONDS) and `durationMs`
+ * (MILLISECONDS), both optional, and `formatDuration` takes seconds — so the
+ * two fields have to be normalised before they can be formatted. Reading one as
+ * the other turns a 4-minute track into either 68 hours or a quarter second.
+ *
+ * `duration` wins when both are set, matching how the bots resolve the same
+ * ambiguity (`apps/raincloud/commands/voice/queue.js`,
+ * `apps/raincloud/handlers/musicButtonHandlers.ts`). The ms value is rounded
+ * here as well as floored inside `formatDuration` -- belt and braces since that
+ * helper gained its own flooring, but kept so this function's contract is whole
+ * seconds regardless of who formats the result.
+ *
+ * Returns `undefined` for anything that is not a known, positive length, so the
+ * caller has one thing to test. The `> 0` is not cosmetic: the meta line used to
+ * render `{track.duration && <span>…</span>}`, and `0 && x` is `0`, which React
+ * renders as a text child — a live stream, or a track whose length was never
+ * probed, printed `🎵 Stream0`. An explicit check rather than truthiness,
+ * because truthiness on a numeric field is what caused that. A zero-length
+ * track shows no duration at all; `0:00` would claim the length is known to be
+ * zero.
+ */
+function trackDurationSeconds(track: Track): number | undefined {
+  const seconds =
+    track.duration != null
+      ? track.duration
+      : track.durationMs != null
+        ? Math.round(track.durationMs / 1000)
+        : undefined;
+
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  return seconds;
+}
+
 export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
   const source = getTrackSource(track);
+  const durationSeconds = trackDurationSeconds(track);
 
   return (
     <div
@@ -29,7 +79,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         hover:border-primary hover:bg-surface-hover hover:translate-x-1
         animate-slide-in-left
       "
-      style={{ animationDelay: `${index * 0.05}s` }}
+      style={{ animationDelay: `${Math.min(index * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms` }}
     >
       <Badge variant="default" size="sm" className="w-8 h-8 flex-shrink-0 p-0">
         {index + 1}
@@ -46,7 +96,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
           <span className="flex items-center gap-1.5">
             {source.icon} {source.text}
           </span>
-          {track.duration && <span>{formatDuration(track.duration)}</span>}
+          {durationSeconds !== undefined && <span>{formatDuration(durationSeconds)}</span>}
         </div>
       </div>
 

@@ -1,13 +1,29 @@
 import type { GuildStat } from '@/types';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
 import { statsApi } from '@/lib/api';
+import { safeDateTimeLabel } from '@/lib/chartSafety';
 
 export default function GuildsStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'guilds'],
     queryFn: ({ signal }) => statsApi.guilds({ signal }),
   });
+
+  // `/api/stats/guilds` only knows the snowflake; `/api/status` already carries
+  // `guilds: [{ id, name }]` for every guild the bot is currently in, and the
+  // header's picker has it cached under this very key. Reusing the key joins the
+  // name in without a second round trip in the common case, and without any
+  // server change.
+  //
+  // Deliberately NOT gating the table on this query: stats rows are history, so
+  // a guild the bot has since left will never have a name here, and neither a
+  // slow nor a failing `/status` should hide guild statistics. The id stays the
+  // fallback so every row still identifies itself.
+  const { data: status } = useBotStatusQuery();
+
+  const guildNames = new Map((status?.guilds ?? []).map((guild) => [guild.id, guild.name]));
 
   if (isLoading) return <StatsLoading message="Loading guild statistics..." />;
   if (error) return <StatsError error={error} />;
@@ -16,8 +32,14 @@ export default function GuildsStats() {
   const columns = [
     {
       id: 'guild_id',
-      header: 'Guild ID',
-      render: (guild: GuildStat) => <span className="font-mono">{guild.guild_id}</span>,
+      header: 'Guild',
+      render: (guild: GuildStat) => {
+        const name = guildNames.get(guild.guild_id);
+        // `font-mono` only on the id: an 18-digit snowflake in a monospace face
+        // is what made this the widest column in the table and pushed it past
+        // 1000px. A name reads as prose and sets its own width.
+        return name ? <span>{name}</span> : <span className="font-mono">{guild.guild_id}</span>;
+      },
       className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
@@ -57,7 +79,7 @@ export default function GuildsStats() {
       id: 'last_active',
       header: 'Last Active',
       render: (guild: GuildStat) =>
-        guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never',
+        guild.last_active ? safeDateTimeLabel(guild.last_active) : 'Never',
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ];

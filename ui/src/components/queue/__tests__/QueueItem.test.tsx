@@ -71,3 +71,148 @@ describe('QueueItem', () => {
     expect(screen.getByRole('button', { name: 'Remove Unknown from queue' })).toBeInTheDocument();
   });
 });
+
+/**
+ * `MediaItem` carries BOTH `duration` (seconds) and `durationMs` (milliseconds)
+ * and both are optional, so a producer that fills in only the ms field left the
+ * queue row with no duration at all.
+ *
+ * Which one does the worker actually send? `apps/rainbot/src/voice/trackFetcher.ts`
+ * builds every queue item from play-dl's `durationInSec`, and `buildQueueState`
+ * in `apps/rainbot/src/state/guild-state.ts` passes `state.queue` through
+ * untouched — so today the queue always carries `duration`, and `durationMs` is
+ * only ever set on `PlaybackState`/`QueueState` (the now-playing progress bar).
+ * The gap is therefore latent rather than visible on the rainbot path, but both
+ * fields are in the shared contract, so both are handled here.
+ *
+ * The unit difference is the whole risk: read as seconds, 245000 ms would
+ * render as 68 hours, and read as ms, 245 s would render as a quarter second.
+ * Both fixtures below describe the same 4:05 track through the two fields, and
+ * both must produce the same string.
+ */
+describe('QueueItem duration', () => {
+  it('renders a duration given only `duration` in seconds', () => {
+    render(<QueueItem track={makeTrack({ duration: 245 })} index={0} onRemove={vi.fn()} />);
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+  });
+
+  it('renders the same duration given only `durationMs` in milliseconds', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: undefined, durationMs: 245_000 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+  });
+
+  it('prefers `duration` when both are present', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: 245, durationMs: 999_000 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:05')).toBeInTheDocument();
+    expect(screen.queryByText('16:39')).not.toBeInTheDocument();
+  });
+
+  it('rounds a millisecond duration to whole seconds', () => {
+    render(
+      <QueueItem
+        track={makeTrack({ duration: undefined, durationMs: 245_678 })}
+        index={0}
+        onRemove={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('4:06')).toBeInTheDocument();
+  });
+
+  it('shows no duration at all when neither field is set', () => {
+    render(<QueueItem track={makeTrack({ duration: undefined })} index={0} onRemove={vi.fn()} />);
+
+    expect(screen.queryByText(/^\d+:\d{2}$/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The entry animation's delay was `index * 0.05s` with no ceiling. The queue
+ * polls, so every refresh re-mounts the rows and replays the animation: at the
+ * 25 tracks the sidebar routinely holds, the last row only finished appearing
+ * 1.25s after the first, and the whole list visibly rippled on each poll.
+ *
+ * The stagger is kept for the first few rows (that is the effect it was for)
+ * and clamped from there, so the cost of a long queue is bounded.
+ */
+describe('QueueItem entry stagger', () => {
+  function delayOf(index: number) {
+    const { container } = render(
+      <QueueItem track={makeTrack()} index={index} onRemove={vi.fn()} />
+    );
+    return (container.firstElementChild as HTMLElement).style.animationDelay;
+  }
+
+  it('still staggers the first rows', () => {
+    expect(delayOf(0)).toBe('0ms');
+    expect(delayOf(3)).toBe('150ms');
+  });
+
+  it('caps the delay so a long queue does not ripple', () => {
+    expect(delayOf(24)).toBe('300ms');
+    expect(delayOf(100)).toBe('300ms');
+  });
+});
+
+/**
+ * The meta line rendered `{track.duration && <span>…</span>}`. When `duration`
+ * is `0` that expression evaluates to `0`, not `false`, and React renders `0` as
+ * a text child — so a zero-length track printed a stray digit next to its
+ * source: `🎵 Stream0`.
+ *
+ * `duration: 0` is a realistic input, not a synthetic one: a live stream, or a
+ * track whose length was never probed.
+ *
+ * The guard is an explicit finite-and-positive check rather than truthiness,
+ * because truthiness on a numeric field is the whole bug. A zero-length track
+ * shows no duration at all, which is the honest answer — 0:00 would claim the
+ * length is known to be zero.
+ *
+ * These assert the meta line's FULL text, so a stray `0` anywhere in it fails
+ * (`getByText('🎵 Stream')` with the default exact matcher will not match
+ * `🎵 Stream0`).
+ */
+describe('QueueItem zero-length tracks', () => {
+  function metaText(track: Track) {
+    const { container } = render(<QueueItem track={track} index={0} onRemove={vi.fn()} />);
+    const meta = container.querySelector('.flex-1 > div:last-child');
+    return meta?.textContent?.replace(/\s+/g, ' ').trim();
+  }
+
+  it('renders no stray 0 for a track with duration 0', () => {
+    expect(metaText(makeTrack({ duration: 0, url: 'https://example.com/live' }))).toBe('🎵 Stream');
+  });
+
+  it('renders no stray 0 for a track with durationMs 0', () => {
+    expect(
+      metaText(makeTrack({ duration: undefined, durationMs: 0, url: 'https://example.com/live' }))
+    ).toBe('🎵 Stream');
+  });
+
+  it('renders no duration for a non-finite duration', () => {
+    expect(metaText(makeTrack({ duration: NaN, url: 'https://example.com/live' }))).toBe(
+      '🎵 Stream'
+    );
+  });
+
+  it('renders no duration for a negative duration', () => {
+    expect(metaText(makeTrack({ duration: -30, url: 'https://example.com/live' }))).toBe(
+      '🎵 Stream'
+    );
+  });
+});

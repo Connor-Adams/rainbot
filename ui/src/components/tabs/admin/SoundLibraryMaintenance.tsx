@@ -131,8 +131,13 @@ export default function SoundLibraryMaintenance() {
       <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">Strip Hidden Video</div>
         <div className="text-xs text-text-secondary mb-4">
-          Around eighteen sounds are secretly video files - a picture track sitting alongside the
-          audio - which is why speech transcription refuses them. This rewrites each one as audio
+          {/* No count here on purpose: nothing this panel fetches reports how
+              many library entries carry a video track - the three sweeps all
+              return per-run tallies - so any figure in this sentence would be a
+              frozen number from a one-off investigation. The sweep itself
+              reports what it found, below. */}
+          Some sounds are secretly video files - a picture track sitting alongside the audio - which
+          is why speech transcription refuses them. This rewrites every affected sound as audio
           only, keeping the sound itself bit-for-bit identical and its name unchanged. A copy of
           every original is archived first.
         </div>

@@ -1,16 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { botApi } from '@/lib/api';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
 import type { Connection } from '@/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import EmptyState from '@/components/common/EmptyState';
 import ListItem from '@/components/common/ListItem';
 
 export default function ConnectionsList() {
-  const { data: status } = useQuery({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: 5000,
-  });
+  const { data: status } = useBotStatusQuery();
 
   const connections = status?.connections || [];
 

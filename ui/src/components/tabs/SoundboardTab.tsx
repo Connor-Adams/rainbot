@@ -331,9 +331,20 @@ export default function SoundboardTab() {
               <SoundCard
                 sound={sound}
                 customization={getCustomization(sound.name)}
-                isPlaying={playMutation.isPending}
+                /* `playMutation.isPending` alone marked EVERY card as playing
+                   — 60 cards pulsing and pinging for one click. The mutation
+                   already carries which sound it is for in `variables`, so no
+                   extra state is needed to scope it. */
+                isPlaying={playMutation.isPending && playMutation.variables === sound.name}
                 isPreviewing={previewingSound === sound.name}
-                isDisabled={!selectedGuildId || playMutation.isPending}
+                /* Only the missing guild disables a card. Gating the whole
+                   board on `isPending` greyed out all 60 (opacity-50,
+                   cursor-not-allowed, tabIndex -1) for the duration of one
+                   request, and soundboard plays are deliberately concurrent —
+                   firing a second effect over the first is the normal way this
+                   is used, and the server accepts it. The in-flight card is
+                   already marked by `isPlaying`. */
+                isDisabled={!selectedGuildId}
                 onPlay={handlePlay}
                 onMenuToggle={(name, el) =>
                   setMenuAnchor((prev) => (prev?.name === name ? null : { name, el }))

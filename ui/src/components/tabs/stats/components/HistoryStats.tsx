@@ -6,6 +6,7 @@ import { formatDurationLong } from '@/lib/utils';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { Button } from '@/components/ui';
+import { safeDateTimeLabel } from '@/lib/chartSafety';
 
 export default function HistoryStats() {
   const { selectedGuildId } = useGuildStore();
@@ -30,9 +31,6 @@ export default function HistoryStats() {
     setAppliedStartDate(startDate);
     setAppliedEndDate(endDate);
   };
-
-  if (isLoading) return <StatsLoading message="Loading listening history..." />;
-  if (error) return <StatsError error={error} />;
 
   const history: ListeningHistoryEntry[] = data?.history || [];
 
@@ -93,7 +91,7 @@ export default function HistoryStats() {
     {
       id: 'played_at',
       header: 'Played At',
-      render: (entry: ListeningHistoryEntry) => new Date(entry.played_at).toLocaleString(),
+      render: (entry: ListeningHistoryEntry) => safeDateTimeLabel(entry.played_at),
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ];
@@ -124,16 +122,28 @@ export default function HistoryStats() {
           Filter
         </Button>
       </div>
-      {/* `StatsTable`'s own empty state is `EmptyState icon="📭"`, which is the
-          same 📭 + message the hand-rolled `empty-state` paragraph rendered —
-          so the divergent block is gone rather than normalised by hand.
-          `ListeningHistoryEntry` carries no stable id, so the row key stays the
-          array index, as it was. */}
-      <StatsTable<ListeningHistoryEntry>
-        columns={columns}
-        data={history}
-        emptyMessage="No listening history found"
-      />
+      {/* The loading and error states render *here*, below the filter row, rather
+          than replacing the whole section from an early `return`. This section is
+          the only one whose request the user parameterises, and the most likely
+          cause of an error is the range they just entered — an early return
+          unmounted the two date inputs and the Filter button along with the
+          table, leaving no control on screen to correct it with. */}
+      {isLoading ? (
+        <StatsLoading message="Loading listening history..." />
+      ) : error ? (
+        <StatsError error={error} />
+      ) : (
+        /* `StatsTable`'s own empty state is `EmptyState icon="📭"`, which is the
+           same 📭 + message the hand-rolled `empty-state` paragraph rendered —
+           so the divergent block is gone rather than normalised by hand.
+           `ListeningHistoryEntry` carries no stable id, so the row key stays the
+           array index, as it was. */
+        <StatsTable<ListeningHistoryEntry>
+          columns={columns}
+          data={history}
+          emptyMessage="No listening history found"
+        />
+      )}
     </StatsSection>
   );
 }

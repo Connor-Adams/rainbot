@@ -24,12 +24,49 @@ interface StatCardProps {
   /**
    * `ReactNode`, not `string | number`, so a tile can colour or otherwise mark
    * up its own value — severity on a latency percentile, for instance. Numbers
-   * still get `toLocaleString()` grouping; anything else is rendered as given.
+   * and bare numeric strings get `toLocaleString()` grouping (see
+   * `groupIfPlainNumber`); anything else is rendered as given.
    */
   value: ReactNode;
   label: string;
   icon?: ReactNode;
   className?: string;
+}
+
+/**
+ * A bare decimal number in canonical form: optional `-`, no leading zeros
+ * (other than a lone `0`), at most 15 integer digits, optional fractional part.
+ *
+ * Most stats endpoints return counts as STRINGS (Postgres `count(*)` arrives as
+ * text over `pg`), so grouping only `typeof value === 'number'` meant
+ * `ApiLatencyStats` printed `1284922` next to `StatsSummary`'s `184,922` in the
+ * same dashboard.
+ *
+ * The rule is deliberately narrow, because wrong grouping on an identifier is
+ * worse than no grouping on a count:
+ *
+ * - **15 integer digits max.** A Discord snowflake is 17-19 digits, so it can
+ *   never match. The bound also sits inside `Number.MAX_SAFE_INTEGER`, so the
+ *   `Number()` below is always exact.
+ * - **No leading zeros.** A zero-padded value is a code or an id, not a count.
+ * - **Nothing but digits, one optional `-` and one optional `.`.** Units
+ *   (`12000000ms`), percentages (`99.4%`), formatted durations (`973h 55m`),
+ *   clock times and free text (`TypeError`) all fail the test and pass through
+ *   untouched.
+ */
+const PLAIN_NUMBER = /^-?(?:0|[1-9]\d{0,14})(?:\.\d+)?$/;
+
+/**
+ * Group the integer part and re-attach the fractional digits verbatim.
+ * `Number('1234567.8901').toLocaleString()` would round to `1,234,567.89`
+ * (`maximumFractionDigits` defaults to 3), which silently changes a reported
+ * value — so only the whole part goes through `toLocaleString()`.
+ */
+function groupIfPlainNumber(value: string): string {
+  if (!PLAIN_NUMBER.test(value)) return value;
+  const [whole, fraction] = value.split('.');
+  const grouped = Number(whole).toLocaleString();
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`;
 }
 
 export default function StatCard({ value, label, icon, className = '' }: StatCardProps) {
@@ -61,7 +98,13 @@ export default function StatCard({ value, label, icon, className = '' }: StatCar
           label
         )
       }
-      value={typeof value === 'number' ? value.toLocaleString() : value}
+      value={
+        typeof value === 'number'
+          ? value.toLocaleString()
+          : typeof value === 'string'
+            ? groupIfPlainNumber(value)
+            : value
+      }
     />
   );
 }

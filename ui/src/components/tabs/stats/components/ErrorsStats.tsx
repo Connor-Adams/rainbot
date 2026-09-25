@@ -59,17 +59,6 @@ interface ErrorsData {
   recent: RecentError[];
 }
 
-/**
- * `.ca-stat-card__value` is `white-space: nowrap` with no overflow handling, so
- * a long free-text value (an error class name, a command) runs past the tile's
- * edge instead of truncating the way the hand-rolled tile's `truncate` did.
- * The shared `StatCard` wrapper types `value` as `string | number` and forwards
- * `className` to the card root, so the fix cannot be a node — it is this
- * descendant variant on the tile's two `<p>` elements, applied only to the two
- * free-text tiles (the counts are short and unaffected).
- */
-const TRUNCATE_VALUE = '';
-
 export default function ErrorsStats() {
   const { data, isLoading, error } = useStatsQuery<ErrorsData>({
     queryKey: ['stats', 'errors'],
@@ -137,16 +126,8 @@ export default function ErrorsStats() {
       <StatGrid columns="auto" minItemWidth={180} gap="md">
         <StatCard value={summary.total_errors || 0} label="Total Errors" />
         <StatCard value={summary.unique_commands || 0} label="Unique Commands" />
-        <StatCard
-          value={summary.most_common_error || 'N/A'}
-          label="Most Common Error"
-          className={TRUNCATE_VALUE}
-        />
-        <StatCard
-          value={summary.most_failing_command || 'N/A'}
-          label="Most Failing Command"
-          className={TRUNCATE_VALUE}
-        />
+        <StatCard value={summary.most_common_error || 'N/A'} label="Most Common Error" />
+        <StatCard value={summary.most_failing_command || 'N/A'} label="Most Failing Command" />
       </StatGrid>
 
       <div className="grid md:grid-cols-2 gap-6">

@@ -1,7 +1,6 @@
 import type { User } from '@/types';
 import { useLayoutEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { botApi } from '@/lib/api';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
 import Logo from './header/Logo';
 import NavTabs from './header/NavTabs';
 import UserInfo from './header/UserInfo';
@@ -44,11 +43,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
     };
   }, []);
 
-  const { data: status } = useQuery({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: 5000,
-  });
+  const { data: status } = useBotStatusQuery();
 
   return (
     <header
