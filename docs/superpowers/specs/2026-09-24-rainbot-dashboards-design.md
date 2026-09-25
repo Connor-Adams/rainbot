@@ -179,16 +179,16 @@ subset while debugging. Per-service drilldown is the Explore links in the header
 
 ### `overview.json` — is it healthy
 
-| Panel                 | Query                                                                                                                      |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Collector scrape      | `up{job="otel-collector"}`                                                                                                 |
-| Worker self-report    | `rainbot_worker_registered` by `rainbot_worker`                                                                            |
-| Orchestrator belief   | `rainbot_worker_orchestrator_healthy{job="rainbot-raincloud"}` by `rainbot_worker`                                         |
-| Voice connections     | `sum(rainbot_voice_connections)`, and `sum by (job) (rainbot_voice_connections)`                                           |
-| RPC p95 by procedure  | `histogram_quantile(0.95, sum by (le, rainbot_rpc_procedure) (rate(rainbot_worker_rpc_duration_milliseconds_bucket[5m])))` |
-| RPC volume by outcome | `sum by (rainbot_outcome) (rate(rainbot_worker_rpc_duration_milliseconds_count[5m]))`                                      |
-| Error log rate        | `sum by (service_name) (rate({service_name=~"rainbot-.*", level="ERROR"}[5m]))`                                            |
-| Recent errors (logs)  | `{service_name=~"rainbot-.*", level=~"ERROR\|WARN"}`                                                                       |
+| Panel                | Query                                                                                                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collector scrape     | `up{job="otel-collector"}`                                                                                                                                            |
+| Worker self-report   | `rainbot_worker_registered` by `rainbot_worker`                                                                                                                       |
+| Orchestrator belief  | `rainbot_worker_orchestrator_healthy{job="rainbot-raincloud"}` by `rainbot_worker`                                                                                    |
+| Voice connections    | `sum(rainbot_voice_connections)`, and `sum by (job) (rainbot_voice_connections)`                                                                                      |
+| RPC p95 by procedure | `histogram_quantile(0.95, sum by (le, rainbot_rpc_procedure) (rate(rainbot_worker_rpc_duration_milliseconds_bucket[5m])))`                                            |
+| RPC outcome rate     | `sum by (status_code) (rate(rainbot_span_calls_total{span_name="worker.rpc"}[$__rate_interval]))` — NOT the RPC histogram, which carries no outcome label (see below) |
+| Error log rate       | `sum by (service_name) (rate({service_name=~"rainbot-.*", level="ERROR"}[5m]))`                                                                                       |
+| Recent errors (logs) | `{service_name=~"rainbot-.*", level=~"ERROR\|WARN"}`                                                                                                                  |
 
 The two worker panels sit side by side on purpose: `rainbot_worker_registered` is each worker's
 own boot-time self-report with no heartbeat, while `rainbot_worker_orchestrator_healthy` is
@@ -196,6 +196,15 @@ raincloud's circuit-breaker view. They disagree exactly when raincloud has resta
 registry while a worker's stale `1` persists — that disagreement is the signal, and it is only
 visible if both are on screen together. Workers retry registration four times and then give up
 permanently, so a stuck `0` never self-heals.
+
+**Correction (found in review of this task).** Panel 7 originally read
+`sum by (rainbot_outcome) (rate(rainbot_worker_rpc_duration_milliseconds_count[...]))`, which is
+wrong: `rainbot.worker.rpc.duration` is recorded at one call site (`packages/rpc/src/client.ts`)
+with `rainbot.rpc_procedure` and `rainbot.worker` only, and `rainbot.outcome` is used solely on the
+track-resolve paths. That query does not return No data — it collapses to one flat series with a
+blank legend, which is worse. RPC success/failure lives in the span-metrics family instead: the
+client span is named `worker.rpc` and the connector emits `status_code` by default. The panel now
+queries that, and carries a description saying why the histogram cannot answer it.
 
 A Node runtime row (event loop, heap) is deferred to the follow-up in "Unverified", since the
 runtime-node instrumentation's exact metric names have not been observed on this stack.
@@ -253,6 +262,8 @@ once real traffic exists; the checklist is part of implementation, not a follow-
 6. Node runtime metric names, before adding the deferred overview row.
 7. Whether the prometheus exporter derives a `job` label for spanmetrics-connector output, or only
    the connector's own `service_name` dimension survives.
+8. That `worker.rpc` is the span name the connector actually sees, and that `status_code` carries
+   distinguishable values on it — the overview's RPC outcome panel depends on both.
 
 ## Validation
 

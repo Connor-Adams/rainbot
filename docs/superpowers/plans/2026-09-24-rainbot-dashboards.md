@@ -558,19 +558,28 @@ Create `services/grafana/provisioning/dashboards/rainbot/overview.json`. Dashboa
 
 This is the complete panel list. Every Prometheus panel follows the pattern object below it; `id` values are sequential from 1, `gridPos` is given per panel.
 
-| id  | Title                           | Type       | Unit  | gridPos (h,w,x,y) | Query                                                                                                                                                                             |
-| --- | ------------------------------- | ---------- | ----- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Collector scrape up             | stat       | short | 4,6,0,0           | `up{job="otel-collector"}`                                                                                                                                                        |
-| 2   | Voice connections               | stat       | short | 4,6,6,0           | `sum(rainbot_voice_connections)`                                                                                                                                                  |
-| 3   | Error log rate (per s)          | stat       | short | 4,12,12,0         | Loki: `sum(rate({service_name=~"rainbot-.*", level="ERROR"}[$__rate_interval]))`                                                                                                  |
-| 4   | Worker self-report (registered) | timeseries | short | 7,12,0,4          | `rainbot_worker_registered` · legend `{{rainbot_worker}}`                                                                                                                         |
-| 5   | Orchestrator view (healthy)     | timeseries | short | 7,12,12,4         | `rainbot_worker_orchestrator_healthy{job="rainbot-raincloud"}` · legend `{{rainbot_worker}}`                                                                                      |
-| 6   | RPC p95 by procedure            | timeseries | ms    | 8,12,0,11         | `histogram_quantile(0.95, sum by (le, rainbot_rpc_procedure) (rate(rainbot_worker_rpc_duration_milliseconds_bucket[$__rate_interval])))` · legend `p95 {{rainbot_rpc_procedure}}` |
-| 7   | RPC call rate by outcome        | timeseries | short | 8,12,12,11        | `sum by (rainbot_outcome) (rate(rainbot_worker_rpc_duration_milliseconds_count[$__rate_interval]))` · legend `{{rainbot_outcome}}`                                                |
-| 8   | Voice connections by service    | timeseries | short | 8,12,0,19         | `sum by (job) (rainbot_voice_connections)` · legend `{{job}}`                                                                                                                     |
-| 9   | Errors and warnings             | logs       | —     | 10,12,12,19       | Loki: `{service_name=~"rainbot-.*", level=~"ERROR\|WARN"}`                                                                                                                        |
+| id  | Title                             | Type       | Unit  | gridPos (h,w,x,y) | Query                                                                                                                                                                             |
+| --- | --------------------------------- | ---------- | ----- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Collector scrape up               | stat       | short | 4,6,0,0           | `up{job="otel-collector"}`                                                                                                                                                        |
+| 2   | Voice connections                 | stat       | short | 4,6,6,0           | `sum(rainbot_voice_connections)`                                                                                                                                                  |
+| 3   | Error log rate (per s)            | stat       | short | 4,12,12,0         | Loki: `sum(rate({service_name=~"rainbot-.*", level="ERROR"}[$__rate_interval]))`                                                                                                  |
+| 4   | Worker self-report (registered)   | timeseries | short | 7,12,0,4          | `rainbot_worker_registered` · legend `{{rainbot_worker}}`                                                                                                                         |
+| 5   | Orchestrator view (healthy)       | timeseries | short | 7,12,12,4         | `rainbot_worker_orchestrator_healthy{job="rainbot-raincloud"}` · legend `{{rainbot_worker}}`                                                                                      |
+| 6   | RPC p95 by procedure              | timeseries | ms    | 8,12,0,11         | `histogram_quantile(0.95, sum by (le, rainbot_rpc_procedure) (rate(rainbot_worker_rpc_duration_milliseconds_bucket[$__rate_interval])))` · legend `p95 {{rainbot_rpc_procedure}}` |
+| 7   | RPC outcome rate (by span status) | timeseries | short | 8,12,12,11        | `sum by (status_code) (rate(rainbot_span_calls_total{span_name="worker.rpc"}[$__rate_interval]))` · legend `{{status_code}}` — see the correction note below the table            |
+| 8   | Voice connections by service      | timeseries | short | 8,12,0,19         | `sum by (job) (rainbot_voice_connections)` · legend `{{job}}`                                                                                                                     |
+| 9   | Errors and warnings               | logs       | —     | 10,12,12,19       | Loki: `{service_name=~"rainbot-.*", level=~"ERROR\|WARN"}`                                                                                                                        |
 
 Panels 4 and 5 are deliberately side by side at the same `y`. `rainbot_worker_registered` is each worker's own boot-time self-report with no heartbeat; `rainbot_worker_orchestrator_healthy` is raincloud's circuit-breaker belief. They diverge exactly when raincloud has restarted and lost its registry while a worker's stale `1` persists, and that divergence is only legible if both are on screen. Workers retry registration four times and then stop forever, so a flat `0` never recovers on its own.
+
+**Correction (found in review of this task).** Panel 7 originally read
+`sum by (rainbot_outcome) (rate(rainbot_worker_rpc_duration_milliseconds_count[...]))`, which is
+wrong: `rainbot.worker.rpc.duration` is recorded at one call site (`packages/rpc/src/client.ts`)
+with `rainbot.rpc_procedure` and `rainbot.worker` only, and `rainbot.outcome` is used solely on the
+track-resolve paths. That query does not return No data — it collapses to one flat series with a
+blank legend, which is worse. RPC success/failure lives in the span-metrics family instead: the
+client span is named `worker.rpc` and the connector emits `status_code` by default. The panel now
+queries that, and carries a description saying why the histogram cannot answer it.
 
 Pattern object for a Prometheus timeseries panel (panel 6 shown complete):
 
