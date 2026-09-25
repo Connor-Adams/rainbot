@@ -2,9 +2,21 @@ import React, { Component } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui';
 
+/**
+ * A `fallback` that needs the boundary's own retry — the one thing a static
+ * `ReactNode` cannot reach, because `handleRetry` lives on the instance.
+ */
+type ErrorFallbackRender = (props: { error: Error | null; onRetry: () => void }) => ReactNode;
+
 interface ErrorBoundaryProps {
   children: ReactNode;
-  fallback?: ReactNode;
+  /**
+   * A specialised panel for this subtree. Pass a FUNCTION when the panel needs
+   * to offer a retry: a static node is rendered as-is, which is how
+   * `StatsErrorBoundary` ended up with a panel that told the user to reload the
+   * page because it had no way to ask the boundary to try again.
+   */
+  fallback?: ReactNode | ErrorFallbackRender;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
@@ -77,8 +89,12 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
   render(): ReactNode {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
+      const { fallback } = this.props;
+      if (typeof fallback === 'function') {
+        return fallback({ error: this.state.error, onRetry: this.handleRetry });
+      }
+      if (fallback) {
+        return fallback;
       }
 
       return <DefaultErrorFallback error={this.state.error} onRetry={this.handleRetry} />;
@@ -90,12 +106,24 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
 /**
  * StatsErrorBoundary - Specialized error boundary for stats components
- * with stats-specific messaging
+ * with stats-specific messaging.
+ *
+ * The `fallback` is a FUNCTION, not a node, so the panel can offer the
+ * boundary's own retry. As a static node it had no "Try Again" — and because
+ * `render()` returns a provided fallback *before* `DefaultErrorFallback`, that
+ * also meant no retry was reachable at all. One render-phase throw in one of the
+ * 21 sections (a single malformed payload field is enough) then wedged the whole
+ * tab, with a full page reload the only way out.
+ *
+ * `StatisticsTab` keys this boundary on the active section — the same shape
+ * `Layout` uses for `RouteErrorBoundary` — so switching sections clears
+ * `hasError` too. Both halves are needed: the retry recovers the section you are
+ * on, the key stops a broken section from blocking the other twenty.
  */
 export function StatsErrorBoundary({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary
-      fallback={
+      fallback={({ onRetry }) => (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-8 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-input text-xl font-semibold text-secondary">
             i
@@ -105,9 +133,11 @@ export function StatsErrorBoundary({ children }: { children: ReactNode }) {
             Unable to load statistics. This could be because there's no data yet, or a temporary
             server issue.
           </p>
-          <p className="text-xs text-text-muted">Try refreshing the page or check back later.</p>
+          <Button onClick={onRetry} variant="primary">
+            Try Again
+          </Button>
         </div>
-      }
+      )}
     >
       {children}
     </ErrorBoundary>

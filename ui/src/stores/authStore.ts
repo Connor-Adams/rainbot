@@ -39,12 +39,9 @@ export const useAuthStore = create<AuthState>()(
             console.log('[Auth] Response data:', data);
           }
 
-          // Handle error responses (401/403)
-          if (res.status === 401 || res.status === 403) {
-            if (debugEnabled) console.log('[Auth] Not authenticated (401/403)');
-            set({ isAuthenticated: false, user: null, isLoading: false });
-            return false;
-          }
+          // No 401/403 check here on purpose: Axios REJECTS a 4xx, so this
+          // branch was unreachable and the duplicate check in the `catch` below
+          // is the one that has always run.
 
           // Check if authenticated and has access
           if (data.authenticated && data.hasAccess) {
@@ -99,7 +96,16 @@ export const useAuthStore = create<AuthState>()(
           if (debugEnabled) console.error('Logout error:', error);
         } finally {
           set({ user: null, isAuthenticated: false });
-          window.location.href = buildAuthUrl('/auth/discord');
+          // The dashboard's own root, NOT `/auth/discord` — that is the URL
+          // `LoginPage` uses to log IN (`passport.authenticate('discord')`), so
+          // logging out destroyed the session and then pushed the browser
+          // straight back into the OAuth flow. This agrees with the server,
+          // whose `GET /auth/logout` ends by redirecting to `${baseUrl}/` with
+          // `baseUrl` the dashboard origin; an unauthenticated `App` renders
+          // `LoginPage` there. A full navigation rather than a router push,
+          // because it is also what drops every cached query and store the
+          // signed-in session built up.
+          window.location.href = '/';
         }
       },
     }),

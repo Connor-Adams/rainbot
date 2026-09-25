@@ -1,23 +1,13 @@
 import { useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Combobox } from '@connor-adams/designsystem';
-import { botApi } from '@/lib/api';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
 import { useGuildStore } from '@/stores/guildStore';
 import type { Guild } from '@/types';
 
 export default function GuildPicker() {
   const { selectedGuildId, setSelectedGuildId } = useGuildStore();
 
-  const {
-    data: status,
-    isSuccess,
-    isPending,
-    isError,
-  } = useQuery({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: 5000,
-  });
+  const { data: status, isSuccess, isPending, isError } = useBotStatusQuery();
 
   const guilds: Guild[] = useMemo(() => status?.guilds ?? [], [status]);
   const isEmpty = guilds.length === 0;

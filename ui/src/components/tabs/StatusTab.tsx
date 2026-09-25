@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { botApi } from '@/lib/api';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
 import { Button } from '@/components/ui';
 
 type WorkerStatus = {
@@ -32,15 +31,7 @@ type StatusResponse = {
 };
 
 export default function StatusTab() {
-  const {
-    data: status,
-    refetch,
-    isFetching,
-  } = useQuery<StatusResponse>({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: 5000,
-  });
+  const { data: status, refetch, isFetching } = useBotStatusQuery<StatusResponse>();
 
   const connections = status?.connections ?? [];
   const guilds = status?.guilds ?? [];
