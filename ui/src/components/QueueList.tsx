@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { botApi } from '@/lib/api';
+import { useQueueQuery } from '@/hooks/useLiveQuery';
 import { useGuildStore } from '@/stores/guildStore';
 import type { MediaItem } from '@/types';
 import { useState } from 'react';
@@ -13,12 +14,7 @@ export default function QueueList() {
   const queryClient = useQueryClient();
   const [isClearing, setIsClearing] = useState(false);
 
-  const { data: queueData } = useQuery({
-    queryKey: ['queue', selectedGuildId],
-    queryFn: ({ signal }) => botApi.getQueue(selectedGuildId!, { signal }).then((res) => res.data),
-    enabled: !!selectedGuildId,
-    refetchInterval: 5000,
-  });
+  const { data: queueData } = useQueueQuery(selectedGuildId);
 
   const removeMutation = useMutation({
     mutationFn: (index: number) => botApi.removeFromQueue(selectedGuildId!, index),

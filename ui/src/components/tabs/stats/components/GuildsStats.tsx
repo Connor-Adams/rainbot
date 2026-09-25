@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import type { BotStatus, GuildStat } from '@/types';
+import type { GuildStat } from '@/types';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
-import { botApi, statsApi } from '@/lib/api';
+import { useBotStatusQuery } from '@/hooks/useLiveQuery';
+import { statsApi } from '@/lib/api';
 import { safeDateTimeLabel } from '@/lib/chartSafety';
 
 export default function GuildsStats() {
@@ -21,11 +21,7 @@ export default function GuildsStats() {
   // a guild the bot has since left will never have a name here, and neither a
   // slow nor a failing `/status` should hide guild statistics. The id stays the
   // fallback so every row still identifies itself.
-  const { data: status } = useQuery<BotStatus>({
-    queryKey: ['bot-status'],
-    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
-    refetchInterval: 5000,
-  });
+  const { data: status } = useBotStatusQuery();
 
   const guildNames = new Map((status?.guilds ?? []).map((guild) => [guild.id, guild.name]));
 
