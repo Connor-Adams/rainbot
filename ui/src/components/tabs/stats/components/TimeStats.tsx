@@ -1,5 +1,12 @@
 import type { TimeDataPoint } from '@/types';
-import { StatsLoading, StatsError } from '@/components/common';
+import {
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  EmptyState,
+  chartColor,
+} from '@/components/common';
+import { Progress } from '@connor-adams/designsystem';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { statsApi } from '@/lib/api';
 import { safeInt, safeDateLabel } from '@/lib/chartSafety';
@@ -18,13 +25,11 @@ export default function TimeStats() {
 
   if (!data || (commands.length === 0 && sounds.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
-        <span className="text-3xl opacity-50">📈</span>
-        <p className="text-sm text-text-secondary">No time trend data available yet</p>
-        <small className="text-xs text-text-muted">
-          Trend data will appear as users interact with the bot
-        </small>
-      </div>
+      <EmptyState
+        icon="📈"
+        message="No time trend data available yet"
+        submessage="Trend data will appear as users interact with the bot"
+      />
     );
   }
 
@@ -32,8 +37,7 @@ export default function TimeStats() {
   const recentSounds = sounds.slice(-14);
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-6">
-      <h3 className="text-xl text-text-primary mb-4">Usage Over Time</h3>
+    <StatsSection title="Usage Over Time">
       <div className="grid md:grid-cols-2 gap-6">
         <div>
           <h4 className="text-lg text-primary-light mb-3">Commands by Day</h4>
@@ -46,13 +50,14 @@ export default function TimeStats() {
               const val = safeInt(c.command_count);
               const pct = (val / maxVal) * 100;
               return (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-text-secondary w-20">{safeDateLabel(c.date)}</span>
-                  <div className="flex-1 bg-surface-hover rounded h-3">
-                    <div className="h-full bg-primary rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-xs text-text-secondary w-8 text-right">{val}</span>
-                </div>
+                <Progress
+                  key={idx}
+                  size="lg"
+                  tone="primary"
+                  value={pct}
+                  label={safeDateLabel(c.date)}
+                  valueText={String(val)}
+                />
               );
             })}
           </div>
@@ -68,18 +73,24 @@ export default function TimeStats() {
               const val = safeInt(s.sound_count);
               const pct = (val / maxVal) * 100;
               return (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-text-secondary w-20">{safeDateLabel(s.date)}</span>
-                  <div className="flex-1 bg-surface-hover rounded h-3">
-                    <div className="h-full bg-secondary rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-xs text-text-secondary w-8 text-right">{val}</span>
-                </div>
+                // The old fill was `bg-secondary` — Rainbot's violet, which the
+                // design system has no semantic `tone` for (`--secondary` means
+                // "quiet neutral chip surface" there). `chartColor(1)` is
+                // `var(--chart-2)`, which the brand points at the same violet,
+                // so the colour is preserved and still tracks the theme.
+                <Progress
+                  key={idx}
+                  size="lg"
+                  tone={chartColor(1)}
+                  value={pct}
+                  label={safeDateLabel(s.date)}
+                  valueText={String(val)}
+                />
               );
             })}
           </div>
         </div>
       </div>
-    </div>
+    </StatsSection>
   );
 }
