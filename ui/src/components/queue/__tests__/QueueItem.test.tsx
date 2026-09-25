@@ -140,3 +140,31 @@ describe('QueueItem duration', () => {
     expect(screen.queryByText(/^\d+:\d{2}$/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The entry animation's delay was `index * 0.05s` with no ceiling. The queue
+ * polls, so every refresh re-mounts the rows and replays the animation: at the
+ * 25 tracks the sidebar routinely holds, the last row only finished appearing
+ * 1.25s after the first, and the whole list visibly rippled on each poll.
+ *
+ * The stagger is kept for the first few rows (that is the effect it was for)
+ * and clamped from there, so the cost of a long queue is bounded.
+ */
+describe('QueueItem entry stagger', () => {
+  function delayOf(index: number) {
+    const { container } = render(
+      <QueueItem track={makeTrack()} index={index} onRemove={vi.fn()} />
+    );
+    return (container.firstElementChild as HTMLElement).style.animationDelay;
+  }
+
+  it('still staggers the first rows', () => {
+    expect(delayOf(0)).toBe('0ms');
+    expect(delayOf(3)).toBe('150ms');
+  });
+
+  it('caps the delay so a long queue does not ripple', () => {
+    expect(delayOf(24)).toBe('300ms');
+    expect(delayOf(100)).toBe('300ms');
+  });
+});

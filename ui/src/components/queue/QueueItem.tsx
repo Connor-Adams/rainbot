@@ -3,6 +3,21 @@ import { formatDuration } from '@/lib/utils';
 import { Button, Badge } from '@/components/ui';
 import { Icon } from '@connor-adams/designsystem';
 
+/**
+ * Entry-animation stagger, in milliseconds per row, and its ceiling.
+ *
+ * The delay used to be an uncapped `index * 0.05s`. The queue polls, so every
+ * refresh re-mounts the rows and replays the animation — at 25 tracks the last
+ * row finished appearing 1.25s after the first and the list visibly rippled on
+ * each poll. Clamping the total keeps the effect for the first rows (the point
+ * of a stagger) and makes a long queue cost the same as a short one.
+ *
+ * Whole milliseconds rather than fractional seconds: `index * 0.05` produced
+ * `animationDelay: 0.15000000000000002s` from binary floating point.
+ */
+const STAGGER_STEP_MS = 50;
+const STAGGER_MAX_MS = 300;
+
 interface QueueItemProps {
   track: Track;
   index: number;
@@ -48,7 +63,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         hover:border-primary hover:bg-surface-hover hover:translate-x-1
         animate-slide-in-left
       "
-      style={{ animationDelay: `${index * 0.05}s` }}
+      style={{ animationDelay: `${Math.min(index * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms` }}
     >
       <Badge variant="default" size="sm" className="w-8 h-8 flex-shrink-0 p-0">
         {index + 1}
