@@ -41,8 +41,9 @@ function getTrackSource(track: Track) {
  * `duration` wins when both are set, matching how the bots resolve the same
  * ambiguity (`apps/raincloud/commands/voice/queue.js`,
  * `apps/raincloud/handlers/musicButtonHandlers.ts`). The ms value is rounded
- * because `formatDuration` does `seconds % 60` and would otherwise print
- * `4:5.678000000000004`.
+ * here as well as floored inside `formatDuration` -- belt and braces since that
+ * helper gained its own flooring, but kept so this function's contract is whole
+ * seconds regardless of who formats the result.
  *
  * Returns `undefined` for anything that is not a known, positive length, so the
  * caller has one thing to test. The `> 0` is not cosmetic: the meta line used to
