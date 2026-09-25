@@ -35,12 +35,18 @@ describe('dead modules stay deleted', () => {
     expect(existsSync(resolve(uiSrc, relative))).toBe(false);
   });
 
-  it('StatsSummary carries no empty pass-through class constant', () => {
-    const source = readFileSync(
-      resolve(uiSrc, 'components/tabs/stats/components/StatsSummary.tsx'),
-      'utf8'
-    );
+  /**
+   * Two files had the same defect with different names: an empty-string
+   * constant under a long comment describing clamping/truncation it does not
+   * do, spread across the `StatCard`s of that section. Both are covered here
+   * so neither comes back on its own.
+   */
+  it.each([
+    ['components/tabs/stats/components/StatsSummary.tsx', 'STAT_VALUE_CLAMP'],
+    ['components/tabs/stats/components/ErrorsStats.tsx', 'TRUNCATE_VALUE'],
+  ])('%s carries no empty pass-through class constant', (relative, identifier) => {
+    const source = readFileSync(resolve(uiSrc, relative), 'utf8');
 
-    expect(source).not.toContain('STAT_VALUE_CLAMP');
+    expect(source).not.toContain(identifier);
   });
 });
