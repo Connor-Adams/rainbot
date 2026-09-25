@@ -234,7 +234,7 @@ playback fails outright, which makes the ratio panel the one to watch between we
 | Command failures          | `sum by (rainbot_command_name) (rate(rainbot_span_calls_total{span_name="command.execute", status_code="STATUS_CODE_ERROR"}[1h]))`        |
 | Soundboard plays per hour | `sum(rate(rainbot_sound_play_duration_milliseconds_count{rainbot_phase="dispatch"}[$__rate_interval])) * 3600` — NOT per sound, see below |
 | Tracks by source          | `sum by (rainbot_track_source) (increase(rainbot_track_resolve_duration_milliseconds_count[$__range]))`                                   |
-| Service graph             | `traces_service_graph_request_total` (node graph panel)                                                                                   |
+| Service graph             | Tempo datasource with `"queryType": "serviceMap"` (node graph panel) — see the note below                                                 |
 
 **Per-sound counts are deliberately not metrics.** `rainbot.sound` is a user-uploaded R2 object key,
 and both `recordSoundPlay` call sites (`apps/hungerbot/src/handlers/rpc.ts`,
@@ -249,6 +249,14 @@ Note on command failures: `command.execute` spans are only marked ERROR when the
 Several commands catch internally and reply with an error embed, so this panel undercounts
 user-visible failures — a known blind spot inherited from the instrumentation, documented in
 `apps/raincloud/src/events/interactionCreate.js`.
+
+**The node graph must be a Tempo query, not a Prometheus one.** Grafana's Node Graph panel requires
+nodes/edges data frames with fields named `id` / `source` / `target`; a Prometheus query over
+`traces_service_graph_request_total` returns `client` and `server` as _labels_ and renders nothing.
+The Tempo datasource's `serviceMap` query type builds those frames itself, which also requires
+`jsonData.serviceMap.datasourceUid: prometheus` on the Tempo datasource in
+`provisioning/datasources/datasources.yaml` — absent before this work, and silently useless without
+it. Found in review of the usage board.
 
 Grok token spend stays out. The counts are span attributes (`rainbot.grok_*_tokens`) and would need
 either a dimension per token field or a real counter; neither is worth it before someone asks.
