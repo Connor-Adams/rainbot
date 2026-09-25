@@ -59,4 +59,11 @@ describe('raincloud telemetry import ordering', () => {
       expect(entry.line).toBeGreaterThan(startTelemetryLine);
     }
   });
+
+  it('starts telemetry under the tenant-qualified service name', () => {
+    const indexPath = path.join(__dirname, '..', 'index.js');
+    const source = fs.readFileSync(indexPath, 'utf8');
+
+    expect(source).toContain("observability.startTelemetry('rainbot-raincloud')");
+  });
 });

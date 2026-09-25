@@ -16,7 +16,7 @@ const dotenvResult = require('dotenv').config();
 // flush it before exit — require() is cached, so re-requiring costs nothing
 // either way, but this makes the reuse explicit.
 const observability = require('@rainbot/observability/node');
-observability.startTelemetry('raincloud');
+observability.startTelemetry('rainbot-raincloud');
 
 // Immediate stdout so Railway/containers always capture at least one line (before logger may load)
 console.log('[Raincloud] Process starting');
