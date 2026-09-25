@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DiscordIcon } from '@/components/icons';
+import { Icon } from '@connor-adams/designsystem';
 import { buildAuthUrl, authBaseUrl } from '@/lib/api';
 
 // Navigate to OAuth with cache-bust so browsers/proxies don't return 304 and block the redirect
@@ -45,7 +45,7 @@ export default function LoginPage() {
           className={linkButtonStyles}
           aria-label="Login with Discord"
         >
-          <DiscordIcon size={20} />
+          <Icon name="brand:discord" size={20} />
           Login with Discord
         </button>
 

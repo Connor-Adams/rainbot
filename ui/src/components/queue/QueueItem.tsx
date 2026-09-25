@@ -1,7 +1,7 @@
 import type { Track } from '@/types';
 import { escapeHtml, formatDuration } from '@/lib/utils';
 import { Button, Badge } from '@/components/ui';
-import { XIcon } from '@/components/icons';
+import { Icon } from '@connor-adams/designsystem';
 
 interface QueueItemProps {
   track: Track;
@@ -54,7 +54,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
         variant="ghost"
         size="sm"
         onClick={() => onRemove(index)}
-        icon={<XIcon size={16} />}
+        icon={<Icon name="x" size={16} />}
         className="!min-h-[32px] !w-8 !p-0 flex-shrink-0 hover:bg-danger hover:text-text-primary"
         aria-label={`Remove ${escapeHtml(track.title ?? 'Unknown')} from queue`}
       >

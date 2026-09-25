@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import EmptyState from '@/components/common/EmptyState';
 import QueueItem from '@/components/queue/QueueItem';
-import { TrashIcon } from '@/components/icons';
+import { Icon } from '@connor-adams/designsystem';
 
 export default function QueueList() {
   const { selectedGuildId } = useGuildStore();
@@ -81,7 +81,7 @@ export default function QueueList() {
                 size="sm"
                 onClick={handleClear}
                 isLoading={isClearing}
-                icon={<TrashIcon size={16} />}
+                icon={<Icon name="trash" size={16} />}
               >
                 Clear
               </Button>
