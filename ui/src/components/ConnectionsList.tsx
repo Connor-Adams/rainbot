@@ -9,7 +9,7 @@ import ListItem from '@/components/common/ListItem';
 export default function ConnectionsList() {
   const { data: status } = useQuery({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
   });
 

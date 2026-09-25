@@ -15,7 +15,7 @@ interface HeaderProps {
 export default function Header({ user, onLogout }: HeaderProps) {
   const { data: status } = useQuery({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
   });
 

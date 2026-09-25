@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -52,9 +52,9 @@ interface ApiLatencyData {
 }
 
 export default function ApiLatencyStats() {
-  const { data, isLoading, error } = useQuery<ApiLatencyData>({
+  const { data, isLoading, error } = useStatsQuery<ApiLatencyData>({
     queryKey: ['stats', 'api-latency'],
-    queryFn: () => statsApi.apiLatency().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.apiLatency({ signal }),
     refetchInterval: 10000,
   });
 

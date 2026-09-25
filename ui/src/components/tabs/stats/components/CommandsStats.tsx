@@ -29,7 +29,7 @@ import { pieSliceLabel } from './pieLabel';
 export default function CommandsStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'commands'],
-    queryFn: () => statsApi.commands(),
+    queryFn: ({ signal }) => statsApi.commands({ signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading command statistics..." />;

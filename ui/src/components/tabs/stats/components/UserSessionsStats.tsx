@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
+import { useStatsQuery } from '@/hooks/useStatsQuery';
 import {
   EmptyState,
   StatsLoading,
@@ -49,9 +49,9 @@ interface UserSessionsData {
 }
 
 export default function UserSessionsStats() {
-  const { data, isLoading, error } = useQuery<UserSessionsData>({
+  const { data, isLoading, error } = useStatsQuery<UserSessionsData>({
     queryKey: ['stats', 'user-sessions'],
-    queryFn: () => statsApi.userSessions().then((r) => r.data),
+    queryFn: ({ signal }) => statsApi.userSessions({ signal }),
     refetchInterval: 10000,
   });
 

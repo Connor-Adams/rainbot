@@ -19,7 +19,7 @@ export default function PersonaManager() {
 
   const { data: personasData } = useQuery({
     queryKey: ['personas'],
-    queryFn: () => adminApi.getPersonas().then((res) => res.data),
+    queryFn: ({ signal }) => adminApi.getPersonas({ signal }).then((res) => res.data),
   });
   const personas = personasData?.personas ?? [];
   const personaPendingDelete = personas.find((p) => p.id === personaPendingDeleteId) ?? null;

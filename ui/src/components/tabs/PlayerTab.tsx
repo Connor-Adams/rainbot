@@ -34,14 +34,14 @@ export default function PlayerTab() {
 
   const { data: queueData } = useQuery({
     queryKey: ['queue', selectedGuildId],
-    queryFn: () => botApi.getQueue(selectedGuildId!).then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getQueue(selectedGuildId!, { signal }).then((res) => res.data),
     enabled: !!selectedGuildId,
     refetchInterval: isQueueSSEConnected ? false : 5000,
   });
 
   const { data: botStatus } = useQuery({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: isStatusSSEConnected ? false : 5000,
   });
 

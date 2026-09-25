@@ -53,7 +53,7 @@ interface SearchData {
 export default function SearchStats() {
   const { data, isLoading, error } = useStatsQuery<SearchData>({
     queryKey: ['stats', 'search'],
-    queryFn: () => statsApi.search(),
+    queryFn: ({ signal }) => statsApi.search({ signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading search statistics..." />;

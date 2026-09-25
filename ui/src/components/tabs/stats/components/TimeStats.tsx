@@ -14,7 +14,7 @@ import { safeInt, safeDateLabel } from '@/lib/chartSafety';
 export default function TimeStats() {
   const { data, isLoading, error } = useStatsQuery({
     queryKey: ['stats', 'time'],
-    queryFn: () => statsApi.time({ granularity: 'day' }),
+    queryFn: ({ signal }) => statsApi.time({ granularity: 'day', signal }),
   });
 
   if (isLoading) return <StatsLoading message="Loading time trends..." />;

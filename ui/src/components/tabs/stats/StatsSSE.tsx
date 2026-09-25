@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createApiEventSource } from '@/lib/api';
+import { invalidateAllStats, invalidateForStatsUpdate } from './statsInvalidation';
 
 export default function StatsSSE() {
   const qc = useQueryClient();
@@ -12,9 +13,17 @@ export default function StatsSSE() {
 
     const startPollingFallback = () => {
       if (pollInterval) return;
-      // Poll every 60s as a fallback when SSE can't be established
+      // Poll every 60s as a fallback when SSE can't be established.
+      //
+      // Stays a blanket invalidation on purpose. With no stream there is no
+      // discriminator to narrow by, and it is cheap: `invalidateQueries` only
+      // refetches queries that have observers, and the Statistics tab mounts
+      // exactly one section at a time — so this costs one request a minute, not
+      // 21. What it does beyond each section's own `refetchInterval` is mark the
+      // *unmounted* sections stale, which is the only way they pick up changes
+      // made while the stream was down.
       pollInterval = window.setInterval(() => {
-        qc.invalidateQueries({ queryKey: ['stats'] });
+        invalidateAllStats(qc);
       }, 60_000);
     };
 
@@ -42,17 +51,16 @@ export default function StatsSSE() {
       stopPollingFallback();
 
       es.addEventListener('stats-update', (e: MessageEvent) => {
-        try {
-          JSON.parse(e.data);
-          // Invalidate all stats queries when any batch is inserted
-          qc.invalidateQueries({ queryKey: ['stats'] });
-        } catch {
-          qc.invalidateQueries({ queryKey: ['stats'] });
-        }
+        invalidateForStatsUpdate(qc, e.data as string);
       });
 
+      // `stats-flushed` carries only `{ ts }` — no discriminator, and none is
+      // available: it fires from `flushAll()`, which ends every active voice
+      // session (writing `voice_sessions` directly) and then drains all 13
+      // buffers. "Everything may have changed" is the literal truth here, so
+      // this one stays broad.
       es.addEventListener('stats-flushed', () => {
-        qc.invalidateQueries({ queryKey: ['stats'] });
+        invalidateAllStats(qc);
       });
 
       es.onopen = () => {

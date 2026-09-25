@@ -38,7 +38,7 @@ export default function StatusTab() {
     isFetching,
   } = useQuery<StatusResponse>({
     queryKey: ['bot-status'],
-    queryFn: () => botApi.getStatus().then((res) => res.data),
+    queryFn: ({ signal }) => botApi.getStatus({ signal }).then((res) => res.data),
     refetchInterval: 5000,
   });
 
