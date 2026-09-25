@@ -32,10 +32,20 @@ yarn db:generate / db:migrate   # drizzle-kit (schema: packages/db/src/schema/in
 **`ui` and the `validate` gate.** A workspace only participates in a Turbo task if it has a script
 by that name — a missing script is a silent no-op cache hit, not a failure. The UI has
 `type-check` (`tsc -b --noEmit`, which honours the `tsconfig.app.json` / `tsconfig.node.json`
-project references) and `prettier:check`, so `yarn validate` covers it on both. It deliberately has
-**no `test` script**: there are no UI tests, and a `jest --passWithNoTests` stub would make
-`yarn test` report a green UI suite that does not exist. Add the script alongside the first real
-test.
+project references), `prettier:check`, and — unlike the bots, which use Jest — a **Vitest** `test`
+script, so `yarn validate` covers it on all three.
+
+**The UI runs Vitest, not Jest** (`ui/vitest.config.ts`, jsdom + `@testing-library/react`, setup in
+`ui/src/test/setup.ts`). It matches the design system's own idiom and is the only runner that can
+load the ESM-only `@connor-adams/*` packages through the app's real Vite config, so a test resolves
+`@/…` exactly as the app does. Two things about it are deliberate and should not be "fixed":
+`vitest run` **exits 1 on an empty suite** (no `--passWithNoTests`, which is what the bots use — a
+green report for a suite that does not exist is how the UI went so long uncovered), and the design
+system is listed in `test.server.deps.inline` because its entry point imports a stylesheet that
+Node cannot evaluate. Tests live in `src/**/__tests__/*.test.tsx`; the admin panels'
+(`ui/src/components/tabs/admin/`) are **characterization** tests — they pin current behaviour,
+including markup that is wrong today (labels with no associated control are asserted as such), so a
+rewrite has to change them on purpose.
 
 **Single package / single test:** `yarn test` (turbo) builds deps first. Invoking one workspace's
 tests directly does **not** — run `yarn build:ts` first, since tests import `@rainbot/*` from `dist/`.
