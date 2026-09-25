@@ -13,6 +13,7 @@ import {
 } from '@/components/common';
 import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
+import { formatSessionDuration } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SessionSummary {
@@ -30,7 +31,13 @@ interface UserSession {
   username: string;
   channel_name: string;
   started_at: string;
-  duration_seconds: string;
+  /**
+   * `user_voice_sessions.duration_seconds` is a nullable `INTEGER`, so
+   * node-postgres yields a number (or `null`), not a string — unlike the
+   * `SUM(...)`/`ROUND(...)::numeric` aggregates on this response, which really
+   * do arrive as strings because Postgres returns them as `bigint`/`numeric`.
+   */
+  duration_seconds: number | null;
   tracks_heard: string;
 }
 
@@ -81,13 +88,6 @@ export default function UserSessionsStats() {
     );
   }
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
   const avgTracksPerSession = (() => {
     const avg = parseFloat(summary.avg_tracks_per_session || '0');
     return isNaN(avg) ? '0.0' : avg.toFixed(1);
@@ -114,7 +114,7 @@ export default function UserSessionsStats() {
     {
       id: 'total_duration',
       header: 'Total Duration',
-      render: (listener: TopListener) => formatDuration(safeInt(listener.total_duration)),
+      render: (listener: TopListener) => formatSessionDuration(safeInt(listener.total_duration)),
       className: 'py-2 px-4 text-text-secondary',
     },
     {
@@ -131,11 +131,11 @@ export default function UserSessionsStats() {
         <StatCard value={summary.total_sessions || '0'} label="Total Sessions" />
         <StatCard value={summary.unique_users || '0'} label="Unique Users" />
         <StatCard
-          value={formatDuration(safeInt(summary.avg_duration_seconds))}
+          value={formatSessionDuration(safeInt(summary.avg_duration_seconds))}
           label="Avg Duration"
         />
         <StatCard
-          value={formatDuration(safeInt(summary.total_duration_seconds))}
+          value={formatSessionDuration(safeInt(summary.total_duration_seconds))}
           label="Total Duration"
         />
         <StatCard value={avgTracksPerSession} label="Avg Tracks/Session" />
