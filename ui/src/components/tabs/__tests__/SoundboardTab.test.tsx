@@ -144,3 +144,77 @@ describe('SoundboardTab — the other two states', () => {
     expect(screen.getByRole('button', { name: 'Play airhorn' })).toBeInTheDocument();
   });
 });
+
+/**
+ * `isPlaying` was `playMutation.isPending` handed to EVERY card, so one click
+ * lit the whole board: `SoundCard` turns that flag into `animate-pulse` plus a
+ * pinging dot, and 60 cards claimed to be playing at once. The mutation already
+ * carries which sound it is for, in `variables`.
+ */
+describe('SoundboardTab — the playing indicator', () => {
+  /** Every card, as [accessible name, is it marked playing]. */
+  function cardsMarkedPlaying(): [string, boolean][] {
+    return screen
+      .getAllByRole('button', { name: /^Play / })
+      .map((card) => [
+        card.getAttribute('aria-label') ?? '',
+        card.className.includes('animate-pulse'),
+      ]);
+  }
+
+  beforeEach(() => {
+    vi.mocked(soundsApi.list).mockResolvedValue({
+      data: [sound('airhorn.ogg'), sound('bruh.ogg'), sound('wow.ogg')],
+    } as never);
+  });
+
+  it('marks only the sound that is actually playing', async () => {
+    const { playbackApi } = await import('@/lib/api');
+    vi.mocked(playbackApi.soundboard).mockReturnValue(new Promise(() => {}) as never);
+
+    renderWithQuery(<SoundboardTab />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Play airhorn' }));
+
+    await waitFor(() => expect(playbackApi.soundboard).toHaveBeenCalledTimes(1));
+    const marked = cardsMarkedPlaying();
+    console.log(
+      `CARDS MARKED PLAYING >>> ${JSON.stringify(marked)} | pulse count: ${
+        marked.filter(([, isPlaying]) => isPlaying).length
+      }`
+    );
+
+    expect(marked).toEqual([
+      ['Play airhorn', true],
+      ['Play bruh', false],
+      ['Play wow', false],
+    ]);
+  });
+
+  it('leaves the other cards clickable while one sound is in flight', async () => {
+    const { playbackApi } = await import('@/lib/api');
+    vi.mocked(playbackApi.soundboard).mockReturnValue(new Promise(() => {}) as never);
+
+    renderWithQuery(<SoundboardTab />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Play airhorn' }));
+    await waitFor(() => expect(playbackApi.soundboard).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play bruh' }));
+    await waitFor(() => expect(playbackApi.soundboard).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(playbackApi.soundboard).mock.calls[1]?.[1]).toBe('bruh.ogg');
+  });
+
+  it('still refuses to play anything with no server selected', async () => {
+    useGuildStore.setState({ selectedGuildId: null });
+    const { playbackApi } = await import('@/lib/api');
+
+    renderWithQuery(<SoundboardTab />);
+
+    const card = await screen.findByRole('button', { name: 'Play airhorn' });
+    expect(card).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(card);
+
+    expect(playbackApi.soundboard).not.toHaveBeenCalled();
+  });
+});
