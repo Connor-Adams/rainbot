@@ -108,7 +108,7 @@ export default function EngagementStats() {
 
       <div className="grid md:grid-cols-2 gap-6">
         {completionData.length > 0 && (
-          <ChartContainer title="Completion vs Skips" height={280} className="mb-0!">
+          <ChartContainer title="Completion vs Skips" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -134,12 +134,7 @@ export default function EngagementStats() {
         )}
 
         {skipData.length > 0 && (
-          <ChartContainer
-            title="Skip Reasons"
-            height="auto"
-            rowCount={skipData.length}
-            className="mb-0!"
-          >
+          <ChartContainer title="Skip Reasons" height="auto" rowCount={skipData.length}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={skipData} layout="vertical" margin={{ left: 80, right: 20 }}>
                 <XAxis type="number" tick={chartTheme.axis.tick} />

@@ -80,12 +80,7 @@ export default function SoundsStats() {
   return (
     <div className="space-y-6">
       {barData.length > 0 && (
-        <ChartContainer
-          title="Top Sounds"
-          height="auto"
-          rowCount={barData.length}
-          className="mb-0!"
-        >
+        <ChartContainer title="Top Sounds" height="auto" rowCount={barData.length}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={barData} layout="vertical" margin={{ left: 80, right: 20 }}>
               <XAxis type="number" tick={chartTheme.axis.tick} />
@@ -99,7 +94,7 @@ export default function SoundsStats() {
 
       <div className="grid md:grid-cols-2 gap-6">
         {sourceData.length > 0 && (
-          <ChartContainer title="Source Type Breakdown" height={280} className="mb-0!">
+          <ChartContainer title="Source Type Breakdown" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -125,7 +120,7 @@ export default function SoundsStats() {
         )}
 
         {sbData.length > 0 && (
-          <ChartContainer title="Soundboard vs Regular" height={280} className="mb-0!">
+          <ChartContainer title="Soundboard vs Regular" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

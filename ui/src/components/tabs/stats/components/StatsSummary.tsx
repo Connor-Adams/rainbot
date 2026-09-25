@@ -13,7 +13,7 @@ import { statsApi } from '@/lib/api';
 // (`[&_.ca-stat-card\_\_value]:…`) — the class reaches the DOM and nothing
 // styles it. This is a local stopgap; the real fix belongs in the design
 // system's `StatCard`, and `ui/src/components/common/` is off limits here.
-const STAT_VALUE_CLAMP = '[&_p]:overflow-hidden [&_p]:text-ellipsis';
+const STAT_VALUE_CLAMP = '';
 
 export default function StatsSummary() {
   const { data, isLoading, error } = useStatsQuery<StatsSummaryType>({

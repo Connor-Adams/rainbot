@@ -71,7 +71,15 @@ export default function ChartContainer({
 }: ChartContainerProps) {
   return (
     <ChartFrame
-      className={`mb-6 ${className}`.trim()}
+      /*
+       * No baked-in margin. This used to hardcode `mb-6`, which is invisible
+       * inside a `space-y-*` parent (Tailwind v4 implements that as
+       * `margin-bottom` on non-last children, so one declaration wins rather
+       * than stacking) but genuinely doubles the gutter inside a `gap-*` grid
+       * or flex parent. Spacing belongs to the parent; six call sites had begun
+       * carrying `mb-0!` to undo it.
+       */
+      className={className}
       title={title}
       subtitle={subtitle}
       actions={actions}

@@ -9,25 +9,9 @@ import {
   ChartContainer,
   chartTheme,
   chartColor,
+  StatCard,
 } from '@/components/common';
-// The local `StatCard` wrapper types `value` as `string | number`, so it cannot
-// carry the per-tile severity colour these seven tiles encode in their value
-// text (amber P95, red Max, …). The design system's own `StatCard` takes a
-// `ReactNode` value, so this file reaches for it directly and re-applies the
-// hover lift the wrapper adds. Everything else — layout, typography, the
-// `ca-stat-card` shell — is identical, since the wrapper is a thin pass-through.
-import { StatCard, StatGrid } from '@connor-adams/designsystem';
-
-// The hover lift the local wrapper adds, plus a clamp for the value:
-// `.ca-stat-card__value` is `white-space: nowrap` with no overflow handling, so
-// a long value paints out of the tile (measured: scrollWidth 151 vs clientWidth
-// 125 on "12000000ms"). The arbitrary variant deliberately targets the bare `p`
-// element — Tailwind v4 silently emits NO rule for a variant written against
-// the BEM class (`[&_.ca-stat-card\_\_value]:…`). Local stopgap; the real fix
-// belongs in the design system's `StatCard`.
-const STAT_CARD_CLASS =
-  'transition-all hover:border-border-hover hover:-translate-y-0.5 hover:shadow-lg ' +
-  '[&_p]:overflow-hidden [&_p]:text-ellipsis';
+import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -126,37 +110,30 @@ export default function PerformanceStats() {
           as a node rather than a bare string to keep it. */}
       <StatGrid columns="auto" minItemWidth={140} gap="lg">
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-primary-light">{overall.sample_count || 0}</span>}
           label="Samples"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-success-light">{overall.avg_ms || 0}ms</span>}
           label="Avg"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-secondary-light">{overall.p50_ms || 0}ms</span>}
           label="P50"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-warning-light">{overall.p95_ms || 0}ms</span>}
           label="P95"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-warning">{overall.p99_ms || 0}ms</span>}
           label="P99"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-text-secondary">{overall.min_ms || 0}ms</span>}
           label="Min"
         />
         <StatCard
-          className={STAT_CARD_CLASS}
           value={<span className="text-danger-light">{overall.max_ms || 0}ms</span>}
           label="Max"
         />

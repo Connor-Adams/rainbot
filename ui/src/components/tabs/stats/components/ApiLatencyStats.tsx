@@ -111,7 +111,6 @@ export default function ApiLatencyStats() {
             title="Avg Latency by Endpoint (ms)"
             height="auto"
             rowCount={endpointData.length}
-            className="mb-0!"
           >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={endpointData} layout="vertical" margin={{ left: 80, right: 20 }}>
@@ -125,7 +124,7 @@ export default function ApiLatencyStats() {
         )}
 
         {statusData.length > 0 && (
-          <ChartContainer title="Status Codes" height={280} className="mb-0!">
+          <ChartContainer title="Status Codes" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

@@ -117,7 +117,7 @@ export default function WebAnalyticsStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {eventData.length > 0 && (
-          <ChartContainer title="Event Types" height={280} className="mb-0!">
+          <ChartContainer title="Event Types" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -143,12 +143,7 @@ export default function WebAnalyticsStats() {
         )}
 
         {targetData.length > 0 && (
-          <ChartContainer
-            title="Top Event Targets"
-            height="auto"
-            rowCount={targetData.length}
-            className="mb-0!"
-          >
+          <ChartContainer title="Top Event Targets" height="auto" rowCount={targetData.length}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={targetData} layout="vertical" margin={{ left: 100, right: 20 }}>
                 <XAxis type="number" tick={chartTheme.axis.tick} />

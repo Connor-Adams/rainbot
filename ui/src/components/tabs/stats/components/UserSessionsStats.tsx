@@ -147,7 +147,6 @@ export default function UserSessionsStats() {
           title="Top Listeners (by duration)"
           height="auto"
           rowCount={chartData.length}
-          className="mb-0!"
         >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical" margin={{ left: 80, right: 20 }}>

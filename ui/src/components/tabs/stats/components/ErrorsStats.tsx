@@ -68,7 +68,7 @@ interface ErrorsData {
  * descendant variant on the tile's two `<p>` elements, applied only to the two
  * free-text tiles (the counts are short and unaffected).
  */
-const TRUNCATE_VALUE = '[&_p]:overflow-hidden [&_p]:text-ellipsis';
+const TRUNCATE_VALUE = '';
 
 export default function ErrorsStats() {
   const { data, isLoading, error } = useQuery<ErrorsData>({

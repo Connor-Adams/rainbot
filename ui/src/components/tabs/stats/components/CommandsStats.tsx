@@ -116,12 +116,7 @@ export default function CommandsStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {barChartData.length > 0 && (
-          <ChartContainer
-            title="Top Commands"
-            height="auto"
-            rowCount={barChartData.length}
-            className="mb-0!"
-          >
+          <ChartContainer title="Top Commands" height="auto" rowCount={barChartData.length}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barChartData} layout="vertical" margin={{ left: 80, right: 20 }}>
                 <XAxis type="number" tick={chartTheme.axis.tick} />
@@ -133,7 +128,7 @@ export default function CommandsStats() {
           </ChartContainer>
         )}
         {doughnutData.length > 0 && (
-          <ChartContainer title="Success Rate" height={280} className="mb-0!">
+          <ChartContainer title="Success Rate" height={280}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
