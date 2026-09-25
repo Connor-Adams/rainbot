@@ -100,6 +100,50 @@ describe('StatsError', () => {
     expect(screen.getByText('Could not load sounds')).toBeInTheDocument();
   });
 
+  it('threads `subject` through the status-mapped sentences', () => {
+    // The Soundboard and Recordings tabs reuse this component precisely so the
+    // 401/403 mapping above is not reimplemented per tab; the only thing they
+    // change is the noun.
+    render(<StatsError error={realAxiosError(403)} subject="the soundboard" />);
+
+    expect(
+      screen.getByText(
+        'Access denied — your account lacks the required role to view the soundboard.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('threads `subject` through the generic sentence too', () => {
+    render(<StatsError error={null} subject="recordings" />);
+
+    expect(screen.getByText('An error occurred while loading recordings.')).toBeInTheDocument();
+  });
+
+  it('maps a status carried on the error itself, for raw-`fetch` callers', () => {
+    // RecordingsTab uses `fetch`, so there is no Axios response to narrow on and
+    // it annotates the Error it throws with the HTTP status instead.
+    const error = Object.assign(new Error('Failed to load recordings (HTTP 401)'), { status: 401 });
+
+    render(<StatsError error={error} subject="recordings" />);
+
+    expect(
+      screen.getByText('Authentication required — please log in to view recordings.')
+    ).toBeInTheDocument();
+  });
+
+  it('renders an `actions` node inside the alert', () => {
+    render(
+      <StatsError
+        error={new Error('socket hang up')}
+        actions={<button type="button">Retry</button>}
+      />
+    );
+
+    expect(screen.getByRole('alert')).toContainElement(
+      screen.getByRole('button', { name: 'Retry' })
+    );
+  });
+
   it('maps an unhandled status through the Axios response branch', () => {
     // A 500 has no dedicated copy; it reaches the `response && message` arm.
     render(<StatsError error={realAxiosError(500)} message="Could not load sounds" />);
