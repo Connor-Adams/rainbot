@@ -3,8 +3,8 @@ import { botApi } from '@/lib/api';
 import { useQueueQuery } from '@/hooks/useLiveQuery';
 import { useGuildStore } from '@/stores/guildStore';
 import type { MediaItem } from '@/types';
-import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import { toast } from '@connor-adams/designsystem';
 import EmptyState from '@/components/common/EmptyState';
 import QueueItem from '@/components/queue/QueueItem';
 import { Icon } from '@connor-adams/designsystem';
@@ -12,7 +12,6 @@ import { Icon } from '@connor-adams/designsystem';
 export default function QueueList() {
   const { selectedGuildId } = useGuildStore();
   const queryClient = useQueryClient();
-  const [isClearing, setIsClearing] = useState(false);
 
   const { data: queueData } = useQueueQuery(selectedGuildId);
 
@@ -23,17 +22,24 @@ export default function QueueList() {
     },
   });
 
+  // The in-flight state is the mutation's own `isPending`, not a hand-rolled
+  // flag. The flag version was set before `mutate()` and cleared only in
+  // `onSuccess` — there was no `onError` — so a failed clear left the button
+  // disabled with its label hidden behind the spinner, for good: a page reload
+  // was the only way back. `isPending` cannot get stuck, because React Query
+  // clears it on settle however the request ends.
   const clearMutation = useMutation({
     mutationFn: () => botApi.clearQueue(selectedGuildId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
-      setIsClearing(false);
+    },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      toast.error(error.response?.data?.error || error.message || 'Failed to clear the queue');
     },
   });
 
   const handleClear = () => {
     if (window.confirm('Clear the entire queue?')) {
-      setIsClearing(true);
       clearMutation.mutate();
     }
   };
@@ -76,7 +82,7 @@ export default function QueueList() {
                 variant="danger"
                 size="sm"
                 onClick={handleClear}
-                isLoading={isClearing}
+                isLoading={clearMutation.isPending}
                 icon={<Icon name="trash" size={16} />}
               >
                 Clear
