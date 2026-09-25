@@ -41,8 +41,12 @@ export default function GuildPicker() {
       onValueChange={setSelectedGuildId}
       placeholder={isEmpty ? 'Loading servers...' : 'Select a server...'}
       size="sm"
-      aria-disabled={isEmpty}
-      className={isEmpty ? 'pointer-events-none opacity-50' : undefined}
+      // Real `disabled`, not the old `aria-disabled` + `pointer-events-none`
+      // shim: that left the control in the tab order and still keyboard-
+      // operable, and `aria-disabled` alone does not stop interaction. The
+      // design system disables the inner `<input>` and reflects `data-disabled`
+      // for styling, so the local `opacity-50` is redundant too.
+      disabled={isEmpty}
     />
   );
 }
