@@ -3,6 +3,14 @@ import { statsApi } from '@/lib/api';
 import type { SoundStat, SourceType, SoundboardBreakdown } from '@/types';
 import { safeInt } from '@/lib/chartSafety';
 import {
+  StatsLoading,
+  StatsError,
+  EmptyState,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
+import {
   BarChart,
   Bar,
   XAxis,
@@ -23,19 +31,11 @@ export default function SoundsStats() {
   });
 
   if (isLoading) {
-    return (
-      <div className="stats-loading text-center py-12 text-text-secondary">
-        Loading sound statistics...
-      </div>
-    );
+    return <StatsLoading message="Loading sound statistics..." />;
   }
 
   if (error) {
-    return (
-      <div className="stats-error text-center py-12 text-danger-light">
-        Error: {error instanceof Error ? error.message : 'Unknown error'}
-      </div>
-    );
+    return <StatsError error={error} />;
   }
 
   const sounds = Array.isArray(data?.sounds) ? data.sounds : [];
@@ -46,13 +46,11 @@ export default function SoundsStats() {
 
   if (!data || sounds.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
-        <span className="text-3xl opacity-50">🔊</span>
-        <p className="text-sm text-text-secondary">No sound data available yet</p>
-        <small className="text-xs text-text-muted">
-          Sound statistics will appear as users play sounds
-        </small>
-      </div>
+      <EmptyState
+        icon="🔊"
+        message="No sound data available yet"
+        submessage="Sound statistics will appear as users play sounds"
+      />
     );
   }
 
@@ -61,17 +59,13 @@ export default function SoundsStats() {
     value: safeInt(s.count),
   }));
 
-  const sourceColors = [
-    'rgb(59, 130, 246)',
-    'rgb(239, 68, 68)',
-    'rgb(34, 197, 94)',
-    'rgb(251, 146, 60)',
-  ];
+  // Colours are assigned before the filter so a zeroed slice never shifts the
+  // remaining slices' colours — same as when these were hard-coded hex.
   const sourceData = sourceTypes
     .map((s: SourceType, idx: number) => ({
       name: s.source_type || 'Unknown',
       value: safeInt(s.count),
-      color: sourceColors[idx % 4],
+      color: chartColor(idx),
     }))
     .filter((d: { value: number }) => d.value > 0);
 
@@ -79,108 +73,76 @@ export default function SoundsStats() {
     .map((b: SoundboardBreakdown) => ({
       name: b.is_soundboard ? 'Soundboard' : 'Regular',
       value: safeInt(b.count),
-      color: b.is_soundboard ? 'rgb(139, 92, 246)' : 'rgb(59, 130, 246)',
+      color: b.is_soundboard ? chartColor(1) : chartColor(0),
     }))
     .filter((d: { value: number }) => d.value > 0);
 
   return (
     <div className="space-y-6">
       {barData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Top Sounds</h3>
-          <div style={{ width: '100%', height: Math.max(200, barData.length * 32) }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: '#9ca3af', fontSize: 12 }}
-                  width={75}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-                <Bar dataKey="value" fill="rgb(139, 92, 246)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartContainer title="Top Sounds" height="auto" rowCount={barData.length}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={barData} layout="vertical" margin={{ left: 80, right: 20 }}>
+              <XAxis type="number" tick={chartTheme.axis.tick} />
+              <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              <Bar dataKey="value" fill={chartColor(1)} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {sourceData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Source Type Breakdown</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={sourceData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {sourceData.map((entry: { color: string }, index: number) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Source Type Breakdown" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={sourceData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {sourceData.map((entry: { color: string }, index: number) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {sbData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Soundboard vs Regular</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={sbData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {sbData.map((entry: { color: string }, index: number) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Soundboard vs Regular" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={sbData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {sbData.map((entry: { color: string }, index: number) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
     </div>

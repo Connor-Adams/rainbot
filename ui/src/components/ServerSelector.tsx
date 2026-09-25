@@ -33,9 +33,11 @@ export default function ServerSelector() {
         options={guilds.map((guild) => ({ value: guild.id, label: guild.name }))}
         value={selectedGuildId}
         onValueChange={setSelectedGuildId}
-        // `Combobox` has no working `disabled` - it would land on the wrapper
-        // `<div>` and do nothing - so the pre-load state is carried by the copy
-        // rather than by disabling the control, as the old trigger button did.
+        // Real `disabled` while the guild list loads, matching what the old
+        // trigger button did. This needs designsystem 3.0.0: before that the
+        // prop was not in ComboboxProps, so it spread onto the wrapper `<div>`
+        // and silently did nothing.
+        disabled={!hasGuilds}
         placeholder={hasGuilds ? 'Select a server...' : 'Loading servers...'}
         emptyText={hasGuilds ? 'No servers match' : 'Loading servers...'}
       />

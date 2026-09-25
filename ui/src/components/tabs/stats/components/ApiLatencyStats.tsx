@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatCard,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
+import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
 import {
   BarChart,
@@ -49,9 +58,8 @@ export default function ApiLatencyStats() {
     refetchInterval: 10000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading API latency...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading API latency</div>;
+  if (isLoading) return <StatsLoading message="Loading API latency..." />;
+  if (error) return <StatsError error={error} message="Error loading API latency" />;
 
   if (!data || !data.overall) {
     return (
@@ -72,110 +80,73 @@ export default function ApiLatencyStats() {
     value: safeInt(e.avg_latency_ms),
   }));
 
+  // These slices used to encode the status CLASS in colour — green for 2xx,
+  // orange for 4xx, red for 5xx. The chart palette has no ordered or status
+  // ramp (`chartColors.domain.*` names money concepts only), so the series
+  // moves to the neutral categorical ramp and the connotation is lost; the
+  // slice labels still carry the status code. Colours are assigned before the
+  // filter, so a zeroed slice never shifts the remaining slices' colours.
   const statusData = statusCodes
-    .map((s) => ({
+    .map((s, idx) => ({
       name: s.status_code || 'Unknown',
       value: safeInt(s.count),
-      color: s.status_code?.startsWith('2')
-        ? 'rgb(34, 197, 94)'
-        : s.status_code?.startsWith('4')
-          ? 'rgb(251, 146, 60)'
-          : 'rgb(239, 68, 68)',
+      color: chartColor(idx),
     }))
     .filter((d) => d.value > 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-primary-light">{overall.total_requests || 0}</div>
-          <div className="text-sm text-text-secondary">Total Requests</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-success-light">
-            {overall.avg_latency_ms || 0}ms
-          </div>
-          <div className="text-sm text-text-secondary">Avg Latency</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-secondary-light">{overall.p50_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P50</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning-light">{overall.p95_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P95</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning">{overall.p99_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P99</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-danger-light">{overall.max_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">Max</div>
-        </div>
-      </div>
+      <StatGrid columns="auto" minItemWidth={160} gap="lg">
+        <StatCard value={overall.total_requests || 0} label="Total Requests" />
+        <StatCard value={`${overall.avg_latency_ms || 0}ms`} label="Avg Latency" />
+        <StatCard value={`${overall.p50_ms || 0}ms`} label="P50" />
+        <StatCard value={`${overall.p95_ms || 0}ms`} label="P95" />
+        <StatCard value={`${overall.p99_ms || 0}ms`} label="P99" />
+        <StatCard value={`${overall.max_ms || 0}ms`} label="Max" />
+      </StatGrid>
 
       <div className="grid md:grid-cols-2 gap-6">
         {endpointData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Avg Latency by Endpoint (ms)</h3>
-            <div style={{ width: '100%', height: Math.max(200, endpointData.length * 32) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={endpointData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fill: '#9ca3af', fontSize: 12 }}
-                    width={75}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer
+            title="Avg Latency by Endpoint (ms)"
+            height="auto"
+            rowCount={endpointData.length}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={endpointData} layout="vertical" margin={{ left: 80, right: 20 }}>
+                <XAxis type="number" tick={chartTheme.axis.tick} />
+                <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {statusData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Status Codes</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Status Codes" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
     </div>

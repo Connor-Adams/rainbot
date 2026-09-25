@@ -1,19 +1,33 @@
+import type { ReactNode } from 'react';
 import { EmptyState as DSEmptyState } from '@connor-adams/designsystem';
 
+/**
+ * Empty state, backed by the design system's `EmptyState`.
+ *
+ * Keeps rainbot's `icon` / `message` / `submessage` API so call sites don't
+ * change. The icon is an emoji string in every current call site, so it is
+ * rendered inside the title as a decorative block above the message and hidden
+ * from assistive tech; `DSEmptyState` has no icon slot of its own.
+ */
 interface EmptyStateProps {
   icon: string;
   message: string;
   submessage?: string;
+  /** Trailing actions — a retry button, a link to docs. */
+  actions?: ReactNode;
+  className?: string;
 }
 
-/**
- * Thin wrapper around the design system's EmptyState that keeps rainbot's
- * existing icon/message/submessage API so call sites don't need to change.
- */
-export default function EmptyState({ icon, message, submessage }: EmptyStateProps) {
+export default function EmptyState({
+  icon,
+  message,
+  submessage,
+  actions,
+  className = '',
+}: EmptyStateProps) {
   return (
     <DSEmptyState
-      className="text-center"
+      className={`text-center ${className}`.trim()}
       title={
         <>
           <span className="block text-3xl mb-2 opacity-70" aria-hidden="true">
@@ -23,6 +37,7 @@ export default function EmptyState({ icon, message, submessage }: EmptyStateProp
         </>
       }
       description={submessage}
+      actions={actions}
     />
   );
 }

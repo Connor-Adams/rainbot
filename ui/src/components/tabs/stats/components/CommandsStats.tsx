@@ -1,6 +1,15 @@
 import type { CommandStat } from '@/types';
 import { escapeHtml } from '@/lib/utils';
-import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
+import {
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+  EmptyState,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { statsApi } from '@/lib/api';
 import { safeInt } from '@/lib/chartSafety';
@@ -31,13 +40,11 @@ export default function CommandsStats() {
 
   if (!data || commands.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-8 px-6 text-center">
-        <span className="text-3xl opacity-50">📊</span>
-        <p className="text-sm text-text-secondary">No command data available yet</p>
-        <small className="text-xs text-text-muted">
-          Command statistics will appear as users interact with the bot
-        </small>
-      </div>
+      <EmptyState
+        icon="📊"
+        message="No command data available yet"
+        submessage="Command statistics will appear as users interact with the bot"
+      />
     );
   }
 
@@ -53,9 +60,11 @@ export default function CommandsStats() {
     value: safeInt(c.count),
   }));
 
+  // Colours are assigned before the filter, so a zeroed slice never shifts the
+  // remaining slices' colours — same as when these were hard-coded hex.
   const doughnutData = [
-    { name: 'Success', value: successCount, color: 'rgb(34, 197, 94)' },
-    { name: 'Errors', value: errorCount, color: 'rgb(239, 68, 68)' },
+    { name: 'Success', value: successCount, color: chartColor(0) },
+    { name: 'Errors', value: errorCount, color: chartColor(1) },
   ].filter((d) => d.value > 0);
 
   const columns = [
@@ -107,64 +116,41 @@ export default function CommandsStats() {
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {barChartData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg text-text-primary mb-4">Top Commands</h3>
-            <div style={{ width: '100%', height: Math.max(200, barChartData.length * 32) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fill: '#9ca3af', fontSize: 12 }}
-                    width={75}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Top Commands" height="auto" rowCount={barChartData.length}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barChartData} layout="vertical" margin={{ left: 80, right: 20 }}>
+                <XAxis type="number" tick={chartTheme.axis.tick} />
+                <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
         {doughnutData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg text-text-primary mb-4">Success Rate</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={doughnutData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {doughnutData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Success Rate" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={doughnutData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {doughnutData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
       <StatsSection title="Command Details">

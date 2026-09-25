@@ -14,7 +14,7 @@
     "start:prod": "serve -s dist -l $PORT"
   },
   "dependencies": {
-    "@connor-adams/designsystem": "^2.0.0",
+    "@connor-adams/designsystem": "^3.0.0",
     "@connor-adams/tokens": "^0.2.0",
     "@rainbot/protocol": "*",
     "@rainbot/shared": "*",

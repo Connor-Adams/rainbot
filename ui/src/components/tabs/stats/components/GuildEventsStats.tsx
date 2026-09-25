@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+  ChartContainer,
+  chartTheme,
+  chartColor,
+} from '@/components/common';
 import { safeInt, safeDateLabel } from '@/lib/chartSafety';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { pieSliceLabel } from './pieLabel';
@@ -37,9 +46,8 @@ export default function GuildEventsStats() {
     refetchInterval: 10000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading guild events...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading guild events</div>;
+  if (isLoading) return <StatsLoading message="Loading guild events..." />;
+  if (error) return <StatsError error={error} message="Error loading guild events" />;
 
   const summary = Array.isArray(data?.summary) ? data.summary : [];
   const recentEvents = Array.isArray(data?.recentEvents) ? data.recentEvents : [];
@@ -59,50 +67,72 @@ export default function GuildEventsStats() {
     .map((s) => ({
       name: (s.event_type || 'Unknown').replace('bot_', ''),
       value: safeInt(s.count),
-      color: s.event_type === 'bot_added' ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
     }))
     .filter((d) => d.value > 0);
+
+  const eventColumns = [
+    {
+      id: 'event',
+      header: 'Event',
+      render: (event: GuildEvent) => (
+        <span
+          className={`px-2 py-1 rounded text-xs ${event.event_type === 'bot_added' ? 'bg-success/10 text-success-light' : 'bg-danger/10 text-danger-light'}`}
+        >
+          {event.event_type.replace('bot_', '')}
+        </span>
+      ),
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'guild',
+      header: 'Guild',
+      render: (event: GuildEvent) => event.guild_name || event.guild_id,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'members',
+      header: 'Members',
+      render: (event: GuildEvent) => event.member_count,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      render: (event: GuildEvent) => safeDateLabel(event.created_at),
+      className: 'px-4 py-2 text-sm text-text-secondary',
+    },
+  ];
 
   return (
     <div className="space-y-6">
       {summaryData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Guild Events Summary</h3>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={summaryData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  label={pieSliceLabel}
-                  labelLine={{ stroke: '#6b7280' }}
-                >
-                  {summaryData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartContainer title="Guild Events Summary" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={summaryData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={80}
+                paddingAngle={2}
+                label={pieSliceLabel}
+                labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+              >
+                {summaryData.map((_, index) => (
+                  <Cell key={index} fill={chartColor(index)} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
       {growth.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Guild Growth Over Time</h3>
+        <StatsSection title="Guild Growth Over Time">
           <div className="space-y-2">
             {growth.slice(-14).map((g, idx) => {
               const joins = safeInt(g.joins);
@@ -121,41 +151,18 @@ export default function GuildEventsStats() {
               );
             })}
           </div>
-        </div>
+        </StatsSection>
       )}
 
       {recentEvents.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Recent Guild Events</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Event</th>
-                  <th className="pb-2 px-4">Guild</th>
-                  <th className="pb-2 px-4">Members</th>
-                  <th className="pb-2 px-4">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentEvents.slice(0, 10).map((event, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${event.event_type === 'bot_added' ? 'bg-success/10 text-success-light' : 'bg-danger/10 text-danger-light'}`}
-                      >
-                        {event.event_type.replace('bot_', '')}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4">{event.guild_name || event.guild_id}</td>
-                    <td className="py-2 px-4">{event.member_count}</td>
-                    <td className="py-2 px-4 text-sm">{safeDateLabel(event.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Recent Guild Events">
+          <StatsTable<GuildEvent>
+            columns={eventColumns}
+            data={recentEvents.slice(0, 10)}
+            emptyMessage="No recent guild events"
+            getRowKey={(event) => `${event.guild_id}-${event.created_at}-${event.event_type}`}
+          />
+        </StatsSection>
       )}
     </div>
   );

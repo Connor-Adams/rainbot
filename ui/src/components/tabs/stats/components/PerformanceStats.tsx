@@ -1,6 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+  ChartContainer,
+  chartTheme,
+  chartColor,
+  StatCard,
+} from '@/components/common';
+import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -33,9 +44,8 @@ export default function PerformanceStats() {
     refetchInterval: 30000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading performance...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading performance</div>;
+  if (isLoading) return <StatsLoading message="Loading performance..." />;
+  if (error) return <StatsError error={error} message="Error loading performance" />;
 
   if (!data) {
     return (
@@ -63,92 +73,101 @@ export default function PerformanceStats() {
     value: safeInt(c.avg_ms),
   }));
 
+  const commandColumns = [
+    {
+      id: 'command',
+      header: 'Command',
+      render: (cmd: CommandPerf) => cmd.command_name,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'avg_ms',
+      header: 'Avg (ms)',
+      render: (cmd: CommandPerf) => cmd.avg_ms,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'p95_ms',
+      header: 'P95 (ms)',
+      render: (cmd: CommandPerf) => cmd.p95_ms,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+    {
+      id: 'execution_count',
+      header: 'Executions',
+      render: (cmd: CommandPerf) => cmd.execution_count,
+      className: 'px-4 py-2 text-text-secondary',
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-primary-light">{overall.sample_count || 0}</div>
-          <div className="text-sm text-text-secondary">Samples</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-success-light">{overall.avg_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">Avg</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-secondary-light">{overall.p50_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P50</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning-light">{overall.p95_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P95</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-warning">{overall.p99_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">P99</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-text-secondary">{overall.min_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">Min</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-danger-light">{overall.max_ms || 0}ms</div>
-          <div className="text-sm text-text-secondary">Max</div>
-        </div>
-      </div>
+      {/* The seven tiles were `grid-cols-2 md:grid-cols-4 lg:grid-cols-7`;
+          `StatGrid columns="auto"` replaces those breakpoints with an
+          intrinsically responsive auto-fit grid, which still lands on seven
+          tracks at the width the `lg:` rule was written for. Each tile's
+          severity colour was carried by its value text, so the value is passed
+          as a node rather than a bare string to keep it. */}
+      <StatGrid columns="auto" minItemWidth={140} gap="lg">
+        <StatCard
+          value={<span className="text-primary-light">{overall.sample_count || 0}</span>}
+          label="Samples"
+        />
+        <StatCard
+          value={<span className="text-success-light">{overall.avg_ms || 0}ms</span>}
+          label="Avg"
+        />
+        <StatCard
+          value={<span className="text-secondary-light">{overall.p50_ms || 0}ms</span>}
+          label="P50"
+        />
+        <StatCard
+          value={<span className="text-warning-light">{overall.p95_ms || 0}ms</span>}
+          label="P95"
+        />
+        <StatCard
+          value={<span className="text-warning">{overall.p99_ms || 0}ms</span>}
+          label="P99"
+        />
+        <StatCard
+          value={<span className="text-text-secondary">{overall.min_ms || 0}ms</span>}
+          label="Min"
+        />
+        <StatCard
+          value={<span className="text-danger-light">{overall.max_ms || 0}ms</span>}
+          label="Max"
+        />
+      </StatGrid>
 
       {commandData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Avg Execution Time by Command (ms)</h3>
-          <div style={{ width: '100%', height: Math.max(200, commandData.length * 32) }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={commandData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: '#9ca3af', fontSize: 12 }}
-                  width={75}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-                <Bar dataKey="value" fill="rgb(59, 130, 246)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        // `height="auto"` with the DS defaults (32px per row, 200px floor) is
+        // the old `Math.max(200, commandData.length * 32)`, resolved to real
+        // pixels — so the inner height div is gone.
+        <ChartContainer
+          title="Avg Execution Time by Command (ms)"
+          height="auto"
+          rowCount={commandData.length}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={commandData} layout="vertical" margin={{ left: 80, right: 20 }}>
+              <XAxis type="number" tick={chartTheme.axis.tick} />
+              <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
       {byCommand.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Command Performance</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Command</th>
-                  <th className="pb-2 px-4">Avg (ms)</th>
-                  <th className="pb-2 px-4">P95 (ms)</th>
-                  <th className="pb-2 px-4">Executions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {byCommand.map((cmd, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4">{cmd.command_name}</td>
-                    <td className="py-2 px-4">{cmd.avg_ms}</td>
-                    <td className="py-2 px-4">{cmd.p95_ms}</td>
-                    <td className="py-2 px-4">{cmd.execution_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Command Performance">
+          <StatsTable<CommandPerf>
+            columns={commandColumns}
+            data={byCommand}
+            emptyMessage="No command performance data available"
+            getRowKey={(cmd) => cmd.command_name}
+          />
+        </StatsSection>
       )}
     </div>
   );

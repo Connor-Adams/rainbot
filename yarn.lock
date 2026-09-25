@@ -1146,15 +1146,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@connor-adams/designsystem@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "@connor-adams/designsystem@npm:2.0.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Fdesignsystem%2F2.0.0%2F928913f395ba68d2263ec0a1778c1854457749ca"
+"@connor-adams/designsystem@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "@connor-adams/designsystem@npm:3.0.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40connor-adams%2Fdesignsystem%2F3.0.0%2F3b9d1a81fc19b27004955172994e7f6bdfb77715"
   dependencies:
     "@connor-adams/tokens": "npm:0.2.0"
   peerDependencies:
     react: ">=18"
     react-dom: ">=18"
-  checksum: 10c0/82ec7c40b79e6d2240f455af468d3d56bb573236a4ca839f146b2f462a87380a0bd74844690b02677a5567b48f1572727862dae4c121c37c7a07b38a42ae4011
+  checksum: 10c0/9004d5278ac8820cae5e35e0aa0398ff676e74b253f3da0036b5167837f56c6b6be7f991eb45eca210878b83415b4056109a829db507efd84dcf157f4cec96da
   languageName: node
   linkType: hard
 
@@ -4141,7 +4141,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rainbot/ui@workspace:ui"
   dependencies:
-    "@connor-adams/designsystem": "npm:^2.0.0"
+    "@connor-adams/designsystem": "npm:^3.0.0"
     "@connor-adams/tokens": "npm:^0.2.0"
     "@eslint/js": "npm:^10.0.1"
     "@rainbot/protocol": "npm:*"

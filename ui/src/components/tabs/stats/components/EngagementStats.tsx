@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  EmptyState,
+  StatsLoading,
+  StatsError,
+  StatCard,
+  ChartContainer,
+  chartColor,
+  chartTheme,
+} from '@/components/common';
+import { StatGrid } from '@connor-adams/designsystem';
 import { safeInt } from '@/lib/chartSafety';
 import {
   BarChart,
@@ -42,9 +51,8 @@ export default function EngagementStats() {
     refetchInterval: 10000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading engagement...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading engagement</div>;
+  if (isLoading) return <StatsLoading message="Loading engagement..." />;
+  if (error) return <StatsError error={error} message="Error loading engagement" />;
   if (!data) return null;
 
   const summary: EngagementSummary = data.summary || {
@@ -74,109 +82,72 @@ export default function EngagementStats() {
   }
 
   const other = Math.max(0, totalTracks - completed - skipped);
+  // Colours are assigned before the filter so a zeroed slice never shifts the
+  // remaining slices' colours — same as when these were hard-coded hex.
   const completionData = [
-    { name: 'Completed', value: completed, color: 'rgb(34, 197, 94)' },
-    { name: 'Skipped', value: skipped, color: 'rgb(239, 68, 68)' },
-    { name: 'Other', value: other, color: 'rgb(156, 163, 175)' },
+    { name: 'Completed', value: completed, color: chartColor(0) },
+    { name: 'Skipped', value: skipped, color: chartColor(1) },
+    { name: 'Other', value: other, color: chartColor(2) },
   ].filter((d) => d.value > 0);
 
-  const skipColors = ['rgb(239, 68, 68)', 'rgb(251, 146, 60)', 'rgb(251, 191, 36)'];
   const skipData = skipReasons.map((r, idx) => ({
     name: r.skip_reason || 'Unknown',
     value: safeInt(r.count),
-    color: skipColors[idx % 3],
+    color: chartColor(idx),
   }));
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-primary-light">{totalTracks}</div>
-          <div className="text-sm text-text-secondary">Total Tracks</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-success-light">{completed}</div>
-          <div className="text-sm text-text-secondary">Completed</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-danger-light">{skipped}</div>
-          <div className="text-sm text-text-secondary">Skipped</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-text-secondary">{other}</div>
-          <div className="text-sm text-text-secondary">Other</div>
-        </div>
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-secondary-light">{avgCompletionDisplay}%</div>
-          <div className="text-sm text-text-secondary">Avg Completion</div>
-        </div>
-      </div>
+      <StatGrid columns="auto" minItemWidth={160} gap="lg">
+        <StatCard value={totalTracks} label="Total Tracks" />
+        <StatCard value={completed} label="Completed" />
+        <StatCard value={skipped} label="Skipped" />
+        <StatCard value={other} label="Other" />
+        <StatCard value={`${avgCompletionDisplay}%`} label="Avg Completion" />
+      </StatGrid>
 
       <div className="grid md:grid-cols-2 gap-6">
         {completionData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Completion vs Skips</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={completionData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {completionData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Completion vs Skips" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={completionData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {completionData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {skipData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Skip Reasons</h3>
-            <div style={{ width: '100%', height: Math.max(200, skipData.length * 32) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={skipData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                  <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fill: '#9ca3af', fontSize: 12 }}
-                    width={75}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {skipData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Skip Reasons" height="auto" rowCount={skipData.length}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={skipData} layout="vertical" margin={{ left: 80, right: 20 }}>
+                <XAxis type="number" tick={chartTheme.axis.tick} />
+                <YAxis type="category" dataKey="name" tick={chartTheme.axis.tick} width={75} />
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {skipData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
     </div>
