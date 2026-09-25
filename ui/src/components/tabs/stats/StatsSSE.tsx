@@ -10,6 +10,29 @@ export default function StatsSSE() {
     let es: EventSource | null = null;
     let reconnect = 1000;
     let pollInterval: number | null = null;
+    /**
+     * The pending reconnect, so the cleanup below can cancel it.
+     *
+     * `onerror` used to schedule it with a bare `setTimeout(connect, reconnect)`
+     * and drop the handle, so unmounting inside the 1-8s backoff — navigating off
+     * the Statistics tab after any stream blip — let the timer fire anyway.
+     * `connect()` then built a fresh `EventSource` for a component that no longer
+     * existed, and nothing was left to close it: one connection leaked per
+     * occurrence, held open for the life of the page.
+     */
+    let reconnectTimer: number | null = null;
+    /**
+     * Belt and braces alongside clearing the timer: nothing may open a stream
+     * after the effect has torn down, whoever calls `connect`.
+     */
+    let cancelled = false;
+
+    const cancelReconnect = () => {
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
 
     const startPollingFallback = () => {
       if (pollInterval) return;
@@ -35,6 +58,9 @@ export default function StatsSSE() {
     };
 
     const connect = () => {
+      reconnectTimer = null;
+      if (cancelled) return;
+
       try {
         es = createApiEventSource('/stats/stream');
       } catch {
@@ -78,7 +104,8 @@ export default function StatsSSE() {
           startPollingFallback();
           return;
         }
-        setTimeout(connect, reconnect);
+        cancelReconnect();
+        reconnectTimer = window.setTimeout(connect, reconnect);
         reconnect = Math.min(30000, reconnect * 2);
       };
     };
@@ -86,6 +113,8 @@ export default function StatsSSE() {
     connect();
 
     return () => {
+      cancelled = true;
+      cancelReconnect();
       if (es) {
         es.close();
         es = null;
