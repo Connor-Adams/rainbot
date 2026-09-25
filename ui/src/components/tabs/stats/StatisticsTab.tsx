@@ -113,7 +113,12 @@ export default function StatisticsTab() {
         tabIndex={0}
         className="space-y-6"
       >
-        <StatsErrorBoundary>
+        {/* Keyed on the active section, exactly as `Layout` keys
+            `RouteErrorBoundary` on the pathname. Without it the boundary's
+            `hasError` outlives the section that threw, so one bad payload left
+            all 21 sections showing "Statistics Unavailable" until a page
+            reload. */}
+        <StatsErrorBoundary key={activeTab}>
           {activeTab === 'summary' && <StatsSummary key="summary" />}
           {activeTab === 'commands' && <CommandsStats key="commands" />}
           {activeTab === 'sounds' && <SoundsStats key="sounds" />}
