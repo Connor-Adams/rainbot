@@ -43,11 +43,26 @@ function getTrackSource(track: Track) {
  * `apps/raincloud/handlers/musicButtonHandlers.ts`). The ms value is rounded
  * because `formatDuration` does `seconds % 60` and would otherwise print
  * `4:5.678000000000004`.
+ *
+ * Returns `undefined` for anything that is not a known, positive length, so the
+ * caller has one thing to test. The `> 0` is not cosmetic: the meta line used to
+ * render `{track.duration && <span>…</span>}`, and `0 && x` is `0`, which React
+ * renders as a text child — a live stream, or a track whose length was never
+ * probed, printed `🎵 Stream0`. An explicit check rather than truthiness,
+ * because truthiness on a numeric field is what caused that. A zero-length
+ * track shows no duration at all; `0:00` would claim the length is known to be
+ * zero.
  */
 function trackDurationSeconds(track: Track): number | undefined {
-  if (track.duration != null) return track.duration;
-  if (track.durationMs != null) return Math.round(track.durationMs / 1000);
-  return undefined;
+  const seconds =
+    track.duration != null
+      ? track.duration
+      : track.durationMs != null
+        ? Math.round(track.durationMs / 1000)
+        : undefined;
+
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  return seconds;
 }
 
 export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
@@ -80,7 +95,7 @@ export default function QueueItem({ track, index, onRemove }: QueueItemProps) {
           <span className="flex items-center gap-1.5">
             {source.icon} {source.text}
           </span>
-          {durationSeconds ? <span>{formatDuration(durationSeconds)}</span> : null}
+          {durationSeconds !== undefined && <span>{formatDuration(durationSeconds)}</span>}
         </div>
       </div>
 

@@ -57,6 +57,60 @@ beforeEach(() => {
   } as never);
 });
 
+/**
+ * The Last Active cell called `new Date(guild.last_active).toLocaleString()`
+ * with no validity check, so a malformed timestamp reached the screen as the
+ * literal string "Invalid Date". `safeDateLabel` in `lib/chartSafety.ts` exists
+ * for exactly this and is what the rest of the stats sections use.
+ *
+ * The absent case keeps its own copy: `safeDateLabel` returns "Unknown" for a
+ * falsy input, but a guild with no recorded activity has always read "Never"
+ * here, which is more precise than "Unknown" and worth keeping.
+ */
+describe('GuildsStats Last Active', () => {
+  it('never renders the literal "Invalid Date"', async () => {
+    vi.mocked(statsApi.guilds).mockResolvedValue({
+      data: {
+        guilds: [
+          {
+            guild_id: DEPARTED_GUILD_ID,
+            command_count: '1',
+            sound_count: '0',
+            unique_users: '1',
+            last_active: 'not-a-timestamp',
+          },
+        ],
+      },
+    } as never);
+
+    renderWithQuery(<GuildsStats />);
+
+    await screen.findByText(DEPARTED_GUILD_ID);
+    expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+  });
+
+  it('still says "Never" when there is no recorded activity', async () => {
+    vi.mocked(statsApi.guilds).mockResolvedValue({
+      data: {
+        guilds: [
+          {
+            guild_id: DEPARTED_GUILD_ID,
+            command_count: '1',
+            sound_count: '0',
+            unique_users: '1',
+          },
+        ],
+      },
+    } as never);
+
+    renderWithQuery(<GuildsStats />);
+
+    await screen.findByText(DEPARTED_GUILD_ID);
+    expect(screen.getByText('Never')).toBeInTheDocument();
+  });
+});
+
 describe('GuildsStats', () => {
   it('shows the guild name for a guild the bot is still in', async () => {
     renderWithQuery(<GuildsStats />);

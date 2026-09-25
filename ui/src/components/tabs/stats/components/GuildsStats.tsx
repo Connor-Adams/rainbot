@@ -3,6 +3,7 @@ import type { BotStatus, GuildStat } from '@/types';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { botApi, statsApi } from '@/lib/api';
+import { safeDateTimeLabel } from '@/lib/chartSafety';
 
 export default function GuildsStats() {
   const { data, isLoading, error } = useStatsQuery({
@@ -82,7 +83,7 @@ export default function GuildsStats() {
       id: 'last_active',
       header: 'Last Active',
       render: (guild: GuildStat) =>
-        guild.last_active ? new Date(guild.last_active).toLocaleString() : 'Never',
+        guild.last_active ? safeDateTimeLabel(guild.last_active) : 'Never',
       className: 'px-4 py-3 text-sm text-text-secondary',
     },
   ];

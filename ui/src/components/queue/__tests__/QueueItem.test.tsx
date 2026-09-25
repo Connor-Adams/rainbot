@@ -168,3 +168,51 @@ describe('QueueItem entry stagger', () => {
     expect(delayOf(100)).toBe('300ms');
   });
 });
+
+/**
+ * The meta line rendered `{track.duration && <span>…</span>}`. When `duration`
+ * is `0` that expression evaluates to `0`, not `false`, and React renders `0` as
+ * a text child — so a zero-length track printed a stray digit next to its
+ * source: `🎵 Stream0`.
+ *
+ * `duration: 0` is a realistic input, not a synthetic one: a live stream, or a
+ * track whose length was never probed.
+ *
+ * The guard is an explicit finite-and-positive check rather than truthiness,
+ * because truthiness on a numeric field is the whole bug. A zero-length track
+ * shows no duration at all, which is the honest answer — 0:00 would claim the
+ * length is known to be zero.
+ *
+ * These assert the meta line's FULL text, so a stray `0` anywhere in it fails
+ * (`getByText('🎵 Stream')` with the default exact matcher will not match
+ * `🎵 Stream0`).
+ */
+describe('QueueItem zero-length tracks', () => {
+  function metaText(track: Track) {
+    const { container } = render(<QueueItem track={track} index={0} onRemove={vi.fn()} />);
+    const meta = container.querySelector('.flex-1 > div:last-child');
+    return meta?.textContent?.replace(/\s+/g, ' ').trim();
+  }
+
+  it('renders no stray 0 for a track with duration 0', () => {
+    expect(metaText(makeTrack({ duration: 0, url: 'https://example.com/live' }))).toBe('🎵 Stream');
+  });
+
+  it('renders no stray 0 for a track with durationMs 0', () => {
+    expect(
+      metaText(makeTrack({ duration: undefined, durationMs: 0, url: 'https://example.com/live' }))
+    ).toBe('🎵 Stream');
+  });
+
+  it('renders no duration for a non-finite duration', () => {
+    expect(metaText(makeTrack({ duration: NaN, url: 'https://example.com/live' }))).toBe(
+      '🎵 Stream'
+    );
+  });
+
+  it('renders no duration for a negative duration', () => {
+    expect(metaText(makeTrack({ duration: -30, url: 'https://example.com/live' }))).toBe(
+      '🎵 Stream'
+    );
+  });
+});
