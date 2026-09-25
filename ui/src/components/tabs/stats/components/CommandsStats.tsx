@@ -1,5 +1,4 @@
 import type { CommandStat } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 import {
   StatsLoading,
   StatsError,
@@ -71,7 +70,7 @@ export default function CommandsStats() {
     {
       id: 'command',
       header: 'Command',
-      render: (cmd: CommandStat) => escapeHtml(cmd.command_name),
+      render: (cmd: CommandStat) => cmd.command_name,
       className: 'px-4 py-3 text-sm text-text-primary',
     },
     {

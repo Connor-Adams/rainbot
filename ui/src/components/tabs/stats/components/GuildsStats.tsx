@@ -1,5 +1,4 @@
 import type { GuildStat } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 import { StatsLoading, StatsError, StatsSection, StatsTable } from '@/components/common';
 import { useStatsQuery } from '@/hooks/useStatsQuery';
 import { statsApi } from '@/lib/api';
@@ -18,7 +17,7 @@ export default function GuildsStats() {
     {
       id: 'guild_id',
       header: 'Guild ID',
-      render: (guild: GuildStat) => <span className="font-mono">{escapeHtml(guild.guild_id)}</span>,
+      render: (guild: GuildStat) => <span className="font-mono">{guild.guild_id}</span>,
       className: 'px-4 py-3 text-sm text-text-primary',
     },
     {
