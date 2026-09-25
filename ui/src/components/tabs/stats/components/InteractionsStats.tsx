@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+  ChartContainer,
+  EmptyState,
+  chartTheme,
+  chartColor,
+} from '@/components/common';
 import { safeInt } from '@/lib/chartSafety';
 import {
   BarChart,
@@ -45,9 +54,8 @@ export default function InteractionsStats() {
     refetchInterval: 10000,
   });
 
-  if (isLoading)
-    return <div className="stats-loading text-center py-12">Loading interactions...</div>;
-  if (error) return <div className="stats-error text-center py-12">Error loading interactions</div>;
+  if (isLoading) return <StatsLoading message="Loading interactions..." />;
+  if (error) return <StatsError error={error} message="Error loading interactions" />;
   if (!data) return null;
 
   const rtd: ResponseTimeDist = data.responseTimeDistribution || {
@@ -77,20 +85,19 @@ export default function InteractionsStats() {
     );
   }
 
-  const typeColors = ['rgb(59, 130, 246)', 'rgb(34, 197, 94)', 'rgb(251, 146, 60)'];
   const typeData = typeBreakdown
     .map((t, idx) => ({
       name: t.interaction_type || 'Unknown',
       value: safeInt(t.count),
-      color: typeColors[idx % 3],
+      color: chartColor(idx),
     }))
     .filter((d) => d.value > 0);
 
   const rtData = [
-    { name: '< 100ms', value: safeInt(rtd.under_100ms), color: 'rgb(34, 197, 94)' },
-    { name: '100-500ms', value: safeInt(rtd.between_100_500ms), color: 'rgb(251, 191, 36)' },
-    { name: '500-1000ms', value: safeInt(rtd.between_500_1000ms), color: 'rgb(251, 146, 60)' },
-    { name: '> 1000ms', value: safeInt(rtd.over_1000ms), color: 'rgb(239, 68, 68)' },
+    { name: '< 100ms', value: safeInt(rtd.under_100ms), color: chartColor(0) },
+    { name: '100-500ms', value: safeInt(rtd.between_100_500ms), color: chartColor(1) },
+    { name: '500-1000ms', value: safeInt(rtd.between_500_1000ms), color: chartColor(2) },
+    { name: '> 1000ms', value: safeInt(rtd.over_1000ms), color: chartColor(3) },
   ].filter((d) => d.value > 0);
 
   const actionData = topActions.slice(0, 10).map((a) => ({
@@ -98,129 +105,100 @@ export default function InteractionsStats() {
     value: safeInt(a.count),
   }));
 
+  const actionColumns = [
+    {
+      id: 'custom_id',
+      header: 'Custom ID',
+      render: (action: TopAction) => action.custom_id,
+      className: 'font-mono text-sm',
+    },
+    { id: 'count', header: 'Count', render: (action: TopAction) => action.count },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 gap-6">
         {typeData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Interaction Types</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={typeData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {typeData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Interaction Types" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={typeData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {typeData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {rtData.length > 0 && (
-          <div className="bg-surface border border-border rounded-xl p-6">
-            <h3 className="text-lg text-text-primary mb-4">Response Time Distribution</h3>
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={rtData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    label={pieSliceLabel}
-                    labelLine={{ stroke: '#6b7280' }}
-                  >
-                    {rtData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: 8,
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <ChartContainer title="Response Time Distribution" height={280}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={rtData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  label={pieSliceLabel}
+                  labelLine={{ stroke: chartTheme.tooltip.labelLine }}
+                >
+                  {rtData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         )}
       </div>
 
       {actionData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Top Interactions</h3>
-          <div style={{ width: '100%', height: Math.max(200, actionData.length * 32) }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={actionData} layout="vertical" margin={{ left: 80, right: 20 }}>
-                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: '#9ca3af', fontSize: 12 }}
-                  width={75}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-                <Bar dataKey="value" fill="rgb(168, 85, 247)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartContainer title="Top Interactions" height="auto" rowCount={actionData.length}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={actionData} layout="vertical" margin={{ left: 80, right: 20 }}>
+              <XAxis type="number" tick={chartTheme.axis.tick} stroke={chartTheme.axis.stroke} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={chartTheme.axis.tick}
+                stroke={chartTheme.axis.stroke}
+                width={75}
+              />
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              <Bar dataKey="value" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
       {topActions.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-xl text-text-primary mb-4">Interaction Details</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-text-secondary border-b border-border">
-                  <th className="pb-2 px-4">Custom ID</th>
-                  <th className="pb-2 px-4">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topActions.slice(0, 15).map((action, idx) => (
-                  <tr key={idx} className="border-b border-border/50 text-text-secondary">
-                    <td className="py-2 px-4 font-mono text-sm">{action.custom_id}</td>
-                    <td className="py-2 px-4">{action.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <StatsSection title="Interaction Details">
+          <StatsTable
+            columns={actionColumns}
+            data={topActions.slice(0, 15)}
+            emptyMessage="No interaction data"
+            getRowKey={(action: TopAction) => action.custom_id}
+          />
+        </StatsSection>
       )}
     </div>
   );

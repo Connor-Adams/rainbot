@@ -1,6 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { StatGrid } from '@connor-adams/designsystem';
 import { statsApi } from '@/lib/api';
-import { EmptyState } from '@/components/common';
+import {
+  StatsLoading,
+  StatsError,
+  StatsSection,
+  StatsTable,
+  StatCard,
+  ChartContainer,
+  EmptyState,
+  chartTheme,
+  chartColor,
+} from '@/components/common';
 import { safeInt, safeDateLabel } from '@/lib/chartSafety';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -47,21 +58,8 @@ export default function SessionsStats() {
     refetchInterval: 30000,
   });
 
-  if (isLoading) {
-    return (
-      <div className="stats-loading text-center py-12 text-text-secondary">
-        Loading session statistics...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="stats-error text-center py-12 text-danger-light">
-        Error: {error instanceof Error ? error.message : 'Unknown error'}
-      </div>
-    );
-  }
+  if (isLoading) return <StatsLoading message="Loading session statistics..." />;
+  if (error) return <StatsError error={error} />;
 
   if (!data) return null;
 
@@ -95,99 +93,63 @@ export default function SessionsStats() {
       value: safeInt(d.sessions),
     }));
 
+  const sessionColumns = [
+    { id: 'channel', header: 'Channel', render: (s: Session) => s.channel_name || 'Unknown' },
+    { id: 'started', header: 'Started', render: (s: Session) => safeDateLabel(s.started_at) },
+    {
+      id: 'duration',
+      header: 'Duration',
+      render: (s: Session) => formatDuration(s.duration_seconds),
+    },
+    { id: 'tracks', header: 'Tracks', render: (s: Session) => s.tracks_played },
+    { id: 'peak_users', header: 'Peak Users', render: (s: Session) => s.user_count_peak },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-success-light">{summary.total_sessions || 0}</div>
-          <div className="text-sm text-text-secondary">Total Sessions</div>
-        </div>
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-primary-light">
-            {formatDuration(safeInt(summary.avg_duration_seconds))}
-          </div>
-          <div className="text-sm text-text-secondary">Avg Duration</div>
-        </div>
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-secondary-light">
-            {formatDuration(safeInt(summary.total_duration_seconds))}
-          </div>
-          <div className="text-sm text-text-secondary">Total Time</div>
-        </div>
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-warning-light">
-            {summary.avg_tracks_per_session || 0}
-          </div>
-          <div className="text-sm text-text-secondary">Avg Tracks/Session</div>
-        </div>
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-warning">{summary.total_tracks || 0}</div>
-          <div className="text-sm text-text-secondary">Total Tracks</div>
-        </div>
-        <div className="bg-surface-hover rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-accent-light">{summary.avg_peak_users || 0}</div>
-          <div className="text-sm text-text-secondary">Avg Peak Users</div>
-        </div>
-      </div>
+      <StatGrid columns="auto" minItemWidth={180} gap="md">
+        <StatCard value={summary.total_sessions || 0} label="Total Sessions" />
+        <StatCard
+          value={formatDuration(safeInt(summary.avg_duration_seconds))}
+          label="Avg Duration"
+        />
+        <StatCard
+          value={formatDuration(safeInt(summary.total_duration_seconds))}
+          label="Total Time"
+        />
+        <StatCard value={summary.avg_tracks_per_session || 0} label="Avg Tracks/Session" />
+        <StatCard value={summary.total_tracks || 0} label="Total Tracks" />
+        <StatCard value={summary.avg_peak_users || 0} label="Avg Peak Users" />
+      </StatGrid>
 
       {chartData.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="text-lg text-text-primary mb-4">Sessions per Day</h3>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ bottom: 60 }}>
-                <XAxis
-                  dataKey="name"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0}
-                />
-                <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: 8,
-                  }}
-                />
-                <Bar dataKey="value" fill="rgb(34, 197, 94)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <ChartContainer title="Sessions per Day" height={300}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ bottom: 60 }}>
+              <XAxis
+                dataKey="name"
+                tick={chartTheme.axis.tick}
+                stroke={chartTheme.axis.stroke}
+                angle={-45}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis tick={chartTheme.axis.tick} stroke={chartTheme.axis.stroke} />
+              <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+              <Bar dataKey="value" fill={chartColor(0)} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       )}
 
-      <div className="bg-surface border border-border rounded-xl p-6">
-        <h3 className="text-xl text-text-primary mb-4">Recent Sessions</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-text-secondary border-b border-border">
-                <th className="pb-2">Channel</th>
-                <th className="pb-2">Started</th>
-                <th className="pb-2">Duration</th>
-                <th className="pb-2">Tracks</th>
-                <th className="pb-2">Peak Users</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.slice(0, 10).map((session) => (
-                <tr
-                  key={session.session_id}
-                  className="border-b border-border/50 text-text-secondary"
-                >
-                  <td className="py-2">{session.channel_name || 'Unknown'}</td>
-                  <td className="py-2">{safeDateLabel(session.started_at)}</td>
-                  <td className="py-2">{formatDuration(session.duration_seconds)}</td>
-                  <td className="py-2">{session.tracks_played}</td>
-                  <td className="py-2">{session.user_count_peak}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <StatsSection title="Recent Sessions">
+        <StatsTable
+          columns={sessionColumns}
+          data={sessions.slice(0, 10)}
+          emptyMessage="No recent sessions"
+          getRowKey={(s: Session) => s.session_id}
+        />
+      </StatsSection>
     </div>
   );
 }
