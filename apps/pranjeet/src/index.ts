@@ -128,6 +128,13 @@ setupDiscordClientReadyHandler(client, {
       // The realtime Voice Agent path owns this boundary: it is the TURN
       // boundary, so the manager's STT-era 3000ms default would add ~3s to
       // every reply. Tunable with VOICE_SILENCE_DURATION_MS.
+      //
+      // It is per-MANAGER, not per-mode, so it shortens the speech-to-text
+      // command path too (conversation mode OFF runs processCompleteAudio off
+      // the same silence boundary): those clips now end after 800ms instead of
+      // 3000ms, and minAudioDuration is 0.1s, so fragments still reach Whisper.
+      // Accepted trade-off — raise VOICE_SILENCE_DURATION_MS if STT commands
+      // start getting chopped. See .env.example for the full note.
       silenceDurationMs: VOICE_SILENCE_DURATION_MS,
       sttProvider: 'openai',
       ttsProvider: 'openai',

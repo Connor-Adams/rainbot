@@ -212,9 +212,13 @@ describe('wake-word gating', () => {
     // The reviewer's probe, and the shape of an API that transcribes input on
     // commit-completion rather than during speech: the transcript lands hundreds
     // of ms AFTER endUtterance() was called. It must still open the gate...
-    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    // A deliberately huge ceiling: the promptness assertion below is the only
+    // thing that detects a bare settle timer, so the gap between "decided when
+    // the transcript landed" (~400ms) and "decided at the ceiling" (~5000ms)
+    // is made as wide as possible — ~2100ms of slack instead of ~800ms.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '5000';
     const { client, sock, mod } = await connect();
-    expect(mod.TRANSCRIPT_SETTLE_MS).toBe(2000);
+    expect(mod.TRANSCRIPT_SETTLE_MS).toBe(5000);
     client.sendAudio(Buffer.alloc(20));
     const startedAt = Date.now();
     const pending = client.endUtterance();
@@ -231,7 +235,88 @@ describe('wake-word gating', () => {
     // ceiling. That is what keeps a generous ceiling free, and what keeps the
     // manager's deaf window (it awaits onUtteranceEnd before resubscribing)
     // short. A bare settle timer fails here even though it would still reply.
-    expect(elapsed).toBeLessThan(1200);
+    expect(elapsed).toBeLessThan(2500);
+  });
+
+  it('decides on the FINAL transcript, not a cumulative partial that happens to match', async () => {
+    // The canonical counter-example. "Evan" is a prefix of "Evanescence", so a
+    // gate that resolved on the first `.updated` would reply to audio that never
+    // addressed the bot. Only the terminal `.completed` may end the wait.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan',
+      });
+    }, 30);
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'Evanescence is a great band',
+      });
+    }, 90);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('answers a multi-word trigger whose first word arrives alone as a partial', async () => {
+    // The other half of the same fix: deciding on the partial "Hey" is
+    // fail-closed, but it makes every multi-word trigger unusable against a
+    // streaming transcriber. Waiting for the terminal text answers correctly.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    process.env['VOICE_TRIGGER_WORD'] = 'hey bot';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Hey',
+      });
+    }, 30);
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'Hey bot, play music',
+      });
+    }, 90);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('decides by the absolute ceiling when only partials ever arrive, however many', async () => {
+    // `grok-transcribe` may emit `.updated` only, so a partial must be allowed to
+    // shorten the wait — but the extension it buys is clamped to the ceiling
+    // measured from when the wait began. Without that clamp an unbroken stream of
+    // partials defers the reply for as long as the user keeps generating them.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '1000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const startedAt = Date.now();
+    const pending = client.endUtterance();
+    // 10 partials, 200ms apart (2000ms of stream) — each one closer together
+    // than the 250ms partial debounce, so only the absolute ceiling can end it.
+    let n = 0;
+    const stream = setInterval(() => {
+      n += 1;
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: `Evan play something ${'la '.repeat(n)}`,
+      });
+      if (n >= 10) clearInterval(stream);
+    }, 200);
+    await pending;
+    const elapsed = Date.now() - startedAt;
+    clearInterval(stream);
+    // Decided at the ceiling (~1000ms), not after the stream finally stopped
+    // (~2250ms). Asserted as a bound so an unclamped debounce fails here
+    // cleanly instead of hanging the test out to its timeout.
+    expect(elapsed).toBeLessThan(1400);
+    // ...and it decided on the partial it had, so the gate is not merely mute.
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
   it('warns once, with the measured lag and the env var to raise, when a transcript arrives after the decision', async () => {
@@ -258,6 +343,41 @@ describe('wake-word gating', () => {
       transcript: 'Evan hello again',
     });
     expect(lateWarnings()).toHaveLength(1);
+  });
+
+  it('does not fire the late-transcription diagnostic on a normal turn that replied', async () => {
+    // The diagnostic is about a ceiling so low the gate was starved. A turn whose
+    // decision READ a transcript was not starved, yet transcription events keep
+    // arriving for it (a trailing `.updated` after `.completed`, the second event
+    // of any normal turn) — and the warning is warn-once per client, so firing it
+    // here burns the latch and the real too-low-ceiling case can never report.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan, skip',
+      });
+    }, 30);
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'Evan, skip this song',
+      });
+    }, 90);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+    // A straggler for the same (already-decided) utterance, as a real socket sends.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan, skip this song.',
+    });
+    const lateWarnings = mockLogger.warn.mock.calls
+      .map((c) => (c as [string])[0])
+      .filter((m) => m.includes('after its reply decision'));
+    expect(lateWarnings).toHaveLength(0);
   });
 
   it('defaults the settle ceiling to 2000ms and reads VOICE_TRANSCRIPT_SETTLE_MS when set', async () => {
