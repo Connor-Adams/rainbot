@@ -10,7 +10,13 @@ import WebSocket from 'ws';
 import { createLogger } from '@rainbot/shared';
 import { resample48kStereoTo24kMono } from '../audio/utils';
 import { getGrokPersona, getGrokVoice } from '../redis';
-import { GROK_API_KEY, GROK_ENABLED, GROK_VOICE, GROK_VOICE_AGENT_TOOLS } from '../config';
+import {
+  GROK_API_KEY,
+  GROK_ENABLED,
+  GROK_VOICE,
+  GROK_VOICE_AGENT_TOOLS,
+  VOICE_TRIGGER_WORD,
+} from '../config';
 import { getVoiceAgentInstructions } from '../prompts';
 import { VOICE_AGENT_MUSIC_TOOLS } from './tools';
 
@@ -33,6 +39,30 @@ const PING_INTERVAL_MS = 15_000;
  */
 export const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe';
 
+/**
+ * The input transcript is cumulative and may trail Discord's silence event. Wait
+ * this long for a late update before deciding whether we were addressed.
+ */
+export const TRANSCRIPT_SETTLE_MS = 300;
+
+/**
+ * True when the utterance opens with the wake word. Leading punctuation and
+ * quotes are stripped, matching is case-insensitive, and the word must be
+ * followed by a boundary so "evanescence" does not wake it. An empty trigger
+ * word returns false — the gate fails closed rather than answering everything.
+ */
+export function isAddressed(transcript: string, triggerWord: string): boolean {
+  const trigger = triggerWord.trim().toLowerCase();
+  if (trigger.length === 0) return false;
+  const cleaned = transcript
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .trim();
+  if (!cleaned.startsWith(trigger)) return false;
+  const next = cleaned.charAt(trigger.length);
+  return next === '' || !/[\p{L}\p{N}]/u.test(next);
+}
+
 export interface GrokVoiceAgentCallbacks {
   /** Called when Grok's response audio is complete (PCM 24kHz mono s16le). */
   onAudioDone: (pcmBuffer: Buffer) => void | Promise<void>;
@@ -44,6 +74,11 @@ export interface GrokVoiceAgentCallbacks {
 
 export interface GrokVoiceAgentClient {
   sendAudio(chunk: Buffer): void;
+  /**
+   * Called on Discord's silence boundary. Always commits the input buffer, then
+   * requests a response ONLY if the wake word opened the utterance.
+   */
+  endUtterance(): Promise<void>;
   close(): void;
 }
 
@@ -68,6 +103,7 @@ export function createGrokVoiceAgentClient(
   let isAlive = true;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let _currentResponseId: string | null = null;
+  let inputTranscript = '';
   let sessionConfig: {
     instructions: string;
     voice: string;
@@ -205,6 +241,7 @@ export function createGrokVoiceAgentClient(
     let event: {
       type?: string;
       delta?: string;
+      transcript?: string;
       response?: { id?: string };
       name?: string;
       call_id?: string;
@@ -220,6 +257,12 @@ export function createGrokVoiceAgentClient(
         sessionConfigured = true;
         log.debug('Voice Agent session.updated');
         break;
+      case 'conversation.item.input_audio_transcription.updated': {
+        const text =
+          (event as { transcript?: string }).transcript ?? (event as { delta?: string }).delta;
+        if (typeof text === 'string' && text.length > 0) inputTranscript = text;
+        break;
+      }
       case 'response.created':
         if (event.response?.id) {
           _currentResponseId = event.response.id;
@@ -317,6 +360,23 @@ export function createGrokVoiceAgentClient(
       const resampled = resample48kStereoTo24kMono(chunk);
       const b64 = resampled.toString('base64');
       send({ type: 'input_audio_buffer.append', audio: b64 });
+    },
+    async endUtterance() {
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
+      // Commit unconditionally. If the server only transcribes committed audio,
+      // gating the commit on the transcript would deadlock; commit merely closes
+      // the input buffer and produces no reply on its own.
+      send({ type: 'input_audio_buffer.commit' });
+      if (!isAddressed(inputTranscript, VOICE_TRIGGER_WORD)) {
+        await new Promise((r) => setTimeout(r, TRANSCRIPT_SETTLE_MS));
+      }
+      const addressed = isAddressed(inputTranscript, VOICE_TRIGGER_WORD);
+      if (addressed) {
+        send({ type: 'response.create' });
+      } else {
+        log.debug(`Utterance not addressed (no wake word); staying silent`);
+      }
+      inputTranscript = '';
     },
     close() {
       doClose();
