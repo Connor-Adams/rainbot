@@ -26,6 +26,13 @@ const XAI_REALTIME_URL = 'wss://api.x.ai/v1/realtime';
  */
 const PING_INTERVAL_MS = 15_000;
 
+/**
+ * Asking xAI to transcribe the USER's input is what makes the wake word free:
+ * the transcript arrives on the socket we already hold, so no whisper roundtrip
+ * and no second API bill. Emitted as conversation.item.input_audio_transcription.updated.
+ */
+export const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe';
+
 export interface GrokVoiceAgentCallbacks {
   /** Called when Grok's response audio is complete (PCM 24kHz mono s16le). */
   onAudioDone: (pcmBuffer: Buffer) => void | Promise<void>;
@@ -64,9 +71,14 @@ export function createGrokVoiceAgentClient(
   let sessionConfig: {
     instructions: string;
     voice: string;
-    turn_detection: { type: 'server_vad' };
+    // null, not server_vad: xAI must not auto-respond. We own turns —
+    // input_audio_buffer.commit + response.create, gated on the wake word.
+    turn_detection: null;
     audio: {
-      input: { format: { type: 'audio/pcm'; rate: number } };
+      input: {
+        format: { type: 'audio/pcm'; rate: number };
+        transcription: { model: string };
+      };
       output: { format: { type: 'audio/pcm'; rate: number } };
     };
     tools?: typeof VOICE_AGENT_MUSIC_TOOLS;
@@ -170,9 +182,12 @@ export function createGrokVoiceAgentClient(
       const session = {
         instructions,
         voice: GROK_VOICE,
-        turn_detection: { type: 'server_vad' as const },
+        turn_detection: null,
         audio: {
-          input: { format: { type: 'audio/pcm' as const, rate: 24000 } },
+          input: {
+            format: { type: 'audio/pcm' as const, rate: 24000 },
+            transcription: { model: INPUT_TRANSCRIPTION_MODEL },
+          },
           output: { format: { type: 'audio/pcm' as const, rate: 24000 } },
         },
         ...(tools.length > 0 ? { tools } : {}),

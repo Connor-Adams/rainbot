@@ -4,5 +4,5 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
-  testPathIgnorePatterns: ['/dist/', '/node_modules/'],
+  testPathIgnorePatterns: ['/dist/', '/node_modules/', '/__tests__/helpers/'],
 };
