@@ -18,6 +18,7 @@
 - Workspace dependency direction is ESLint-enforced: `apps` → `packages` only, never the reverse, and never a bare-path import. Use `@rainbot/*`.
 - `@rainbot/protocol` and `@rainbot/utils` resolve from their **`dist/` .d.ts**. After editing `packages/protocol`, run `yarn build:ts` from the repo root before type-checking or testing anything that consumes it.
 - Definition of done for the whole plan: `yarn validate` (type-check && format:check && test) passes from the repo root.
+- **Before the first test run in a fresh worktree:** `yarn && yarn build:ts` from the repo root. Invoking one workspace's jest directly does not build its `@rainbot/*` dependencies, and the suite imports them from `dist/`. Already done in this worktree at plan time; re-run `yarn build:ts` after editing anything under `packages/`.
 
 ---
 
@@ -262,37 +263,75 @@ Stop xAI from auto-responding, and ask it for a transcript of the user's speech 
 
   Also exports `const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe'`.
 
+- Produces (test-only): `./helpers/fakeWs` exporting `MockWebSocket`, `wsModuleMock()`, `sockets()`, `resetSockets()`, `flush()`, and the `Sock` interface. Task 4 imports these rather than redefining them.
+
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/pranjeet/src/voice-agent/__tests__/grokVoiceAgent.session.test.ts`. Task 4 repeats this mock block rather than importing it, because `jest.mock` calls must be hoisted per file.
+First create the shared fake socket at `apps/pranjeet/src/voice-agent/__tests__/helpers/fakeWs.ts`. Task 4 reuses it. The socket registry lives on `global` on purpose: `jest.resetModules()` clears the module registry between cases, so module-level state would vanish along with it.
 
 ```ts
-jest.mock('ws', () => {
-  const mod = jest.requireActual<typeof import('events')>('events');
-  class MockWS extends mod.EventEmitter {
-    static OPEN = 1;
-    readyState = 1;
-    sent: Array<Record<string, unknown>> = [];
-    send(raw: string) {
-      this.sent.push(JSON.parse(raw) as Record<string, unknown>);
-    }
-    ping() {}
-    close() {
-      this.readyState = 3;
-    }
-    serverSays(event: Record<string, unknown>) {
-      this.emit('message', Buffer.from(JSON.stringify(event)));
-    }
-    sentOfType(type: string) {
-      return this.sent.filter((e: Record<string, unknown>) => e['type'] === type);
-    }
-    constructor() {
-      super();
-      (global as unknown as { __sockets: unknown[] }).__sockets.push(this);
-    }
+import { EventEmitter } from 'events';
+
+/** The subset of the fake socket a test drives. */
+export interface Sock {
+  readyState: number;
+  sent: Array<Record<string, unknown>>;
+  emit(name: string, ...args: unknown[]): boolean;
+  serverSays(event: Record<string, unknown>): void;
+  sentOfType(type: string): Array<Record<string, unknown>>;
+}
+
+export class MockWebSocket extends EventEmitter {
+  static OPEN = 1;
+  readyState = 1;
+  sent: Array<Record<string, unknown>> = [];
+
+  constructor() {
+    super();
+    (global as unknown as { __sockets: unknown[] }).__sockets.push(this);
   }
-  return { __esModule: true, default: MockWS };
-});
+
+  send(raw: string) {
+    this.sent.push(JSON.parse(raw) as Record<string, unknown>);
+  }
+  ping() {}
+  close() {
+    this.readyState = 3;
+  }
+  /** Drive the client as the xAI server would. */
+  serverSays(event: Record<string, unknown>) {
+    this.emit('message', Buffer.from(JSON.stringify(event)));
+  }
+  sentOfType(type: string) {
+    return this.sent.filter((e) => e['type'] === type);
+  }
+}
+
+/** `ws` is imported as a default export, so the mock module must mirror that. */
+export function wsModuleMock() {
+  return { __esModule: true, default: MockWebSocket };
+}
+
+export const sockets = () => (global as unknown as { __sockets: Sock[] }).__sockets;
+export const resetSockets = () => {
+  (global as unknown as { __sockets: unknown[] }).__sockets = [];
+};
+/** Flush the microtask queue so the async IIFE in the 'open' handler completes. */
+export const flush = () => new Promise((r) => setImmediate(r));
+```
+
+Jest's `testMatch` is `**/__tests__/**/*.ts`, so this helper would otherwise be collected as a suite and fail with "must contain at least one test". Add the ignore to `apps/pranjeet/jest.config.js`:
+
+```js
+  testPathIgnorePatterns: ['/dist/', '/node_modules/', '/__tests__/helpers/'],
+```
+
+Then create `apps/pranjeet/src/voice-agent/__tests__/grokVoiceAgent.session.test.ts`.
+
+```ts
+jest.mock('ws', () =>
+  jest.requireActual<typeof import('./helpers/fakeWs')>('./helpers/fakeWs').wsModuleMock()
+);
 
 jest.mock('@rainbot/shared', () => ({
   createLogger: () => ({
@@ -314,21 +353,12 @@ jest.mock('../../audio/utils', () => ({
 }));
 jest.mock('../tools', () => ({ VOICE_AGENT_MUSIC_TOOLS: [] }));
 
-interface Sock {
-  readyState: number;
-  sent: Array<Record<string, unknown>>;
-  emit(name: string, ...args: unknown[]): boolean;
-  serverSays(event: Record<string, unknown>): void;
-  sentOfType(type: string): Array<Record<string, unknown>>;
-}
-
-/** Flush the microtask queue so the async IIFE in the 'open' handler completes. */
-const flush = () => new Promise((r) => setImmediate(r));
+import { flush, resetSockets, sockets } from './helpers/fakeWs';
 
 describe('Voice Agent session config', () => {
   beforeEach(() => {
     jest.resetModules();
-    (global as unknown as { __sockets: unknown[] }).__sockets = [];
+    resetSockets();
     process.env['GROK_API_KEY'] = 'test-key';
     process.env['VOICE_TRIGGER_WORD'] = 'evan';
   });
@@ -336,7 +366,7 @@ describe('Voice Agent session config', () => {
   const connect = async () => {
     const { createGrokVoiceAgentClient } = await import('../grokVoiceAgent');
     const client = createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() });
-    const sock = (global as unknown as { __sockets: Sock[] }).__sockets[0];
+    const sock = sockets()[0];
     sock.emit('open');
     await flush();
     return { client, sock };
@@ -447,40 +477,17 @@ The wake-word gate itself. Commit is unconditional: if the server only transcrib
 
 **Interfaces:**
 
-- Consumes: `INPUT_TRANSCRIPTION_MODEL` and the session shape from Task 3; `VOICE_TRIGGER_WORD` from `../config`.
+- Consumes: `INPUT_TRANSCRIPTION_MODEL` and the session shape from Task 3; the `./helpers/fakeWs` test helper from Task 3; `VOICE_TRIGGER_WORD` from `../config`.
 - Produces: `GrokVoiceAgentClient` gains `endUtterance(): Promise<void>`. Also exports `TRANSCRIPT_SETTLE_MS = 300` and `isAddressed(transcript: string, triggerWord: string): boolean`.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/pranjeet/src/voice-agent/__tests__/grokVoiceAgent.wakeword.test.ts`. Repeat the mock block rather than importing it — the `jest.mock` calls must be hoisted in this file.
+Create `apps/pranjeet/src/voice-agent/__tests__/grokVoiceAgent.wakeword.test.ts`. It reuses Task 3's `./helpers/fakeWs`. The `jest.mock` factory body runs lazily, so requiring the helper from inside it is safe despite the call being hoisted.
 
 ```ts
-jest.mock('ws', () => {
-  const mod = jest.requireActual<typeof import('events')>('events');
-  class MockWS extends mod.EventEmitter {
-    static OPEN = 1;
-    readyState = 1;
-    sent: Array<Record<string, unknown>> = [];
-    send(raw: string) {
-      this.sent.push(JSON.parse(raw) as Record<string, unknown>);
-    }
-    ping() {}
-    close() {
-      this.readyState = 3;
-    }
-    serverSays(event: Record<string, unknown>) {
-      this.emit('message', Buffer.from(JSON.stringify(event)));
-    }
-    sentOfType(type: string) {
-      return this.sent.filter((e: Record<string, unknown>) => e['type'] === type);
-    }
-    constructor() {
-      super();
-      (global as unknown as { __sockets: unknown[] }).__sockets.push(this);
-    }
-  }
-  return { __esModule: true, default: MockWS };
-});
+jest.mock('ws', () =>
+  jest.requireActual<typeof import('./helpers/fakeWs')>('./helpers/fakeWs').wsModuleMock()
+);
 
 jest.mock('@rainbot/shared', () => ({
   createLogger: () => ({
@@ -502,20 +509,12 @@ jest.mock('../../audio/utils', () => ({
 }));
 jest.mock('../tools', () => ({ VOICE_AGENT_MUSIC_TOOLS: [] }));
 
-interface Sock {
-  readyState: number;
-  sent: Array<Record<string, unknown>>;
-  emit(name: string, ...args: unknown[]): boolean;
-  serverSays(event: Record<string, unknown>): void;
-  sentOfType(type: string): Array<Record<string, unknown>>;
-}
-
-const flush = () => new Promise((r) => setImmediate(r));
+import { flush, resetSockets, sockets } from './helpers/fakeWs';
 
 describe('wake-word gating', () => {
   beforeEach(() => {
     jest.resetModules();
-    (global as unknown as { __sockets: unknown[] }).__sockets = [];
+    resetSockets();
     process.env['GROK_API_KEY'] = 'test-key';
     process.env['VOICE_TRIGGER_WORD'] = 'evan';
   });
@@ -523,7 +522,7 @@ describe('wake-word gating', () => {
   const connect = async () => {
     const mod = await import('../grokVoiceAgent');
     const client = mod.createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() });
-    const sock = (global as unknown as { __sockets: Sock[] }).__sockets[0];
+    const sock = sockets()[0];
     sock.emit('open');
     await flush();
     sock.serverSays({ type: 'session.updated' });
@@ -603,7 +602,7 @@ describe('wake-word gating', () => {
   it('sends nothing before the session is configured', async () => {
     const mod = await import('../grokVoiceAgent');
     const client = mod.createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() })!;
-    const sock = (global as unknown as { __sockets: Sock[] }).__sockets[0];
+    const sock = sockets()[0];
     sock.emit('open');
     await flush();
     await client.endUtterance();
