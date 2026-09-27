@@ -88,6 +88,11 @@ describe('wake-word gating', () => {
 
   it('ignores leading punctuation and casing before the wake word', async () => {
     const { client, sock } = await connect();
+    // A reply is gated on audio having been appended for the utterance, and a
+    // transcript is only readable by the utterance whose audio it followed —
+    // so a transcript with no audio behind it is a path production cannot
+    // produce. Append audio first, as production always does.
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: '  ...EVAN skip this song',
@@ -98,6 +103,7 @@ describe('wake-word gating', () => {
 
   it('does not treat a wake word mid-sentence as being addressed', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: 'I was talking to Evan yesterday',
@@ -122,12 +128,16 @@ describe('wake-word gating', () => {
     await client.endUtterance();
     // State-reset intent preserved: only the first, wake-word-bearing
     // utterance produces a reply — the second does not inherit its text.
+    // NOTE: this now holds under either mechanism alone (the seq-stamped read
+    // gate, or the audio-appended gate on response.create), so it is a
+    // redundancy check rather than coverage for a specific guard.
     expect(sock.sentOfType('response.create')).toHaveLength(1);
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
   });
 
   it('accepts a cumulative transcript that arrives on the delta field', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       delta: 'Evan play something',
@@ -148,6 +158,7 @@ describe('wake-word gating', () => {
 
   it('accepts a transcript that arrives inside the settle window (not just before endUtterance)', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     const pending = client.endUtterance();
     setTimeout(() => {
       sock.serverSays({
@@ -185,13 +196,22 @@ describe('wake-word gating', () => {
     // first's promise, not fired independently.
     await flush();
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(1);
+    // A wake-word transcript now lands, stamped for the utterance run 1 owns.
+    // The REPLY count is the sharp serialization signal: serialized, run 1
+    // consumes the appended audio (and the transcript) and replies, and run 2
+    // finds no audio of its own to answer for; unserialized, both runs would
+    // sit in overlapping settle windows and both would reply.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
     await Promise.all([p1, p2]);
-    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
-    expect(sock.sentOfType('response.create')).toHaveLength(0);
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
   it('opens the gate on a "completed" transcription event the same way "updated" does', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.completed',
       transcript: 'Evan skip this',
@@ -200,18 +220,37 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
-  it('appends (not replaces) a sequence of "delta" transcription events', async () => {
+  it('does not open the gate on a "delta" transcription event, and warns once that it cannot', async () => {
     const { client, sock } = await connect();
+    // Audio IS appended, so the only reason for silence here is that a .delta
+    // fragment is deliberately not stitched into the slot: an incremental
+    // fragment landing across an utterance boundary could synthesize a wake
+    // word nobody said. The deliberate outcome is silence PLUS a diagnostic.
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.delta',
-      delta: 'Evan',
-    });
-    sock.serverSays({
-      type: 'conversation.item.input_audio_transcription.delta',
-      delta: ' play something',
+      delta: 'Evan play something',
     });
     await client.endUtterance();
-    expect(sock.sentOfType('response.create')).toHaveLength(1);
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+    const warnings = mockLogger.warn.mock.calls.map((c) => (c as [string])[0]);
+    const unhandled = warnings.filter((m) =>
+      m.includes('unhandled transcription event conversation.item.input_audio_transcription.delta')
+    );
+    expect(unhandled).toHaveLength(1);
+    // A .delta-only API must not look like "no transcription event ever
+    // arrived" — that warning is about a DIFFERENT failure and its latch must
+    // still be free to fire, so the unhandled-event warning names the type.
+    expect(unhandled[0]).toContain('the wake-word gate cannot open on it');
+    // Warn-once per client: a second .delta does not warn again.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: ' more words',
+    });
+    const after = mockLogger.warn.mock.calls
+      .map((c) => (c as [string])[0])
+      .filter((m) => m.includes('unhandled transcription event'));
+    expect(after).toHaveLength(1);
   });
 
   it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
@@ -241,9 +280,11 @@ describe('wake-word gating', () => {
     await client.endUtterance();
     expect(sock.sentOfType('response.create')).toHaveLength(1);
 
-    // The reply triggers response.created, which re-sends session.update;
-    // the server acks it with a SECOND session.updated. This must not
-    // reopen the transcript slot (that is the whole point of the fix).
+    // The reply triggers response.created, which re-sends session.update; the
+    // server acks it with a SECOND session.updated. session.updated no longer
+    // arms anything (the re-arm flag is gone), so the scenario is now held
+    // shut by the seq stamp alone — the assertion is unchanged and this stays
+    // as the fence against any ack ever reopening the slot again.
     sock.serverSays({ type: 'response.created', response: { id: 'r1' } });
     await flush();
     sock.serverSays({ type: 'session.updated' });
@@ -286,6 +327,14 @@ describe('wake-word gating', () => {
     });
     await pending;
     expect(sock.sentOfType('response.create')).toHaveLength(0);
+    // ...and the other half of the guarantee: utterance 2's own text is still
+    // there for utterance 2 to decide on. Utterance 1's run must not have
+    // cleared the slot on its way out (it no longer owns it), or the bot goes
+    // silently mute on a genuine wake word. Nothing else in this suite pins
+    // "the bot is not muted", so this assertion is the safety net for the
+    // read gate: exactly ONE reply overall, and it belongs to utterance 2.
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
   it("does not let a straggler .delta from a finished utterance become the head of the next utterance's transcript", async () => {
@@ -293,8 +342,10 @@ describe('wake-word gating', () => {
     client.sendAudio(Buffer.alloc(20));
     // Utterance 1 finishes with no transcript of its own; the slot disarms.
     await client.endUtterance();
-    // A straggler .delta for utterance 1 arrives after it already decided
-    // and must be dropped rather than seed the next utterance's slot.
+    // A straggler .delta for utterance 1 arrives after it already decided and
+    // must not seed the next utterance's slot. This is now structural rather
+    // than guarded: .delta is not stitched into the slot at all, so the test
+    // is a regression fence against reintroducing incremental handling.
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.delta',
       delta: 'Evan ',
