@@ -60,6 +60,12 @@ interface VoiceManagerLazy {
 /**
  * Default configuration for voice interactions
  */
+/**
+ * The STT-era utterance boundary, kept as the default so the speech-to-text path
+ * is unchanged by silenceDurationMs becoming configurable.
+ */
+const DEFAULT_SILENCE_DURATION_MS = 3000;
+
 const DEFAULT_CONFIG: VoiceInteractionConfig = {
   enabled: false,
   sttProvider: 'openai',
@@ -67,6 +73,10 @@ const DEFAULT_CONFIG: VoiceInteractionConfig = {
   language: 'en-US',
   maxAudioDuration: 10, // 10 seconds max
   minAudioDuration: 0.1, // 0.1 second min (Whisper's absolute minimum) :()
+  // Unchanged behaviour for the STT path, which is what this default serves; the
+  // realtime Voice Agent path (Pranjeet) passes a much shorter value because for
+  // it this is the turn boundary, not a buffering delay.
+  silenceDurationMs: DEFAULT_SILENCE_DURATION_MS,
   confidenceThreshold: 0.6,
   recordAudio: false, // Default to opt-in recording
   rateLimit: {
@@ -218,7 +228,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
     const opusStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 3000, // 3 seconds of silence ends the stream
+        // Silence that ends this stream = the utterance boundary. Configurable
+        // because the realtime Voice Agent path needs it far shorter than the
+        // STT path did (see VoiceInteractionConfig.silenceDurationMs).
+        duration: this.config.silenceDurationMs ?? DEFAULT_SILENCE_DURATION_MS,
       },
     });
 
@@ -286,6 +299,18 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       // Conversation mode: the buffer is empty by design (processAudioChunk
       // streams straight to xAI), so this boundary is the wake-word gate's turn
       // signal. Runs before the STT path, which is a no-op in that mode.
+      //
+      // DELIBERATELY awaited BEFORE the resubscribe below, and that ordering must
+      // not be "optimised" by resubscribing first. Resubscribing first opens a
+      // window in which a sendAudio() from the new subscription can land before
+      // endUtterance()'s run() has captured its seq/hadAudio — folding the next
+      // utterance's audio into this commit and mis-attributing its transcript.
+      // The cost of awaiting first is a deaf window, and it is small: the settle
+      // wait resolves the moment the transcript lands (grokVoiceAgent's
+      // settleWait races arrival against the ceiling), so the common case is one
+      // transcript latency. The pathological case — no transcript at all — pays
+      // the full ceiling, but then the wake-word feature is dead and warning
+      // about it anyway, so a deaf window is not what is broken.
       await this.onUtteranceEnd(guildId, userId);
 
       if (session.audioBuffer.length > 0) {

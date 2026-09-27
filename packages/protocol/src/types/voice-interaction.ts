@@ -57,6 +57,14 @@ export interface VoiceInteractionConfig {
   voiceName?: string; // TTS voice name
   maxAudioDuration: number; // Max seconds of audio to process
   minAudioDuration: number; // Min seconds before processing
+  /**
+   * Milliseconds of user silence that end one audio subscription, i.e. the
+   * utterance boundary. On the STT path this only decides when a buffered clip
+   * is transcribed, so it can be long. On the realtime Voice Agent path it is
+   * the TURN boundary — every reply is delayed by at least this long — so that
+   * path wants it much shorter. Defaults to the STT-era 3000 when unset.
+   */
+  silenceDurationMs?: number;
   confidenceThreshold: number; // Min confidence to act on command (0-1)
   recordAudio?: boolean; // Save audio to disk for debugging
   enabledGuilds?: string[]; // Whitelist of guild IDs (empty = all)

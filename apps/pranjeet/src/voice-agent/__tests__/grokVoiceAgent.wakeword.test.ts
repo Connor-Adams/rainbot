@@ -47,6 +47,11 @@ describe('wake-word gating', () => {
     createdClients = [];
     process.env['GROK_API_KEY'] = 'test-key';
     process.env['VOICE_TRIGGER_WORD'] = 'evan';
+    // The production default is 2000ms and is only ever paid in full when no
+    // transcript arrives — which is most tests here, so they pin a short ceiling
+    // to stay fast. Tests that are ABOUT the ceiling set their own value before
+    // connect() (the module reads config at import, and beforeEach resets modules).
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '300';
   });
 
   afterEach(() => {
@@ -185,19 +190,84 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
-  it('drops a late transcript so a later utterance cannot inherit it', async () => {
+  it('drops a transcript that arrives only after the NEXT utterance has started', async () => {
     const { client, sock } = await connect();
-    // First utterance: no transcript ever arrives for it -> silence, and the
-    // slot disarms once its settle window closes.
+    // Utterance 1 speaks and its whole settle window elapses with no transcript,
+    // so it decides on silence. (A transcript landing INSIDE that window is a
+    // different case and now opens the gate — see the probe test below.)
+    client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
-    // A transcript now arrives late, addressed to nobody in particular by the
-    // time it lands. It must not be picked up by the *next* utterance.
+    // Only now does a transcript land. Utterance 1 has already decided, so it is
+    // unreadable; utterance 2 must not inherit it either.
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: 'Evan hello',
     });
+    client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
     expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('opens the gate for a transcript delivered 400ms after the boundary, and does not wait out the ceiling', async () => {
+    // The reviewer's probe, and the shape of an API that transcribes input on
+    // commit-completion rather than during speech: the transcript lands hundreds
+    // of ms AFTER endUtterance() was called. It must still open the gate...
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock, mod } = await connect();
+    expect(mod.TRANSCRIPT_SETTLE_MS).toBe(2000);
+    client.sendAudio(Buffer.alloc(20));
+    const startedAt = Date.now();
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'Evan, skip this song',
+      });
+    }, 400);
+    await pending;
+    const elapsed = Date.now() - startedAt;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+    // ...and the decision must happen WHEN THE TRANSCRIPT LANDS, not at the
+    // ceiling. That is what keeps a generous ceiling free, and what keeps the
+    // manager's deaf window (it awaits onUtteranceEnd before resubscribing)
+    // short. A bare settle timer fails here even though it would still reply.
+    expect(elapsed).toBeLessThan(1200);
+  });
+
+  it('warns once, with the measured lag and the env var to raise, when a transcript arrives after the decision', async () => {
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    // Too late by construction: the 300ms ceiling already elapsed.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: 'Evan hello',
+    });
+    const lateWarnings = () =>
+      mockLogger.warn.mock.calls
+        .map((c) => (c as [string])[0])
+        .filter((m) => m.includes('after its reply decision'));
+    expect(lateWarnings()).toHaveLength(1);
+    expect(lateWarnings()[0]).toMatch(/arrived \d+ms after its reply decision/);
+    expect(lateWarnings()[0]).toContain('VOICE_TRANSCRIPT_SETTLE_MS');
+    // Warn-once per client: a second late transcript does not warn again.
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: 'Evan hello again',
+    });
+    expect(lateWarnings()).toHaveLength(1);
+  });
+
+  it('defaults the settle ceiling to 2000ms and reads VOICE_TRANSCRIPT_SETTLE_MS when set', async () => {
+    delete process.env['VOICE_TRANSCRIPT_SETTLE_MS'];
+    const unset = await import('../grokVoiceAgent');
+    expect(unset.TRANSCRIPT_SETTLE_MS).toBe(2000);
+    jest.resetModules();
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '750';
+    const configured = await import('../grokVoiceAgent');
+    expect(configured.TRANSCRIPT_SETTLE_MS).toBe(750);
   });
 
   it('serializes overlapping endUtterance() calls so only the first runs before the second starts', async () => {
@@ -266,6 +336,24 @@ describe('wake-word gating', () => {
       .map((c) => (c as [string])[0])
       .filter((m) => m.includes('unhandled transcription event'));
     expect(after).toHaveLength(1);
+  });
+
+  it('names the unhandled event types the socket actually sent in the no-transcription warning', async () => {
+    const { client, sock } = await connect();
+    // xAI's transcription event name may differ EARLIER than the prefix the
+    // unhandled-transcription diagnostic pattern-matches on, in which case that
+    // diagnostic says nothing at all and this list is the only evidence.
+    sock.serverSays({ type: 'input_audio.transcript.final', transcript: 'Evan hello' });
+    sock.serverSays({ type: 'some.other.event' });
+    sock.serverSays({ type: 'input_audio.transcript.final', transcript: 'Evan hello' });
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    const [message] = mockLogger.warn.mock.calls[0] as [string];
+    expect(message).toContain('input_audio.transcript.final');
+    expect(message).toContain('some.other.event');
+    // Distinct types only — the repeated one is listed once.
+    expect(message.match(/input_audio\.transcript\.final/g)).toHaveLength(1);
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
   });
 
   it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
@@ -424,6 +512,25 @@ describe('wake-word gating', () => {
       expect(isAddressed('hey evan stop', 'evan')).toBe(false);
       expect(isAddressed('evanescence is a band', 'evan')).toBe(false);
       expect(isAddressed('', 'evan')).toBe(false);
+    });
+
+    it('matches a multi-word trigger across the punctuation a transcriber inserts', async () => {
+      const { isAddressed } = await import('../grokVoiceAgent');
+      // "hey bot" is the documented example in README.md and RAILWAY_DEPLOY.md,
+      // and stripping only LEADING punctuation made it unmatchable.
+      expect(isAddressed('Hey, bot, play music', 'hey bot')).toBe(true);
+      expect(isAddressed('hey bot', 'hey bot')).toBe(true);
+      expect(isAddressed('  “Hey — bot!” play music', 'hey bot')).toBe(true);
+      expect(isAddressed('Hey  bot play music', 'hey  bot')).toBe(true);
+      // Still anchored at the start, and still boundary-checked.
+      expect(isAddressed('okay hey bot play music', 'hey bot')).toBe(false);
+      expect(isAddressed('hey bottle opener', 'hey bot')).toBe(false);
+      expect(isAddressed('hey, robot, play music', 'hey bot')).toBe(false);
+    });
+
+    it('treats a trigger word of only punctuation as never addressed', async () => {
+      const { isAddressed } = await import('../grokVoiceAgent');
+      expect(isAddressed('anything at all', '...')).toBe(false);
     });
 
     it('treats an unset trigger word as never addressed, so it fails closed', async () => {

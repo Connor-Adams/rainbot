@@ -9,6 +9,21 @@ describe('buildVoiceInstructions', () => {
     expect(out).toContain('5 words');
   });
 
+  it('states the limit in words only, with no sentence-count clause', () => {
+    const out = buildVoiceInstructions('You are terse.', true);
+    // "One sentence. Never two." was removed: the behavioural examples and
+    // <speech_rhythm_for_voice> both ask for multi-sentence rhythm, so the clause
+    // contradicted them, and the project states its limit in words.
+    expect(out).not.toMatch(/never two/i);
+    expect(out).not.toMatch(/one sentence/i);
+  });
+
+  it('never phrases the cap as "under 10 words", which would mean nine', () => {
+    const out = buildVoiceInstructions('You are terse.', true);
+    expect(out).not.toMatch(/under 10 words/i);
+    expect(out).toMatch(/within 10 words/i);
+  });
+
   it('puts the brevity rule before the accent instruction', () => {
     const out = buildVoiceInstructions('You are terse.', false);
     expect(out.indexOf(VOICE_BREVITY.trim())).toBeLessThan(out.indexOf(VOICE_ACCENT_CRITICAL));

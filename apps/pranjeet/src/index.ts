@@ -42,6 +42,7 @@ import {
   WORKER_SECRET,
   VOICE_INTERACTION_ENABLED,
   VOICE_TRIGGER_WORD,
+  VOICE_SILENCE_DURATION_MS,
   GROK_ENABLED,
   GROK_API_KEY,
   STT_API_KEY,
@@ -124,6 +125,10 @@ setupDiscordClientReadyHandler(client, {
     initVoiceInteractionManager(client, {
       enabled: VOICE_INTERACTION_ENABLED,
       triggerWord: VOICE_TRIGGER_WORD,
+      // The realtime Voice Agent path owns this boundary: it is the TURN
+      // boundary, so the manager's STT-era 3000ms default would add ~3s to
+      // every reply. Tunable with VOICE_SILENCE_DURATION_MS.
+      silenceDurationMs: VOICE_SILENCE_DURATION_MS,
       sttProvider: 'openai',
       ttsProvider: 'openai',
       sttApiKey: STT_API_KEY ?? undefined,

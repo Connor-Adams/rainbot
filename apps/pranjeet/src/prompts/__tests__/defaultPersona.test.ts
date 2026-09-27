@@ -8,6 +8,11 @@ describe('default persona length discipline', () => {
     expect(defaultPersona.systemPrompt).not.toMatch(/1[-–]4 sentences/);
   });
 
+  it('states no sentence count, which the examples and speech rhythm contradict', () => {
+    expect(defaultPersona.systemPrompt).not.toMatch(/never two/i);
+    expect(defaultPersona.systemPrompt).not.toMatch(/one sentence/i);
+  });
+
   it('keeps every behavioural example within the 10-word cap', () => {
     const block = defaultPersona.systemPrompt.match(
       /<behavioral_examples>([\s\S]*?)<\/behavioral_examples>/

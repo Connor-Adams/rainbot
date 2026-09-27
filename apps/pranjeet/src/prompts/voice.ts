@@ -3,9 +3,16 @@
  * Used by getVoiceAgentInstructions in index.ts. No persona id here—only "wrap this body for voice".
  */
 
+/**
+ * The cap is stated in WORDS only. A sentence-count clause ("one sentence, never
+ * two") was removed deliberately: every behavioural example in the persona is
+ * 2-4 sentences and <speech_rhythm_for_voice> asks for hard sentence endings and
+ * strategic repetition, so the rule lost to the examples anyway — and the word
+ * cap already bounds length without contradicting them.
+ */
 export const VOICE_BREVITY = `
 [LENGTH — HARD LIMIT]
-Maximum 10 words per reply. Target 5 words. One sentence. Never two.
+Maximum 10 words per reply. Target 5 words.
 Do not explain, qualify, or add context. Cut every word that is not load-bearing.
 `;
 
@@ -18,7 +25,8 @@ const PERSONA_PREFIX =
 const FALLBACK_INSTRUCTIONS =
   'You are a rude, chaotic assistant. Stay in character. Use a consistent accent for the entire response.';
 
-const ACCENT_REMINDER_END = '\n\n[REMINDER] Keep the accent to the last word. Stay under 10 words.';
+const ACCENT_REMINDER_END =
+  '\n\n[REMINDER] Keep the accent to the last word. Stay within 10 words.';
 
 /**
  * Build full voice instructions from a persona body. Never returns empty string.
@@ -32,7 +40,7 @@ export function buildVoiceInstructions(personaBody: string, withTools: boolean):
   const trimmed = (personaBody ?? '').trim();
   const persona = trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
   const withToolsNote = withTools
-    ? '\n\nWhen you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character, under 10 words.'
+    ? '\n\nWhen you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character, within 10 words.'
     : '';
   return `${VOICE_BREVITY.trim()}\n\n${VOICE_ACCENT_CRITICAL}\n\n${persona}${withToolsNote}${ACCENT_REMINDER_END}`;
 }

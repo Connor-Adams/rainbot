@@ -1,4 +1,6 @@
 import type { Client } from 'discord.js';
+import { EndBehaviorType } from '@discordjs/voice';
+import type { VoiceInteractionConfig } from '@rainbot/protocol';
 import { Readable } from 'stream';
 import { VoiceInteractionManager } from '../voiceInteractionManager';
 
@@ -92,5 +94,49 @@ describe('the opusDecoder end handler', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     expect(endUtterance).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the audio subscription's silence boundary", () => {
+  /** A connection whose receiver records the options subscribeToUserAudio passes. */
+  const capturingConnection = () => {
+    const calls: Array<{ end: { behavior: EndBehaviorType; duration: number } }> = [];
+    const connection = {
+      joinConfig: { channelId: 'c1' },
+      receiver: {
+        subscribe: (
+          _userId: string,
+          options: { end: { behavior: EndBehaviorType; duration: number } }
+        ) => {
+          calls.push(options);
+          return { pipe: () => undefined };
+        },
+      },
+      state: { status: 'ready' },
+    } as never;
+    return { calls, connection };
+  };
+
+  const subscribeWith = async (config: Partial<VoiceInteractionConfig>) => {
+    const { calls, connection } = capturingConnection();
+    const mgr = new VoiceInteractionManager(fakeClient, config);
+    await mgr.enableForGuild('g1');
+    await mgr.startListening('u1', 'g1', connection);
+    return calls;
+  };
+
+  it('uses the configured silenceDurationMs as the AfterSilence duration', async () => {
+    // On the realtime Voice Agent path this is the TURN boundary, so Pranjeet
+    // passes a much shorter value than the speech-to-text default; it has to
+    // reach receiver.subscribe to have any effect at all.
+    const calls = await subscribeWith({ enabled: true, silenceDurationMs: 800 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.end.behavior).toBe(EndBehaviorType.AfterSilence);
+    expect(calls[0]!.end.duration).toBe(800);
+  });
+
+  it('defaults to the speech-to-text path 3000ms when it is not configured', async () => {
+    const calls = await subscribeWith({ enabled: true });
+    expect(calls[0]!.end.duration).toBe(3000);
   });
 });

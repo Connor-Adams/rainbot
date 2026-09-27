@@ -15,6 +15,7 @@ import {
   GROK_ENABLED,
   GROK_VOICE,
   GROK_VOICE_AGENT_TOOLS,
+  VOICE_TRANSCRIPT_SETTLE_MS,
   VOICE_TRIGGER_WORD,
 } from '../config';
 import { getVoiceAgentInstructions } from '../prompts';
@@ -40,24 +41,47 @@ const PING_INTERVAL_MS = 15_000;
 export const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe';
 
 /**
- * The input transcript is cumulative and may trail Discord's silence event. Wait
- * this long for a late update before deciding whether we were addressed.
+ * CEILING (not a fixed delay) on the wait for xAI's input transcript after the
+ * audio buffer is committed. The wait resolves as soon as a transcription event
+ * for the deciding utterance lands, so this value is only ever paid in full when
+ * no transcript arrives at all — which is why it can afford to be generous.
+ *
+ * It must be generous: this API family (whose event names it mirrors) may emit
+ * input transcription on commit-completion rather than during speech, i.e.
+ * hundreds of milliseconds to seconds AFTER Discord's silence boundary. A tight
+ * ceiling decided before the transcript existed, dropped it, and left the bot
+ * permanently mute with a "no transcription event" warning that was not true.
+ *
+ * Tunable via VOICE_TRANSCRIPT_SETTLE_MS (see apps/pranjeet/src/config.ts). The
+ * name is kept for the tests that import it.
  */
-export const TRANSCRIPT_SETTLE_MS = 300;
+export const TRANSCRIPT_SETTLE_MS = VOICE_TRANSCRIPT_SETTLE_MS;
 
 /**
- * True when the utterance opens with the wake word. Leading punctuation and
- * quotes are stripped, matching is case-insensitive, and the word must be
- * followed by a boundary so "evanescence" does not wake it. An empty trigger
+ * Collapse every run of non-alphanumerics to a single space, lowercase, trim.
+ * Applied to BOTH sides of the comparison so a multi-word trigger survives the
+ * punctuation a transcriber sprinkles between its words: trigger "hey bot" has
+ * to match "Hey, bot, play music". Stripping only LEADING punctuation (the
+ * earlier behaviour) made every multi-word trigger unmatchable, including the
+ * "hey bot" example the docs advertise.
+ */
+function normalizeForTrigger(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/**
+ * True when the utterance opens with the wake word. Punctuation runs collapse to
+ * single spaces on both sides, matching is case-insensitive, and the trigger must
+ * be followed by a boundary so "evanescence" does not wake it. An empty trigger
  * word returns false — the gate fails closed rather than answering everything.
  */
 export function isAddressed(transcript: string, triggerWord: string): boolean {
-  const trigger = triggerWord.trim().toLowerCase();
+  const trigger = normalizeForTrigger(triggerWord);
   if (trigger.length === 0) return false;
-  const cleaned = transcript
-    .toLowerCase()
-    .replace(/^[^\p{L}\p{N}]+/u, '')
-    .trim();
+  const cleaned = normalizeForTrigger(transcript);
   if (!cleaned.startsWith(trigger)) return false;
   const next = cleaned.charAt(trigger.length);
   return next === '' || !/[\p{L}\p{N}]/u.test(next);
@@ -135,23 +159,63 @@ export function createGrokVoiceAgentClient(
   // Same warn-once discipline for a transcription event whose type none of the
   // cases handle (see the switch's default case).
   let warnedUnhandledTranscription = false;
+  // Every distinct event.type that fell through to the default case. Included in
+  // the no-transcription warning: if xAI's transcription event name differs from
+  // ours EARLIER than the prefix we pattern-match on, the prefix check below says
+  // nothing, and this set is then the only record of what the socket actually
+  // sent. Bounded so a chatty socket cannot grow it without limit.
+  const unhandledEventTypes = new Set<string>();
+  const UNHANDLED_EVENT_TYPES_CAP = 20;
+  // The last utterance whose reply decision has already run, and when. A
+  // transcription event stamped for that utterance arrived TOO LATE to be read —
+  // the third diagnostic (below) reports the measured lag so an operator can
+  // raise the ceiling instead of guessing.
+  let decidedSeq: number | null = null;
+  let decidedAt = 0;
+  let warnedLateTranscription = false;
   // Handle + resolver for the current settle-window wait, so doClose() can
   // force it to resolve immediately instead of leaving it (and every queued
   // endUtterance() behind it) waiting out the full TRANSCRIPT_SETTLE_MS after
   // the client is already gone. Only one is ever in flight at a time — the
-  // endUtteranceChain serializes runs.
+  // endUtteranceChain serializes runs. pendingSettleSeq is the utterance the
+  // in-flight wait is deciding for: a transcription event stamped for exactly
+  // that seq resolves the wait immediately (see settleWait).
   let pendingSettleTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingSettleResolve: (() => void) | null = null;
+  let pendingSettleSeq: number | null = null;
 
-  function settleWait(): Promise<void> {
+  /**
+   * Wait for this utterance's transcript, resolving on WHICHEVER COMES FIRST:
+   * the transcript landing for `seq` (the common case — the transcription
+   * handler calls resolveSettleIfWaitingFor) or TRANSCRIPT_SETTLE_MS elapsing.
+   * A bare timer was the bug: a transcript delivered after the timer fired was
+   * stamped for an utterance that had already decided, then discarded by the
+   * next utterance's seq bump — one missed transcript and the gate never opened
+   * again. Racing the two is also what lets the ceiling be generous: the wait
+   * ends the instant the answer is available.
+   */
+  function settleWait(seq: number): Promise<void> {
     return new Promise<void>((resolve) => {
-      pendingSettleResolve = resolve;
-      pendingSettleTimer = setTimeout(() => {
-        pendingSettleTimer = null;
+      const finish = () => {
+        if (pendingSettleTimer) {
+          clearTimeout(pendingSettleTimer);
+          pendingSettleTimer = null;
+        }
         pendingSettleResolve = null;
+        pendingSettleSeq = null;
         resolve();
-      }, TRANSCRIPT_SETTLE_MS);
+      };
+      pendingSettleSeq = seq;
+      pendingSettleResolve = finish;
+      pendingSettleTimer = setTimeout(finish, TRANSCRIPT_SETTLE_MS);
     });
+  }
+
+  /** Called when a transcript lands; ends the settle wait it belongs to, if any. */
+  function resolveSettleIfWaitingFor(seq: number): void {
+    if (pendingSettleResolve && pendingSettleSeq === seq) {
+      pendingSettleResolve();
+    }
   }
   let sessionConfig: {
     instructions: string;
@@ -210,6 +274,7 @@ export function createGrokVoiceAgentClient(
     if (pendingSettleResolve) {
       const resolve = pendingSettleResolve;
       pendingSettleResolve = null;
+      pendingSettleSeq = null;
       resolve();
     }
     if (ws) {
@@ -331,6 +396,19 @@ export function createGrokVoiceAgentClient(
         const text = event.transcript ?? event.delta;
         if (typeof text === 'string' && text.length > 0) {
           slot = { seq: utteranceSeq, text };
+          // Wake the settle window for the utterance still deciding, so the
+          // common case costs the transcript's real latency, not the ceiling.
+          resolveSettleIfWaitingFor(utteranceSeq);
+          // Too late: this utterance's decision already ran, so the text can
+          // never be read. Report the measured lag and the knob that fixes it —
+          // without this, a ceiling set too low looks exactly like "xAI sent no
+          // transcript at all", which is the wrong thing to go debug.
+          if (utteranceSeq === decidedSeq && !warnedLateTranscription) {
+            warnedLateTranscription = true;
+            log.warn(
+              `Voice Agent transcription for ${guildId}:${userId} arrived ${Date.now() - decidedAt}ms after its reply decision (settle ceiling ${TRANSCRIPT_SETTLE_MS}ms); the wake-word gate could not read it — raise VOICE_TRANSCRIPT_SETTLE_MS`
+            );
+          }
         }
         break;
       }
@@ -422,6 +500,12 @@ export function createGrokVoiceAgentClient(
         // diagnostic, not silence with no explanation.
         if (
           typeof event.type === 'string' &&
+          unhandledEventTypes.size < UNHANDLED_EVENT_TYPES_CAP
+        ) {
+          unhandledEventTypes.add(event.type);
+        }
+        if (
+          typeof event.type === 'string' &&
           event.type.startsWith('conversation.item.input_audio_transcription.') &&
           !warnedUnhandledTranscription
         ) {
@@ -482,16 +566,28 @@ export function createGrokVoiceAgentClient(
           audioAppended = false;
         }
         utteranceClosed = true;
-        // Wait unconditionally for the final transcript, even if a cumulative
-        // partial already matches the wake word.
-        await settleWait();
+        // Wait for the final transcript, even if a cumulative partial already
+        // matches the wake word — but only until it lands (settleWait races the
+        // ceiling against the transcript's arrival for this seq).
+        await settleWait(seq);
         if (closed) return;
+        // This utterance is about to decide; from here on a transcript for it is
+        // too late, and the late-transcription diagnostic can measure by how much.
+        // Only an utterance that actually carried audio can be owed a transcript,
+        // so a silent boundary must not restamp the clock a late one is measured
+        // against (that would understate the reported lag).
+        if (hadAudio) {
+          decidedSeq = seq;
+          decidedAt = Date.now();
+        }
         // Read the slot only if it belongs to this utterance (stamped by seq).
         const text = slot.seq === seq ? slot.text : '';
         if (hadAudio && !hasReceivedTranscriptionEvent && !warnedNoTranscription) {
           warnedNoTranscription = true;
+          const seen =
+            unhandledEventTypes.size > 0 ? [...unhandledEventTypes].join(', ') : '(none)';
           log.warn(
-            `Voice Agent received no transcription event (model=${INPUT_TRANSCRIPTION_MODEL}) for ${guildId}:${userId}; the wake-word gate can never open`
+            `Voice Agent received no transcription event (model=${INPUT_TRANSCRIPTION_MODEL}) for ${guildId}:${userId}; the wake-word gate can never open. Unhandled event types seen on this socket: ${seen}`
           );
         }
         if (hadAudio && isAddressed(text, VOICE_TRIGGER_WORD)) {
