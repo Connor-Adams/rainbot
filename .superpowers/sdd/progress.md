@@ -328,3 +328,46 @@ dimension because the resolve histogram hardcodes youtube, README staleness + Pr
 remote-write security note).
 Outstanding: serviceMapQuery field spelling unconfirmed without a live Grafana; title corrections
 in flight.
+
+## Pranjeet wake word + word cap — SDD progress
+
+Plan: docs/superpowers/plans/2026-09-26-pranjeet-wake-word-and-brevity.md
+Branch: claude/pranjeet-token-refresh-56b894
+Base before Task 1: 2b5df64
+Pre-flight: worktree had no node_modules; ran `yarn && yarn build:ts` (jest cannot
+resolve @rainbot/\* from source). Plan's `yarn workspace ... test` commands DO work
+after that — the old ledger note claiming jest is off the workspace PATH was a
+stale-install artifact, not a standing constraint.
+Pre-flight decision (Connor): extract one shared fake-ws helper at
+apps/pranjeet/src/voice-agent/**tests**/helpers/fakeWs.ts instead of the plan's
+duplicated jest.mock block. Needs '/**tests**/helpers/' in pranjeet's
+testPathIgnorePatterns, since testMatch would otherwise collect it as a suite.
+Task 1: complete (commits 2b5df64..5795b19, review clean after one fix pass)
+PLAN DEFECT CAUGHT: the plan's own ordering test asserted nothing. It compared
+VOICE_BREVITY's index against lowercase 'accent', but VOICE_ACCENT_CRITICAL writes
+it as [ACCENT] — the only lowercase match is in the always-last reminder block, so
+swapping the two blocks could never fail the test. Fixed by exporting
+VOICE_ACCENT_CRITICAL and comparing against the constant; mutation-verified (swap
+now fails). Plan doc corrected too.
+CORRECTION to my own fix dispatch: I also claimed the 30-word accent-length test
+was vacuous. It was not — `.toLowerCase().includes('accent')` already matched both
+blocks. The regex change there is cosmetic. No code impact.
+Minor (for final review): VOICE_BREVITY says "One sentence. Never two." alongside
+the word cap, which reintroduces sentence-based phrasing the global constraint
+says to avoid. Numeric cap still dominates; judged non-blocking.
+Task 2: complete (commits 5795b19..b168659, review clean, no findings)
+All five exact string replacements landed; out-of-scope <core_rules> line verified
+byte-identical. Reviewer independently executed the example-extraction regex against
+the real file (4 examples, 6-7 words each) and confirmed the test is not vacuous —
+the old 13-word example did fail it pre-fix.
+Task 3: complete (commits b168659..9c9b2b6, review clean, no Critical/Important)
+turn_detection: null + audio.input.transcription.model: 'grok-transcribe' on the
+session; first test file under apps/pranjeet/src/voice-agent/**tests**/ plus the
+shared helpers/fakeWs.ts and the '/**tests**/helpers/' ignore pattern.
+Brief's Step 5 `git add` list omitted jest.config.js and helpers/fakeWs.ts that its
+own Step 1 requires; implementer committed all four (correct — the commit would not
+run otherwise) and flagged it instead of deviating silently.
+Reviewer verified with --listTests that fakeWs.ts is not collected, and that
+reverting to server_vad would fail the assertion.
+Minor (for final review): sendSessionUpdate still mutates and re-sends
+sessionConfig.voice on every turn. Pre-existing, unrelated to turn-taking.

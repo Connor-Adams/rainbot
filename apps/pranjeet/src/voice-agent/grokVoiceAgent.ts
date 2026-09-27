@@ -121,6 +121,9 @@ export function createGrokVoiceAgentClient(
   // `response.create` (a boundary with no speech of its own must never reply,
   // whatever the slot happens to hold), and the "no transcription event ever
   // arrived" diagnostic (a silent boundary is not evidence the gate is dead).
+  // INVARIANT: utteranceClosed and audioAppended are two views of one predicate:
+  // reachable states are (closed=true, appended=false) or (closed=false, appended=true),
+  // because sendAudio writes both synchronously and endUtterance reads both without await.
   let audioAppended = false;
   let endUtteranceChain: Promise<void> = Promise.resolve();
   // Diagnoses a dead wake-word feature: if xAI's transcription event name
@@ -464,10 +467,8 @@ export function createGrokVoiceAgentClient(
       const b64 = resampled.toString('base64');
       send({ type: 'input_audio_buffer.append', audio: b64 });
     },
-    // Not async: this only assigns into the serialization chain and returns
-    // it. Note that N boundaries queued behind one another make the caller
-    // of the last one wait N × TRANSCRIPT_SETTLE_MS, since each run() fully
-    // completes (including its settle wait) before the next begins.
+    // Returns the promise for this boundary's place in the chain. Queued
+    // boundaries wait sequentially; each run() fully completes before the next.
     endUtterance() {
       const run = async () => {
         if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
@@ -475,29 +476,17 @@ export function createGrokVoiceAgentClient(
         // before anything below can change out from under it.
         const seq = utteranceSeq;
         const hadAudio = audioAppended;
-        // The commit is never gated on the TRANSCRIPT — if the server only
-        // transcribes committed audio, that would deadlock, and a commit
-        // produces no reply on its own. It is gated on audio having been
-        // appended since the last commit: committing an empty buffer earns an
-        // `error` event from the server and nothing else.
+        // Commit only if audio was appended. An empty commit earns a server error.
         if (hadAudio) {
           send({ type: 'input_audio_buffer.commit' });
-          // Reset immediately: the appended audio is spent, so a queued or
-          // duplicate boundary behind this one has nothing of its own to
-          // commit (and nothing of its own to reply about).
           audioAppended = false;
         }
-        // From here on the utterance is closed; only the next real audio chunk
-        // (sendAudio) starts a new one and rotates utteranceSeq.
         utteranceClosed = true;
-        // Unconditional: a cumulative partial that happens to already match
-        // (e.g. "Evan" mid-word on "Evanescence") must not short-circuit the
-        // wait for the final text.
+        // Wait unconditionally for the final transcript, even if a cumulative
+        // partial already matches the wake word.
         await settleWait();
         if (closed) return;
-        // THE INVARIANT: read the slot only when it is stamped for THIS
-        // utterance. A later utterance may already own it and be writing its
-        // own words — that text is not ours, so treat it as silence.
+        // Read the slot only if it belongs to this utterance (stamped by seq).
         const text = slot.seq === seq ? slot.text : '';
         if (hadAudio && !hasReceivedTranscriptionEvent && !warnedNoTranscription) {
           warnedNoTranscription = true;
@@ -506,6 +495,10 @@ export function createGrokVoiceAgentClient(
           );
         }
         if (hadAudio && isAddressed(text, VOICE_TRIGGER_WORD)) {
+          // A transcript stamped to a later utterance (because it arrived after
+          // that utterance's audio bumped the sequence) is answered late, but
+          // the user really did say the wake word — the delay is the cost of
+          // the settle window, not a false positive.
           send({ type: 'response.create' });
         } else {
           log.debug(

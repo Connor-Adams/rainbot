@@ -25,16 +25,32 @@ jest.mock('../tools', () => ({ VOICE_AGENT_MUSIC_TOOLS: [] }));
 import { flush, resetSockets, sockets } from './helpers/fakeWs';
 
 describe('Voice Agent session config', () => {
+  let createdClients: Array<{ close(): void }> = [];
+
   beforeEach(() => {
     jest.resetModules();
     resetSockets();
+    createdClients = [];
     process.env['GROK_API_KEY'] = 'test-key';
     process.env['VOICE_TRIGGER_WORD'] = 'evan';
+  });
+
+  afterEach(() => {
+    // Close all clients created in the test to clear the 15-second heartbeat interval
+    for (const client of createdClients) {
+      if (client) {
+        client.close();
+      }
+    }
+    createdClients = [];
   });
 
   const connect = async () => {
     const { createGrokVoiceAgentClient } = await import('../grokVoiceAgent');
     const client = createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() });
+    if (client) {
+      createdClients.push(client);
+    }
     const sock = sockets()[0];
     sock.emit('open');
     await flush();

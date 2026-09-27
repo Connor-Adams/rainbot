@@ -39,16 +39,32 @@ jest.mock('../tools', () => ({ VOICE_AGENT_MUSIC_TOOLS: [] }));
 import { flush, resetSockets, sockets } from './helpers/fakeWs';
 
 describe('wake-word gating', () => {
+  let createdClients: Array<{ close(): void }> = [];
+
   beforeEach(() => {
     jest.resetModules();
     resetSockets();
+    createdClients = [];
     process.env['GROK_API_KEY'] = 'test-key';
     process.env['VOICE_TRIGGER_WORD'] = 'evan';
+  });
+
+  afterEach(() => {
+    // Close all clients created in the test to clear the 15-second heartbeat interval
+    for (const client of createdClients) {
+      if (client) {
+        client.close();
+      }
+    }
+    createdClients = [];
   });
 
   const connect = async () => {
     const mod = await import('../grokVoiceAgent');
     const client = mod.createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() });
+    if (client) {
+      createdClients.push(client);
+    }
     const sock = sockets()[0];
     sock.emit('open');
     await flush();
@@ -114,10 +130,8 @@ describe('wake-word gating', () => {
 
   it('resets transcript state between utterances', async () => {
     const { client, sock } = await connect();
-    // Minor 2 means a boundary only commits (and is worth ending) when audio
-    // was actually appended for it — append audio before each boundary, as
-    // production always does, rather than calling endUtterance() back to
-    // back with nothing behind it.
+    // A boundary only commits when audio was actually appended for it —
+    // append audio before each boundary, as production always does.
     client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
@@ -128,9 +142,9 @@ describe('wake-word gating', () => {
     await client.endUtterance();
     // State-reset intent preserved: only the first, wake-word-bearing
     // utterance produces a reply — the second does not inherit its text.
-    // NOTE: this now holds under either mechanism alone (the seq-stamped read
-    // gate, or the audio-appended gate on response.create), so it is a
-    // redundancy check rather than coverage for a specific guard.
+    // This test covers the seq read gate: the second utterance appends audio,
+    // so the hadAudio gate cannot hold it shut on its own, and the test fails
+    // if the slot.seq === seq check is removed.
     expect(sock.sentOfType('response.create')).toHaveLength(1);
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
   });
@@ -149,6 +163,7 @@ describe('wake-word gating', () => {
   it('sends nothing before the session is configured', async () => {
     const mod = await import('../grokVoiceAgent');
     const client = mod.createGrokVoiceAgentClient('g1', 'u1', { onAudioDone: jest.fn() })!;
+    createdClients.push(client);
     const sock = sockets()[0];
     sock.emit('open');
     await flush();
@@ -170,7 +185,7 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
-  it('drops a transcript that arrives after its utterance already decided, so a later utterance cannot inherit it (Critical 1)', async () => {
+  it('drops a late transcript so a later utterance cannot inherit it', async () => {
     const { client, sock } = await connect();
     // First utterance: no transcript ever arrives for it -> silence, and the
     // slot disarms once its settle window closes.
@@ -185,7 +200,7 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(0);
   });
 
-  it('serializes overlapping endUtterance() calls so only the first runs before the second even starts (Critical 2)', async () => {
+  it('serializes overlapping endUtterance() calls so only the first runs before the second starts', async () => {
     const { client, sock } = await connect();
     client.sendAudio(Buffer.alloc(20));
     const p1 = client.endUtterance();
@@ -255,9 +270,8 @@ describe('wake-word gating', () => {
 
   it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
     const { client, mod } = await connect();
-    // Minor 1: the warning is gated on audio actually having been appended
-    // for the utterance — a silent boundary with no speech is not evidence
-    // the wake-word gate is dead.
+    // The warning is gated on audio having been appended — a silent boundary
+    // with no speech is not evidence the wake-word gate is dead.
     client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
@@ -269,7 +283,7 @@ describe('wake-word gating', () => {
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
   });
 
-  it('does not re-arm the transcript slot on a session.updated re-ack after a reply, so a later utterance cannot inherit a late transcript (CRITICAL regression)', async () => {
+  it('does not re-arm the transcript slot on a session.updated re-ack so a later utterance cannot inherit a late transcript', async () => {
     const { client, sock } = await connect();
     // Utterance A: addressed, produces the one legitimate reply.
     client.sendAudio(Buffer.alloc(20));
@@ -303,7 +317,7 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(1);
   });
 
-  it("does not let the next utterance's wake-word transcript answer for the one still settling (IMPORTANT regression)", async () => {
+  it("does not let the next utterance's wake-word transcript answer for the one still settling", async () => {
     const { client, sock } = await connect();
     client.sendAudio(Buffer.alloc(20));
     // Utterance 1 has no transcript of its own; start ending it (it enters
@@ -362,7 +376,7 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(0);
   });
 
-  it('sends no commit for a boundary with no audio appended, but does for one with audio (Minor 2)', async () => {
+  it('sends no commit for a boundary with no audio appended, but does for one with audio', async () => {
     const { client, sock } = await connect();
     // No audio at all before this boundary.
     await client.endUtterance();
@@ -374,10 +388,32 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(1);
   });
 
-  it('does not fire the no-transcription warning for a boundary with no audio appended (Minor 1)', async () => {
+  it('does not fire the no-transcription warning for a boundary with no audio appended', async () => {
     const { client } = await connect();
     await client.endUtterance();
     expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('a sub-threshold noise chunk does not start a new utterance', async () => {
+    const { client, sock } = await connect();
+    // Utterance 1: real audio
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    // Noise chunk: must NOT bump utteranceSeq or start utterance 2
+    client.sendAudio(Buffer.alloc(4));
+    // Deliver a wake-word transcript; if the noise bumped the sequence,
+    // utterance 2 would own the slot and reply to this transcript (wrong).
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+    // Utterance 2: real audio, starts only because of this chunk
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    // Zero replies: utterance 1 closed with no transcript, utterance 2
+    // inherited the previous utterance's stale transcript (which was already
+    // dropped), and must not reply.
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
   });
 
   describe('isAddressed', () => {
