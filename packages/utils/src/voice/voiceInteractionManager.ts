@@ -85,7 +85,10 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   private textToSpeech: TextToSpeechManager;
   private voiceManager: VoiceManagerLazy | null;
   private commandMutex: Mutex;
-  private voiceAgentClients: Map<string, { sendAudio(chunk: Buffer): void; close(): void }>;
+  private voiceAgentClients: Map<
+    string,
+    { sendAudio(chunk: Buffer): void; endUtterance?(): void | Promise<void>; close(): void }
+  >;
   private voiceAgentWarnedKeys: Set<string>;
 
   constructor(_client: Client, config?: Partial<VoiceInteractionConfig>) {
@@ -183,6 +186,23 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
   }
 
   /**
+   * Discord's silence boundary for one user's utterance. In conversation mode the
+   * STT buffer is empty, so this is the only signal the Voice Agent gets that the
+   * user stopped talking — it is what turns the wake-word gate. A missing client
+   * means conversation mode is off; a throwing one must not kill the audio
+   * subscription, so failures are logged and swallowed.
+   */
+  async onUtteranceEnd(guildId: string, userId: string): Promise<void> {
+    const client = this.voiceAgentClients.get(`${guildId}:${userId}`);
+    if (!client?.endUtterance) return;
+    try {
+      await client.endUtterance();
+    } catch (e) {
+      log.warn(`endUtterance failed for ${guildId}:${userId}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
    * Subscribe to a user's audio stream and attach data/end/error handlers.
    * On stream end, processes the utterance then resubscribes so the next utterance is captured.
    */
@@ -262,6 +282,11 @@ export class VoiceInteractionManager implements IVoiceInteractionManager {
       log.info(
         `Silence detected for user ${userId} - processing ${session.audioBuffer.length} chunks`
       );
+
+      // Conversation mode: the buffer is empty by design (processAudioChunk
+      // streams straight to xAI), so this boundary is the wake-word gate's turn
+      // signal. Runs before the STT path, which is a no-op in that mode.
+      await this.onUtteranceEnd(guildId, userId);
 
       if (session.audioBuffer.length > 0) {
         await this.processCompleteAudio(session);

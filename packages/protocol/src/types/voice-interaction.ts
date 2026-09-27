@@ -76,9 +76,12 @@ export interface VoiceInteractionConfig {
    */
   getConversationMode?: (guildId: string, userId: string) => Promise<boolean>;
   /** Create a Voice Agent client for this session (xAI realtime WebSocket). Called when first chunk arrives and conversation mode is on. */
-  createVoiceAgentClient?: (
-    session: VoiceInteractionSession & { connection?: unknown }
-  ) => { sendAudio(chunk: Buffer): void; close(): void } | null;
+  createVoiceAgentClient?: (session: VoiceInteractionSession & { connection?: unknown }) => {
+    sendAudio(chunk: Buffer): void;
+    /** Called on Discord's silence boundary; commits audio and decides whether to reply. */
+    endUtterance?(): void | Promise<void>;
+    close(): void;
+  } | null;
 }
 
 /**
