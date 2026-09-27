@@ -2,13 +2,27 @@ jest.mock('ws', () =>
   jest.requireActual<typeof import('./helpers/fakeWs')>('./helpers/fakeWs').wsModuleMock()
 );
 
+// Captured so tests can assert on log.warn calls made by the module under
+// test. Reassigned on every createLogger() call (i.e. every fresh import),
+// so it always points at the logger the currently-imported module holds.
+// Must start with "mock" — babel-plugin-jest-hoist forbids a jest.mock()
+// factory from closing over any other out-of-scope variable.
+let mockLogger: {
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+  debug: jest.Mock;
+};
 jest.mock('@rainbot/shared', () => ({
-  createLogger: () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  }),
+  createLogger: () => {
+    mockLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
+    return mockLogger;
+  },
 }));
 jest.mock('../../redis', () => ({
   getGrokPersona: jest.fn().mockResolvedValue(null),
@@ -120,6 +134,84 @@ describe('wake-word gating', () => {
     await flush();
     await client.endUtterance();
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(0);
+  });
+
+  it('accepts a transcript that arrives inside the settle window (not just before endUtterance)', async () => {
+    const { client, sock } = await connect();
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan play something',
+      });
+    }, 50);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('drops a transcript that arrives after its utterance already decided, so a later utterance cannot inherit it (Critical 1)', async () => {
+    const { client, sock } = await connect();
+    // First utterance: no transcript ever arrives for it -> silence, and the
+    // slot disarms once its settle window closes.
+    await client.endUtterance();
+    // A transcript now arrives late, addressed to nobody in particular by the
+    // time it lands. It must not be picked up by the *next* utterance.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('serializes overlapping endUtterance() calls so only the first runs before the second even starts (Critical 2)', async () => {
+    const { client, sock } = await connect();
+    const p1 = client.endUtterance();
+    const p2 = client.endUtterance();
+    // Flush microtasks: the first call's synchronous prefix (through its
+    // commit) should have run and suspended on the settle-window timer, but
+    // the second must not have started at all yet — it is chained behind the
+    // first's promise, not fired independently.
+    await flush();
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(1);
+    await Promise.all([p1, p2]);
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('opens the gate on a "completed" transcription event the same way "updated" does', async () => {
+    const { client, sock } = await connect();
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: 'Evan skip this',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('appends (not replaces) a sequence of "delta" transcription events', async () => {
+    const { client, sock } = await connect();
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: 'Evan',
+    });
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: ' play something',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
+    const { client, mod } = await connect();
+    await client.endUtterance();
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    const [message] = mockLogger.warn.mock.calls[0] as [string];
+    expect(message).toContain(mod.INPUT_TRANSCRIPTION_MODEL);
+    // A second utterance with the same problem must not warn again.
+    await client.endUtterance();
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
   });
 
   describe('isAddressed', () => {

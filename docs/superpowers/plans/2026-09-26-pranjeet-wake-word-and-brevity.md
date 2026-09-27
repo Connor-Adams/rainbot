@@ -489,13 +489,27 @@ jest.mock('ws', () =>
   jest.requireActual<typeof import('./helpers/fakeWs')>('./helpers/fakeWs').wsModuleMock()
 );
 
+// Captured so tests can assert on log.warn calls made by the module under
+// test. Reassigned on every createLogger() call (i.e. every fresh import),
+// so it always points at the logger the currently-imported module holds.
+// Must start with "mock" — babel-plugin-jest-hoist forbids a jest.mock()
+// factory from closing over any other out-of-scope variable.
+let mockLogger: {
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+  debug: jest.Mock;
+};
 jest.mock('@rainbot/shared', () => ({
-  createLogger: () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  }),
+  createLogger: () => {
+    mockLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
+    return mockLogger;
+  },
 }));
 jest.mock('../../redis', () => ({
   getGrokPersona: jest.fn().mockResolvedValue(null),
@@ -609,6 +623,84 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(0);
   });
 
+  it('accepts a transcript that arrives inside the settle window (not just before endUtterance)', async () => {
+    const { client, sock } = await connect();
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan play something',
+      });
+    }, 50);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('drops a transcript that arrives after its utterance already decided, so a later utterance cannot inherit it (Critical 1)', async () => {
+    const { client, sock } = await connect();
+    // First utterance: no transcript ever arrives for it -> silence, and the
+    // slot disarms once its settle window closes.
+    await client.endUtterance();
+    // A transcript now arrives late, addressed to nobody in particular by the
+    // time it lands. It must not be picked up by the *next* utterance.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('serializes overlapping endUtterance() calls so only the first runs before the second even starts (Critical 2)', async () => {
+    const { client, sock } = await connect();
+    const p1 = client.endUtterance();
+    const p2 = client.endUtterance();
+    // Flush microtasks: the first call's synchronous prefix (through its
+    // commit) should have run and suspended on the settle-window timer, but
+    // the second must not have started at all yet — it is chained behind the
+    // first's promise, not fired independently.
+    await flush();
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(1);
+    await Promise.all([p1, p2]);
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('opens the gate on a "completed" transcription event the same way "updated" does', async () => {
+    const { client, sock } = await connect();
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: 'Evan skip this',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('appends (not replaces) a sequence of "delta" transcription events', async () => {
+    const { client, sock } = await connect();
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: 'Evan',
+    });
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: ' play something',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
+    const { client, mod } = await connect();
+    await client.endUtterance();
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    const [message] = mockLogger.warn.mock.calls[0] as [string];
+    expect(message).toContain(mod.INPUT_TRANSCRIPTION_MODEL);
+    // A second utterance with the same problem must not warn again.
+    await client.endUtterance();
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+  });
+
   describe('isAddressed', () => {
     it('matches only at the start, after stripping punctuation', async () => {
       const { isAddressed } = await import('../grokVoiceAgent');
@@ -694,59 +786,155 @@ Alongside the other `let` declarations near `sessionConfigured`, add:
 
 ```ts
 let inputTranscript = '';
+// Owns the transcript slot for exactly one utterance at a time. Armed when
+// the session becomes usable and re-armed by new audio; disarmed once an
+// utterance's endUtterance() has captured its decision. While disarmed,
+// incoming transcription events are dropped instead of being inherited by
+// whichever utterance opens next (this is what closes the late-transcript
+// bug: a stale transcript arriving after the decision is made must not be
+// read by a later, unrelated utterance).
+let acceptingTranscript = false;
+// Serializes endUtterance() calls so overlapping boundaries (e.g. two
+// Discord speaking streams closing close together) can't both observe the
+// same transcript slot and both reply. Chained with .then(run, run) so one
+// rejected run cannot wedge every later utterance.
+let endUtteranceChain: Promise<void> = Promise.resolve();
+// Diagnoses a dead wake-word feature: if xAI's transcription event name
+// differs from what we handle, the transcript never lands and the bot is
+// silently (safely) mute forever. Warn once per client, not once per
+// utterance, so a long-lived session doesn't spam the log.
+let hasReceivedTranscriptionEvent = false;
+let warnedNoTranscription = false;
 ```
 
-In the `message` switch, add a case (the event type carries the cumulative text on `transcript`; fall back to `delta` in case xAI's field naming differs from the docs):
+> **Post-review redesign.** A review of the initial minimal implementation (above three fields
+> plus a straight-line `endUtterance`) found two Critical fail-open paths: (1) `inputTranscript`
+> was one unversioned slot, so a transcript that arrived late — after its owning utterance had
+> already decided and cleared it — was inherited by the _next_ utterance's decision; (2) nothing
+> serialized `endUtterance()`, so two overlapping calls (Task 5's `opusDecoder.on('end')` gives
+> every Discord speaking stream its own decoder) could both read the same slot and both reply.
+> `acceptingTranscript` and `endUtteranceChain` above are the fix — transcript ownership and call
+> serialization — and the snippets below reflect the shipped version, not the original minimal one.
+
+Arm `acceptingTranscript` the moment the session becomes usable, in the `session.updated` case:
 
 ```ts
-      case 'conversation.item.input_audio_transcription.updated': {
-        const text =
-          (event as { transcript?: string }).transcript ?? (event as { delta?: string }).delta;
-        if (typeof text === 'string' && text.length > 0) inputTranscript = text;
+      case 'session.updated':
+        sessionConfigured = true;
+        // A client is armed from the moment it becomes usable, not just from
+        // the next audio chunk — this utterance's transcript is fair game.
+        acceptingTranscript = true;
+        log.debug('Voice Agent session.updated');
+        break;
+```
+
+In the `message` switch, add cases for all three transcription event spellings xAI might use — the
+docs only confirm `.updated`, so `.completed` (also cumulative) and `.delta` (incremental — must
+append, not replace, or a wake word at the head of the utterance gets overwritten by a later
+fragment) are handled defensively. `event` already declares both `transcript` and `delta` as
+optional strings, so no `as` casts are needed to read them. Both cases ignore text while
+`acceptingTranscript` is false — this is what closes the late-transcript bug, dropping a transcript
+that arrives after its utterance has already decided instead of leaving it for the next one to
+inherit:
+
+```ts
+      case 'conversation.item.input_audio_transcription.updated':
+      case 'conversation.item.input_audio_transcription.completed': {
+        // The exact event name xAI emits is unverified against the docs; handle
+        // both spellings. Both carry cumulative (not incremental) text, so we
+        // replace rather than append.
+        hasReceivedTranscriptionEvent = true;
+        const text = event.transcript ?? event.delta;
+        if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
+          inputTranscript = text;
+        }
+        break;
+      }
+      case 'conversation.item.input_audio_transcription.delta': {
+        // Unlike .updated/.completed, a .delta carries an incremental fragment
+        // — appending (not replacing) is what keeps the wake word at the head
+        // of the utterance from being overwritten by a later fragment.
+        hasReceivedTranscriptionEvent = true;
+        const text = event.transcript ?? event.delta;
+        if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
+          inputTranscript += text;
+        }
         break;
       }
 ```
 
-Widen the local `event` type in the same handler to include the new field:
+The local `event` type in the same handler already declares both fields (`transcript?: string`,
+`delta?: string`), so it needs no widening.
+
+In `sendAudio`, re-arm when disarmed — and only then, so mid-utterance chunks don't wipe
+accumulated text:
 
 ```ts
-let event: {
-  type?: string;
-  delta?: string;
-  transcript?: string;
-  response?: { id?: string };
-  name?: string;
-  call_id?: string;
-  arguments?: string;
-};
+    sendAudio(chunk: Buffer) {
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
+      // Re-arm only when disarmed, so mid-utterance chunks don't wipe
+      // accumulated transcript text — this is what lets a fresh utterance
+      // start accepting transcripts again after the previous one decided.
+      if (!acceptingTranscript) {
+        acceptingTranscript = true;
+        inputTranscript = '';
+      }
+      if (chunk.length <= 10) return;
+      const resampled = resample48kStereoTo24kMono(chunk);
+      const b64 = resampled.toString('base64');
+      send({ type: 'input_audio_buffer.append', audio: b64 });
+    },
 ```
 
-Add `endUtterance` to the returned object, above `close()`:
+Add `endUtterance` to the returned object, above `close()`. It serializes via `endUtteranceChain`
+and decides on a captured local (`transcript`), disarming _after_ the settle window so a transcript
+arriving inside the window still counts for this utterance while anything later is dropped until
+new audio re-arms:
 
 ```ts
     async endUtterance() {
-      if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
-      // Commit unconditionally. If the server only transcribes committed audio,
-      // gating the commit on the transcript would deadlock; commit merely closes
-      // the input buffer and produces no reply on its own.
-      send({ type: 'input_audio_buffer.commit' });
-      if (!isAddressed(inputTranscript, VOICE_TRIGGER_WORD)) {
+      const run = async () => {
+        if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
+        // Commit unconditionally. If the server only transcribes committed audio,
+        // gating the commit on the transcript would deadlock; commit merely closes
+        // the input buffer and produces no reply on its own.
+        send({ type: 'input_audio_buffer.commit' });
+        // Unconditional: a cumulative partial that happens to already match
+        // (e.g. "Evan" mid-word on "Evanescence") must not short-circuit the
+        // wait for the final text.
         await new Promise((r) => setTimeout(r, TRANSCRIPT_SETTLE_MS));
-      }
-      const addressed = isAddressed(inputTranscript, VOICE_TRIGGER_WORD);
-      if (addressed) {
-        send({ type: 'response.create' });
-      } else {
-        log.debug(`Utterance not addressed (no wake word); staying silent`);
-      }
-      inputTranscript = '';
+        const transcript = inputTranscript;
+        // Disarm AFTER the settle window: a transcript arriving inside the
+        // window still counts for this utterance; anything later is dropped
+        // until new audio re-arms (sendAudio) for the next one.
+        acceptingTranscript = false;
+        inputTranscript = '';
+        if (!hasReceivedTranscriptionEvent && !warnedNoTranscription) {
+          warnedNoTranscription = true;
+          log.warn(
+            `Voice Agent received no transcription event (model=${INPUT_TRANSCRIPTION_MODEL}) for ${guildId}:${userId}; the wake-word gate can never open`
+          );
+        }
+        if (isAddressed(transcript, VOICE_TRIGGER_WORD)) {
+          send({ type: 'response.create' });
+        } else {
+          log.debug(
+            `Utterance not addressed for ${guildId}:${userId} (transcript ${transcript.length} chars); staying silent`
+          );
+        }
+      };
+      endUtteranceChain = endUtteranceChain.then(run, run);
+      return endUtteranceChain;
     },
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `yarn workspace @rainbot/pranjeet-worker test src/voice-agent/__tests__/grokVoiceAgent.wakeword.test.ts`
-Expected: PASS, 10 tests. The two "stays silent" cases each take ~300ms because they wait out the settle window.
+Expected: PASS, 16 tests (the original 10 plus six added during the post-review fix pass covering
+the settle-window pickup, the Critical 1 and Critical 2 regressions, the `.completed` event, `.delta`
+appending, and the warn-once diagnostic). Several cases each take ~300ms because they wait out the
+settle window.
 
 - [ ] **Step 5: Commit**
 

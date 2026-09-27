@@ -104,6 +104,25 @@ export function createGrokVoiceAgentClient(
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let _currentResponseId: string | null = null;
   let inputTranscript = '';
+  // Owns the transcript slot for exactly one utterance at a time. Armed when
+  // the session becomes usable and re-armed by new audio; disarmed once an
+  // utterance's endUtterance() has captured its decision. While disarmed,
+  // incoming transcription events are dropped instead of being inherited by
+  // whichever utterance opens next (this is what closes the late-transcript
+  // bug: a stale transcript arriving after the decision is made must not be
+  // read by a later, unrelated utterance).
+  let acceptingTranscript = false;
+  // Serializes endUtterance() calls so overlapping boundaries (e.g. two
+  // Discord speaking streams closing close together) can't both observe the
+  // same transcript slot and both reply. Chained with .then(run, run) so one
+  // rejected run cannot wedge every later utterance.
+  let endUtteranceChain: Promise<void> = Promise.resolve();
+  // Diagnoses a dead wake-word feature: if xAI's transcription event name
+  // differs from what we handle, the transcript never lands and the bot is
+  // silently (safely) mute forever. Warn once per client, not once per
+  // utterance, so a long-lived session doesn't spam the log.
+  let hasReceivedTranscriptionEvent = false;
+  let warnedNoTranscription = false;
   let sessionConfig: {
     instructions: string;
     voice: string;
@@ -255,12 +274,32 @@ export function createGrokVoiceAgentClient(
     switch (event.type) {
       case 'session.updated':
         sessionConfigured = true;
+        // A client is armed from the moment it becomes usable, not just from
+        // the next audio chunk — this utterance's transcript is fair game.
+        acceptingTranscript = true;
         log.debug('Voice Agent session.updated');
         break;
-      case 'conversation.item.input_audio_transcription.updated': {
-        const text =
-          (event as { transcript?: string }).transcript ?? (event as { delta?: string }).delta;
-        if (typeof text === 'string' && text.length > 0) inputTranscript = text;
+      case 'conversation.item.input_audio_transcription.updated':
+      case 'conversation.item.input_audio_transcription.completed': {
+        // The exact event name xAI emits is unverified against the docs; handle
+        // both spellings. Both carry cumulative (not incremental) text, so we
+        // replace rather than append.
+        hasReceivedTranscriptionEvent = true;
+        const text = event.transcript ?? event.delta;
+        if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
+          inputTranscript = text;
+        }
+        break;
+      }
+      case 'conversation.item.input_audio_transcription.delta': {
+        // Unlike .updated/.completed, a .delta carries an incremental fragment
+        // — appending (not replacing) is what keeps the wake word at the head
+        // of the utterance from being overwritten by a later fragment.
+        hasReceivedTranscriptionEvent = true;
+        const text = event.transcript ?? event.delta;
+        if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
+          inputTranscript += text;
+        }
         break;
       }
       case 'response.created':
@@ -356,27 +395,51 @@ export function createGrokVoiceAgentClient(
   return {
     sendAudio(chunk: Buffer) {
       if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
+      // Re-arm only when disarmed, so mid-utterance chunks don't wipe
+      // accumulated transcript text — this is what lets a fresh utterance
+      // start accepting transcripts again after the previous one decided.
+      if (!acceptingTranscript) {
+        acceptingTranscript = true;
+        inputTranscript = '';
+      }
       if (chunk.length <= 10) return;
       const resampled = resample48kStereoTo24kMono(chunk);
       const b64 = resampled.toString('base64');
       send({ type: 'input_audio_buffer.append', audio: b64 });
     },
     async endUtterance() {
-      if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
-      // Commit unconditionally. If the server only transcribes committed audio,
-      // gating the commit on the transcript would deadlock; commit merely closes
-      // the input buffer and produces no reply on its own.
-      send({ type: 'input_audio_buffer.commit' });
-      if (!isAddressed(inputTranscript, VOICE_TRIGGER_WORD)) {
+      const run = async () => {
+        if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
+        // Commit unconditionally. If the server only transcribes committed audio,
+        // gating the commit on the transcript would deadlock; commit merely closes
+        // the input buffer and produces no reply on its own.
+        send({ type: 'input_audio_buffer.commit' });
+        // Unconditional: a cumulative partial that happens to already match
+        // (e.g. "Evan" mid-word on "Evanescence") must not short-circuit the
+        // wait for the final text.
         await new Promise((r) => setTimeout(r, TRANSCRIPT_SETTLE_MS));
-      }
-      const addressed = isAddressed(inputTranscript, VOICE_TRIGGER_WORD);
-      if (addressed) {
-        send({ type: 'response.create' });
-      } else {
-        log.debug(`Utterance not addressed (no wake word); staying silent`);
-      }
-      inputTranscript = '';
+        const transcript = inputTranscript;
+        // Disarm AFTER the settle window: a transcript arriving inside the
+        // window still counts for this utterance; anything later is dropped
+        // until new audio re-arms (sendAudio) for the next one.
+        acceptingTranscript = false;
+        inputTranscript = '';
+        if (!hasReceivedTranscriptionEvent && !warnedNoTranscription) {
+          warnedNoTranscription = true;
+          log.warn(
+            `Voice Agent received no transcription event (model=${INPUT_TRANSCRIPTION_MODEL}) for ${guildId}:${userId}; the wake-word gate can never open`
+          );
+        }
+        if (isAddressed(transcript, VOICE_TRIGGER_WORD)) {
+          send({ type: 'response.create' });
+        } else {
+          log.debug(
+            `Utterance not addressed for ${guildId}:${userId} (transcript ${transcript.length} chars); staying silent`
+          );
+        }
+      };
+      endUtteranceChain = endUtteranceChain.then(run, run);
+      return endUtteranceChain;
     },
     close() {
       doClose();
