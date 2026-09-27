@@ -78,4 +78,10 @@ describe('Voice Agent session config', () => {
     const update = sock.sentOfType('session.update')[0] as { session: Record<string, unknown> };
     expect(update.session['idle_timeout_ms']).toBeUndefined();
   });
+
+  it('never reintroduces server_vad anywhere in the session payload', async () => {
+    const { sock } = await connect();
+    const update = sock.sentOfType('session.update')[0];
+    expect(JSON.stringify(update)).not.toContain('server_vad');
+  });
 });
