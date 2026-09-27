@@ -1,0 +1,133 @@
+# Composite action: trigger one Dokploy application deploy and wait for it to settle.
+#
+# Dokploy's registry auto-deploy webhook only understands DockerHub payloads, so
+# GHCR pushes cannot notify it. Its documented path for other registries is this
+# API call from CI: POST /api/application.deploy, which makes Dokploy pull the
+# application's configured tag (:prod) and restart the service.
+name: Dokploy deploy
+description: Deploy one Dokploy application by id and wait for its status to settle
+inputs:
+  base_url:
+    description: Dokploy base URL, no trailing slash (e.g. https://dokploy.example.com)
+    required: true
+  api_key:
+    description: Dokploy API key (x-api-key)
+    required: true
+  application_id:
+    description: Dokploy applicationId to deploy
+    required: true
+  service:
+    description: Service name, for log and summary output only
+    required: true
+  wait_attempts:
+    description: How many times to poll for the deploy to settle
+    required: false
+    default: '60'
+  wait_seconds:
+    description: Seconds between status polls
+    required: false
+    default: '10'
+runs:
+  using: composite
+  steps:
+    # Missing configuration fails the job. The Railway workflow this replaces
+    # exited 0 on an unset secret, so every release reported a green deploy that
+    # had in fact done nothing at all.
+    - name: Check configuration
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base_url }}
+        API_KEY: ${{ inputs.api_key }}
+        APP_ID: ${{ inputs.application_id }}
+        SERVICE: ${{ inputs.service }}
+      run: |
+        set -euo pipefail
+        missing=()
+        [[ -n "${BASE_URL}" ]] || missing+=("DOKPLOY_URL")
+        [[ -n "${API_KEY}" ]] || missing+=("DOKPLOY_API_KEY")
+        [[ -n "${APP_ID}" ]] || missing+=("the applicationId secret for ${SERVICE}")
+        if (( ${#missing[@]} )); then
+          echo "::error::Cannot deploy ${SERVICE}: missing $(IFS=', '; echo "${missing[*]}"). See .github/workflows/README.md."
+          exit 1
+        fi
+
+    - name: Trigger deploy
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base_url }}
+        API_KEY: ${{ inputs.api_key }}
+        APP_ID: ${{ inputs.application_id }}
+        SERVICE: ${{ inputs.service }}
+      run: |
+        set -euo pipefail
+        echo "Deploying ${SERVICE} via ${BASE_URL}/api/application.deploy"
+        code=$(curl -sS -o /tmp/deploy-response.json -w '%{http_code}' \
+          --retry 5 --retry-all-errors --retry-delay 3 \
+          -X POST "${BASE_URL}/api/application.deploy" \
+          -H 'accept: application/json' \
+          -H 'Content-Type: application/json' \
+          -H "x-api-key: ${API_KEY}" \
+          -d "{\"applicationId\":\"${APP_ID}\"}")
+        if [[ "${code}" != 2* ]]; then
+          echo "::error::Dokploy returned HTTP ${code} for ${SERVICE}:"
+          cat /tmp/deploy-response.json
+          exit 1
+        fi
+        echo "Dokploy accepted the deploy request for ${SERVICE} (HTTP ${code})."
+
+    # application.deploy only queues the deployment, so a job that ended here
+    # would tell us nothing about whether the new image actually came up — and
+    # the workers must not start against a raincloud that is still booting.
+    - name: Wait for deploy to settle
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base_url }}
+        API_KEY: ${{ inputs.api_key }}
+        APP_ID: ${{ inputs.application_id }}
+        SERVICE: ${{ inputs.service }}
+        ATTEMPTS: ${{ inputs.wait_attempts }}
+        INTERVAL: ${{ inputs.wait_seconds }}
+      run: |
+        set -euo pipefail
+
+        # project.all is the endpoint Dokploy documents for discovering
+        # applicationId, and each application it returns carries
+        # applicationStatus — so one call covers both lookup and polling.
+        status_of() {
+          curl -sS --retry 3 --retry-all-errors --retry-delay 3 \
+            -H 'accept: application/json' \
+            -H "x-api-key: ${API_KEY}" \
+            "${BASE_URL}/api/project.all" \
+          | jq -r --arg id "${APP_ID}" \
+              '[.. | objects | select(has("applicationStatus") and .applicationId? == $id)]
+               | (first // {}) | .applicationStatus // "unknown"'
+        }
+
+        attempt=1
+        while true; do
+          status=$(status_of)
+          case "${status}" in
+            done)
+              echo "${SERVICE} reports applicationStatus=done."
+              exit 0
+              ;;
+            error)
+              echo "::error::${SERVICE} deploy failed (applicationStatus=error). Check the Dokploy deployment logs."
+              exit 1
+              ;;
+            unknown)
+              # An id that matches nothing means a wrong or rotated secret, not
+              # a slow deploy — retrying for ten minutes would just hide that.
+              echo "::error::No Dokploy application matches the configured id for ${SERVICE}. Is the applicationId secret current?"
+              exit 1
+              ;;
+          esac
+
+          if (( attempt >= ATTEMPTS )); then
+            echo "::error::${SERVICE} still reports applicationStatus=${status} after $(( ATTEMPTS * INTERVAL ))s."
+            exit 1
+          fi
+          echo "${SERVICE}: applicationStatus=${status} (attempt ${attempt}/${ATTEMPTS})"
+          attempt=$(( attempt + 1 ))
+          sleep "${INTERVAL}"
+        done
