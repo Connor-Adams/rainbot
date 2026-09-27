@@ -41,7 +41,7 @@ The accent block is roughly two-thirds of the instruction budget and is re-sent 
 Create `apps/pranjeet/src/prompts/__tests__/voice.test.ts`:
 
 ```ts
-import { buildVoiceInstructions, VOICE_BREVITY } from '../voice';
+import { buildVoiceInstructions, VOICE_BREVITY, VOICE_ACCENT_CRITICAL } from '../voice';
 
 const wordCount = (s: string) => s.trim().split(/\s+/).length;
 
@@ -54,12 +54,12 @@ describe('buildVoiceInstructions', () => {
 
   it('puts the brevity rule before the accent instruction', () => {
     const out = buildVoiceInstructions('You are terse.', false);
-    expect(out.indexOf(VOICE_BREVITY.trim())).toBeLessThan(out.indexOf('accent'));
+    expect(out.indexOf(VOICE_BREVITY.trim())).toBeLessThan(out.indexOf(VOICE_ACCENT_CRITICAL));
   });
 
   it('keeps the accent instruction under 30 words at each end', () => {
     const out = buildVoiceInstructions('You are terse.', false);
-    const accentLines = out.split('\n').filter((l) => l.toLowerCase().includes('accent'));
+    const accentLines = out.split('\n').filter((l) => /accent/i.test(l));
     expect(accentLines.length).toBeGreaterThan(0);
     for (const line of accentLines) expect(wordCount(line)).toBeLessThanOrEqual(30);
   });
@@ -97,7 +97,7 @@ Maximum 10 words per reply. Target 5 words. One sentence. Never two.
 Do not explain, qualify, or add context. Cut every word that is not load-bearing.
 `;
 
-const VOICE_ACCENT_CRITICAL =
+export const VOICE_ACCENT_CRITICAL =
   '[ACCENT] Speak urban Indian (India) English on every word, first to last. Never drop it mid-reply.';
 
 const PERSONA_PREFIX =

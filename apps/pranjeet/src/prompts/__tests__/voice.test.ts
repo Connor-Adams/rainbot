@@ -1,4 +1,4 @@
-import { buildVoiceInstructions, VOICE_BREVITY } from '../voice';
+import { buildVoiceInstructions, VOICE_BREVITY, VOICE_ACCENT_CRITICAL } from '../voice';
 
 const wordCount = (s: string) => s.trim().split(/\s+/).length;
 
@@ -11,12 +11,12 @@ describe('buildVoiceInstructions', () => {
 
   it('puts the brevity rule before the accent instruction', () => {
     const out = buildVoiceInstructions('You are terse.', false);
-    expect(out.indexOf(VOICE_BREVITY.trim())).toBeLessThan(out.indexOf('accent'));
+    expect(out.indexOf(VOICE_BREVITY.trim())).toBeLessThan(out.indexOf(VOICE_ACCENT_CRITICAL));
   });
 
   it('keeps the accent instruction under 30 words at each end', () => {
     const out = buildVoiceInstructions('You are terse.', false);
-    const accentLines = out.split('\n').filter((l) => l.toLowerCase().includes('accent'));
+    const accentLines = out.split('\n').filter((l) => /accent/i.test(l));
     expect(accentLines.length).toBeGreaterThan(0);
     for (const line of accentLines) expect(wordCount(line)).toBeLessThanOrEqual(30);
   });

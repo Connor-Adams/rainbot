@@ -9,7 +9,7 @@ Maximum 10 words per reply. Target 5 words. One sentence. Never two.
 Do not explain, qualify, or add context. Cut every word that is not load-bearing.
 `;
 
-const VOICE_ACCENT_CRITICAL =
+export const VOICE_ACCENT_CRITICAL =
   '[ACCENT] Speak urban Indian (India) English on every word, first to last. Never drop it mid-reply.';
 
 const PERSONA_PREFIX =
