@@ -43,10 +43,14 @@ export const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe';
 /**
  * CEILING (not a fixed delay) on the wait for xAI's input transcript after the
  * audio buffer is committed. A TERMINAL transcription event for the deciding
- * utterance ends the wait immediately; a cumulative PARTIAL only shortens it to
- * PARTIAL_SETTLE_DEBOUNCE_MS (see below), and text already in the slot when the
- * wait begins shortens it the same way. So this value is only ever paid in full
- * when no transcript arrives at all — which is why it can afford to be generous.
+ * utterance ends the wait immediately only when it arrives AFTER the boundary;
+ * one that arrived BEFORE costs the 250ms debounce. A cumulative PARTIAL only
+ * shortens it to PARTIAL_SETTLE_DEBOUNCE_MS (see below), and text already in
+ * the slot when the wait begins shortens it the same way. So this value is only
+ * ever paid in full when no transcript arrives at all, OR when a partial that is
+ * EXACTLY the trigger word holds the full remaining ceiling (because one more
+ * character could turn "Evan" into "Evanescence") — which is why it can afford
+ * to be generous.
  *
  * It must be generous: this API family (whose event names it mirrors) may emit
  * input transcription on commit-completion rather than during speech, i.e.
@@ -227,9 +231,10 @@ export function createGrokVoiceAgentClient(
    * future edit has to remember. `seq` is the utterance the wait is deciding
    * for: a transcription event stamped for exactly that seq can end it
    * (terminal) or shorten it (partial). `deadline` is the absolute epoch-ms
-   * ceiling fixed when the wait began; extendSettleIfWaitingFor may only ever
-   * shorten a timer against it, which is what stops an unbroken stream of
-   * partials from deferring the reply forever. Exactly one wait exists at a time
+   * ceiling fixed when the wait began; extendSettleIfWaitingFor clamps to it,
+   * ensuring the decision can never happen after it, which is what stops an
+   * unbroken stream of partials from deferring the reply forever. Exactly one
+   * wait exists at a time
    * because endUtteranceChain serializes runs — do not relax that
    * serialization. doClose() resolves the record so the client shutting down
    * does not leave this wait (and every endUtterance() queued behind it) sitting
@@ -305,10 +310,10 @@ export function createGrokVoiceAgentClient(
   }
 
   /**
-   * Called when a cumulative PARTIAL transcript lands: restart the wait's timer
-   * for `debounceMs`, so the decision happens shortly after the text stops
-   * growing rather than at the full ceiling — but never LATER than the absolute
-   * TRANSCRIPT_SETTLE_MS deadline the wait started with.
+   * Called when a cumulative PARTIAL transcript lands: restart the wait's timer,
+   * clamped to `debounceMs` and the remaining time until the absolute deadline.
+   * The clamp ensures the decision can never happen after the TRANSCRIPT_SETTLE_MS
+   * deadline, even when called with Infinity for the exact-trigger guard.
    */
   function extendSettleIfWaitingFor(seq: number, debounceMs: number): void {
     const wait = pendingSettle;

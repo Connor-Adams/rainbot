@@ -391,6 +391,39 @@ describe('wake-word gating', () => {
     expect(elapsed).toBeLessThan(1500);
   }, 20000);
 
+  it('holds the full window when an exact-wake-word partial lands before the boundary', async () => {
+    // When a partial that is EXACTLY the trigger word arrives BEFORE the
+    // boundary (endUtterance), the exact-trigger guard prevents the wait from
+    // starting at the 250ms debounce — it is treated like already-present text
+    // BUT with a precedence override that still holds the full ceiling, because
+    // one more character could turn "Evan" into "Evanescence". This test pins
+    // that precedence: alreadyHaveText && !isExactlyTriggerWord must BOTH be
+    // checked, not just alreadyHaveText. The condition was mutated once and the
+    // full suite stayed green — this test catches that regression.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '900';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    // Text arrives before the boundary, so it finds no wait in flight and
+    // extendSettleIfWaitingFor no-ops. The wait itself will start at the full
+    // ceiling because isExactlyTriggerWord returns true.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan',
+    });
+    const startedAt = Date.now();
+    const pending = client.endUtterance();
+    await pending;
+    const elapsed = Date.now() - startedAt;
+    // If the condition were a bare alreadyHaveText (the mutation), this would
+    // start at 250ms (debounce). With the guard, it holds the full ceiling.
+    expect(elapsed).toBeGreaterThan(700);
+    expect(elapsed).toBeLessThan(1100);
+    // "Evan" by itself IS addressed (the trigger word with a boundary after),
+    // so we expect a response. The key is that the decision was delayed by the
+    // full ceiling, not by the debounce.
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
   it('answers a multi-word trigger whose first word arrives alone as a partial', async () => {
     // The other half of the same fix: deciding on the partial "Hey" is
     // fail-closed, but it makes every multi-word trigger unusable against a
