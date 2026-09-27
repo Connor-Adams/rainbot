@@ -262,6 +262,135 @@ describe('wake-word gating', () => {
     expect(sock.sentOfType('response.create')).toHaveLength(0);
   });
 
+  it('holds the full window when a partial is EXACTLY the wake word and the terminal text is a longer word', async () => {
+    // The canonical failure the 250ms debounce left open. `.updated "Evan"` is
+    // exactly the trigger, so ONE more character can turn it into a word that
+    // never addressed the bot — and the terminal event is 470ms behind it, well
+    // past the debounce. The exact-trigger guard makes that partial buy no
+    // shortcut at all, so the decision waits for "Evanescence is a great band".
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan',
+      });
+    }, 30);
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'Evanescence is a great band',
+      });
+    }, 500);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('holds the full window for an exact-wake-word partial even when the longer text is only ever a partial too', async () => {
+    // Same guard, with no terminal event anywhere — the `.updated`-only shape the
+    // owner's decision keeps the debounce for. The exact-trigger partial waits
+    // the full remaining ceiling, the revision arrives at 500ms, and only THEN
+    // does the ordinary 250ms debounce apply, to the full text.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan',
+      });
+    }, 30);
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evanescence is a great band',
+      });
+    }, 500);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('still decides on the debounce for a partial that is the wake word PLUS more, so the guard is not a blanket ceiling wait', async () => {
+    // The other side of the guard: it triggers only on text EQUAL to the trigger.
+    // "Evan, skip this song" already has a boundary after the wake word, so no
+    // further character can un-address it — it keeps the 250ms debounce exactly
+    // as before. The elapsed bound is what distinguishes "decided on the
+    // debounce" from "the guard has become a ceiling wait for every partial".
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '3000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const startedAt = Date.now();
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Evan, skip this song',
+      });
+    }, 30);
+    await pending;
+    const elapsed = Date.now() - startedAt;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+    expect(elapsed).toBeLessThan(1200);
+  });
+
+  it('warns when the transcript that arrives after the decision MATERIALLY differs from the text decided on', async () => {
+    // The reviewer's probe of the diagnostic. The debounce decides on the
+    // truncated partial "Ev", the gate stays (correctly) shut, and the real text
+    // "Evan, skip this song" lands afterwards — a ceiling too low to have seen
+    // it. "Read some text" is not "read the final text", so a predicate that
+    // only asked whether the decision read anything stayed silent here: wrong
+    // silence with no diagnostic, which defeats the design.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '2000';
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    const pending = client.endUtterance();
+    setTimeout(() => {
+      sock.serverSays({
+        type: 'conversation.item.input_audio_transcription.updated',
+        transcript: 'Ev',
+      });
+    }, 30);
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: 'Evan, skip this song',
+    });
+    const lateWarnings = mockLogger.warn.mock.calls
+      .map((c) => (c as [string])[0])
+      .filter((m) => m.includes('after its reply decision'));
+    expect(lateWarnings).toHaveLength(1);
+    expect(lateWarnings[0]).toMatch(/arrived \d+ms after its reply decision/);
+    expect(lateWarnings[0]).toContain('VOICE_TRANSCRIPT_SETTLE_MS');
+  });
+
+  it('does not pay the whole ceiling when the transcript already landed before the boundary', async () => {
+    // A transcript delivered BEFORE endUtterance() found no wait in flight, so
+    // the early-resolve call no-opped; the wait then started and nothing further
+    // arrived, so the turn burned the entire ceiling — +2s on EVERY reply at the
+    // production default, if `grok-transcribe` streams during speech as its
+    // `.updated` naming implies. Text already stamped for this seq now starts the
+    // wait at the 250ms debounce instead, so a 5000ms ceiling costs nothing.
+    // The generous test timeout is deliberate: without the fast path this must
+    // fail on the elapsed bound, not by timing out.
+    process.env['VOICE_TRANSCRIPT_SETTLE_MS'] = '5000';
+    const { client, sock, mod } = await connect();
+    expect(mod.TRANSCRIPT_SETTLE_MS).toBe(5000);
+    client.sendAudio(Buffer.alloc(20));
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan, skip this song',
+    });
+    const startedAt = Date.now();
+    await client.endUtterance();
+    const elapsed = Date.now() - startedAt;
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+    expect(elapsed).toBeLessThan(1500);
+  }, 20000);
+
   it('answers a multi-word trigger whose first word arrives alone as a partial', async () => {
     // The other half of the same fix: deciding on the partial "Hey" is
     // fail-closed, but it makes every multi-word trigger unusable against a

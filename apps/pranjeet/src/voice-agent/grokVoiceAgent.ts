@@ -42,9 +42,11 @@ export const INPUT_TRANSCRIPTION_MODEL = 'grok-transcribe';
 
 /**
  * CEILING (not a fixed delay) on the wait for xAI's input transcript after the
- * audio buffer is committed. The wait resolves as soon as a transcription event
- * for the deciding utterance lands, so this value is only ever paid in full when
- * no transcript arrives at all — which is why it can afford to be generous.
+ * audio buffer is committed. A TERMINAL transcription event for the deciding
+ * utterance ends the wait immediately; a cumulative PARTIAL only shortens it to
+ * PARTIAL_SETTLE_DEBOUNCE_MS (see below), and text already in the slot when the
+ * wait begins shortens it the same way. So this value is only ever paid in full
+ * when no transcript arrives at all — which is why it can afford to be generous.
  *
  * It must be generous: this API family (whose event names it mirrors) may emit
  * input transcription on commit-completion rather than during speech, i.e.
@@ -71,6 +73,11 @@ export const TRANSCRIPT_SETTLE_MS = VOICE_TRANSCRIPT_SETTLE_MS;
  * after the LAST partial, i.e. once the text has stopped growing. The restart is
  * always clamped to the absolute TRANSCRIPT_SETTLE_MS deadline measured from when
  * the wait began, so a continuous stream of partials cannot defer a reply forever.
+ *
+ * ONE partial buys no shortcut: one whose whole text IS exactly the trigger word
+ * (see isExactlyTriggerWord and the transcription handler). Deliberately NOT
+ * env-tunable — the ceiling is the operator-facing knob; this is the shape of the
+ * gate. Documented for operators in .env.example under VOICE_TRANSCRIPT_SETTLE_MS.
  */
 const PARTIAL_SETTLE_DEBOUNCE_MS = 250;
 
@@ -102,6 +109,18 @@ export function isAddressed(transcript: string, triggerWord: string): boolean {
   if (!cleaned.startsWith(trigger)) return false;
   const next = cleaned.charAt(trigger.length);
   return next === '' || !/[\p{L}\p{N}]/u.test(next);
+}
+
+/**
+ * True when the whole cumulative partial SO FAR is exactly the wake word, i.e.
+ * the trigger is the entire transcript and one more character could still glue
+ * it into a longer word ("Evan" → "Evanescence"). Same normalisation as
+ * isAddressed, so "Evan,", " evan " and "EVAN" all count.
+ */
+function isExactlyTriggerWord(text: string, triggerWord: string): boolean {
+  const trigger = normalizeForTrigger(triggerWord);
+  if (trigger.length === 0) return false;
+  return normalizeForTrigger(text) === trigger;
 }
 
 export interface GrokVoiceAgentCallbacks {
@@ -189,34 +208,47 @@ export function createGrokVoiceAgentClient(
   // raise the ceiling instead of guessing.
   let decidedSeq: number | null = null;
   let decidedAt = 0;
-  // Whether that decision actually READ a transcript. Without this the
-  // diagnostic fires on the ordinary happy path — the second event of a normal
-  // `updated → completed` turn, or a trailing `.updated` after `.completed`, is
-  // stamped for an utterance that has already decided — and burns its warn-once
-  // latch on turn one, so the genuinely-too-low ceiling it exists to report
-  // can never announce itself. A decision that read text was not starved.
-  let decidedWithText = false;
+  // The NORMALISED text that decision actually used. The diagnostic fires when a
+  // later transcript for the same utterance DIFFERS from it — i.e. the gate
+  // decided on text that was not the final text, which is precisely the
+  // too-low-ceiling case this exists to report, including a decision made by the
+  // partial debounce on truncated text ("Ev" → "Evan, skip this song").
+  // Comparing on the normalised form keeps it quiet for a punctuation-only
+  // straggler ("Evan, skip this song" → "Evan, skip this song."), the ordinary
+  // second event of a normal turn, which must not burn the warn-once latch.
+  // An earlier revision asked only whether the decision read ANY text, which
+  // stayed silent for exactly the starved decision it was meant to catch.
+  let decidedText = '';
   let warnedLateTranscription = false;
-  // Handle + resolver for the current settle-window wait, so doClose() can
-  // force it to resolve immediately instead of leaving it (and every queued
-  // endUtterance() behind it) waiting out the full TRANSCRIPT_SETTLE_MS after
-  // the client is already gone. Only one is ever in flight at a time — the
-  // endUtteranceChain serializes runs. pendingSettleSeq is the utterance the
-  // in-flight wait is deciding for: a transcription event stamped for exactly
-  // that seq resolves the wait immediately (see settleWait).
-  let pendingSettleTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingSettleResolve: (() => void) | null = null;
-  let pendingSettleSeq: number | null = null;
-  // Absolute deadline (epoch ms) for the in-flight wait, fixed when it began.
-  // extendSettleIfWaitingFor may only ever shorten a timer against this — it is
-  // what stops an unbroken stream of partials from deferring the reply forever.
-  let pendingSettleDeadline = 0;
+  /**
+   * The ONE settle-window wait in flight, or null. Held as a single record — not
+   * as parallel `timer`/`resolve`/`seq`/`deadline` variables — so that "these
+   * four describe the same wait" is structural rather than a convention every
+   * future edit has to remember. `seq` is the utterance the wait is deciding
+   * for: a transcription event stamped for exactly that seq can end it
+   * (terminal) or shorten it (partial). `deadline` is the absolute epoch-ms
+   * ceiling fixed when the wait began; extendSettleIfWaitingFor may only ever
+   * shorten a timer against it, which is what stops an unbroken stream of
+   * partials from deferring the reply forever. Exactly one wait exists at a time
+   * because endUtteranceChain serializes runs — do not relax that
+   * serialization. doClose() resolves the record so the client shutting down
+   * does not leave this wait (and every endUtterance() queued behind it) sitting
+   * out the full TRANSCRIPT_SETTLE_MS.
+   */
+  let pendingSettle: {
+    resolve: () => void;
+    seq: number;
+    deadline: number;
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null = null;
 
   /**
    * Wait for this utterance's FINAL transcript, resolving on WHICHEVER COMES FIRST:
    * a terminal transcription event for `seq` (the common case — the transcription
    * handler calls resolveSettleIfWaitingFor), the partial debounce going quiet
-   * (extendSettleIfWaitingFor), or TRANSCRIPT_SETTLE_MS elapsing.
+   * (extendSettleIfWaitingFor), or TRANSCRIPT_SETTLE_MS elapsing. A transcript
+   * that had ALREADY landed for `seq` before this wait began starts the timer at
+   * the debounce rather than the ceiling, for the same reason a partial does.
    * A bare timer was the bug: a transcript delivered after the timer fired was
    * stamped for an utterance that had already decided, then discarded by the
    * next utterance's seq bump — one missed transcript and the gate never opened
@@ -231,18 +263,33 @@ export function createGrokVoiceAgentClient(
         // doClose() can all reach for the same wait.
         if (done) return;
         done = true;
-        if (pendingSettleTimer) {
-          clearTimeout(pendingSettleTimer);
-          pendingSettleTimer = null;
+        if (pendingSettle?.timer) {
+          clearTimeout(pendingSettle.timer);
         }
-        pendingSettleResolve = null;
-        pendingSettleSeq = null;
+        pendingSettle = null;
         resolve();
       };
-      pendingSettleSeq = seq;
-      pendingSettleResolve = finish;
-      pendingSettleDeadline = Date.now() + TRANSCRIPT_SETTLE_MS;
-      pendingSettleTimer = setTimeout(finish, TRANSCRIPT_SETTLE_MS);
+      // A transcript that landed BEFORE this boundary found no wait in flight, so
+      // resolveSettleIfWaitingFor/extendSettleIfWaitingFor no-opped for it; a wait
+      // that then started at the raw ceiling would burn the whole of
+      // TRANSCRIPT_SETTLE_MS on a turn whose answer was already sitting in the
+      // slot (+2s on EVERY reply at the production default, if `grok-transcribe`
+      // streams during speech as its `.updated` naming implies). Treat it exactly
+      // as a partial that has just arrived: wait only the debounce for a revision.
+      // The exact-trigger guard still takes precedence — text that IS the whole
+      // trigger word gets the full ceiling, because one more character could turn
+      // "Evan" into "Evanescence".
+      const alreadyHaveText = slot.seq === seq && slot.text.length > 0;
+      const initialWait =
+        alreadyHaveText && !isExactlyTriggerWord(slot.text, VOICE_TRIGGER_WORD)
+          ? Math.min(PARTIAL_SETTLE_DEBOUNCE_MS, TRANSCRIPT_SETTLE_MS)
+          : TRANSCRIPT_SETTLE_MS;
+      pendingSettle = {
+        resolve: finish,
+        seq,
+        deadline: Date.now() + TRANSCRIPT_SETTLE_MS,
+        timer: setTimeout(finish, initialWait),
+      };
     });
   }
 
@@ -252,8 +299,8 @@ export function createGrokVoiceAgentClient(
    * decides on the final text, not on a prefix of it.
    */
   function resolveSettleIfWaitingFor(seq: number): void {
-    if (pendingSettleResolve && pendingSettleSeq === seq) {
-      pendingSettleResolve();
+    if (pendingSettle && pendingSettle.seq === seq) {
+      pendingSettle.resolve();
     }
   }
 
@@ -264,19 +311,21 @@ export function createGrokVoiceAgentClient(
    * TRANSCRIPT_SETTLE_MS deadline the wait started with.
    */
   function extendSettleIfWaitingFor(seq: number, debounceMs: number): void {
-    if (!pendingSettleResolve || pendingSettleSeq !== seq) return;
-    const finish = pendingSettleResolve;
-    const remaining = pendingSettleDeadline - Date.now();
+    const wait = pendingSettle;
+    if (!wait || wait.seq !== seq) return;
+    const remaining = wait.deadline - Date.now();
     if (remaining <= 0) {
       // The ceiling is already up; decide now rather than granting an extension
       // past it (its own timer is due, but this keeps the clamp unconditional).
-      finish();
+      wait.resolve();
       return;
     }
-    if (pendingSettleTimer) {
-      clearTimeout(pendingSettleTimer);
+    if (wait.timer) {
+      clearTimeout(wait.timer);
     }
-    pendingSettleTimer = setTimeout(finish, Math.min(debounceMs, remaining));
+    // Infinity means "the whole remaining ceiling" — see the exact-trigger guard
+    // in the transcription handler. Math.min keeps the clamp unconditional.
+    wait.timer = setTimeout(wait.resolve, Math.min(debounceMs, remaining));
   }
   let sessionConfig: {
     instructions: string;
@@ -328,15 +377,9 @@ export function createGrokVoiceAgentClient(
       clearInterval(heartbeat);
       heartbeat = null;
     }
-    if (pendingSettleTimer) {
-      clearTimeout(pendingSettleTimer);
-      pendingSettleTimer = null;
-    }
-    if (pendingSettleResolve) {
-      const resolve = pendingSettleResolve;
-      pendingSettleResolve = null;
-      pendingSettleSeq = null;
-      resolve();
+    if (pendingSettle) {
+      // resolve() clears the record and its timer (see settleWait's finish()).
+      pendingSettle.resolve();
     }
     if (ws) {
       try {
@@ -466,17 +509,45 @@ export function createGrokVoiceAgentClient(
           // low for an `.updated`-only API without deciding on truncated text.
           if (event.type === 'conversation.item.input_audio_transcription.completed') {
             resolveSettleIfWaitingFor(utteranceSeq);
+          } else if (isExactlyTriggerWord(text, VOICE_TRIGGER_WORD)) {
+            // The narrow hole the debounce leaves open, closed: when the partial
+            // so far IS exactly the trigger word, the very next character could
+            // turn it into a longer word ("Evan" → "Evanescence is a great
+            // band"), so the 250ms debounce would decide "addressed" on text
+            // that is one glyph away from meaning the opposite. Such a partial
+            // buys no shortcut at all — reset the timer to the FULL remaining
+            // time to the absolute TRANSCRIPT_SETTLE_MS deadline (Infinity is
+            // clamped to `remaining` there). Every OTHER partial keeps the
+            // debounce untouched, so this is not a blanket ceiling wait.
+            //
+            // What this does NOT close: a mid-partial REVISION, e.g.
+            // `.updated "Evan play"` then `.updated "Evanescence played"`. The
+            // first partial is not exactly the trigger, so it takes the
+            // debounce, and if the revision is more than 250ms behind it the
+            // gate replies to audio that never addressed the bot. Closing that
+            // requires an affirmative decision to reply ONLY after a terminal
+            // `…transcription.completed` — the trade the owner declined,
+            // because nothing confirms `grok-transcribe` ever emits a terminal
+            // event and a possibly-permanently-mute bot is worse than a working
+            // gate with a known narrow hole.
+            extendSettleIfWaitingFor(utteranceSeq, Number.POSITIVE_INFINITY);
           } else {
             extendSettleIfWaitingFor(utteranceSeq, PARTIAL_SETTLE_DEBOUNCE_MS);
           }
-          // Too late: this utterance's decision already ran AND it read nothing,
-          // so a transcript existed that the gate could not see. Report the
-          // measured lag and the knob that fixes it — without this, a ceiling set
-          // too low looks exactly like "xAI sent no transcript at all", which is
-          // the wrong thing to go debug. A decision that DID read text was not
-          // starved (a trailing event on a turn that already replied is normal),
-          // and must not burn the warn-once latch this diagnostic depends on.
-          if (utteranceSeq === decidedSeq && !decidedWithText && !warnedLateTranscription) {
+          // Too late: this utterance's decision already ran, and this transcript
+          // DIFFERS from the text it decided on — so the gate decided on text
+          // that was not the final text (it read nothing, or the partial debounce
+          // decided on a truncation). Report the measured lag and the knob that
+          // fixes it: without this, a ceiling set too low looks exactly like "xAI
+          // sent no transcript at all", which is the wrong thing to go debug.
+          // A straggler that merely re-punctuates what was already decided on
+          // normalises to the same string and is silent — it is the ordinary
+          // second event of a normal turn and must not burn the warn-once latch.
+          if (
+            utteranceSeq === decidedSeq &&
+            normalizeForTrigger(text) !== decidedText &&
+            !warnedLateTranscription
+          ) {
             warnedLateTranscription = true;
             log.warn(
               `Voice Agent transcription for ${guildId}:${userId} arrived ${Date.now() - decidedAt}ms after its reply decision (settle ceiling ${TRANSCRIPT_SETTLE_MS}ms); the wake-word gate could not read it — raise VOICE_TRANSCRIPT_SETTLE_MS`
@@ -655,9 +726,9 @@ export function createGrokVoiceAgentClient(
         if (hadAudio) {
           decidedSeq = seq;
           decidedAt = Date.now();
-          // Whether the gate had anything to read. Only a starved decision makes
-          // a later transcript for this seq evidence of a too-low ceiling.
-          decidedWithText = text.length > 0;
+          // The text the decision actually used, normalised. A later transcript
+          // for this seq that differs from it is evidence of a too-low ceiling.
+          decidedText = normalizeForTrigger(text);
         }
         if (hadAudio && !hasReceivedTranscriptionEvent && !warnedNoTranscription) {
           warnedNoTranscription = true;
