@@ -328,3 +328,146 @@ dimension because the resolve histogram hardcodes youtube, README staleness + Pr
 remote-write security note).
 Outstanding: serviceMapQuery field spelling unconfirmed without a live Grafana; title corrections
 in flight.
+
+## Pranjeet wake word + word cap — SDD progress
+
+Plan: docs/superpowers/plans/2026-09-26-pranjeet-wake-word-and-brevity.md
+Branch: claude/pranjeet-token-refresh-56b894
+Base before Task 1: 2b5df64
+Pre-flight: worktree had no node_modules; ran `yarn && yarn build:ts` (jest cannot
+resolve @rainbot/\* from source). Plan's `yarn workspace ... test` commands DO work
+after that — the old ledger note claiming jest is off the workspace PATH was a
+stale-install artifact, not a standing constraint.
+Pre-flight decision (Connor): extract one shared fake-ws helper at
+apps/pranjeet/src/voice-agent/**tests**/helpers/fakeWs.ts instead of the plan's
+duplicated jest.mock block. Needs '/**tests**/helpers/' in pranjeet's
+testPathIgnorePatterns, since testMatch would otherwise collect it as a suite.
+Task 1: complete (commits 2b5df64..5795b19, review clean after one fix pass)
+PLAN DEFECT CAUGHT: the plan's own ordering test asserted nothing. It compared
+VOICE_BREVITY's index against lowercase 'accent', but VOICE_ACCENT_CRITICAL writes
+it as [ACCENT] — the only lowercase match is in the always-last reminder block, so
+swapping the two blocks could never fail the test. Fixed by exporting
+VOICE_ACCENT_CRITICAL and comparing against the constant; mutation-verified (swap
+now fails). Plan doc corrected too.
+CORRECTION to my own fix dispatch: I also claimed the 30-word accent-length test
+was vacuous. It was not — `.toLowerCase().includes('accent')` already matched both
+blocks. The regex change there is cosmetic. No code impact.
+Minor (for final review): VOICE_BREVITY says "One sentence. Never two." alongside
+the word cap, which reintroduces sentence-based phrasing the global constraint
+says to avoid. Numeric cap still dominates; judged non-blocking.
+Task 2: complete (commits 5795b19..b168659, review clean, no findings)
+All five exact string replacements landed; out-of-scope <core_rules> line verified
+byte-identical. Reviewer independently executed the example-extraction regex against
+the real file (4 examples, 6-7 words each) and confirmed the test is not vacuous —
+the old 13-word example did fail it pre-fix.
+Task 3: complete (commits b168659..9c9b2b6, review clean, no Critical/Important)
+turn_detection: null + audio.input.transcription.model: 'grok-transcribe' on the
+session; first test file under apps/pranjeet/src/voice-agent/**tests**/ plus the
+shared helpers/fakeWs.ts and the '/**tests**/helpers/' ignore pattern.
+Brief's Step 5 `git add` list omitted jest.config.js and helpers/fakeWs.ts that its
+own Step 1 requires; implementer committed all four (correct — the commit would not
+run otherwise) and flagged it instead of deviating silently.
+Reviewer verified with --listTests that fakeWs.ts is not collected, and that
+reverting to server_vad would fail the assertion.
+Minor (for final review): sendSessionUpdate still mutates and re-sends
+sessionConfig.voice on every turn. Pre-existing, unrelated to turn-taking.
+Task 4: complete (commits 9c9b2b6..fb37245, 5 commits, review clean after THREE fix
+passes + one follow-up). Verified independently: 9 suites / 47 tests green.
+The plan's original design was fail-OPEN in three distinct ways, each found only
+after fixing the previous one. All were "bot replies to audio that never addressed
+it", the exact thing the feature exists to prevent:
+
+1.  inputTranscript was one unversioned slot written on every event, so a transcript
+    arriving after its own utterance's decision was inherited by the NEXT utterance.
+2.  endUtterance was unserialized — two concurrent boundaries could both read the
+    same transcript and both send response.create.
+3.  The arm/disarm flag added to fix (1) was re-armed by session.updated, which the
+    client re-sends on response.created/response.done — so every reply re-opened the
+    hole. Found only by asking where else the ack comes from.
+    FINAL SHAPE is a net deletion (85 insertions / 126 deletions) around one invariant:
+    a decision reads slot.text only when slot.seq equals the seq captured at run entry;
+    every write stamps slot.seq = utteranceSeq; a new utterance begins only when real
+    audio is appended after a commit. One write site, one read site.
+    DELETED the speculative `…transcription.delta` accumulation: it replaced-and-restamped
+    on a seq mismatch, so a transcript split as "Evan" + "escence is great" could put
+    "Evan" at the head of the NEXT utterance and open the gate on a word nobody said —
+    the only path that could INVENT a wake word. Now two independent warn-once
+    diagnostics cover a dead gate (unhandled transcription event type, and no
+    transcription event at all), so a mute feature always says why. This is the chosen
+    behaviour for Connor's open item: silence plus a signal, never a guessed reconstruction.
+    Deviation from the brief: the commit is now gated on audio having been appended
+    (the invariant that never changed is that the commit is not gated on the transcript).
+    Notes for Task 5: N queued boundaries cost N x 300ms because run() completes before
+    the next starts; and processAudioChunk awaits a Redis getConversationMode per chunk
+    and is fire-and-forget from the audio data handler, so sendAudio/endUtterance
+    ordering is not guaranteed at the manager.
+    Residual by design: a transcript landing after the next utterance's audio bumped the
+    seq is stamped to that later utterance — a DELAYED reply to a wake word the user did
+    say, never a reply to unaddressed audio. Closing it needs a server-side item id the
+    API shape does not confirm.
+    Minor (for final review): utteranceClosed is provably !audioAppended (two views of
+    one predicate, kept separate for readability, now documented inline).
+    Task 5: complete (commits fb37245..bbf9e64, review clean after one fix pass)
+    onUtteranceEnd(guildId, userId) on the manager, called from opusDecoder.on('end')
+    before the STT buffer path; endUtterance?() widened onto the protocol client type.
+    yarn validate green 27/27 (utils 30 suites/513 tests, pranjeet 9/47).
+    GAP CAUGHT AND CLOSED: the implementer's own mutation check honestly reported that
+    deleting the one line that makes the feature live failed NO test, and judged it
+    uncoverable without an injection point. The reviewer disproved that empirically — a
+    real Node Readable from the fake receiver.subscribe(), piped by production code into
+    the real prism opus decoder, propagates a genuine 'end' with zero production change.
+    Test added; mutation-verified (removing the call now fails it).
+    CAVEAT for anyone touching that test: after 'end' the manager RESUBSCRIBES, so if
+    subscribe() hands back another already-ended stream it loops tight and OOMs. End only
+    the FIRST subscribed stream; return never-ending Readables afterwards.
+    Watch (for final review): the real endUtterance waits out the ~300ms settle window,
+    and the 'end' handler awaits it BEFORE resubscribing — so resubscription is now
+    delayed by that much in conversation mode, where it used to be near-immediate (the
+    STT buffer was always empty). Worst case is a short gap in listening, not a spurious
+    reply, so it does not breach fail-closed. Watch for "it cuts me off right after I
+    speak" reports; the fix would be to resubscribe first and end the utterance after.
+    Task 6: complete (commit 8f420d1, regression guard, mutation-verified)
+    Test fails if turn_detection: { type: 'server_vad' } ever returns to the session
+    payload. yarn validate 27/27 green. All six tasks done.
+
+FINAL WHOLE-BRANCH REVIEW: do-not-ship, 2 must-fix + 5 should-fix. Fixed across four
+waves with a verification review after each (each wave's reviewer found the regression
+the previous wave introduced, which is why there were four):
+W1 (e25600a): the settle window was a BLIND timer, so a transcript arriving after the
+decision was dropped forever — if xAI transcribes on commit-completion (as OpenAI's
+Realtime API does, whose event names this mirrors) the bot would be permanently mute
+in prod while all tests passed, and the one log line emitted said "received no
+transcription event", which was false and latched. Replaced with an early-resolve
+race under a 2000ms env-tunable ceiling. Also: silenceDurationMs knob, unhandled-
+event-type Set in the diagnostic, multi-word trigger normalisation, "One sentence.
+Never two." deleted, docs corrected.
+W2 (d405456): W1's race fired on cumulative PARTIALS, so `.updated "Evan"` then
+`.completed "Evanescence is a great band"` REPLIED — fail-open on the branch's own
+counter-example. Early-resolve restricted to the terminal event, partials debounced
+250ms under the absolute ceiling. Also fixed the late-transcript diagnostic firing on
+the happy path and burning its own warn-once latch.
+W3 (5c37129): W2 still decided on a partial once the gap exceeded the debounce.
+OWNER DECISION at this point (Connor): keep the 250ms debounce, accept the narrow
+hole, rather than require a terminal event — because nothing confirms grok-transcribe
+ever emits one, and a working gate with a known hole beats a possibly-permanently-mute
+one. Added the narrow guard instead: a partial whose normalised text EQUALS the
+trigger holds the full remaining ceiling (one more character could glue "Evan" into
+"Evanescence"); every other partial keeps the debounce. Plus: diagnostic now warns on
+a materially divergent late transcript, and an already-present transcript waits only
+the debounce instead of burning the whole ceiling (+2s per reply before this).
+W4 (7ba0e80): the guard's precedence inside that fast path was untested — a mutation
+reopened the canonical fail-open with all 37 tests green. Test added; three stale
+comments corrected.
+ACCEPTED RESIDUAL, by owner decision: a mid-partial revision ("Evan play" ->
+"Evanescence played") can still open the gate. Closing it requires an affirmative
+decision to await a terminal event, which risks permanent silence.
+OTHER OWNER DECISIONS: the 10-word cap applies to the text /chat path too (the persona
+body is shared with getSystemPromptForChat), intentionally; and the Discord silence
+boundary is now configurable with Pranjeet at 800ms — which also shortens the STT
+command path, since Pranjeet is the only caller of initVoiceInteractionManager. Both
+documented in .env.example.
+STILL UNVERIFIABLE FROM CODE (needs a live socket capture): grok-transcribe's real event
+name, whether it emits a terminal event at all, its latency relative to the commit, and
+whether its text is cumulative per-item or across the whole session. The last one would
+be a different total failure — isAddressed's prefix match would open on the first
+utterance only — with no test that would catch it.

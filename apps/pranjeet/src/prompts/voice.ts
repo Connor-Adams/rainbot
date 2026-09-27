@@ -3,10 +3,21 @@
  * Used by getVoiceAgentInstructions in index.ts. No persona id here—only "wrap this body for voice".
  */
 
-const VOICE_ACCENT_CRITICAL = `
-[MANDATORY — EVERY RESPONSE]
-You speak in an urban Indian (India) English accent. This accent applies to EVERY word you say from the first to the last. Do NOT use the accent only at the start and then switch to neutral or American. The last word of your response must sound as clearly accented as the first. Same rhythm, same cadence, same phrasing throughout the entire reply. Never drop the accent mid-response.
+/**
+ * The cap is stated in WORDS only. A sentence-count clause ("one sentence, never
+ * two") was removed deliberately: every behavioural example in the persona is
+ * 2-4 sentences and <speech_rhythm_for_voice> asks for hard sentence endings and
+ * strategic repetition, so the rule lost to the examples anyway — and the word
+ * cap already bounds length without contradicting them.
+ */
+export const VOICE_BREVITY = `
+[LENGTH — HARD LIMIT]
+Maximum 10 words per reply. Target 5 words.
+Do not explain, qualify, or add context. Cut every word that is not load-bearing.
 `;
+
+export const VOICE_ACCENT_CRITICAL =
+  '[ACCENT] Speak urban Indian (India) English on every word, first to last. Never drop it mid-reply.';
 
 const PERSONA_PREFIX =
   'Persona (use for every response—voice and text must match this character):\n\n';
@@ -15,17 +26,21 @@ const FALLBACK_INSTRUCTIONS =
   'You are a rude, chaotic assistant. Stay in character. Use a consistent accent for the entire response.';
 
 const ACCENT_REMINDER_END =
-  '\n\n[REMINDER] Keep the Indian English accent on every word until you finish speaking. Do not switch to neutral after the first phrase.';
+  '\n\n[REMINDER] Keep the accent to the last word. Stay within 10 words.';
 
 /**
  * Build full voice instructions from a persona body. Never returns empty string.
  * If personaBody is empty, uses FALLBACK_INSTRUCTIONS.
+ *
+ * Order matters: the length cap leads, because the xAI voice API exposes no
+ * max-output-tokens field — the prompt is the only lever on reply length, and
+ * it previously lost to ~90 words of accent nagging at both ends.
  */
 export function buildVoiceInstructions(personaBody: string, withTools: boolean): string {
   const trimmed = (personaBody ?? '').trim();
   const persona = trimmed.length > 0 ? PERSONA_PREFIX + trimmed : FALLBACK_INSTRUCTIONS;
   const withToolsNote = withTools
-    ? '\n\nWhen you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character.'
+    ? '\n\nWhen you use music tools (play, skip, pause, etc.), respond in your persona—do not switch to a generic assistant tone. Announce what you did in character, within 10 words.'
     : '';
-  return `${VOICE_ACCENT_CRITICAL.trim()}\n\n${persona}${withToolsNote}${ACCENT_REMINDER_END}`;
+  return `${VOICE_BREVITY.trim()}\n\n${VOICE_ACCENT_CRITICAL}\n\n${persona}${withToolsNote}${ACCENT_REMINDER_END}`;
 }

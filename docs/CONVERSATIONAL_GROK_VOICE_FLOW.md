@@ -77,10 +77,11 @@ Conversation mode is **per user per server**: “my voice in this server goes to
 
 1. **Join a voice channel** in that server **where the Pranjeet (voice) bot is already in the channel**.
 2. Wait for the “Started voice listening” style log if you have logs (Pranjeet).
-3. **Speak**. Your audio is streamed to the Grok Voice Agent; when Grok replies, you hear it in the same channel.
+3. **Speak, starting with the wake word.** Your audio is streamed to the Grok Voice Agent, but it only answers an utterance that **opens** with the trigger word from `VOICE_TRIGGER_WORD` (default `evan`) — e.g. "Evan, skip this song". An utterance that does not start with it is committed and then deliberately ignored: the gate fails closed, so the bot stays silent rather than answering audio that was not addressed to it. Saying it mid-sentence does not count ("I was talking to Evan" is not addressing it). When it does reply, you hear it in the same channel.
 
 If nothing happens:
 
+- **You didn’t say the wake word** (or didn’t say it first). Try again starting with the trigger word — `VOICE_TRIGGER_WORD`, default `evan`. This is now the single most likely cause. Pranjeet logs `Utterance not addressed ... staying silent` (debug level) when this is why.
 - Ensure **Pranjeet** is in the channel (not only the orchestrator/other bots).
 - Ensure **REDIS_URL** is set for Pranjeet and that the TTS queue has started (so Redis is read for `voice:interaction:enabled`).
 - Ensure **GROK_API_KEY** (or **XAI_API_KEY**) is set for Pranjeet.
@@ -89,6 +90,7 @@ If nothing happens:
   - **Voice Agent path (realtime):** `Voice Agent client created for guildId:userId` → you’re on the realtime path; no STT/TTS keys needed for that path.
   - **Text path (STT → Grok → TTS):** `getGrokReply called` and `Generating TTS for:` → you’re on the text path; set **OPENAI_API_KEY** (or STT_API_KEY + TTS_API_KEY) to fix “OpenAI API key required” and mock STT/TTS.
   - **Voice Agent skipped:** `Voice Agent skipped: Grok not configured` → set GROK_API_KEY. `Voice Agent: no connection on session` → you’re not in a VC with the bot or the connection wasn’t ready.
+  - **Wake word never opens the gate:** `received no transcription event` → xAI is not sending an input transcript at all (the warning also lists the event types it did send). `arrived ...ms after its reply decision` → the transcript lands later than the settle ceiling; raise **VOICE_TRANSCRIPT_SETTLE_MS**.
 
 ---
 

@@ -57,6 +57,14 @@ export interface VoiceInteractionConfig {
   voiceName?: string; // TTS voice name
   maxAudioDuration: number; // Max seconds of audio to process
   minAudioDuration: number; // Min seconds before processing
+  /**
+   * Milliseconds of user silence that end one audio subscription, i.e. the
+   * utterance boundary. On the STT path this only decides when a buffered clip
+   * is transcribed, so it can be long. On the realtime Voice Agent path it is
+   * the TURN boundary — every reply is delayed by at least this long — so that
+   * path wants it much shorter. Defaults to the STT-era 3000 when unset.
+   */
+  silenceDurationMs?: number;
   confidenceThreshold: number; // Min confidence to act on command (0-1)
   recordAudio?: boolean; // Save audio to disk for debugging
   enabledGuilds?: string[]; // Whitelist of guild IDs (empty = all)
@@ -76,9 +84,12 @@ export interface VoiceInteractionConfig {
    */
   getConversationMode?: (guildId: string, userId: string) => Promise<boolean>;
   /** Create a Voice Agent client for this session (xAI realtime WebSocket). Called when first chunk arrives and conversation mode is on. */
-  createVoiceAgentClient?: (
-    session: VoiceInteractionSession & { connection?: unknown }
-  ) => { sendAudio(chunk: Buffer): void; close(): void } | null;
+  createVoiceAgentClient?: (session: VoiceInteractionSession & { connection?: unknown }) => {
+    sendAudio(chunk: Buffer): void;
+    /** Called on Discord's silence boundary; commits audio and decides whether to reply. */
+    endUtterance?(): void | Promise<void>;
+    close(): void;
+  } | null;
 }
 
 /**
