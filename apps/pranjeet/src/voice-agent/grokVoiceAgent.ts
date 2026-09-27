@@ -75,8 +75,9 @@ export interface GrokVoiceAgentCallbacks {
 export interface GrokVoiceAgentClient {
   sendAudio(chunk: Buffer): void;
   /**
-   * Called on Discord's silence boundary. Always commits the input buffer, then
-   * requests a response ONLY if the wake word opened the utterance.
+   * Called on Discord's silence boundary. Commits the input buffer whenever
+   * audio was appended since the last commit, then requests a response ONLY
+   * if the wake word opened the utterance.
    */
   endUtterance(): Promise<void>;
   close(): void;
@@ -104,14 +105,47 @@ export function createGrokVoiceAgentClient(
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let _currentResponseId: string | null = null;
   let inputTranscript = '';
-  // Owns the transcript slot for exactly one utterance at a time. Armed when
-  // the session becomes usable and re-armed by new audio; disarmed once an
-  // utterance's endUtterance() has captured its decision. While disarmed,
-  // incoming transcription events are dropped instead of being inherited by
-  // whichever utterance opens next (this is what closes the late-transcript
-  // bug: a stale transcript arriving after the decision is made must not be
-  // read by a later, unrelated utterance).
+  // Owns the transcript slot for the window between the session's FIRST
+  // session.updated (or a reply completing and a fresh utterance starting)
+  // and the current utterance's endUtterance() capturing its decision. Armed
+  // once by the first session.updated (see that case below — later re-acks,
+  // sent after every response.created/response.done, must NOT re-arm here,
+  // or a late transcript for the utterance that just replied would be
+  // readable by the very next utterance). Re-armed per-utterance by
+  // sendAudio. Disarmed once endUtterance()'s decision is captured. While
+  // disarmed, incoming transcription events are dropped instead of being
+  // inherited by whichever utterance opens next.
   let acceptingTranscript = false;
+  // Identifies which utterance currently owns the transcript slot. Bumped by
+  // sendAudio whenever it starts a new utterance. acceptingTranscript alone
+  // cannot tell "late text belonging to the utterance that just decided"
+  // apart from "early text belonging to the utterance that just started" when
+  // the two overlap — Discord's per-user boundaries are not guaranteed to
+  // arrive in order relative to sendAudio (processAudioChunk in
+  // packages/utils/src/voice/voiceInteractionManager.ts awaits a Redis call
+  // before reaching sendAudio and is fire-and-forget from the audio `data`
+  // handler). A decision in endUtterance() only ever uses text stamped with
+  // its own sequence number; this guard and acceptingTranscript cover
+  // different windows and both stay in place.
+  let utteranceSeq = 0;
+  let transcriptSeq = -1;
+  // Set the instant a commit is sent (before the settle wait, not after it),
+  // and consumed by the very next sendAudio call regardless of whether
+  // acceptingTranscript has been disarmed yet. This is what lets a NEW
+  // utterance's audio bump the sequence even while the PREVIOUS utterance is
+  // still inside its settle window — acceptingTranscript alone cannot do
+  // this, since it only flips false once that previous utterance's decision
+  // is already made (same synchronous step). Reset alongside the other slot
+  // state once a run's own decision is captured, so it cannot linger and
+  // enable a bump long after the fact (which would mask the case where a
+  // stale acceptingTranscript is the actual bug being guarded against).
+  let awaitingNextUtteranceAudio = false;
+  // Whether any audio has actually been appended for the current utterance.
+  // Gates two things: the commit (an empty commit just produces a server
+  // `error` event and log noise for a queued/duplicate boundary) and the
+  // "no transcription event ever arrived" diagnostic (a boundary with no real
+  // speech is not evidence the wake-word gate is dead).
+  let audioAppendedThisUtterance = false;
   // Serializes endUtterance() calls so overlapping boundaries (e.g. two
   // Discord speaking streams closing close together) can't both observe the
   // same transcript slot and both reply. Chained with .then(run, run) so one
@@ -123,6 +157,24 @@ export function createGrokVoiceAgentClient(
   // utterance, so a long-lived session doesn't spam the log.
   let hasReceivedTranscriptionEvent = false;
   let warnedNoTranscription = false;
+  // Handle + resolver for the current settle-window wait, so doClose() can
+  // force it to resolve immediately instead of leaving it (and every queued
+  // endUtterance() behind it) waiting out the full TRANSCRIPT_SETTLE_MS after
+  // the client is already gone. Only one is ever in flight at a time — the
+  // endUtteranceChain serializes runs.
+  let pendingSettleTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingSettleResolve: (() => void) | null = null;
+
+  function settleWait(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      pendingSettleResolve = resolve;
+      pendingSettleTimer = setTimeout(() => {
+        pendingSettleTimer = null;
+        pendingSettleResolve = null;
+        resolve();
+      }, TRANSCRIPT_SETTLE_MS);
+    });
+  }
   let sessionConfig: {
     instructions: string;
     voice: string;
@@ -172,6 +224,15 @@ export function createGrokVoiceAgentClient(
     if (heartbeat) {
       clearInterval(heartbeat);
       heartbeat = null;
+    }
+    if (pendingSettleTimer) {
+      clearTimeout(pendingSettleTimer);
+      pendingSettleTimer = null;
+    }
+    if (pendingSettleResolve) {
+      const resolve = pendingSettleResolve;
+      pendingSettleResolve = null;
+      resolve();
     }
     if (ws) {
       try {
@@ -273,10 +334,15 @@ export function createGrokVoiceAgentClient(
     }
     switch (event.type) {
       case 'session.updated':
+        // Arm ONLY on the first ack. sendSessionUpdate() is re-sent on every
+        // response.created/response.done, so the server acks session.updated
+        // again after every single reply — re-arming here unconditionally
+        // would reopen the transcript slot right after a decision cleared it,
+        // letting that utterance's own late transcript (or worse, feed a
+        // later unaddressed utterance) back in. All re-arming after the first
+        // ack is sendAudio's job, per-utterance (see CRITICAL fix history).
+        if (!sessionConfigured) acceptingTranscript = true;
         sessionConfigured = true;
-        // A client is armed from the moment it becomes usable, not just from
-        // the next audio chunk — this utterance's transcript is fair game.
-        acceptingTranscript = true;
         log.debug('Voice Agent session.updated');
         break;
       case 'conversation.item.input_audio_transcription.updated':
@@ -288,17 +354,27 @@ export function createGrokVoiceAgentClient(
         const text = event.transcript ?? event.delta;
         if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
           inputTranscript = text;
+          transcriptSeq = utteranceSeq;
         }
         break;
       }
       case 'conversation.item.input_audio_transcription.delta': {
         // Unlike .updated/.completed, a .delta carries an incremental fragment
         // — appending (not replacing) is what keeps the wake word at the head
-        // of the utterance from being overwritten by a later fragment.
+        // of the utterance from being overwritten by a later fragment. But
+        // appending is only correct when the existing slot content already
+        // belongs to the current utterance; a delta arriving while the slot
+        // still holds a different sequence's text must start fresh instead of
+        // gluing itself onto someone else's words.
         hasReceivedTranscriptionEvent = true;
         const text = event.transcript ?? event.delta;
         if (acceptingTranscript && typeof text === 'string' && text.length > 0) {
-          inputTranscript += text;
+          if (transcriptSeq === utteranceSeq) {
+            inputTranscript += text;
+          } else {
+            inputTranscript = text;
+            transcriptSeq = utteranceSeq;
+          }
         }
         break;
       }
@@ -398,33 +474,73 @@ export function createGrokVoiceAgentClient(
       // Re-arm only when disarmed, so mid-utterance chunks don't wipe
       // accumulated transcript text — this is what lets a fresh utterance
       // start accepting transcripts again after the previous one decided.
-      if (!acceptingTranscript) {
+      // Bumping utteranceSeq HERE (not in endUtterance) is what lets a
+      // still-settling run() detect that a new utterance has already started
+      // (see utteranceSeq/transcriptSeq above). Also re-arms when a commit
+      // was already sent for the current utterance (awaitingNextUtteranceAudio),
+      // even if acceptingTranscript itself hasn't been disarmed yet — this is
+      // the case where the PREVIOUS utterance's endUtterance() is still
+      // inside its settle window when this new audio arrives.
+      if (!acceptingTranscript || awaitingNextUtteranceAudio) {
         acceptingTranscript = true;
         inputTranscript = '';
+        utteranceSeq += 1;
+        audioAppendedThisUtterance = false;
+        awaitingNextUtteranceAudio = false;
       }
       if (chunk.length <= 10) return;
+      audioAppendedThisUtterance = true;
       const resampled = resample48kStereoTo24kMono(chunk);
       const b64 = resampled.toString('base64');
       send({ type: 'input_audio_buffer.append', audio: b64 });
     },
-    async endUtterance() {
+    // Not async: this only assigns into the serialization chain and returns
+    // it. Note that N boundaries queued behind one another make the caller
+    // of the last one wait N × TRANSCRIPT_SETTLE_MS, since each run() fully
+    // completes (including its settle wait) before the next begins.
+    endUtterance() {
       const run = async () => {
         if (closed || !ws || ws.readyState !== WebSocket.OPEN || !sessionConfigured) return;
-        // Commit unconditionally. If the server only transcribes committed audio,
-        // gating the commit on the transcript would deadlock; commit merely closes
-        // the input buffer and produces no reply on its own.
-        send({ type: 'input_audio_buffer.commit' });
+        // Capture this utterance's identity and whether it had any audio
+        // before anything below can change out from under it.
+        const seq = utteranceSeq;
+        const hadAudio = audioAppendedThisUtterance;
+        // Commit unconditionally whenever audio was appended. If the server
+        // only transcribes committed audio, gating the commit on the
+        // transcript would deadlock; commit merely closes the input buffer
+        // and produces no reply on its own. But a boundary with nothing
+        // appended (a queued or duplicate boundary) would commit an empty
+        // buffer, which the realtime protocol answers with an `error` event —
+        // pure log noise, so skip the commit in that case only.
+        if (hadAudio) {
+          send({ type: 'input_audio_buffer.commit' });
+          // Set BEFORE the settle wait: a commit having been sent means any
+          // audio arriving from here on belongs to a new utterance, even if
+          // this run hasn't decided (and disarmed) yet.
+          awaitingNextUtteranceAudio = true;
+        }
         // Unconditional: a cumulative partial that happens to already match
         // (e.g. "Evan" mid-word on "Evanescence") must not short-circuit the
         // wait for the final text.
-        await new Promise((r) => setTimeout(r, TRANSCRIPT_SETTLE_MS));
-        const transcript = inputTranscript;
+        await settleWait();
+        // Only ever use text stamped for THIS utterance. A later utterance
+        // may already have bumped utteranceSeq and be writing its own text
+        // into the slot while this one was still waiting — that text is not
+        // ours, so treat it as silence rather than read it.
+        const transcript = transcriptSeq === seq ? inputTranscript : '';
         // Disarm AFTER the settle window: a transcript arriving inside the
         // window still counts for this utterance; anything later is dropped
-        // until new audio re-arms (sendAudio) for the next one.
-        acceptingTranscript = false;
-        inputTranscript = '';
-        if (!hasReceivedTranscriptionEvent && !warnedNoTranscription) {
+        // until new audio re-arms (sendAudio) for the next one. Guarded on
+        // seq still being current: if a NEXT utterance already started while
+        // this one was settling (sendAudio bumps utteranceSeq), that next
+        // utterance owns the slot now — clearing it here would stomp on
+        // text it has already started writing.
+        if (seq === utteranceSeq) {
+          acceptingTranscript = false;
+          inputTranscript = '';
+          awaitingNextUtteranceAudio = false;
+        }
+        if (hadAudio && !hasReceivedTranscriptionEvent && !warnedNoTranscription) {
           warnedNoTranscription = true;
           log.warn(
             `Voice Agent received no transcription event (model=${INPUT_TRANSCRIPTION_MODEL}) for ${guildId}:${userId}; the wake-word gate can never open`

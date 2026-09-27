@@ -58,6 +58,7 @@ describe('wake-word gating', () => {
 
   it('commits and responds when the transcript starts with the wake word', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: 'Evan, what is the queue?',
@@ -69,6 +70,7 @@ describe('wake-word gating', () => {
 
   it('commits but stays silent when the wake word is absent', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: 'so anyway I told him no',
@@ -106,12 +108,20 @@ describe('wake-word gating', () => {
 
   it('resets transcript state between utterances', async () => {
     const { client, sock } = await connect();
+    // Minor 2 means a boundary only commits (and is worth ending) when audio
+    // was actually appended for it — append audio before each boundary, as
+    // production always does, rather than calling endUtterance() back to
+    // back with nothing behind it.
+    client.sendAudio(Buffer.alloc(20));
     sock.serverSays({
       type: 'conversation.item.input_audio_transcription.updated',
       transcript: 'Evan hello',
     });
     await client.endUtterance();
+    client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
+    // State-reset intent preserved: only the first, wake-word-bearing
+    // utterance produces a reply — the second does not inherit its text.
     expect(sock.sentOfType('response.create')).toHaveLength(1);
     expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(2);
   });
@@ -166,6 +176,7 @@ describe('wake-word gating', () => {
 
   it('serializes overlapping endUtterance() calls so only the first runs before the second even starts (Critical 2)', async () => {
     const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
     const p1 = client.endUtterance();
     const p2 = client.endUtterance();
     // Flush microtasks: the first call's synchronous prefix (through its
@@ -205,13 +216,117 @@ describe('wake-word gating', () => {
 
   it('warns once per client when no transcription event ever arrives, naming the configured model', async () => {
     const { client, mod } = await connect();
+    // Minor 1: the warning is gated on audio actually having been appended
+    // for the utterance — a silent boundary with no speech is not evidence
+    // the wake-word gate is dead.
+    client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
     const [message] = mockLogger.warn.mock.calls[0] as [string];
     expect(message).toContain(mod.INPUT_TRANSCRIPTION_MODEL);
     // A second utterance with the same problem must not warn again.
+    client.sendAudio(Buffer.alloc(20));
     await client.endUtterance();
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-arm the transcript slot on a session.updated re-ack after a reply, so a later utterance cannot inherit a late transcript (CRITICAL regression)', async () => {
+    const { client, sock } = await connect();
+    // Utterance A: addressed, produces the one legitimate reply.
+    client.sendAudio(Buffer.alloc(20));
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+
+    // The reply triggers response.created, which re-sends session.update;
+    // the server acks it with a SECOND session.updated. This must not
+    // reopen the transcript slot (that is the whole point of the fix).
+    sock.serverSays({ type: 'response.created', response: { id: 'r1' } });
+    await flush();
+    sock.serverSays({ type: 'session.updated' });
+
+    // A late transcript for utterance A's own (already-decided) turn
+    // arrives. It must be dropped, not picked up by utterance B below.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+
+    // Utterance B: new audio, no wake word of its own.
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+
+    expect(sock.sentOfType('response.create')).toHaveLength(1);
+  });
+
+  it("does not let the next utterance's wake-word transcript answer for the one still settling (IMPORTANT regression)", async () => {
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    // Utterance 1 has no transcript of its own; start ending it (it enters
+    // its settle window and does not resolve yet).
+    const pending = client.endUtterance();
+    // Flush so run() actually starts (sends its commit and marks itself as
+    // awaiting the next utterance's audio) before utterance 2's audio
+    // arrives — endUtterance() only queues onto the chain synchronously; the
+    // chained run() itself begins on a later microtask (see the Critical-2
+    // test above, which flushes for the same reason).
+    await flush();
+    // Before utterance 1 has decided, utterance 2 already starts — new
+    // audio arrives for it.
+    client.sendAudio(Buffer.alloc(20));
+    // A wake-word transcript arrives. By now it is stamped for utterance 2
+    // (the one that owns the slot), not utterance 1 (the one still
+    // settling).
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.updated',
+      transcript: 'Evan hello',
+    });
+    await pending;
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it("does not let a straggler .delta from a finished utterance become the head of the next utterance's transcript", async () => {
+    const { client, sock } = await connect();
+    client.sendAudio(Buffer.alloc(20));
+    // Utterance 1 finishes with no transcript of its own; the slot disarms.
+    await client.endUtterance();
+    // A straggler .delta for utterance 1 arrives after it already decided
+    // and must be dropped rather than seed the next utterance's slot.
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: 'Evan ',
+    });
+    // Utterance 2 starts and says something unaddressed. If the straggler
+    // had become its head, appending this text would form a transcript
+    // that (wrongly) opens with the wake word.
+    client.sendAudio(Buffer.alloc(20));
+    sock.serverSays({
+      type: 'conversation.item.input_audio_transcription.delta',
+      delta: "let's go home",
+    });
+    await client.endUtterance();
+    expect(sock.sentOfType('response.create')).toHaveLength(0);
+  });
+
+  it('sends no commit for a boundary with no audio appended, but does for one with audio (Minor 2)', async () => {
+    const { client, sock } = await connect();
+    // No audio at all before this boundary.
+    await client.endUtterance();
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(0);
+
+    // Audio arrives before the next boundary.
+    client.sendAudio(Buffer.alloc(20));
+    await client.endUtterance();
+    expect(sock.sentOfType('input_audio_buffer.commit')).toHaveLength(1);
+  });
+
+  it('does not fire the no-transcription warning for a boundary with no audio appended (Minor 1)', async () => {
+    const { client } = await connect();
+    await client.endUtterance();
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 
   describe('isAddressed', () => {
