@@ -1,4 +1,5 @@
 import type { Client } from 'discord.js';
+import { Readable } from 'stream';
 import { VoiceInteractionManager } from '../voiceInteractionManager';
 
 const fakeClient = {} as Client;
@@ -17,8 +18,12 @@ const fakeConnection = () =>
     state: { status: 'ready' },
   }) as never;
 
-/** Seed a voice-agent client by pushing one chunk through with conversation mode on. */
-async function seed(endUtterance: jest.Mock) {
+/**
+ * Seed a voice-agent client by pushing one chunk through with conversation mode on.
+ * Accepts an optional connection so a test can drive the real subscribe/pipe path
+ * instead of the `.pipe()`-only stub above.
+ */
+async function seed(endUtterance: jest.Mock, connection: unknown = fakeConnection()) {
   const agent = { sendAudio: jest.fn(), close: jest.fn(), endUtterance };
   const mgr = new VoiceInteractionManager(fakeClient, {
     enabled: true,
@@ -26,7 +31,7 @@ async function seed(endUtterance: jest.Mock) {
     createVoiceAgentClient: () => agent,
   });
   await mgr.enableForGuild('g1');
-  await mgr.startListening('u1', 'g1', fakeConnection());
+  await mgr.startListening('u1', 'g1', connection as never);
   await mgr.processAudioChunk({
     guildId: 'g1',
     userId: 'u1',
@@ -56,5 +61,36 @@ describe('onUtteranceEnd', () => {
     const endUtterance = jest.fn().mockRejectedValue(new Error('socket gone'));
     const { mgr } = await seed(endUtterance);
     await expect(mgr.onUtteranceEnd('g1', 'u1')).resolves.toBeUndefined();
+  });
+});
+
+describe('the opusDecoder end handler', () => {
+  it('reaches the voice-agent client when Discord signals silence', async () => {
+    // Production pipes receiver.subscribe()'s stream into a real prism.opus.Decoder
+    // and calls onUtteranceEnd from that decoder's own 'end' listener. Only the
+    // *first* subscribed stream is ever ended here: subscribeToUserAudio
+    // resubscribes on 'end', and a fake stream that also ends immediately would
+    // make that resubscribe loop synchronously forever (this OOM'd before this
+    // guard was added).
+    let firstStream: Readable | undefined;
+    const realStreamConnection = {
+      joinConfig: { channelId: 'c1' },
+      receiver: {
+        subscribe: () => {
+          const stream = new Readable({ read() {} });
+          if (!firstStream) firstStream = stream;
+          return stream;
+        },
+      },
+      state: { status: 'ready' },
+    } as never;
+
+    const endUtterance = jest.fn().mockResolvedValue(undefined);
+    await seed(endUtterance, realStreamConnection);
+
+    firstStream!.push(null);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(endUtterance).toHaveBeenCalledTimes(1);
   });
 });
