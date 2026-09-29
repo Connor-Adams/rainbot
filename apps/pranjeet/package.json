@@ -27,7 +27,7 @@
     "@rainbot/worker-shared": "*",
     "@snazzah/davey": "^0.1.12",
     "@trpc/server": "^10.45.2",
-    "bullmq": "^5.17.0",
+    "bullmq": "^6.3.9",
     "discord.js": "^14.25.1",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
