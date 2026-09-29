@@ -13145,12 +13145,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.4.2":
-  version: 3.7.4
-  resolution: "prettier@npm:3.7.4"
+"prettier@npm:^3.9.9":
+  version: 3.9.9
+  resolution: "prettier@npm:3.9.9"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10c0/9675d2cd08eacb1faf1d1a2dbfe24bfab6a912b059fc9defdb380a408893d88213e794a40a2700bd29b140eb3172e0b07c852853f6e22f16f3374659a1a13389
+  checksum: 10c0/d50ea2537b2ff7dbd5088a214f4d936484e55c665cea2185b477a55b0770be55f3b156a71f63a9a639def6b334667bb327139dc85f2a1041c0a34752cdc74647
   languageName: node
   linkType: hard
 
@@ -13365,7 +13365,7 @@ __metadata:
     jest: "npm:^29.7.0"
     lint-staged: "npm:^15.3.0"
     openai: "npm:^4.104.0"
-    prettier: "npm:^3.4.2"
+    prettier: "npm:^3.9.9"
     supertest: "npm:^7.0.0"
     ts-jest: "npm:^29.2.5"
     tsc-alias: "npm:^1.8.10"
