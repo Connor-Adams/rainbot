@@ -23,6 +23,12 @@ export interface RainbotGuildState extends GuildState {
   /** 0-1 scale */
   volume: number;
   lastPlaybackError: string | null;
+  /**
+   * True while seek swaps the stream. Seek has to stop the old stream, which
+   * sends the player Idle; without this, the Idle handler reads that as the
+   * track ending and skips to the next one.
+   */
+  isSeeking: boolean;
 }
 
 export const guildStates = new Map<string, RainbotGuildState>();
@@ -35,17 +41,11 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
 
   player.on(AudioPlayerStatus.Idle, () => {
     const state = guildStates.get(guildId);
-    if (!state) return;
-    if (state.queue.length > 0) {
-      void playNext(guildId);
-    } else {
-      state.nowPlaying = null;
-      state.currentTrack = null;
-      state.currentResource = null;
-      state.playbackStartTime = null;
-      state.pauseStartTime = null;
-      state.totalPausedTime = 0;
-    }
+    if (!state || state.isSeeking) return;
+    // A late Idle from a stream that was already replaced must not advance
+    // the queue past the track that is now playing.
+    if (state.player.state.status !== AudioPlayerStatus.Idle) return;
+    handleTrackEnd(guildId);
   });
 
   player.on('error', (error) => {
@@ -71,9 +71,26 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     totalPausedTime: 0,
     autoplay: false,
     lastPlaybackError: null,
+    isSeeking: false,
   };
   guildStates.set(guildId, state);
   return state;
+}
+
+/** The current track is over: start the next one, or clear now playing. */
+export function handleTrackEnd(guildId: string): void {
+  const state = guildStates.get(guildId);
+  if (!state) return;
+  if (state.queue.length > 0) {
+    void playNext(guildId);
+  } else {
+    state.nowPlaying = null;
+    state.currentTrack = null;
+    state.currentResource = null;
+    state.playbackStartTime = null;
+    state.pauseStartTime = null;
+    state.totalPausedTime = 0;
+  }
 }
 
 export function resetPlaybackTiming(state: RainbotGuildState): void {
