@@ -17,7 +17,14 @@ jest.mock('../../voice/audioResource', () => ({
   createTrackResourceForAny: jest.fn(),
 }));
 
-import { getOrCreateGuildState, guildStates } from '../guild-state';
+import {
+  armPlaybackClock,
+  buildPlaybackState,
+  buildQueueState,
+  getOrCreateGuildState,
+  getPlaybackPosition,
+  guildStates,
+} from '../guild-state';
 
 const track: Track = { title: 'Palm Tree Escape', url: 'https://youtu.be/x', duration: 120 };
 
@@ -108,5 +115,57 @@ describe('audio player', () => {
         behaviors: expect.objectContaining({ maxMissedFrames: 250 }),
       })
     );
+  });
+});
+
+describe('playback clock', () => {
+  afterEach(() => guildStates.clear());
+
+  function startAudio(state: ReturnType<typeof getOrCreateGuildState>) {
+    const player = state.player as unknown as FakePlayer;
+    const oldState = player.state;
+    player.state = { status: AudioPlayerStatus.Playing };
+    player.emit('stateChange', oldState, player.state);
+  }
+
+  it('reports the track as buffering, at 0, until audio flows', () => {
+    const state = playingState('c1');
+    armPlaybackClock(state, 0);
+    state.player.state = { status: AudioPlayerStatus.Buffering } as never;
+
+    const queue = buildQueueState(state, buildPlaybackState(state));
+
+    expect(queue.isBuffering).toBe(true);
+    expect(getPlaybackPosition(state)).toBe(0);
+  });
+
+  it('starts counting when the player actually reaches Playing', () => {
+    const state = playingState('c2');
+    armPlaybackClock(state, 0);
+
+    startAudio(state);
+
+    expect(state.playbackStartTime).toBeGreaterThan(Date.now() - 50);
+    expect(buildQueueState(state, buildPlaybackState(state)).isBuffering).toBe(false);
+  });
+
+  it('keeps a seek offset across the buffering gap', () => {
+    const state = playingState('c3');
+    armPlaybackClock(state, 60);
+
+    startAudio(state);
+
+    expect(getPlaybackPosition(state)).toBe(60);
+  });
+
+  it('does not restart the clock on unpause', () => {
+    const state = playingState('c4');
+    armPlaybackClock(state, 0);
+    startAudio(state);
+    state.playbackStartTime = Date.now() - 30_000;
+
+    startAudio(state);
+
+    expect(getPlaybackPosition(state)).toBe(30);
   });
 });

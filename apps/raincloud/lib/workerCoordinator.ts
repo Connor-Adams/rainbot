@@ -110,6 +110,7 @@ function normalizeQueueState(data: unknown): QueueState {
           : undefined,
     ...(positionMs != null && { positionMs }),
     ...(durationMs != null && { durationMs }),
+    ...(typeof record['isBuffering'] === 'boolean' && { isBuffering: record['isBuffering'] }),
   };
 }
 

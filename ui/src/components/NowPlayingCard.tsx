@@ -140,7 +140,9 @@ export default function NowPlayingCard({ queueData, guildId }: NowPlayingCardPro
         onSkip={() => skipMutation.mutate()}
         onPrevious={() => replayMutation.mutate()}
         onSeek={handleSeek}
-        autoTick
+        // The worker holds the position until audio flows; ticking ahead of it
+        // made the bar jump back when the first real position arrived.
+        autoTick={!queueData.isBuffering}
       />
       {replayMutation.isError && (
         <p className="text-xs text-danger mt-2">
