@@ -130,6 +130,7 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
       const removed = state.queue.shift();
       if (removed) skipped.push(removed.title ?? 'Unknown');
     }
+    state.skipRequested = true;
     state.player.stop();
     const response: SkipResponse = { status: 'success', skipped };
     requestCache.set(cacheKey, response);

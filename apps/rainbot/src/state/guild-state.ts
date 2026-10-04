@@ -29,15 +29,28 @@ export interface RainbotGuildState extends GuildState {
    * track ending and skips to the next one.
    */
   isSeeking: boolean;
+  /** Set by skip, so a deliberate stop is not reported as a dropped track. */
+  skipRequested: boolean;
 }
 
 export const guildStates = new Map<string, RainbotGuildState>();
+
+/** 20ms frames: 250 is 5s of stall before the player gives up on a stream. */
+const MAX_MISSED_FRAMES = 250;
+/** A track ending more than this before its duration did not finish. */
+const EARLY_END_SLACK_SECONDS = 10;
 
 export function getOrCreateGuildState(guildId: string): RainbotGuildState {
   const existing = guildStates.get(guildId);
   if (existing) return existing;
 
-  const player = createAudioPlayer();
+  const player = createAudioPlayer({
+    // The library default is 5 frames: 100ms without audio and it stops the
+    // track. A yt-dlp stream through a residential proxy stalls longer than
+    // that routinely, which ended tracks silently mid-song while now playing
+    // still showed them. Play silence through a stall of up to 5s instead.
+    behaviors: { maxMissedFrames: MAX_MISSED_FRAMES },
+  });
 
   player.on(AudioPlayerStatus.Idle, () => {
     const state = guildStates.get(guildId);
@@ -45,6 +58,7 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     // A late Idle from a stream that was already replaced must not advance
     // the queue past the track that is now playing.
     if (state.player.state.status !== AudioPlayerStatus.Idle) return;
+    logEarlyEnd(state, guildId);
     handleTrackEnd(guildId);
   });
 
@@ -72,9 +86,28 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     autoplay: false,
     lastPlaybackError: null,
     isSeeking: false,
+    skipRequested: false,
   };
   guildStates.set(guildId, state);
   return state;
+}
+
+/**
+ * A stream that dies mid-song looks exactly like a song ending, so without
+ * this a dropped track leaves no trace in the logs at all.
+ */
+function logEarlyEnd(state: RainbotGuildState, guildId: string): void {
+  if (state.skipRequested) {
+    state.skipRequested = false;
+    return;
+  }
+  const duration = state.currentTrack?.duration;
+  if (!state.currentTrack || !duration || state.playbackStartTime === null) return;
+  const position = getPlaybackPosition(state);
+  if (position + EARLY_END_SLACK_SECONDS >= duration) return;
+  log.warn(
+    `Track ended early: "${state.currentTrack.title}" after ${position}s of ${duration}s in guild ${guildId}`
+  );
 }
 
 /** The current track is over: start the next one, or clear now playing. */
