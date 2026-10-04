@@ -55,10 +55,43 @@ export function getYtdlpOptions(): Record<string, unknown> {
   // makes a cookie-less request possible at all.
   const proxy = process.env['YTDLP_PROXY']?.trim() || '';
   if (proxy) {
-    options['proxy'] = proxy;
+    options['proxy'] = withStickyProxySession(proxy);
   }
 
   return options;
+}
+
+/**
+ * Pin a rotating residential proxy to one exit IP for a single yt-dlp call.
+ *
+ * YouTube signs the requesting IP into every media URL (`ip=` is in
+ * `sparams`), so the player request and the media download must leave from the
+ * same address. Nimble rotates per connection unless the username carries
+ * `-session-<id>`, which turned every few tracks into "HTTP Error 403:
+ * Forbidden" a second after "Playing:". A fresh id per call keeps one IP within
+ * a track while still spreading tracks across the pool, so one flagged IP
+ * cannot take playback down. Other providers spell sessions differently, so
+ * only Nimble is rewritten, and a session the operator pinned is left alone.
+ */
+export function withStickyProxySession(proxy: string): string {
+  let url: URL;
+  try {
+    url = new URL(proxy);
+  } catch {
+    return proxy;
+  }
+  if (!url.hostname.endsWith('nimbleway.com') || !url.username) return proxy;
+  if (url.username.includes('-session-')) return proxy;
+
+  // Nimble session ids are alphanumeric only: a hyphen ends the username field.
+  const sessionId = Array.from(
+    { length: 16 },
+    () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]
+  ).join('');
+  url.username = `${url.username}-session-${sessionId}`;
+  // URL.toString() appends a trailing slash to an empty path; yt-dlp's --proxy
+  // takes the bare origin, as the operator entered it.
+  return url.toString().replace(/\/$/, '');
 }
 
 const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000;

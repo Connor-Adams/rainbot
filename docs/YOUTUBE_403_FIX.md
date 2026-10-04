@@ -51,6 +51,16 @@ the dashboard with the password redacted. Workers read the real value from
 `YTDLP_PROXY_OVERRIDE` on the rainbot service takes precedence over the
 dashboard, for pinning a proxy without touching the UI.
 
+**A rotating proxy must be sticky per call.** YouTube signs the requesting IP
+into every media URL (`ip=` appears in `sparams`), so the player request and the
+media download have to leave from the same address. A residential pool that
+rotates per connection extracts fine — the bot logs `Playing:` — then fails the
+download a second later with `HTTP Error 403: Forbidden`. For Nimble
+(`*.nimbleway.com`) Rainbot appends `-session-<random>` to the username on every
+yt-dlp call, which holds one IP for that track and a different one for the next.
+A username that already contains `-session-` is used as given. Other providers
+are passed through untouched; configure their sticky-session syntax by hand.
+
 **Known limitation:** only the yt-dlp path is proxied. The direct-fetch fallback
 and the play-dl fallback still go out over the datacenter IP — play-dl has no
 proxy support at all. Since yt-dlp piping is the primary path, that is usually

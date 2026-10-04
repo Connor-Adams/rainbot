@@ -1,4 +1,4 @@
-import { getYtdlpOptions } from '../audioResource';
+import { getYtdlpOptions, withStickyProxySession } from '../audioResource';
 
 describe('getYtdlpOptions', () => {
   beforeEach(() => {
@@ -52,5 +52,39 @@ describe('getYtdlpOptions', () => {
     process.env['YTDLP_PROXY'] = '  ';
 
     expect(getYtdlpOptions()).not.toHaveProperty('proxy');
+  });
+
+  it('pins a nimbleway proxy to one exit IP for the whole yt-dlp call', () => {
+    process.env['YTDLP_PROXY'] = 'http://account-acme-pipeline-res:secret@ip.nimbleway.com:7000';
+
+    const proxy = getYtdlpOptions()['proxy'] as string;
+
+    expect(proxy).toMatch(
+      /^http:\/\/account-acme-pipeline-res-session-[a-z0-9]{16}:secret@ip\.nimbleway\.com:7000$/
+    );
+  });
+});
+
+describe('withStickyProxySession', () => {
+  const nimble = 'http://account-acme-pipeline-res:secret@ip.nimbleway.com:7000';
+
+  it('gives each call its own session, so tracks spread across IPs', () => {
+    expect(withStickyProxySession(nimble)).not.toBe(withStickyProxySession(nimble));
+  });
+
+  it('keeps a session the operator already pinned', () => {
+    const pinned = 'http://account-acme-pipeline-res-session-mine:secret@ip.nimbleway.com:7000';
+
+    expect(withStickyProxySession(pinned)).toBe(pinned);
+  });
+
+  it('leaves other providers alone, since their session syntax differs', () => {
+    const other = 'socks5://user:pa55@proxy.example.com:1080';
+
+    expect(withStickyProxySession(other)).toBe(other);
+  });
+
+  it('passes through a value it cannot parse', () => {
+    expect(withStickyProxySession('not a url')).toBe('not a url');
   });
 });
