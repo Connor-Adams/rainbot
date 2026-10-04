@@ -30,6 +30,7 @@ import {
   getOrCreateGuildState,
   getStateForRpc,
   guildStates,
+  handleTrackEnd,
   markPaused,
   markResumed,
   playNext,
@@ -287,6 +288,7 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
     if (track.duration != null && track.duration > 0) {
       positionSeconds = Math.min(positionSeconds, track.duration);
     }
+    state.isSeeking = true;
     try {
       state.player.stop();
       const resource = await createTrackResourceForAny(track, positionSeconds);
@@ -305,9 +307,17 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
     } catch (error) {
       const err = error as Error;
       log.error(`Seek failed in guild ${input.guildId}: ${err.message}`);
+      // The old stream is already stopped and its Idle was swallowed, so
+      // nothing else will move the queue on.
+      state.isSeeking = false;
+      if (state.player.state.status === AudioPlayerStatus.Idle) {
+        handleTrackEnd(input.guildId);
+      }
       const response: SeekResponse = { status: 'error', message: err.message };
       requestCache.set(cacheKey, response);
       return response;
+    } finally {
+      state.isSeeking = false;
     }
   }
 
