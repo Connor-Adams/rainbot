@@ -26,6 +26,7 @@ import { fetchTracks } from '../voice/trackFetcher';
 import { createTrackResourceForAny } from '../voice/audioResource';
 import {
   buildPlaybackState,
+  armPlaybackClock,
   buildQueueState,
   getOrCreateGuildState,
   getStateForRpc,
@@ -211,6 +212,7 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
       nowPlaying: q.nowPlaying as QueueResponse['nowPlaying'],
       isPaused: q.isPaused,
       isAutoplay: q.isAutoplay,
+      isBuffering: q.isBuffering,
     };
     if (state.currentTrack && playback.positionMs != null) {
       response.positionMs = playback.positionMs;
@@ -297,9 +299,7 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
         resource.volume.setVolume(state.volume);
       }
       state.currentResource = resource;
-      state.playbackStartTime = Date.now() - positionSeconds * 1000;
-      state.pauseStartTime = null;
-      state.totalPausedTime = 0;
+      armPlaybackClock(state, positionSeconds);
       state.player.play(resource);
       log.info(`Seeked to ${positionSeconds}s in "${track.title}" in guild ${input.guildId}`);
       const response: SeekResponse = { status: 'success' };

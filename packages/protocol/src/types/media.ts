@@ -58,6 +58,8 @@ export interface QueueState {
   positionMs?: number;
   /** Total duration of current track in ms when something is playing. */
   durationMs?: number;
+  /** A track is loaded but no audio has played yet; its position is not moving. */
+  isBuffering?: boolean;
 }
 
 export interface MediaWorkerState {

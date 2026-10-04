@@ -31,6 +31,13 @@ export interface RainbotGuildState extends GuildState {
   isSeeking: boolean;
   /** Set by skip, so a deliberate stop is not reported as a dropped track. */
   skipRequested: boolean;
+  /**
+   * Where the clock starts (seconds into the track) once audio actually
+   * flows. Non-null from the moment a track is picked until the player first
+   * reaches Playing: resolving the stream takes seconds, and a clock started
+   * at play() runs ahead of what anyone hears.
+   */
+  pendingStartOffset: number | null;
 }
 
 export const guildStates = new Map<string, RainbotGuildState>();
@@ -62,6 +69,17 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     handleTrackEnd(guildId);
   });
 
+  player.on('stateChange', (oldState, newState) => {
+    const state = guildStates.get(guildId);
+    if (!state || state.pendingStartOffset === null) return;
+    if (newState.status !== AudioPlayerStatus.Playing) return;
+    if (oldState.status === AudioPlayerStatus.Playing) return;
+    state.playbackStartTime = Date.now() - state.pendingStartOffset * 1000;
+    state.pauseStartTime = null;
+    state.totalPausedTime = 0;
+    state.pendingStartOffset = null;
+  });
+
   player.on('error', (error) => {
     const state = guildStates.get(guildId);
     if (state) state.lastPlaybackError = error.message;
@@ -87,6 +105,7 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     lastPlaybackError: null,
     isSeeking: false,
     skipRequested: false,
+    pendingStartOffset: null,
   };
   guildStates.set(guildId, state);
   return state;
@@ -126,10 +145,16 @@ export function handleTrackEnd(guildId: string): void {
   }
 }
 
-export function resetPlaybackTiming(state: RainbotGuildState): void {
-  state.playbackStartTime = Date.now();
+/**
+ * Hold the position at `offsetSeconds` until the player reaches Playing, then
+ * start counting from there. Call before player.play(), which can reach
+ * Playing synchronously when the stream is already readable.
+ */
+export function armPlaybackClock(state: RainbotGuildState, offsetSeconds: number): void {
+  state.playbackStartTime = null;
   state.pauseStartTime = null;
   state.totalPausedTime = 0;
+  state.pendingStartOffset = offsetSeconds;
 }
 
 export function markPaused(state: RainbotGuildState): void {
@@ -146,9 +171,8 @@ export function markResumed(state: RainbotGuildState): void {
 }
 
 export function getPlaybackPosition(state: RainbotGuildState): number {
-  if (!state.playbackStartTime || !state.currentTrack) {
-    return 0;
-  }
+  if (!state.currentTrack) return 0;
+  if (!state.playbackStartTime) return state.pendingStartOffset ?? 0;
   const elapsed = Date.now() - state.playbackStartTime;
   const pausedTime = state.totalPausedTime;
   const currentPauseTime = state.pauseStartTime ? Date.now() - state.pauseStartTime : 0;
@@ -194,6 +218,7 @@ export function buildQueueState(
     queue: state.queue,
     isPaused: playback.status === 'paused',
     isAutoplay: state.autoplay,
+    isBuffering: !!state.currentTrack && state.pendingStartOffset !== null,
   };
 }
 
@@ -237,6 +262,7 @@ export async function playNext(guildId: string): Promise<void> {
   state.currentTrack = track;
   state.lastPlayedTrack = track.url ? track : state.lastPlayedTrack;
   state.nowPlaying = track.title ?? null;
+  armPlaybackClock(state, 0);
 
   try {
     log.info(
@@ -249,7 +275,6 @@ export async function playNext(guildId: string): Promise<void> {
     }
 
     state.currentResource = resource;
-    resetPlaybackTiming(state);
     state.lastPlaybackError = null;
     state.player.play(resource);
     log.info(`Playing: ${track.title} in guild ${guildId}`);
