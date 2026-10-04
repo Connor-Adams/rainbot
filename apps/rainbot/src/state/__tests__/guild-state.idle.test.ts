@@ -6,10 +6,13 @@ class FakePlayer extends EventEmitter {
   state: { status: AudioPlayerStatus } = { status: AudioPlayerStatus.Idle };
 }
 
+const createAudioPlayer = jest.fn((_options?: unknown) => new FakePlayer());
 jest.mock('@discordjs/voice', () => ({
   ...jest.requireActual('@discordjs/voice'),
-  createAudioPlayer: () => new FakePlayer(),
+  createAudioPlayer: (options?: unknown) => createAudioPlayer(options),
 }));
+const log = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock('../../config', () => ({ log }));
 jest.mock('../../voice/audioResource', () => ({
   createTrackResourceForAny: jest.fn(),
 }));
@@ -54,5 +57,56 @@ describe('player Idle handler', () => {
     state.player.emit(AudioPlayerStatus.Idle);
 
     expect(state.currentTrack).toBe(track);
+  });
+
+  it('logs a track that ends well before its duration', () => {
+    const state = playingState('g4');
+    state.playbackStartTime = Date.now() - 30_000;
+
+    state.player.emit(AudioPlayerStatus.Idle);
+
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/ended early.*Palm Tree Escape.*30s of 120s/)
+    );
+  });
+
+  it('does not warn when a track plays to the end', () => {
+    log.warn.mockClear();
+    const state = playingState('g5');
+    state.playbackStartTime = Date.now() - 119_000;
+
+    state.player.emit(AudioPlayerStatus.Idle);
+
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('skip', () => {
+  afterEach(() => guildStates.clear());
+
+  it('is not reported as a track ending early', () => {
+    log.warn.mockClear();
+    const state = playingState('g7');
+    state.playbackStartTime = Date.now() - 30_000;
+    state.skipRequested = true;
+
+    state.player.emit(AudioPlayerStatus.Idle);
+
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(state.skipRequested).toBe(false);
+  });
+});
+
+describe('audio player', () => {
+  afterEach(() => guildStates.clear());
+
+  it('rides out a stalled stream instead of ending the track after 100ms', () => {
+    getOrCreateGuildState('g6');
+
+    expect(createAudioPlayer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        behaviors: expect.objectContaining({ maxMissedFrames: 250 }),
+      })
+    );
   });
 });
