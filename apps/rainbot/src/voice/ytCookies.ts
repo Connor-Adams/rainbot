@@ -102,8 +102,8 @@ export function cookiesHash(text: string): string {
 
 function orchestratorBaseUrl(): string | null {
   const raincloudUrl = process.env['RAINCLOUD_URL'];
-  // RAINCLOUD_URL is host-only on Railway ("raincloud.railway.internal"), which
-  // fetch rejects as a relative URL. Reuse the same normalization (scheme +
+  // A host-only RAINCLOUD_URL ("raincloud") is something fetch rejects as a
+  // relative URL. Reuse the same normalization (scheme +
   // port) that worker registration and stats reporting already go through.
   return raincloudUrl ? getOrchestratorBaseUrl(raincloudUrl) : null;
 }

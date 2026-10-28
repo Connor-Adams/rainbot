@@ -36,12 +36,10 @@ export async function createServer(): Promise<Application> {
     (process.env['NODE_ENV'] !== 'production' ? 'http://localhost:5173' : undefined);
   const enableCors = !!dashboardOrigin;
 
-  // Trust proxy - required for Railway/Heroku/etc. to handle HTTPS properly
-  // This enables correct handling of X-Forwarded-* headers
-  const isRailway = !!process.env['RAILWAY_ENVIRONMENT'] || !!process.env['RAILWAY_PUBLIC_DOMAIN'];
-  if (isRailway || process.env['NODE_ENV'] === 'production') {
+  // Trust proxy - prod sits behind a reverse proxy, so HTTPS arrives as X-Forwarded-* headers
+  if (process.env['NODE_ENV'] === 'production') {
     app.set('trust proxy', 1);
-    log.debug('Trust proxy enabled for production/Railway environment');
+    log.debug('Trust proxy enabled for production environment');
   }
 
   // Request logging
@@ -95,8 +93,8 @@ export async function createServer(): Promise<Application> {
     log.error('Sessions will NOT persist across deployments without a consistent SESSION_SECRET.');
     log.error('Set SESSION_SECRET environment variable to a secure random string.');
     log.error('Generate one with: openssl rand -hex 32');
-    if (isRailway || isProd) {
-      throw new Error('SESSION_SECRET must be set in production/Railway environments.');
+    if (isProd) {
+      throw new Error('SESSION_SECRET must be set in production.');
     }
   } else {
     log.info('SESSION_SECRET is configured (sessions will persist if secret stays consistent)');
@@ -104,38 +102,12 @@ export async function createServer(): Promise<Application> {
 
   let sessionStore: session.Store | undefined;
   // Try to get Redis URL from config or environment
-  let redisUrl = config.redisUrl || process.env['REDIS_URL'];
-
-  // If REDIS_URL is not set, try to construct it from Railway's individual Redis env vars
-  if (!redisUrl && process.env['REDISHOST']) {
-    const redisHost = process.env['REDISHOST'];
-    const redisPort = process.env['REDISPORT'] || '6379';
-    const redisUser = process.env['REDISUSER'] || '';
-    const redisPassword = process.env['REDISPASSWORD'] || '';
-
-    // Construct Redis URL: redis://[username]:[password]@host:port
-    if (redisPassword) {
-      if (redisUser) {
-        redisUrl = `redis://${redisUser}:${redisPassword}@${redisHost}:${redisPort}`;
-      } else {
-        redisUrl = `redis://:${redisPassword}@${redisHost}:${redisPort}`;
-      }
-    } else {
-      redisUrl = `redis://${redisHost}:${redisPort}`;
-    }
-
-    log.info(
-      '✓ Constructed Redis URL from Railway environment variables (REDISHOST, REDISPORT, etc.)'
-    );
-  }
-
+  const redisUrl = config.redisUrl || process.env['REDIS_URL'];
   // Check if Redis is available
   if (!RedisStore || !redis) {
     log.warn('⚠️  Redis libraries not available - install redis package for persistent sessions');
   } else if (!redisUrl) {
-    log.warn(
-      '⚠️  Redis URL not configured - set REDIS_URL or Railway will auto-set it when Redis service is added'
-    );
+    log.warn('⚠️  Redis URL not configured - set REDIS_URL for persistent sessions');
   }
 
   if (redisUrl && RedisStore && redis) {
@@ -144,7 +116,7 @@ export async function createServer(): Promise<Application> {
       const maskedUrl = redisUrl.replace(/:[^:@]+@/, ':****@');
       log.debug(`Connecting to Redis: ${maskedUrl}`);
 
-      // Create Redis client using URL (works for both Railway REDIS_URL and constructed URLs)
+      // Create Redis client using URL
       const REDIS_CONNECT_TIMEOUT_MS = 10_000;
       const redisClient = redis.createClient({
         url: redisUrl,
@@ -204,10 +176,10 @@ export async function createServer(): Promise<Application> {
   }
 
   // Fallback to memory store if Redis is not available
-  // Note: Memory store does NOT persist across restarts, but is better than file store on Railway
+  // Note: Memory store does NOT persist across restarts, but is better than a file store in a container
   // For production, use Redis for persistent sessions
   if (!sessionStore) {
-    if (isRailway || process.env['NODE_ENV'] === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       log.warn('⚠️  Using memory store for sessions (sessions will NOT persist across restarts)');
       log.warn('⚠️  For persistent sessions, configure REDIS_URL environment variable');
       // Use default memory store (no store specified)
@@ -229,7 +201,7 @@ export async function createServer(): Promise<Application> {
   }
 
   // Determine cookie security based on environment
-  const useSecureCookies = process.env['NODE_ENV'] === 'production' || isRailway || enableCors;
+  const useSecureCookies = process.env['NODE_ENV'] === 'production' || enableCors;
   const sameSitePolicy: 'lax' | 'none' = enableCors ? 'none' : 'lax';
 
   app.use(
@@ -241,7 +213,7 @@ export async function createServer(): Promise<Application> {
       name: 'rainbot.sid', // Custom session name
       cookie: {
         httpOnly: true,
-        secure: useSecureCookies, // Secure cookies on Railway/production
+        secure: useSecureCookies, // Secure cookies in production
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         sameSite: sameSitePolicy, // Cross-origin UI needs SameSite=None
         // Don't set domain - let browser handle it (works better across subdomains)
@@ -251,9 +223,7 @@ export async function createServer(): Promise<Application> {
   );
 
   const storeType = sessionStore ? sessionStore.constructor.name : 'MemoryStore';
-  log.info(
-    `Session configured: store=${storeType}, secure=${useSecureCookies}, Railway=${isRailway}`
-  );
+  log.info(`Session configured: store=${storeType}, secure=${useSecureCookies}`);
 
   // Initialize Passport
   app.use(passport.initialize());

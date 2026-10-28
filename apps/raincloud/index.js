@@ -18,7 +18,7 @@ const dotenvResult = require('dotenv').config();
 const observability = require('@rainbot/observability/node');
 observability.startTelemetry('rainbot-raincloud');
 
-// Immediate stdout so Railway/containers always capture at least one line (before logger may load)
+// Immediate stdout so containers always capture at least one line (before logger may load)
 console.log('[Raincloud] Process starting');
 
 // Load environment variables from .env file (if it exists)
@@ -82,21 +82,6 @@ process.on('exit', (code) => {
 
 log.info(`Starting Raincloud (pid=${process.pid}, node=${process.version})`);
 
-// Debug: Log all process.env keys (for Railway debugging)
-if (process.env.RAILWAY_ENVIRONMENT) {
-  log.info('Running on Railway');
-  const allEnvKeys = Object.keys(process.env);
-  log.debug(`Total environment variables: ${allEnvKeys.length}`);
-  const discordKeys = allEnvKeys.filter(
-    (k) => k.includes('DISCORD') || k.includes('SESSION') || k.includes('REQUIRED')
-  );
-  if (discordKeys.length > 0) {
-    log.info(`Railway env vars found: ${discordKeys.join(', ')}`);
-  } else {
-    log.error('No Discord/Session env vars found in Railway! Check Railway dashboard settings.');
-  }
-}
-
 const config = loadConfig();
 log.info(
   `Config summary: token=${!!config.token}, clientId=${!!config.clientId}, sessionSecret=${!!config.sessionSecret}, databaseUrl=${!!config.databaseUrl}, redisUrl=${!!config.redisUrl}`
@@ -147,10 +132,7 @@ server
   .createServer()
   .then((app) => {
     app.listen(port, host, () => {
-      const url = config.railwayPublicDomain
-        ? `https://${config.railwayPublicDomain}`
-        : `http://${host}:${port}`;
-      log.info(`Dashboard running at ${url}`);
+      log.info(`Dashboard running at http://${host}:${port}`);
     });
   })
   .catch((error) => {

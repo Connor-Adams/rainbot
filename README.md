@@ -47,7 +47,7 @@ yarn dev
 - `docs/MULTIBOT_ARCHITECTURE.md`
 - `docs/TYPES_CANONICAL.md`
 - `docs/FUTURE_WORK.md`
-- `RAILWAY_DEPLOY.md`
+- `DEPLOY.md`
 - `OAUTH_SETUP.md`
 
 ## Project layout
@@ -56,7 +56,7 @@ yarn dev
 
 ## UI
 
-The dashboard lives in `ui/`. Deploy it separately (see `ui/railway.json`); it talks to Raincloud via `VITE_API_BASE_URL` / `VITE_AUTH_BASE_URL`.
+The dashboard lives in `ui/`. It deploys as its own Dokploy application (image `ghcr.io/connor-adams/rainbot-ui:prod`, see `DEPLOY.md`); it talks to Raincloud via `VITE_API_BASE_URL` / `VITE_AUTH_BASE_URL`.
 
 **Local dev login:** With `yarn dev`, the UI runs on port 5173 (Vite) and proxies `/api` and `/auth` to Raincloud (3000). OAuth callback and post-login redirect default to `http://localhost:5173`, so login works without extra env. Add `http://localhost:5173/auth/discord/callback` to your Discord app’s OAuth2 → Redirects. For a different UI origin, set `DASHBOARD_ORIGIN` and `CALLBACK_URL` on the Raincloud process.
 

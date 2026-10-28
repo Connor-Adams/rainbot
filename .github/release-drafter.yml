@@ -33,9 +33,10 @@ template: |
 
   Deployment Model (Important)
 
-  - **Railway services track the `:prod` image tag**
-  - **Only services with code changes in this release receive a new versioned image**
-  - Unchanged services continue running their previously deployed image digest
+  - Prod runs on **Dokploy**, and every service tracks the `:prod` image tag
+  - Publishing this release re-tags each service's already-built image as `v$RESOLVED_VERSION` and `:prod` (`release-promote.yml`); nothing is rebuilt
+  - Services with no code changes are re-tagged to the same image digest they already run
+  - `release-deploy.yml` then has Dokploy redeploy only the services that changed: raincloud first, then the workers (the dashboard deploys alongside)
 
   Docker Images (GHCR)
 
@@ -49,13 +50,11 @@ template: |
   ghcr.io/connor-adams/rainbot-pranjeet:prod
   ghcr.io/connor-adams/rainbot-hungerbot:prod
 
-  Versioned Tags
+  # Dashboard
+  ghcr.io/connor-adams/rainbot-ui:prod
 
-  - Version tags (e.g. `v$RESOLVED_VERSION`) are **only published for services that changed**
-  - Do **not** assume every service has a tag for this release
+  Dokploy
 
-  Railway
-
-  No manual action required. Railway redeploys only affected services via webhook.
+  No manual action required. The deploy runs from CI once this release is published; a draft deploys nothing.
 
   Full Changelog: $PREVIOUS_TAG...v$RESOLVED_VERSION

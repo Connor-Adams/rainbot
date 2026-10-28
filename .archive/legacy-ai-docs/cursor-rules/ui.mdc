@@ -6,7 +6,7 @@ alwaysApply: false
 
 # UI (React Dashboard) Rules
 
-Vite + React app in `ui/`. Deploy separately (e.g. `ui/railway.json`). Dev: `yarn workspace @rainbot/ui dev`.
+Vite + React app in `ui/`. Deploy separately (its own Dokploy application). Dev: `yarn workspace @rainbot/ui dev`.
 
 ## API
 

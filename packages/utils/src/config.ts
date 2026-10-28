@@ -22,9 +22,6 @@ export interface AppConfig {
   sessionStorePath: string;
   redisUrl: string | undefined;
 
-  // Railway-specific
-  railwayPublicDomain: string | undefined;
-
   // Storage configuration
   storageBucketName: string | undefined;
   storageAccessKey: string | undefined;
@@ -71,7 +68,7 @@ export function loadConfig(forceReload = false): AppConfig {
   }
 
   // Debug: Log all environment variables that start with DISCORD_ or SESSION_ or REQUIRED_ or STORAGE_
-  // Also includes Railway's auto-injected bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+  // Also includes the bare bucket vars: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
   const relevantEnvVars = Object.keys(process.env).filter(
     (key) =>
       key.startsWith('RAINCLOUD_') ||
@@ -85,12 +82,11 @@ export function loadConfig(forceReload = false): AppConfig {
       key.startsWith('TTS_') ||
       key === 'PORT' ||
       key === 'CALLBACK_URL' ||
-      key === 'RAILWAY_PUBLIC_DOMAIN' ||
       key === 'DISABLE_AUTO_DEPLOY' ||
       key === 'DATABASE_URL' ||
-      // Railway Bucket service vars (AWS_* prefix)
+      // S3 bucket vars (AWS_* prefix)
       key.startsWith('AWS_') ||
-      // Railway bucket legacy vars
+      // Bare bucket vars
       key === 'BUCKET' ||
       key === 'ACCESS_KEY_ID' ||
       key === 'SECRET_ACCESS_KEY' ||
@@ -137,10 +133,7 @@ export function loadConfig(forceReload = false): AppConfig {
     sessionStorePath: process.env['SESSION_STORE_PATH'] || './sessions',
     redisUrl: process.env['REDIS_URL'],
 
-    // Railway-specific
-    railwayPublicDomain: process.env['RAILWAY_PUBLIC_DOMAIN'],
-
-    // Storage configuration (Railway S3-compatible buckets)
+    // Storage configuration (S3-compatible bucket)
     storageBucketName:
       process.env['AWS_S3_BUCKET_NAME'] ||
       process.env['BUCKET'] ||

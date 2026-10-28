@@ -19,7 +19,7 @@ export function initDatabase(): Pool | null {
   }
 
   try {
-    // Parse connection string to handle SSL requirements (common in Railway/cloud providers)
+    // Parse connection string to handle SSL requirements (common with cloud providers)
     const poolConfig: PoolConfig = {
       connectionString: config.databaseUrl,
       max: 10, // Maximum number of clients in the pool
@@ -27,16 +27,14 @@ export function initDatabase(): Pool | null {
       connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
     };
 
-    // For production databases (Railway, Heroku, etc.), SSL is usually required
+    // For hosted databases (Heroku, AWS, etc.), SSL is usually required
     // Parse URL to check if it's a cloud provider
     if (
       config.databaseUrl &&
-      (config.databaseUrl.includes('railway.app') ||
-        config.databaseUrl.includes('herokuapp.com') ||
-        config.databaseUrl.includes('amazonaws.com'))
+      (config.databaseUrl.includes('herokuapp.com') || config.databaseUrl.includes('amazonaws.com'))
     ) {
       poolConfig.ssl = {
-        rejectUnauthorized: false, // Required for Railway/Heroku PostgreSQL
+        rejectUnauthorized: false, // Required for Heroku/AWS PostgreSQL
       };
     }
 

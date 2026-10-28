@@ -408,14 +408,14 @@ async function resolveSoundFilename(filename: string): Promise<string> {
 }
 
 /**
- * Initialize storage - requires Railway S3-compatible bucket
+ * Initialize storage - requires an S3-compatible bucket
  */
 function initStorage(): void {
   const config = loadConfig();
 
-  // Railway Bucket service variables can be:
+  // Bucket variables can be:
   // - AWS_* prefix: AWS_S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL, AWS_DEFAULT_REGION
-  // - Legacy: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
+  // - Bare: BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT, REGION
   // - Manual config: STORAGE_BUCKET_NAME, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_ENDPOINT, STORAGE_REGION
   const storageVars: Record<string, boolean> = {
     'bucket (AWS_S3_BUCKET_NAME, BUCKET, or STORAGE_BUCKET_NAME)': !!config.storageBucketName,
@@ -446,9 +446,7 @@ function initStorage(): void {
     log.warn(`S3 storage not configured. Sound file storage features will be disabled.`);
     if (allEnvVars.length > 0) {
       log.info(`Found these storage-related environment variables: ${allEnvVars.join(', ')}`);
-      log.info(
-        `Tip: Railway Bucket service variables may need to be manually set as STORAGE_* variables`
-      );
+      log.info(`Tip: set the bucket variables as AWS_* or STORAGE_* variables`);
     }
 
     // Don't throw - allow bot to run without storage
@@ -463,7 +461,7 @@ function initStorage(): void {
         accessKeyId: config.storageAccessKey!,
         secretAccessKey: config.storageSecretKey!,
       },
-      forcePathStyle: false, // Railway uses virtual-hosted-style URLs (bucket.endpoint/key)
+      forcePathStyle: false, // virtual-hosted-style URLs (bucket.endpoint/key)
     });
 
     bucketName = config.storageBucketName!;

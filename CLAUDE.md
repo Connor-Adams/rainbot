@@ -73,7 +73,7 @@ See [docs/MULTIBOT_ARCHITECTURE.md](docs/MULTIBOT_ARCHITECTURE.md) for the full 
 - **Control plane is tRPC** (`@rainbot/rpc`, mounted at `/trpc`): Raincloud calls workers for `join`/`leave`/`volume`/`enqueue`/`speak`/`playSound`/etc. Workers implement routers via `createRainbotRouter` / `createPranjeetRouter` / `createHungerbotRouter`. **HTTP is health-only** (`/health/live`, `/health/ready`); workers also call back to Raincloud over HTTP at `/internal/...` to register and report stats.
 - **Shared secret:** `WORKER_SECRET` (sent as `x-internal-secret` / `x-worker-secret`) must match on Raincloud and every worker. Mutations carry a `requestId`; workers cache responses 60s for idempotency.
 - **State lives in Redis** (`@rainbot/redis-client`): voice channel, per-guild session (30min TTL), worker status, volume, conversation mode, Grok thread continuity. Postgres (`@rainbot/db`) is optional, for stats / listening history.
-- **The UI deploys separately** (`ui/railway.json`) and talks to Raincloud over HTTP; it is not served by any bot.
+- **The UI deploys separately** as its own Dokploy application (image `ghcr.io/connor-adams/rainbot-ui:prod`) and talks to Raincloud over HTTP; it is not served by any bot.
 
 ## Workspace dependency rules (ESLint-enforced)
 
@@ -116,4 +116,4 @@ This repo mixes CommonJS and TypeScript, and Raincloud has a runtime alias loade
 
 ## Other docs
 
-[RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) (prod deploy) · [OAUTH_SETUP.md](OAUTH_SETUP.md) (dashboard login) · [docs/TYPES_CANONICAL.md](docs/TYPES_CANONICAL.md) · [docs/CONVERSATIONAL_GROK_VOICE_FLOW.md](docs/CONVERSATIONAL_GROK_VOICE_FLOW.md) · [docs/YOUTUBE_403_FIX.md](docs/YOUTUBE_403_FIX.md) · [docs/FUTURE_WORK.md](docs/FUTURE_WORK.md) · env vars in [.env.example](.env.example).
+[DEPLOY.md](DEPLOY.md) (prod deploy, Dokploy) · [OAUTH_SETUP.md](OAUTH_SETUP.md) (dashboard login) · [docs/TYPES_CANONICAL.md](docs/TYPES_CANONICAL.md) · [docs/CONVERSATIONAL_GROK_VOICE_FLOW.md](docs/CONVERSATIONAL_GROK_VOICE_FLOW.md) · [docs/YOUTUBE_403_FIX.md](docs/YOUTUBE_403_FIX.md) · [docs/FUTURE_WORK.md](docs/FUTURE_WORK.md) · env vars in [.env.example](.env.example).

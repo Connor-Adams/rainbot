@@ -13,8 +13,8 @@
 //   node scripts/heal-sounds.js --dry-run     # report only, write nothing
 //   node scripts/heal-sounds.js               # report, then convert
 //
-// Requires the STORAGE_* environment variables and ffmpeg on PATH. Run it against
-// production with `railway run node scripts/heal-sounds.js`.
+// Requires the STORAGE_* (or AWS_*) environment variables and ffmpeg on PATH. Run
+// it against production with the production bucket's variables exported.
 
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -62,7 +62,7 @@ async function audit() {
 (async () => {
   if (!isStorageConfigured()) {
     console.error('Storage is not configured. Set STORAGE_BUCKET_NAME, STORAGE_ACCESS_KEY,');
-    console.error('STORAGE_SECRET_KEY and STORAGE_ENDPOINT, or run this under `railway run`.');
+    console.error('STORAGE_SECRET_KEY and STORAGE_ENDPOINT (or the AWS_* equivalents).');
     process.exit(1);
   }
 

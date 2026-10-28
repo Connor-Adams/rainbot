@@ -69,7 +69,6 @@ export interface AppConfig {
   requiredRoleId: string;
   sessionSecret: string;
   sessionStorePath: string;
-  railwayPublicDomain?: string;
   databaseUrl?: string;
   redisUrl?: string;
   s3Endpoint?: string;

@@ -12,7 +12,7 @@ export function isTelemetryStarted(): boolean {
 }
 
 /**
- * Railway/container liveness and readiness probes hit `/health/live` and
+ * Container liveness and readiness probes hit `/health/live` and
  * `/health/ready` on a tight interval — every one would otherwise become its
  * own root HTTP span, burying real traffic in Tempo. Exported so it can be
  * unit-tested directly without spinning up NodeSDK's http instrumentation.
@@ -64,8 +64,7 @@ export function startTelemetry(serviceName: string): void {
     sdk = new NodeSDKCtor({
       resource: resourceFromAttributes({
         [ATTR_SERVICE_NAME]: serviceName,
-        [ATTR_SERVICE_VERSION]:
-          process.env['GIT_COMMIT_SHA'] ?? process.env['RAILWAY_GIT_COMMIT_SHA'] ?? 'dev',
+        [ATTR_SERVICE_VERSION]: process.env['GIT_COMMIT_SHA'] ?? 'dev',
       }),
       traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
       metricReader: new PeriodicExportingMetricReader({

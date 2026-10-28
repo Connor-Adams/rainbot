@@ -27,7 +27,6 @@ describe('config', () => {
         key.startsWith('AWS_') ||
         key === 'PORT' ||
         key === 'CALLBACK_URL' ||
-        key === 'RAILWAY_PUBLIC_DOMAIN' ||
         key === 'DISABLE_AUTO_DEPLOY' ||
         key === 'DATABASE_URL' ||
         key === 'BUCKET' ||
@@ -74,7 +73,6 @@ describe('config', () => {
       process.env['PORT'] = '8080';
       process.env['SESSION_STORE_PATH'] = './custom-sessions';
       process.env['REDIS_URL'] = 'redis://localhost:6379';
-      process.env['RAILWAY_PUBLIC_DOMAIN'] = 'example.railway.app';
       process.env['DATABASE_URL'] = 'postgresql://localhost/testdb';
 
       const { loadConfig } = require('../config');
@@ -85,7 +83,6 @@ describe('config', () => {
       expect(config.dashboardPort).toBe('8080');
       expect(config.sessionStorePath).toBe('./custom-sessions');
       expect(config.redisUrl).toBe('redis://localhost:6379');
-      expect(config.railwayPublicDomain).toBe('example.railway.app');
       expect(config.databaseUrl).toBe('postgresql://localhost/testdb');
     });
 
@@ -106,7 +103,7 @@ describe('config', () => {
       expect(config.storageRegion).toBe('us-west-2');
     });
 
-    it('loads storage configuration with legacy Railway variables', () => {
+    it('loads storage configuration with bare bucket variables', () => {
       process.env['BUCKET'] = 'legacy-bucket';
       process.env['ACCESS_KEY_ID'] = 'legacy-access-key';
       process.env['SECRET_ACCESS_KEY'] = 'legacy-secret-key';
@@ -227,7 +224,6 @@ describe('config', () => {
       expect(config.guildId).toBeUndefined();
       expect(config.callbackURL).toBeUndefined();
       expect(config.redisUrl).toBeUndefined();
-      expect(config.railwayPublicDomain).toBeUndefined();
       expect(config.databaseUrl).toBeUndefined();
       expect(config.storageBucketName).toBeUndefined();
       expect(config.spotifyClientId).toBeUndefined();
@@ -281,7 +277,6 @@ describe('config', () => {
       expect(config).toHaveProperty('sessionSecret');
       expect(config).toHaveProperty('sessionStorePath');
       expect(config).toHaveProperty('redisUrl');
-      expect(config).toHaveProperty('railwayPublicDomain');
       expect(config).toHaveProperty('storageBucketName');
       expect(config).toHaveProperty('storageAccessKey');
       expect(config).toHaveProperty('storageSecretKey');

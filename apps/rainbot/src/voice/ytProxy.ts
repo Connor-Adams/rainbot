@@ -2,7 +2,7 @@
  * Fetches the outbound proxy URL from raincloud (set through the dashboard) and
  * publishes it as process.env.YTDLP_PROXY for yt-dlp.
  *
- * YouTube blocks the datacenter ranges Railway runs in, so every request is
+ * YouTube blocks datacenter IP ranges, so from a datacenter host every request is
  * refused with "Sign in to confirm you're not a bot" regardless of client or PO
  * token. Routing yt-dlp through a proxy is what changes that.
  */
