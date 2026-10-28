@@ -679,6 +679,31 @@ export class WorkerCoordinator {
   }
 
   /**
+   * Make rainbot load the dashboard's YouTube cookies now, instead of on its
+   * next periodic refresh. Resolves false when rainbot could not be reached or
+   * loaded nothing.
+   */
+  async refreshRainbotCookies(): Promise<boolean> {
+    const guard = this.guardWorker('rainbot');
+    if (!guard.ok) {
+      log.warn(`Cannot refresh rainbot cookies: ${guard.error}`);
+      return false;
+    }
+
+    try {
+      const { loaded } = await this.requestWithRetry(
+        'rainbot',
+        () => rainbotClient.refreshCookies.mutate(),
+        true
+      );
+      return loaded;
+    } catch (error: unknown) {
+      log.warn(`Failed to refresh rainbot cookies: ${getErrorMessage(error)}`);
+      return false;
+    }
+  }
+
+  /**
    * Set volume for worker
    */
   async setWorkerVolume(

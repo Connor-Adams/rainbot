@@ -588,6 +588,11 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
   }
 });
 
+async function refreshRainbotCookies(): Promise<boolean> {
+  if (!MultiBotService.isInitialized()) return false;
+  return getMultiBotService().getCoordinator().refreshRainbotCookies();
+}
+
 // GET /api/settings/youtube-cookies - Check if YouTube cookies are configured
 router.get('/settings/youtube-cookies', requireAuth, async (_req, res: Response): Promise<void> => {
   try {
@@ -616,7 +621,14 @@ router.post(
     try {
       await storage.uploadYoutubeCookies(file.buffer);
       onCookiesChanged();
-      res.json({ message: 'YouTube cookies saved. Rainbot will use them on next fetch.' });
+      // Push them to rainbot now; otherwise it only rereads them every few hours.
+      const loaded = await refreshRainbotCookies();
+      res.json({
+        message: loaded
+          ? 'YouTube cookies saved. Rainbot is using them now.'
+          : 'YouTube cookies saved. Rainbot could not be reached; it will pick them up on its next refresh.',
+        loaded,
+      });
     } catch (error) {
       const err = error as Error;
       res.status(500).json({ error: err.message });

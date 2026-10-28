@@ -233,7 +233,10 @@ describe('YoutubeIngestSettings — cookies card', () => {
     expect(screen.getByRole('button', { name: 'Remove cookies' })).toBeInTheDocument();
   });
 
-  it('forwards the chosen file to the API and confirms on success', async () => {
+  it('forwards the chosen file to the API and shows the server confirmation', async () => {
+    vi.mocked(settingsApi.uploadYoutubeCookies).mockResolvedValue({
+      data: { message: 'YouTube cookies saved. Rainbot is using them now.', loaded: true },
+    } as never);
     renderWithQuery(<YoutubeIngestSettings />);
     const file = new File(['# Netscape HTTP Cookie File'], 'cookies.txt', { type: 'text/plain' });
 
@@ -241,7 +244,7 @@ describe('YoutubeIngestSettings — cookies card', () => {
 
     await waitFor(() => expect(settingsApi.uploadYoutubeCookies).toHaveBeenCalledWith(file));
     expect(
-      await screen.findByText('Cookies saved. Rainbot will use them on next startup or fetch.')
+      await screen.findByText('YouTube cookies saved. Rainbot is using them now.')
     ).toBeInTheDocument();
   });
 

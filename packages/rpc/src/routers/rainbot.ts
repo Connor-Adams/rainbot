@@ -79,6 +79,8 @@ export interface RainbotHandlers {
   autoplay: (input: z.infer<typeof autoplayInputSchema>) => Promise<AutoplayResponse>;
   replay: (input: z.infer<typeof replayInputSchema>) => Promise<ReplayResponse>;
   seek: (input: z.infer<typeof seekInputSchema>) => Promise<SeekResponse>;
+  /** Load the dashboard's YouTube cookies now; `loaded` is false when none could be. */
+  refreshCookies: () => Promise<{ loaded: boolean }>;
 }
 
 export function createRainbotRouter(handlers: RainbotHandlers) {
@@ -111,6 +113,7 @@ export function createRainbotRouter(handlers: RainbotHandlers) {
       .input(replayInputSchema)
       .mutation(({ input }) => handlers.replay(input)),
     seek: internalProcedure.input(seekInputSchema).mutation(({ input }) => handlers.seek(input)),
+    refreshCookies: internalProcedure.mutation(() => handlers.refreshCookies()),
   });
 }
 
