@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
 import {
   MeterProvider,
   InMemoryMetricExporter,
@@ -110,14 +111,18 @@ function youtubeTrack(): Track {
  * tinyspawn shape the real subprocess has (see node_modules/tinyspawn).
  */
 function createFakeSubprocess() {
-  const stdout = new EventEmitter();
+  const stdout = new PassThrough();
   const stderr = new EventEmitter();
   let settleReject!: (reason: unknown) => void;
   const promise = new Promise((_resolve, reject) => {
     settleReject = reject;
   });
-  const subprocess = Object.assign(promise, { stdout, stderr }) as Promise<unknown> & {
-    stdout: EventEmitter;
+  const subprocess = Object.assign(promise, {
+    stdout,
+    stderr,
+    kill: jest.fn(),
+  }) as Promise<unknown> & {
+    stdout: PassThrough;
     stderr: EventEmitter;
   };
   return {

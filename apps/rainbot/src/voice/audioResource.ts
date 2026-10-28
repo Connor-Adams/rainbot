@@ -1,7 +1,7 @@
 import { createAudioResource, StreamType, AudioResource } from '@discordjs/voice';
 import play from 'play-dl';
 import youtubedlPkg from 'youtube-dl-exec';
-import { Readable } from 'stream';
+import { PassThrough, Readable } from 'stream';
 import type { Track } from '@rainbot/protocol';
 import { createLogger } from '@rainbot/shared';
 import {
@@ -342,8 +342,27 @@ async function createTrackResourcePipe(
     pipeOptions['downloadSections'] = `*${seekSeconds}-inf`;
   }
   const subprocess = youtubedl.exec(track.url, pipeOptions);
+  // tinyspawn collects stdout with a 'data' listener from the moment it
+  // spawns, which puts the stream in flowing mode: whatever yt-dlp writes
+  // before the player attaches is emitted to that listener alone and lost to
+  // playback. Pipe it into a buffer now; backpressure then pauses yt-dlp
+  // instead of dropping the head of the file.
+  const audio = new PassThrough();
+  subprocess.stdout?.pipe(audio);
+  // The player destroys its input on /skip or /stop. That no longer reaches
+  // yt-dlp as a broken pipe, and tinyspawn would keep reading the rest of the
+  // track into memory, so end the process explicitly.
+  let stopped = false;
+  audio.once('close', () => {
+    stopped = true;
+    subprocess.kill();
+  });
 
   subprocess.catch((err: unknown) => {
+    if (stopped) {
+      log.debug(`yt-dlp pipe stopped for "${track.url}"`);
+      return;
+    }
     log.error(
       `yt-dlp pipe subprocess error for "${track.url}": ${err instanceof Error ? err.message : String(err)}`
     );
@@ -389,17 +408,19 @@ async function createTrackResourcePipe(
     ),
   ]);
 
-  if (raceResult.kind !== 'timeout') {
-    log.debug(`yt-dlp pipe ${raceResult.kind} within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
+  // A clean exit inside the window is a track that downloaded in full before
+  // the deadline: everything is buffered in `audio`, so play it.
+  if (raceResult.kind === 'failed') {
+    log.debug(`yt-dlp pipe failed within ${PIPE_START_TIMEOUT_MS}ms, will fallback`);
     recordTrackResolveFailure({
       ...resolveAttrs,
-      [RainbotAttr.outcome]:
-        raceResult.kind === 'exited' ? 'exited' : classifyYtdlpFailure(raceResult.err),
+      [RainbotAttr.outcome]: classifyYtdlpFailure(raceResult.err),
     });
     return null;
   }
 
-  // Subprocess is still alive past the start window, so this function will
+  // The subprocess is still alive past the start window (or already finished
+  // cleanly within it), so this function will
   // return it as the resource: record the real resolve duration now (or as
   // soon as the first byte actually arrives, if it hasn't yet), and keep
   // listening for a later failure. A yt-dlp process that dies mid-stream
@@ -447,7 +468,7 @@ async function createTrackResourcePipe(
       [RainbotAttr.resolutionPath]: 'yt-dlp-pipe',
     },
     async () =>
-      createAudioResource(subprocess.stdout as Readable, {
+      createAudioResource(audio, {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
       })
