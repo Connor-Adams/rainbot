@@ -323,3 +323,18 @@ describe('YoutubeIngestSettings — cookies card', () => {
     expect(await screen.findByText('EACCES')).toBeInTheDocument();
   });
 });
+
+describe('YoutubeIngestSettings — stale cookies', () => {
+  it('says YouTube no longer accepts the stored cookies when the worker reported them', async () => {
+    vi.mocked(settingsApi.getYoutubeCookies).mockResolvedValue({
+      data: { hasCookies: true, stale: true, staleSince: null },
+    } as never);
+    renderWithQuery(<YoutubeIngestSettings />);
+
+    expect(
+      await screen.findByText(
+        'YouTube no longer accepts these cookies. Export a fresh set and upload it.'
+      )
+    ).toBeInTheDocument();
+  });
+});

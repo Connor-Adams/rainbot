@@ -281,7 +281,11 @@ export const adminApi = {
 // Settings API
 export const settingsApi = {
   getYoutubeCookies: ({ signal }: ApiReadOptions = {}) =>
-    api.get<{ hasCookies: boolean }>('/settings/youtube-cookies', { signal }),
+    // stale: the rainbot worker reports YouTube rejected the stored cookies.
+    api.get<{ hasCookies: boolean; stale: boolean; staleSince: string | null }>(
+      '/settings/youtube-cookies',
+      { signal }
+    ),
   uploadYoutubeCookies: (file: File) => {
     const formData = new FormData();
     formData.append('cookies', file);
