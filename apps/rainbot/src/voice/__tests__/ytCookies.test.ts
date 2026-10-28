@@ -165,3 +165,81 @@ describe('fetchAndSetYtCookies', () => {
     );
   });
 });
+
+describe('reportStaleYtCookies', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+  let cookies: typeof import('../ytCookies');
+
+  beforeEach(() => {
+    delete process.env['YTDLP_COOKIES'];
+    process.env['WORKER_SECRET'] = 'secret';
+    process.env['RAINCLOUD_URL'] = 'http://localhost:3000';
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as never;
+    // Fresh module state: the loaded jar and the report throttle.
+    jest.isolateModules(() => {
+      cookies = require('../ytCookies');
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete process.env['RAINCLOUD_URL'];
+    delete process.env['WORKER_SECRET'];
+  });
+
+  function staleReports() {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/stale'));
+  }
+
+  it('reports the loaded jar by hash when raincloud still serves it', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith('/stale') ? { ok: true } : cookieResponse('jar-v1')
+    );
+    await cookies.fetchAndSetYtCookies();
+
+    await cookies.reportStaleYtCookies();
+
+    expect(staleReports()).toEqual([
+      [
+        'http://localhost:3000/internal/cookies/youtube/stale',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ hash: cookies.cookiesHash('jar-v1') }),
+        }),
+      ],
+    ]);
+  });
+
+  it('loads a newer upload instead of reporting the replaced jar', async () => {
+    fetchMock.mockResolvedValue(cookieResponse('jar-v1'));
+    await cookies.fetchAndSetYtCookies();
+    fetchMock.mockResolvedValue(cookieResponse('jar-v2'));
+
+    await cookies.reportStaleYtCookies();
+
+    expect(staleReports()).toHaveLength(0);
+    expect(fs.readFileSync(process.env['YTDLP_COOKIES'] as string, 'utf8')).toBe('jar-v2');
+  });
+
+  it('reports at most once per window', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith('/stale') ? { ok: true } : cookieResponse('jar-v1')
+    );
+    await cookies.fetchAndSetYtCookies();
+
+    await cookies.reportStaleYtCookies();
+    await cookies.reportStaleYtCookies();
+
+    expect(staleReports()).toHaveLength(1);
+  });
+
+  it('stays quiet about cookies configured by hand', async () => {
+    process.env['YTDLP_COOKIES'] = '/tmp/manually-configured-cookies.txt';
+
+    await cookies.reportStaleYtCookies();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

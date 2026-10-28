@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import YoutubeCookiesBanner from './YoutubeCookiesBanner';
 import { RouteErrorBoundary } from './ErrorBoundary';
 import { useAuthStore } from '../stores/authStore';
 
@@ -11,6 +12,7 @@ export default function Layout() {
   return (
     <div className="app flex flex-col min-h-screen">
       <Header user={user} onLogout={logout} />
+      <YoutubeCookiesBanner />
       <main className="main flex flex-1 flex-col lg:flex-row gap-4 sm:gap-6 px-4 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-[1600px] mx-auto">
         {/* The routed content comes FIRST in the DOM and the sidebar second,
             with `lg:order-*` putting the sidebar back on the left from lg up.

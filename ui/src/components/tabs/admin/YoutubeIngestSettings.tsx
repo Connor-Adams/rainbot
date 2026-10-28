@@ -177,6 +177,15 @@ export default function YoutubeIngestSettings() {
             {youtubeCookies?.hasCookies ? '✓ Cookies configured' : 'No cookies set'}
           </span>
         </div>
+        {youtubeCookies?.stale && (
+          <div className="mt-2 text-xs text-danger-light">
+            YouTube no longer accepts these cookies
+            {youtubeCookies.staleSince
+              ? ` (since ${new Date(youtubeCookies.staleSince).toLocaleString()})`
+              : ''}
+            . Export a fresh set and upload it.
+          </div>
+        )}
         {uploadCookiesMutation.isSuccess && (
           <div className="mt-2 text-xs text-text-secondary">
             Cookies saved. Rainbot will use them on next startup or fetch.

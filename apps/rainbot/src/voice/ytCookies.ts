@@ -2,6 +2,7 @@
  * Fetches YouTube cookies from raincloud (if configured via UI) and sets
  * process.env.YTDLP_COOKIES so yt-dlp can use them. Run at startup.
  */
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -18,6 +19,16 @@ const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /** Path of the cookie file this module wrote, so refreshes can replace it. */
 let managedCookiesPath: string | null = null;
+
+/**
+ * Hash of the jar as raincloud served it. Not of the file on disk: yt-dlp
+ * writes the jar back after every run, so that file drifts from the upload.
+ */
+let managedCookiesHash: string | null = null;
+
+/** yt-dlp prints the warning on every run; one report per window is enough. */
+const STALE_REPORT_INTERVAL_MS = 10 * 60 * 1000;
+let lastStaleReportAt = 0;
 
 /** Netscape cookie jars mark host-only entries with this prefix, not a comment. */
 const HTTP_ONLY_PREFIX = '#HttpOnly_';
@@ -84,13 +95,25 @@ async function applyPlayDlCookies(cookiesText: string): Promise<void> {
   }
 }
 
+/** sha256 of a cookie jar, which raincloud computes the same way for the stored copy. */
+export function cookiesHash(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+function orchestratorBaseUrl(): string | null {
+  const raincloudUrl = process.env['RAINCLOUD_URL'];
+  // RAINCLOUD_URL is host-only on Railway ("raincloud.railway.internal"), which
+  // fetch rejects as a relative URL. Reuse the same normalization (scheme +
+  // port) that worker registration and stats reporting already go through.
+  return raincloudUrl ? getOrchestratorBaseUrl(raincloudUrl) : null;
+}
+
 /**
  * Fetch cookies from raincloud internal API and write to a temp file.
  * Sets process.env.YTDLP_COOKIES to the file path on success.
  * Safe to call multiple times; updates the cache when cookies exist.
  */
 export async function fetchAndSetYtCookies(): Promise<void> {
-  const raincloudUrl = process.env['RAINCLOUD_URL'];
   const workerSecret = process.env['WORKER_SECRET'];
 
   // YTDLP_COOKIES env takes precedence (manual config), but a file this module
@@ -101,15 +124,12 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     return;
   }
 
-  if (!raincloudUrl || !workerSecret) {
+  if (!process.env['RAINCLOUD_URL'] || !workerSecret) {
     log.debug('RAINCLOUD_URL or WORKER_SECRET not set, skipping cookie fetch');
     return;
   }
 
-  // RAINCLOUD_URL is host-only on Railway ("raincloud.railway.internal"), which
-  // fetch rejects as a relative URL. Reuse the same normalization (scheme +
-  // port) that worker registration and stats reporting already go through.
-  const baseUrl = getOrchestratorBaseUrl(raincloudUrl);
+  const baseUrl = orchestratorBaseUrl();
   if (!baseUrl) {
     log.debug('RAINCLOUD_URL could not be resolved, skipping cookie fetch');
     return;
@@ -141,6 +161,7 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     const cookiesPath = path.join(tmpDir, CACHE_FILE_NAME);
     fs.writeFileSync(cookiesPath, body, 'utf8');
     managedCookiesPath = cookiesPath;
+    managedCookiesHash = cookiesHash(body);
     process.env['YTDLP_COOKIES'] = cookiesPath;
     log.info('YouTube cookies loaded from raincloud');
 
@@ -161,4 +182,49 @@ export function startYtCookieRefresh(intervalMs: number = REFRESH_INTERVAL_MS): 
   }, intervalMs);
   timer.unref();
   return timer;
+}
+
+/**
+ * Tell raincloud that YouTube rejected the dashboard's cookies, so the
+ * dashboard can ask for fresh ones. Called on yt-dlp's "cookies are no longer
+ * valid" warning.
+ *
+ * Refetches first: the jar may already have been replaced in the dashboard and
+ * not yet reached this worker, and then there is nothing to report. The report
+ * names the jar by hash, so raincloud can ignore it once that jar is replaced.
+ */
+export async function reportStaleYtCookies(): Promise<void> {
+  const now = Date.now();
+  if (now - lastStaleReportAt < STALE_REPORT_INTERVAL_MS) return;
+  lastStaleReportAt = now;
+
+  // Cookies set by hand through YTDLP_COOKIES are not the dashboard's to replace.
+  const rejectedHash = managedCookiesHash;
+  if (!rejectedHash) return;
+
+  await fetchAndSetYtCookies();
+  if (managedCookiesHash !== rejectedHash) {
+    log.info('Rejected YouTube cookies were already replaced; loaded the new ones');
+    return;
+  }
+
+  const baseUrl = orchestratorBaseUrl();
+  const workerSecret = process.env['WORKER_SECRET'];
+  if (!baseUrl || !workerSecret) return;
+
+  try {
+    const res = await fetch(`${baseUrl}/internal/cookies/youtube/stale`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-worker-secret': workerSecret },
+      body: JSON.stringify({ hash: rejectedHash }),
+    });
+    if (!res.ok) {
+      log.warn(`Stale cookie report failed: ${res.status} ${res.statusText}`);
+      return;
+    }
+    log.warn('YouTube rejected the dashboard cookies; reported to raincloud');
+  } catch (error) {
+    const err = error as Error;
+    log.warn(`Failed to report stale YouTube cookies: ${err.message}`);
+  }
 }

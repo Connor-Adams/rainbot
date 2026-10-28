@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '@connor-adams/designsystem';
 import CommandRunner from './admin/CommandRunner';
 import GrokVoiceSettings from './admin/GrokVoiceSettings';
@@ -28,7 +29,12 @@ const SECTIONS = {
 };
 
 export default function AdminTab() {
-  const [section, setSection] = useState<AdminSection>('playback');
+  // ?section= lets a link land on one panel, e.g. the stale-cookies banner.
+  const [searchParams] = useSearchParams();
+  const requested = searchParams.get('section');
+  const [section, setSection] = useState<AdminSection>(
+    requested && requested in SECTIONS ? (requested as AdminSection) : 'playback'
+  );
   const Section = SECTIONS[section];
 
   return (

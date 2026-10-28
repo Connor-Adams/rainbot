@@ -4,6 +4,7 @@ import { recordWorkerRegistration } from '../../lib/workerCoordinatorRegistry';
 import { getMultiBotService } from '../../lib/multiBotService';
 import * as stats from '@rainbot/utils/statistics';
 import * as storage from '@rainbot/utils/storage';
+import { reportStaleCookies } from '../../lib/youtubeCookieHealth';
 import type { SourceType } from '@rainbot/protocol';
 
 const log = createLogger('INTERNAL-ROUTES');
@@ -44,6 +45,20 @@ router.get('/cookies/youtube', async (req: Request, res: Response) => {
     log.error(`Failed to get YouTube cookies: ${err.message}`);
     res.status(500).json({ error: 'Failed to retrieve cookies' });
   }
+});
+
+router.post('/cookies/youtube/stale', (req: Request, res: Response) => {
+  if (!requireWorkerSecret(req, res)) return;
+
+  const { hash } = (req.body ?? {}) as { hash?: unknown };
+  if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) {
+    res.status(400).json({ error: 'hash must be a sha256 hex digest' });
+    return;
+  }
+
+  log.warn('Rainbot reports YouTube rejected the stored cookies');
+  reportStaleCookies(hash);
+  res.json({ ok: true });
 });
 
 router.get('/proxy/youtube', async (req: Request, res: Response) => {

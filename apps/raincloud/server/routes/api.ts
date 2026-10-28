@@ -17,6 +17,7 @@ import { getClient } from '../client';
 import { requireAuth } from '../middleware/auth';
 import * as stats from '@rainbot/utils/statistics';
 import MultiBotService, { getMultiBotService } from '../../lib/multiBotService';
+import { getCookieHealth, onCookiesChanged } from '../../lib/youtubeCookieHealth';
 import {
   addQueueSubscriber,
   broadcastQueueUpdate,
@@ -591,7 +592,8 @@ router.delete('/sounds/:name', requireAuth, async (req: Request, res: Response):
 router.get('/settings/youtube-cookies', requireAuth, async (_req, res: Response): Promise<void> => {
   try {
     const hasCookies = await storage.hasYoutubeCookies();
-    res.json({ hasCookies });
+    const health = await getCookieHealth();
+    res.json({ hasCookies, ...health });
   } catch (error) {
     const err = error as Error;
     res.status(500).json({ error: err.message });
@@ -613,6 +615,7 @@ router.post(
     }
     try {
       await storage.uploadYoutubeCookies(file.buffer);
+      onCookiesChanged();
       res.json({ message: 'YouTube cookies saved. Rainbot will use them on next fetch.' });
     } catch (error) {
       const err = error as Error;
@@ -628,6 +631,7 @@ router.delete(
   async (_req, res: Response): Promise<void> => {
     try {
       await storage.deleteYoutubeCookies();
+      onCookiesChanged();
       res.json({ message: 'YouTube cookies removed.' });
     } catch (error) {
       const err = error as Error;

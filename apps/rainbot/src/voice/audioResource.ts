@@ -10,6 +10,7 @@ import {
   recordTrackResolveFailure,
   RainbotAttr,
 } from '@rainbot/observability/node';
+import { reportStaleYtCookies } from './ytCookies';
 
 // Use system yt-dlp if available, otherwise fall back to bundled.
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
@@ -127,6 +128,12 @@ async function createVolumeResource(
     async () => createAudioResource(input, { ...options, inlineVolume: true })
   );
 }
+
+/**
+ * yt-dlp's warning when YouTube has rotated the uploaded session out. Playback
+ * then fails on "Sign in to confirm you're not a bot" until new cookies land.
+ */
+export const STALE_COOKIES_WARNING = /cookies are no longer valid/i;
 
 /**
  * Shared failure vocabulary for `RainbotAttr.outcome` on a track-resolve
@@ -371,7 +378,9 @@ async function createTrackResourcePipe(
   subprocess.stderr?.on('data', (data: Buffer | string) => {
     const text = typeof data === 'string' ? data : data.toString();
     const trimmed = text.trim();
-    if (trimmed) log.warn(`yt-dlp stderr: ${trimmed}`);
+    if (!trimmed) return;
+    log.warn(`yt-dlp stderr: ${trimmed}`);
+    if (STALE_COOKIES_WARNING.test(trimmed)) void reportStaleYtCookies();
   });
   subprocess.stdout?.on('error', (err: Error) => {
     log.warn(`yt-dlp pipe stdout error: ${err.message}`);

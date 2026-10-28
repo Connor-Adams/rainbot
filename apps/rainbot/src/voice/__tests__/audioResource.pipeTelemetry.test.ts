@@ -31,6 +31,10 @@ jest.mock('@discordjs/voice', () => {
   };
 });
 
+jest.mock('../ytCookies', () => ({
+  reportStaleYtCookies: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('play-dl', () => ({
   __esModule: true,
   default: {
@@ -373,6 +377,40 @@ describe('createTrackResourceForAny resolutionPath on the yt-dlp paths (F3)', ()
       expect(span!.attributes[RainbotAttr.resolutionPath]).toBe('yt-dlp-async-fetch');
     } finally {
       global.fetch = originalFetch;
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('createTrackResourcePipe stale cookie warning', () => {
+  const { reportStaleYtCookies } = jest.requireMock('../ytCookies') as {
+    reportStaleYtCookies: jest.Mock;
+  };
+
+  it('reports the cookies when yt-dlp says YouTube no longer accepts them', async () => {
+    jest.useFakeTimers();
+    try {
+      reportStaleYtCookies.mockClear();
+      const proc = createFakeSubprocess();
+      mockYtdlpExec.mockReturnValueOnce(proc.subprocess);
+
+      const resultPromise = createTrackResourceForAny(youtubeTrack());
+      proc.subprocess.stderr.emit('data', Buffer.from('WARNING: [youtube] some other warning'));
+      expect(reportStaleYtCookies).not.toHaveBeenCalled();
+
+      proc.subprocess.stderr.emit(
+        'data',
+        Buffer.from(
+          'WARNING: [youtube] The provided YouTube account cookies are no longer valid. ' +
+            'They have likely been rotated in the browser as a security measure.'
+        )
+      );
+      expect(reportStaleYtCookies).toHaveBeenCalledTimes(1);
+
+      proc.emitStdoutData();
+      await jest.advanceTimersByTimeAsync(5_000);
+      await expect(resultPromise).resolves.toEqual({ fakeResource: true });
+    } finally {
       jest.useRealTimers();
     }
   });
