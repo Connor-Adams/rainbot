@@ -798,7 +798,7 @@ describe('wake-word gating', () => {
 
     it('matches a multi-word trigger across the punctuation a transcriber inserts', async () => {
       const { isAddressed } = await import('../grokVoiceAgent');
-      // "hey bot" is the documented example in README.md and RAILWAY_DEPLOY.md,
+      // "hey bot" is the documented example in README.md and DEPLOY.md,
       // and stripping only LEADING punctuation made it unmatchable.
       expect(isAddressed('Hey, bot, play music', 'hey bot')).toBe(true);
       expect(isAddressed('hey bot', 'hey bot')).toBe(true);

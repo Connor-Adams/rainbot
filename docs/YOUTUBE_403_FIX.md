@@ -10,7 +10,7 @@ If you still see **Stream fetch failed: 403** or playback fails:
 
 ## 1. Keep yt-dlp updated
 
-YouTube changes often; yt-dlp releases fixes frequently. On Railway or Docker, use a recent image or install the latest:
+YouTube changes often; yt-dlp releases fixes frequently. The production images install yt-dlp from pip at build time, and `build-images.yml` force-rebuilds them weekly so the binary stays fresh. Outside Docker, install the latest:
 
 ```bash
 # Check version
@@ -24,8 +24,8 @@ pip install -U yt-dlp
 
 ## 2. Outbound proxy (the actual fix for bot checks)
 
-YouTube refuses requests from datacenter IP ranges, which is what Railway runs
-on. This was confirmed directly in the rainbot container: with a PO token
+YouTube refuses requests from datacenter IP ranges, which is what the prod host
+runs on. This was confirmed directly in the rainbot container: with a PO token
 provider reachable and no cookies, one video was refused with
 `Sign in to confirm you're not a bot` across **six** player clients — `tv`,
 `default,tv`, `android_vr`, `web_embedded`, `tv_simply`, `mweb`. The verbose log
@@ -128,7 +128,7 @@ section 2; reach for cookies only when there is no usable proxy.
    YTDLP_COOKIES=/path/to/youtube_cookies.txt
    ```
 
-On Railway, you can use a secret file or mount the cookies file and set `YTDLP_COOKIES` to that path.
+On Dokploy, mount the cookies file into the rainbot application (a file mount or volume) and set `YTDLP_COOKIES` to that path.
 
 ## 5. Optional: Override player client
 
@@ -148,7 +148,7 @@ no audio-only formats at all, and playback failed with
 
 ## 6. Ensure yt-dlp is on PATH
 
-Rainbot uses `yt-dlp` (or `YTDLP_PATH` if set). On Railway, install yt-dlp in your build (e.g. nixpacks, Dockerfile, or apt). If piping fails with "command not found", set:
+Rainbot uses `yt-dlp` (or `YTDLP_PATH` if set). The Docker images (`apps/rainbot/Dockerfile`) already put it on PATH via `pip3 install yt-dlp yt-dlp-ejs`; outside Docker, install it yourself. If piping fails with "command not found", set:
 
 ```env
 YTDLP_PATH=/full/path/to/yt-dlp

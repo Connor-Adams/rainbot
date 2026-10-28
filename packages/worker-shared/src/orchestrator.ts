@@ -17,17 +17,12 @@ export function getOrchestratorBaseUrl(raincloudUrl?: string): string | null {
 
   try {
     const url = new URL(normalized);
-    // When no port is set, use RAINCLOUD_PORT if set (e.g. 3000 when Raincloud uses PORT=3000 on Railway),
-    // else default to 8080 on Railway or 3000 locally; otherwise fetch would use port 80 and time out.
+    // When no port is set, use RAINCLOUD_PORT if set, else Raincloud's default 3000;
+    // otherwise fetch would use port 80 and time out.
     if (!url.port || url.port === '') {
       const envPort = process.env['RAINCLOUD_PORT'];
       const explicitPort = envPort ? String(envPort).trim() : '';
-      const defaultPort =
-        explicitPort && /^\d+$/.test(explicitPort)
-          ? explicitPort
-          : process.env['RAILWAY_ENVIRONMENT'] || process.env['RAILWAY_PUBLIC_DOMAIN']
-            ? '8080'
-            : '3000';
+      const defaultPort = explicitPort && /^\d+$/.test(explicitPort) ? explicitPort : '3000';
       url.port = defaultPort;
     }
     const normalizedPath = url.pathname.replace(/\/$/, '');
@@ -68,10 +63,8 @@ export async function registerWithOrchestrator(
     botType,
     raincloudUrl,
     workerSecret = process.env['WORKER_SECRET'],
-    instanceId = process.env['RAILWAY_REPLICA_ID'] ||
-      process.env['RAILWAY_SERVICE_ID'] ||
-      process.env['HOSTNAME'],
-    version = process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'],
+    instanceId = process.env['HOSTNAME'],
+    version = process.env['GIT_COMMIT_SHA'],
     maxAttempts = DEFAULT_REGISTER_MAX_ATTEMPTS,
     requestTimeoutMs = DEFAULT_REGISTER_TIMEOUT_MS,
     logger = createLogger(botType.toUpperCase()),

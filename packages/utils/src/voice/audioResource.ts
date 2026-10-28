@@ -8,7 +8,7 @@ import type { Track } from '@rainbot/protocol';
 
 const log = createLogger('AUDIO_RESOURCE');
 
-// Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
+// Use system yt-dlp if available (e.g. installed in the Docker image), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 // Cookie file path for YouTube authentication (fixes 403 errors)

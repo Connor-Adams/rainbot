@@ -16,10 +16,8 @@ export const ORCHESTRATOR_BOT_ID =
 export const REDIS_URL = process.env['REDIS_URL'];
 export const RAINCLOUD_URL = process.env['RAINCLOUD_URL'];
 export const WORKER_SECRET = process.env['WORKER_SECRET'];
-export const WORKER_INSTANCE_ID =
-  process.env['RAILWAY_REPLICA_ID'] || process.env['RAILWAY_SERVICE_ID'] || process.env['HOSTNAME'];
-export const WORKER_VERSION =
-  process.env['RAILWAY_GIT_COMMIT_SHA'] || process.env['GIT_COMMIT_SHA'];
+export const WORKER_INSTANCE_ID = process.env['HOSTNAME'];
+export const WORKER_VERSION = process.env['GIT_COMMIT_SHA'];
 export const VOICE_INTERACTION_ENABLED = process.env['VOICE_INTERACTION_ENABLED'] === 'true';
 export const VOICE_TRIGGER_WORD = process.env['VOICE_TRIGGER_WORD']?.trim() || 'evan';
 

@@ -295,8 +295,7 @@ export function startTelemetry(serviceName: string): void {
     sdk = new NodeSDK({
       resource: resourceFromAttributes({
         [ATTR_SERVICE_NAME]: serviceName,
-        [ATTR_SERVICE_VERSION]:
-          process.env['GIT_COMMIT_SHA'] ?? process.env['RAILWAY_GIT_COMMIT_SHA'] ?? 'dev',
+        [ATTR_SERVICE_VERSION]: process.env['GIT_COMMIT_SHA'] ?? 'dev',
       }),
       traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
       metricReader: new PeriodicExportingMetricReader({

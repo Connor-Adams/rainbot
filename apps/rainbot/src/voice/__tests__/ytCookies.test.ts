@@ -76,17 +76,15 @@ describe('fetchAndSetYtCookies', () => {
     global.fetch = originalFetch;
     delete process.env['RAINCLOUD_URL'];
     delete process.env['WORKER_SECRET'];
-    delete process.env['RAILWAY_ENVIRONMENT'];
   });
 
   it('resolves a host-only RAINCLOUD_URL the same way worker registration does', async () => {
-    process.env['RAINCLOUD_URL'] = 'raincloud.railway.internal';
-    process.env['RAILWAY_ENVIRONMENT'] = 'production';
+    process.env['RAINCLOUD_URL'] = 'raincloud';
 
     await fetchAndSetYtCookies();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://raincloud.railway.internal:8080/internal/cookies/youtube',
+      'http://raincloud:3000/internal/cookies/youtube',
       expect.anything()
     );
   });

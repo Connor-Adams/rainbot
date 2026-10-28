@@ -9,7 +9,7 @@ describe('fetchAndSetYtProxy', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env['RAINCLOUD_URL'] = 'http://raincloud.railway.internal:3000';
+    process.env['RAINCLOUD_URL'] = 'http://raincloud:3000';
     process.env['WORKER_SECRET'] = 'shh';
     delete process.env['YTDLP_PROXY'];
     delete process.env['YTDLP_PROXY_OVERRIDE'];
@@ -36,7 +36,7 @@ describe('fetchAndSetYtProxy', () => {
     await fetchAndSetYtProxy();
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://raincloud.railway.internal:3000/internal/proxy/youtube');
+    expect(url).toBe('http://raincloud:3000/internal/proxy/youtube');
     expect(init.headers).toMatchObject({ 'x-worker-secret': 'shh' });
   });
 

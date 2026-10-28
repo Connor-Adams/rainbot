@@ -20,7 +20,7 @@ import type { Track } from '@rainbot/protocol';
 import type { VoiceState } from '@rainbot/protocol';
 import type { TextChannel, VoiceChannel } from 'discord.js';
 
-// Use system yt-dlp if available (Railway/nixpkgs), otherwise fall back to bundled
+// Use system yt-dlp if available (e.g. installed in the Docker image), otherwise fall back to bundled
 const youtubedl = youtubedlPkg.create(process.env['YTDLP_PATH'] || 'yt-dlp');
 
 const log = createLogger('PLAYBACK');

@@ -68,24 +68,6 @@ describe('database', () => {
       );
     });
 
-    it('enables SSL for Railway database URLs', () => {
-      mockLoadConfig.mockReturnValue({
-        databaseUrl: 'postgresql://user:pass@railway.app/db',
-      });
-
-      const { Pool } = require('pg');
-      const { initDatabase } = require('../database');
-      initDatabase();
-
-      expect(Pool).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ssl: {
-            rejectUnauthorized: false,
-          },
-        })
-      );
-    });
-
     it('enables SSL for Heroku database URLs', () => {
       mockLoadConfig.mockReturnValue({
         databaseUrl: 'postgresql://user:pass@herokuapp.com/db',

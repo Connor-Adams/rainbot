@@ -22,11 +22,8 @@ interface OAuthConfig {
 const getConfig = (): OAuthConfig => {
   const config: AppConfig = loadConfig();
 
-  // Determine callback URL - prioritize Railway, then CALLBACK_URL, then default
+  // Determine callback URL - CALLBACK_URL, then default
   let callbackURL = config.callbackURL;
-  if (config.railwayPublicDomain && !callbackURL) {
-    callbackURL = `https://${config.railwayPublicDomain}/auth/discord/callback`;
-  }
   if (!callbackURL) {
     // In dev, UI is often on 5173 (Vite) with proxy to API on 3000; callback must be UI origin so cookie is set for 5173
     const isDev = process.env['NODE_ENV'] !== 'production';
@@ -183,17 +180,12 @@ passport.deserializeUser((user: Express.User, done) => {
 
 // Helper to get base URL from request (where to redirect after login/logout)
 function getBaseUrl(req: Request): string {
-  const config: AppConfig = loadConfig();
   const dashboardOrigin = process.env['DASHBOARD_ORIGIN'] || process.env['UI_ORIGIN'];
 
   if (dashboardOrigin) {
     return dashboardOrigin.replace(/\/$/, '');
   }
 
-  // Railway provides public domain
-  if (config.railwayPublicDomain) {
-    return `https://${config.railwayPublicDomain}`;
-  }
   // Local development: default to Vite UI origin so redirect after OAuth goes to dashboard, not API 404
   if (process.env['NODE_ENV'] !== 'production') {
     return 'http://localhost:5173';
@@ -215,7 +207,7 @@ router.get('/discord', (req: Request, res: Response, next: NextFunction) => {
     res.status(503).json({ error: 'OAuth not configured' });
     return;
   }
-  // Aggressive no-cache so proxies (e.g. Railway edge) never return 304
+  // Aggressive no-cache so proxies (e.g. Cloudflare) never return 304
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');

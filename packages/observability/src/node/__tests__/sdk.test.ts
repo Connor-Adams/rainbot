@@ -5,7 +5,7 @@ import {
   shouldIgnoreIncomingRequest,
 } from '../sdk';
 
-// F11: Railway/container health probes hit /health/live and /health/ready on
+// F11: container health probes hit /health/live and /health/ready on
 // a tight interval; without this, every one becomes its own root HTTP span
 // in Tempo, on top of the health-check RPC spans (see packages/rpc's
 // client.ts/trpc.ts exclusions).

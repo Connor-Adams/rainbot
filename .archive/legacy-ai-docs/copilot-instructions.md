@@ -15,7 +15,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 - `apps/raincloud/handlers/`, `apps/raincloud/src/events/` — Discord event handlers wired in raincloud.
 - `utils/` — Shared utilities: logger, config, database, statistics, storage. **Voice**: [utils/voice/README.md](utils/voice/README.md).
 - `apps/raincloud/server/` — Express API (TypeScript): routes, auth, Swagger. Main: [apps/raincloud/server/index.ts](apps/raincloud/server/index.ts). API-only (no UI serving).
-- `ui/` — React dashboard. Dev: `yarn workspace @rainbot/ui dev`. Build: `yarn build:ui`. Deploy separately (see ui/railway.json).
+- `ui/` — React dashboard. Dev: `yarn workspace @rainbot/ui dev`. Build: `yarn build:ui`. Deploy separately (its own Dokploy application).
 - `types/` — TypeScript types (root and apps/raincloud/types).
 
 ## Build & developer workflows (must-use commands)
@@ -88,7 +88,7 @@ This file gives AI coding agents focused, actionable information to be immediate
 
 ### Environment variables
 
-- `.env` for local development (see `.env.example`). Production uses platform env vars (Railway).
+- `.env` for local development (see `.env.example`). Production uses platform env vars (Dokploy).
 - **Required**: `DISCORD_BOT_TOKEN` (Raincloud), `DISCORD_CLIENT_ID`, session secret; workers: `RAINCLOUD_URL`, `WORKER_SECRET`, etc.
 - **Optional**: Database (PostgreSQL), Redis (sessions), S3 (storage), Spotify credentials.
 - See [config.example.json](config.example.json) and [OAUTH_SETUP.md](OAUTH_SETUP.md) for full config.

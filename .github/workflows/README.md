@@ -70,7 +70,7 @@ The `await-promotion` job exists because Dokploy pulls `:prod`, which
 `release-promote.yml` moves on the same `release: published` event. Deploying first
 would ship the _previous_ release's image and report success.
 
-**A missing secret fails the job.** The Railway workflow this replaced `exit 0`ed on
+**A missing secret fails the job.** The previous deploy workflow `exit 0`ed on
 an unset webhook, so for months every release showed a green deploy that had done
 nothing — that is the failure mode the loud check is there to prevent.
 

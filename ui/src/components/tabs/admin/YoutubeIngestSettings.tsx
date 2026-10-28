@@ -68,10 +68,10 @@ export default function YoutubeIngestSettings() {
       <Card variant="nested" padding="sm" radius="xl">
         <div className="text-sm font-semibold text-text-primary mb-1">YouTube proxy</div>
         <div className="text-xs text-text-secondary mb-4">
-          YouTube blocks requests from datacenter IPs, which is what Railway runs on—that is the
-          real cause of &quot;Sign in to confirm you&apos;re not a bot&quot;, and no cookie or
-          player setting gets around it. Point yt-dlp at a proxy with a residential or mobile IP and
-          the block goes away. Accepts <code>http</code>, <code>https</code>, <code>socks4</code>,{' '}
+          YouTube blocks requests from datacenter IPs—on a datacenter host that is the real cause of
+          &quot;Sign in to confirm you&apos;re not a bot&quot;, and no cookie or player setting gets
+          around it. Point yt-dlp at a proxy with a residential or mobile IP and the block goes
+          away. Accepts <code>http</code>, <code>https</code>, <code>socks4</code>,{' '}
           <code>socks4a</code>, <code>socks5</code> and <code>socks5h</code>. Rainbot picks up a
           change within about five minutes.
         </div>

@@ -5,42 +5,21 @@ import type { StatusResponse } from '@rainbot/worker-protocol';
 /** Same secret workers use (WORKER_SECRET); used for tRPC x-internal-secret header. */
 const RPC_SECRET = process.env['WORKER_SECRET'] || process.env['INTERNAL_RPC_SECRET'] || '';
 
-/** Railway uses port 8080; URLs without a port default to 80, so we must set 8080 explicitly. */
-const isRailway = Boolean(
-  process.env['RAILWAY_ENVIRONMENT'] ?? process.env['RAILWAY_PUBLIC_DOMAIN']
-);
-
 function normalizeRpcBaseUrl(rawUrl: string, fallback: string): string {
   const candidate = rawUrl.trim();
   if (!candidate) return fallback;
   const withScheme = candidate.match(/^https?:\/\//) ? candidate : `http://${candidate}`;
-  let url = withScheme.replace(/\/$/, '');
-  // On Railway, host-only URLs (e.g. rainbot.railway.internal) get no port → fetch uses 80 and fails. Use 8080.
-  if (isRailway) {
-    try {
-      const parsed = new URL(url);
-      if (!parsed.port || parsed.port === '80') {
-        parsed.port = '8080';
-        url = parsed.origin;
-      }
-    } catch {
-      // leave url unchanged
-    }
-  }
-  return url;
+  return withScheme.replace(/\/$/, '');
 }
 
-const RAINBOT_URL = normalizeRpcBaseUrl(
-  process.env['RAINBOT_URL'] || '',
-  isRailway ? `http://rainbot.railway.internal:8080` : 'http://localhost:3001'
-);
+const RAINBOT_URL = normalizeRpcBaseUrl(process.env['RAINBOT_URL'] || '', 'http://localhost:3001');
 const PRANJEET_URL = normalizeRpcBaseUrl(
   process.env['PRANJEET_URL'] || '',
-  isRailway ? `http://pranjeet.railway.internal:8080` : 'http://localhost:3002'
+  'http://localhost:3002'
 );
 const HUNGERBOT_URL = normalizeRpcBaseUrl(
   process.env['HUNGERBOT_URL'] || '',
-  isRailway ? `http://hungerbot.railway.internal:8080` : 'http://localhost:3003'
+  'http://localhost:3003'
 );
 
 /** Exported for logging; used by coordinator to show which worker URLs are targeted. */

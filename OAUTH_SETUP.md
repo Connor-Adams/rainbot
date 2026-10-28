@@ -38,13 +38,19 @@ The dashboard uses Discord OAuth2 to authenticate users. Users must:
    http://localhost:3000/auth/discord/callback
    ```
 
-   **For Railway Deployment:**
+   **For Local Development with the Vite UI (`yarn dev`, port 5173):**
 
    ```
-   https://rainbot-production.up.railway.app/auth/discord/callback
+   http://localhost:5173/auth/discord/callback
    ```
 
-   (This is the callback URL for the production deployment)
+   **For Production (Dokploy):**
+
+   ```
+   https://api.rainbot.win/auth/discord/callback
+   ```
+
+   (The callback goes to Raincloud at `api.rainbot.win`, not to the dashboard at `dash.rainbot.win`)
 
    **For Custom Domain:**
 
@@ -75,7 +81,7 @@ You need to create or identify a Discord role that users must have to access the
 
 ### 6. Set Environment Variables
 
-Set these in Railway (or your `.env` file for local development):
+Set these on the **raincloud** application in Dokploy (Application → Environment), or in your `.env` file for local development:
 
 **Required:**
 
@@ -88,8 +94,9 @@ REQUIRED_ROLE_ID=your_role_id_here
 **Optional:**
 
 ```bash
-CALLBACK_URL=https://rainbot-production.up.railway.app/auth/discord/callback
-# (Auto-detected on Railway, but you can set it manually)
+CALLBACK_URL=https://api.rainbot.win/auth/discord/callback
+DASHBOARD_ORIGIN=https://dash.rainbot.win
+# Both are required in production; locally they default to the Vite UI on :5173
 ```
 
 ### 7. Verify Bot Permissions
@@ -120,11 +127,11 @@ Make sure your bot has these permissions in servers where users need access:
 5. Authorize the application
 6. You should be redirected back and logged in (if you have the required role)
 
-### Railway Testing
+### Production Testing
 
-1. Deploy to Railway with all environment variables set
-2. Add the callback URL to Discord OAuth redirects: `https://rainbot-production.up.railway.app/auth/discord/callback`
-3. Visit your Railway URL: [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
+1. Publish a release so the change is deployed to Dokploy (see [DEPLOY.md](DEPLOY.md)), with all environment variables set on raincloud
+2. Add the callback URL to Discord OAuth redirects: `https://api.rainbot.win/auth/discord/callback`
+3. Visit the dashboard: [https://dash.rainbot.win/](https://dash.rainbot.win/)
 4. Click "Login with Discord"
 5. Authorize the application
 6. You should be redirected back and logged in (if you have the required role)
@@ -158,7 +165,7 @@ Make sure your bot has these permissions in servers where users need access:
 - **Never commit** `DISCORD_CLIENT_SECRET` or `SESSION_SECRET` to git
 - Use strong, random `SESSION_SECRET` (generate with: `openssl rand -hex 32`)
 - Keep your Client Secret secure - if compromised, reset it immediately
-- Use HTTPS in production (Railway provides this automatically)
+- Use HTTPS in production (in prod, TLS terminates at the Cloudflare tunnel in front of Dokploy)
 
 ## Quick Reference
 
@@ -171,25 +178,28 @@ Make sure your bot has these permissions in servers where users need access:
 
 ## Example Configuration
 
-**Railway Environment Variables:**
+**Raincloud Environment Variables (Dokploy):**
 
 ```
 DISCORD_CLIENT_ID=123456789012345678
 DISCORD_CLIENT_SECRET=abcdefghijklmnopqrstuvwxyz123456
 REQUIRED_ROLE_ID=987654321098765432
 SESSION_SECRET=your_random_secret_here
+CALLBACK_URL=https://api.rainbot.win/auth/discord/callback
+DASHBOARD_ORIGIN=https://dash.rainbot.win
 ```
 
 **Discord OAuth Redirects:**
 
 ```
-https://rainbot-production.up.railway.app/auth/discord/callback
+https://api.rainbot.win/auth/discord/callback
+http://localhost:5173/auth/discord/callback
 http://localhost:3000/auth/discord/callback
 ```
 
 **Production Dashboard URL:**
 
-- Dashboard: [https://rainbot-production.up.railway.app/](https://rainbot-production.up.railway.app/)
-- OAuth Callback: `https://rainbot-production.up.railway.app/auth/discord/callback`
+- Dashboard: [https://dash.rainbot.win/](https://dash.rainbot.win/)
+- OAuth Callback: `https://api.rainbot.win/auth/discord/callback`
 
 That's it! Once configured, users can authenticate with Discord and access the dashboard if they have the required role.

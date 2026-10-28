@@ -20,9 +20,9 @@
          own entry module above the other scripts, so the bundle executed first
          and always saw the config undefined. A classic script executes during
          parse, ahead of every deferred module, whatever order Vite emits.
-         The failure was invisible on Railway because api.ts falls back to
-         hardcoded Railway origins when window.location.origin matches the old
-         Railway UI host; on any other domain it fell through to same-origin and
+         The failure was invisible on the previous host because api.ts then fell
+         back to hardcoded API origins when window.location.origin matched the
+         old UI host; on any other domain it fell through to same-origin and
          the login link pointed at the UI instead of the API. -->
     <script src="/runtime-config.js"></script>
   </head>

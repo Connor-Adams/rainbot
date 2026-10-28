@@ -30,7 +30,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # Missing configuration fails the job. The Railway workflow this replaces
+    # Missing configuration fails the job. The deploy workflow this replaces
     # exited 0 on an unset secret, so every release reported a green deploy that
     # had in fact done nothing at all.
     - name: Check configuration
