@@ -1,5 +1,5 @@
 export { startTelemetry, shutdownTelemetry, isTelemetryStarted } from './sdk';
-export { withSpan } from './spans';
+export { withSpan, type WithSpanOptions } from './spans';
 export {
   recordVoiceConnections,
   recordTrackResolve,

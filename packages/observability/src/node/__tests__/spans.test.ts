@@ -3,7 +3,8 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { context, trace, SpanStatusCode } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { withSpan } from '../spans';
 import { RainbotAttr } from '../../semconv';
 
@@ -14,6 +15,8 @@ beforeAll(() => {
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
   trace.setGlobalTracerProvider(provider);
+  // Without a context manager no span is ever active, so nesting is untestable.
+  context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
 });
 
 afterEach(() => exporter.reset());
@@ -61,5 +64,23 @@ describe('withSpan', () => {
     const [span] = exporter.getFinishedSpans();
     expect(span.status.code).toBe(SpanStatusCode.ERROR);
     expect(span.events.map((e) => e.name)).toContain('exception');
+  });
+
+  it('joins the active trace by default', async () => {
+    await withSpan('outer', {}, () => withSpan('inner', {}, async () => undefined));
+
+    const [inner, outer] = exporter.getFinishedSpans();
+    expect(inner.spanContext().traceId).toBe(outer.spanContext().traceId);
+    expect(inner.parentSpanContext?.spanId).toBe(outer.spanContext().spanId);
+  });
+
+  it('starts a new trace when root is set', async () => {
+    await withSpan('outer', {}, () =>
+      withSpan('track.play', {}, async () => undefined, { root: true })
+    );
+
+    const [inner, outer] = exporter.getFinishedSpans();
+    expect(inner.spanContext().traceId).not.toBe(outer.spanContext().traceId);
+    expect(inner.parentSpanContext).toBeUndefined();
   });
 });
