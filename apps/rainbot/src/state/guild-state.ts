@@ -6,6 +6,7 @@ import {
 } from '@discordjs/voice';
 import type { PlaybackState, QueueState, Track } from '@rainbot/protocol';
 import type { StatusResponse } from '@rainbot/worker-protocol';
+import { RainbotAttr, withSpan } from '@rainbot/observability/node';
 import { logErrorWithStack, reportSoundStat, type GuildState } from '@rainbot/worker-shared';
 import { createTrackResourceForAny } from '../voice/audioResource';
 import { log } from '../config';
@@ -38,6 +39,12 @@ export interface RainbotGuildState extends GuildState {
    * at play() runs ahead of what anyone hears.
    */
   pendingStartOffset: number | null;
+  /**
+   * The track playNext started, until its audio first flows. A play is only
+   * logged and counted once it is actually heard: a stream that fails to
+   * resolve (age-restricted, removed) never reaches Playing.
+   */
+  unheardTrack: Track | null;
 }
 
 export const guildStates = new Map<string, RainbotGuildState>();
@@ -65,15 +72,25 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     // A late Idle from a stream that was already replaced must not advance
     // the queue past the track that is now playing.
     if (state.player.state.status !== AudioPlayerStatus.Idle) return;
+    // A skip while still buffering is not a failure.
+    if (state.unheardTrack && !state.skipRequested) {
+      log.warn(`Track never started: "${state.unheardTrack.title}" in guild ${guildId}`);
+    }
+    state.unheardTrack = null;
     logEarlyEnd(state, guildId);
     handleTrackEnd(guildId);
   });
 
   player.on('stateChange', (oldState, newState) => {
     const state = guildStates.get(guildId);
-    if (!state || state.pendingStartOffset === null) return;
+    if (!state) return;
     if (newState.status !== AudioPlayerStatus.Playing) return;
     if (oldState.status === AudioPlayerStatus.Playing) return;
+    if (state.unheardTrack) {
+      recordPlay(state.unheardTrack, guildId);
+      state.unheardTrack = null;
+    }
+    if (state.pendingStartOffset === null) return;
     state.playbackStartTime = Date.now() - state.pendingStartOffset * 1000;
     state.pauseStartTime = null;
     state.totalPausedTime = 0;
@@ -106,9 +123,29 @@ export function getOrCreateGuildState(guildId: string): RainbotGuildState {
     isSeeking: false,
     skipRequested: false,
     pendingStartOffset: null,
+    unheardTrack: null,
   };
   guildStates.set(guildId, state);
   return state;
+}
+
+function recordPlay(track: Track, guildId: string): void {
+  log.info(`Playing: ${track.title} in guild ${guildId}`);
+  if (!track.userId) return;
+  void reportSoundStat(
+    {
+      soundName: track.title ?? 'Unknown',
+      userId: track.userId,
+      guildId,
+      sourceType: track.sourceType || 'other',
+      isSoundboard: false,
+      duration: track.duration ?? null,
+      source: 'discord',
+      username: track.username || null,
+      discriminator: track.discriminator || null,
+    },
+    { logger: log }
+  );
 }
 
 /**
@@ -247,6 +284,7 @@ export function getStateForRpc(input?: { guildId?: string }): StatusResponse {
 
 export async function playNext(guildId: string): Promise<void> {
   const state = getOrCreateGuildState(guildId);
+  state.unheardTrack = null;
 
   if (state.queue.length === 0) {
     state.currentTrack = null;
@@ -264,39 +302,43 @@ export async function playNext(guildId: string): Promise<void> {
   state.nowPlaying = track.title ?? null;
   armPlaybackClock(state, 0);
 
-  try {
-    log.info(
-      `playNext title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
-    );
-    const resource = await createTrackResourceForAny(track);
+  // A new trace per track. playNext mostly runs from the player's Idle event,
+  // which fires in the async context of whatever request first started the
+  // player, so every autoplayed track would otherwise share that one trace.
+  const attributes = {
+    [RainbotAttr.guildId]: guildId,
+    ...(track.url ? { [RainbotAttr.trackUrl]: track.url } : {}),
+    ...(track.sourceType ? { [RainbotAttr.trackSource]: track.sourceType } : {}),
+  };
+  let failed = false;
+  await withSpan(
+    'track.play',
+    attributes,
+    async () => {
+      try {
+        log.info(
+          `playNext title="${track.title}" url="${track.url}" sourceType=${track.sourceType || 'n/a'}`
+        );
+        const resource = await createTrackResourceForAny(track);
 
-    if (resource.volume) {
-      resource.volume.setVolume(state.volume);
-    }
+        if (resource.volume) {
+          resource.volume.setVolume(state.volume);
+        }
 
-    state.currentResource = resource;
-    state.lastPlaybackError = null;
-    state.player.play(resource);
-    log.info(`Playing: ${track.title} in guild ${guildId}`);
-    if (track.userId) {
-      void reportSoundStat(
-        {
-          soundName: track.title ?? 'Unknown',
-          userId: track.userId,
-          guildId,
-          sourceType: track.sourceType || 'other',
-          isSoundboard: false,
-          duration: track.duration ?? null,
-          source: 'discord',
-          username: track.username || null,
-          discriminator: track.discriminator || null,
-        },
-        { logger: log }
-      );
-    }
-  } catch (error) {
-    state.lastPlaybackError = (error as Error).message;
-    logErrorWithStack(log, 'Error playing track', error);
-    await playNext(guildId);
-  }
+        state.currentResource = resource;
+        state.lastPlaybackError = null;
+        // Before play(): it can reach Playing synchronously.
+        state.unheardTrack = track;
+        state.player.play(resource);
+      } catch (error) {
+        state.unheardTrack = null;
+        state.lastPlaybackError = (error as Error).message;
+        logErrorWithStack(log, 'Error playing track', error);
+        failed = true;
+      }
+    },
+    { root: true }
+  );
+  // Outside the span, so the retry gets a trace of its own.
+  if (failed) await playNext(guildId);
 }

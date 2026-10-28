@@ -4,6 +4,7 @@ import type { Track } from '@rainbot/protocol';
 
 class FakePlayer extends EventEmitter {
   state: { status: AudioPlayerStatus } = { status: AudioPlayerStatus.Idle };
+  play = jest.fn();
 }
 
 const createAudioPlayer = jest.fn((_options?: unknown) => new FakePlayer());
@@ -13,8 +14,14 @@ jest.mock('@discordjs/voice', () => ({
 }));
 const log = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 jest.mock('../../config', () => ({ log }));
+const createTrackResourceForAny = jest.fn();
 jest.mock('../../voice/audioResource', () => ({
-  createTrackResourceForAny: jest.fn(),
+  createTrackResourceForAny: (track: unknown) => createTrackResourceForAny(track),
+}));
+const reportSoundStat = jest.fn();
+jest.mock('@rainbot/worker-shared', () => ({
+  ...jest.requireActual('@rainbot/worker-shared'),
+  reportSoundStat: (...args: unknown[]) => reportSoundStat(...args),
 }));
 
 import {
@@ -24,6 +31,7 @@ import {
   getOrCreateGuildState,
   getPlaybackPosition,
   guildStates,
+  playNext,
 } from '../guild-state';
 
 const track: Track = { title: 'Palm Tree Escape', url: 'https://youtu.be/x', duration: 120 };
@@ -167,5 +175,73 @@ describe('playback clock', () => {
     startAudio(state);
 
     expect(getPlaybackPosition(state)).toBe(30);
+  });
+});
+
+describe('play recording', () => {
+  afterEach(() => {
+    guildStates.clear();
+    jest.clearAllMocks();
+  });
+
+  const queued: Track = { ...track, userId: 'u1', sourceType: 'youtube' };
+
+  function startAudio(state: ReturnType<typeof getOrCreateGuildState>) {
+    const player = state.player as unknown as FakePlayer;
+    const oldState = player.state;
+    player.state = { status: AudioPlayerStatus.Playing };
+    player.emit('stateChange', oldState, player.state);
+  }
+
+  async function startTrack(guildId: string) {
+    const state = getOrCreateGuildState(guildId);
+    state.queue.push(queued);
+    createTrackResourceForAny.mockResolvedValue({});
+    await playNext(guildId);
+    return state;
+  }
+
+  it('does not count a track until its audio flows', async () => {
+    const state = await startTrack('r1');
+
+    expect(state.player.play).toHaveBeenCalled();
+    expect(log.info).not.toHaveBeenCalledWith(expect.stringMatching(/^Playing:/));
+    expect(reportSoundStat).not.toHaveBeenCalled();
+
+    startAudio(state);
+
+    expect(log.info).toHaveBeenCalledWith('Playing: Palm Tree Escape in guild r1');
+    expect(reportSoundStat).toHaveBeenCalledWith(
+      expect.objectContaining({ soundName: 'Palm Tree Escape', userId: 'u1', guildId: 'r1' }),
+      expect.anything()
+    );
+  });
+
+  it('counts a track once, not again on unpause', async () => {
+    const state = await startTrack('r2');
+    startAudio(state);
+    (state.player as unknown as FakePlayer).state = { status: AudioPlayerStatus.Paused };
+
+    startAudio(state);
+
+    expect(reportSoundStat).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a track whose stream never started instead of counting it', async () => {
+    const state = await startTrack('r3');
+
+    state.player.emit(AudioPlayerStatus.Idle);
+
+    expect(log.warn).toHaveBeenCalledWith('Track never started: "Palm Tree Escape" in guild r3');
+    expect(reportSoundStat).not.toHaveBeenCalled();
+  });
+
+  it('does not call a skip while buffering a failure', async () => {
+    const state = await startTrack('r4');
+    state.skipRequested = true;
+
+    state.player.emit(AudioPlayerStatus.Idle);
+
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringMatching(/never started/));
   });
 });
