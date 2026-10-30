@@ -24,6 +24,7 @@ import type {
 import { log } from '../config';
 import { fetchTracks } from '../voice/trackFetcher';
 import { createTrackResourceForAny } from '../voice/audioResource';
+import { fetchAndSetYtCookies } from '../voice/ytCookies';
 import {
   buildPlaybackState,
   armPlaybackClock,
@@ -336,5 +337,6 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
     autoplay,
     replay,
     seek,
+    refreshCookies: async () => ({ loaded: await fetchAndSetYtCookies() }),
   };
 }

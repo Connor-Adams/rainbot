@@ -188,7 +188,7 @@ export default function YoutubeIngestSettings() {
         )}
         {uploadCookiesMutation.isSuccess && (
           <div className="mt-2 text-xs text-text-secondary">
-            Cookies saved. Rainbot will use them on next startup or fetch.
+            {uploadCookiesMutation.data.data.message}
           </div>
         )}
         {uploadCookiesMutation.isError && (

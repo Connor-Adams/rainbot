@@ -289,7 +289,8 @@ export const settingsApi = {
   uploadYoutubeCookies: (file: File) => {
     const formData = new FormData();
     formData.append('cookies', file);
-    return api.post<{ message: string }>('/settings/youtube-cookies', formData, {
+    // loaded: rainbot took the new cookies straight away.
+    return api.post<{ message: string; loaded: boolean }>('/settings/youtube-cookies', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },

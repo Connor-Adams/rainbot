@@ -152,6 +152,19 @@ describe('fetchAndSetYtCookies', () => {
     expect(setToken).not.toHaveBeenCalled();
   });
 
+  it('says whether it loaded cookies, which the upload push reports back to the dashboard', async () => {
+    process.env['RAINCLOUD_URL'] = 'http://localhost:3000';
+
+    fetchMock.mockResolvedValue(cookieResponse('jar-v1'));
+    await expect(fetchAndSetYtCookies()).resolves.toBe(true);
+
+    fetchMock.mockResolvedValue({ status: 404, ok: false });
+    await expect(fetchAndSetYtCookies()).resolves.toBe(false);
+
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(fetchAndSetYtCookies()).resolves.toBe(false);
+  });
+
   it('keeps an absolute RAINCLOUD_URL', async () => {
     process.env['RAINCLOUD_URL'] = 'https://raincloud.example.com:8443/';
 

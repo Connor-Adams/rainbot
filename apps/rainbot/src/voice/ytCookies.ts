@@ -112,8 +112,9 @@ function orchestratorBaseUrl(): string | null {
  * Fetch cookies from raincloud internal API and write to a temp file.
  * Sets process.env.YTDLP_COOKIES to the file path on success.
  * Safe to call multiple times; updates the cache when cookies exist.
+ * Resolves true only when it loaded cookies from raincloud.
  */
-export async function fetchAndSetYtCookies(): Promise<void> {
+export async function fetchAndSetYtCookies(): Promise<boolean> {
   const workerSecret = process.env['WORKER_SECRET'];
 
   // YTDLP_COOKIES env takes precedence (manual config), but a file this module
@@ -121,18 +122,18 @@ export async function fetchAndSetYtCookies(): Promise<void> {
   const configuredCookies = process.env['YTDLP_COOKIES'];
   if (configuredCookies && configuredCookies !== managedCookiesPath) {
     log.debug('YTDLP_COOKIES already set, skipping fetch');
-    return;
+    return false;
   }
 
   if (!process.env['RAINCLOUD_URL'] || !workerSecret) {
     log.debug('RAINCLOUD_URL or WORKER_SECRET not set, skipping cookie fetch');
-    return;
+    return false;
   }
 
   const baseUrl = orchestratorBaseUrl();
   if (!baseUrl) {
     log.debug('RAINCLOUD_URL could not be resolved, skipping cookie fetch');
-    return;
+    return false;
   }
   const url = `${baseUrl}/internal/cookies/youtube`;
 
@@ -143,18 +144,18 @@ export async function fetchAndSetYtCookies(): Promise<void> {
 
     if (res.status === 404) {
       log.debug('No YouTube cookies configured in raincloud');
-      return;
+      return false;
     }
 
     if (!res.ok) {
       log.warn(`Cookie fetch failed: ${res.status} ${res.statusText}`);
-      return;
+      return false;
     }
 
     const body = await res.text();
     if (!body || body.trim().length === 0) {
       log.warn('Empty cookie response from raincloud');
-      return;
+      return false;
     }
 
     const tmpDir = os.tmpdir();
@@ -166,9 +167,11 @@ export async function fetchAndSetYtCookies(): Promise<void> {
     log.info('YouTube cookies loaded from raincloud');
 
     await applyPlayDlCookies(body);
+    return true;
   } catch (error) {
     const err = error as Error;
     log.warn(`Failed to fetch YouTube cookies: ${err.message}`);
+    return false;
   }
 }
 
