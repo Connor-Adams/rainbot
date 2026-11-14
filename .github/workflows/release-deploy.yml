@@ -225,8 +225,11 @@ jobs:
     name: Deploy ${{ matrix.service }}
     needs: [plan, await-promotion, deploy-raincloud]
     # Workers still deploy when raincloud is unchanged (its job is skipped), but
-    # never when its deploy actually failed.
-    if: ${{ !cancelled() && needs.deploy-raincloud.result != 'failure' && contains(needs.plan.outputs.services, matrix.service) }}
+    # never when its deploy actually failed, and never past a failed promotion:
+    # !cancelled() would otherwise run this job with :prod still on the old image.
+    # `matrix` is not available in a job-level `if`, so the per-service filter
+    # lives on the steps below.
+    if: ${{ !cancelled() && needs.await-promotion.result == 'success' && needs.deploy-raincloud.result != 'failure' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -240,7 +243,9 @@ jobs:
             id_secret: DOKPLOY_APP_ID_HUNGERBOT
     steps:
       - uses: actions/checkout@v4
+        if: ${{ contains(needs.plan.outputs.services, matrix.service) }}
       - name: Deploy via Dokploy
+        if: ${{ contains(needs.plan.outputs.services, matrix.service) }}
         uses: ./.github/actions/dokploy-deploy
         with:
           base_url: ${{ secrets.DOKPLOY_URL }}
