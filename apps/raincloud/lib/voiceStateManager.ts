@@ -156,12 +156,15 @@ export class VoiceStateManager {
   }
 
   /**
-   * Get volume for bot type in guild
+   * Get the last volume set for bot type in guild (0-1), or null if none was
+   * ever set — the worker's own default applies then.
    */
-  async getVolume(guildId: string, botType: string): Promise<number> {
+  async getVolume(guildId: string, botType: string): Promise<number | null> {
     const key = `volume:${guildId}:${botType}`;
     const data = await this.redis.get(key);
-    return data ? parseFloat(data) : 0.5; // Default 50%
+    if (!data) return null;
+    const volume = parseFloat(data);
+    return Number.isFinite(volume) ? volume : null;
   }
 
   /**
