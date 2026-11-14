@@ -180,7 +180,8 @@ export const botApi = {
 
 // Playback API
 export const playbackApi = {
-  play: (guildId: string, source: string) => api.post('/play', { guildId, source }),
+  play: (guildId: string, source: string, next?: boolean) =>
+    api.post('/play', { guildId, source, next }),
   soundboard: (guildId: string, sound: string) => api.post('/soundboard', { guildId, sound }),
   stop: (guildId: string) => api.post('/stop', { guildId }),
   skip: (guildId: string) => api.post('/skip', { guildId }),

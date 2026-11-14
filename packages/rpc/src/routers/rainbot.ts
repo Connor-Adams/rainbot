@@ -40,6 +40,7 @@ const enqueueInputSchema = z.object({
   url: z.string(),
   requestedBy: z.string(),
   requestedByUsername: z.string().optional(),
+  next: z.boolean().optional(),
 });
 const skipInputSchema = z.object({
   requestId: z.string(),

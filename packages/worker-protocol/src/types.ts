@@ -87,6 +87,8 @@ export interface EnqueueTrackRequest {
   url: string;
   requestedBy: string;
   requestedByUsername?: string;
+  /** Insert at the front of the queue so it plays right after the current track. */
+  next?: boolean;
 }
 
 export interface EnqueueTrackResponse {

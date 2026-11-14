@@ -90,14 +90,20 @@ export function createRpcHandlers(deps: RainbotRpcDeps) {
         userId: input.requestedBy,
         username: input.requestedByUsername || undefined,
       }));
-      state.queue.push(...tracks);
+      if (input.next) {
+        state.queue.unshift(...tracks);
+      } else {
+        state.queue.push(...tracks);
+      }
       if (state.player.state.status === AudioPlayerStatus.Idle && state.connection) {
         void playNext(input.guildId);
       }
       const response: EnqueueTrackResponse = {
         status: 'success',
-        position: state.queue.length - tracks.length + 1,
-        message: `Added ${tracks.length} track(s) to queue`,
+        position: input.next ? 1 : state.queue.length - tracks.length + 1,
+        message: input.next
+          ? `Playing ${tracks.length} track(s) next`
+          : `Added ${tracks.length} track(s) to queue`,
       };
       requestCache.set(cacheKey, response);
       return response;

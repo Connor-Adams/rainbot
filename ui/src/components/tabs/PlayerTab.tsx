@@ -70,7 +70,8 @@ export default function PlayerTab() {
   const autoplayEnabled = localAutoplay ?? queueData?.isAutoplay ?? false;
 
   const playMutation = useMutation({
-    mutationFn: (source: string) => playbackApi.play(selectedGuildId!, source),
+    mutationFn: ({ source, next }: { source: string; next: boolean }) =>
+      playbackApi.play(selectedGuildId!, source, next),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['queue', selectedGuildId] });
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
@@ -156,7 +157,7 @@ export default function PlayerTab() {
     }, 150);
   };
 
-  const handlePlay = () => {
+  const handlePlay = (next = false) => {
     const url = urlInput.trim();
     if (!url) {
       alert('Please enter a URL');
@@ -166,7 +167,7 @@ export default function PlayerTab() {
       alert('Please select a server first');
       return;
     }
-    playMutation.mutate(url);
+    playMutation.mutate({ source: url, next });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -210,11 +211,20 @@ export default function PlayerTab() {
             <Button
               variant="primary"
               className="w-full sm:w-auto"
-              onClick={handlePlay}
+              onClick={() => handlePlay()}
               disabled={playMutation.isPending || !selectedGuildId}
               icon="▶"
             >
               Add to Queue
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => handlePlay(true)}
+              disabled={playMutation.isPending || !selectedGuildId}
+              icon="⏭"
+            >
+              Play Next
             </Button>
             <Button
               variant="danger"
