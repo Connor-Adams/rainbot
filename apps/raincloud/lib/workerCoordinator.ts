@@ -503,7 +503,8 @@ export class WorkerCoordinator {
     guildId: string,
     url: string,
     requestedBy: string,
-    requestedByUsername?: string
+    requestedByUsername?: string,
+    next?: boolean
   ): Promise<{ success: boolean; message?: string; position?: number }> {
     const requestId = uuidv4();
     const guard = this.guardWorker('rainbot');
@@ -521,6 +522,7 @@ export class WorkerCoordinator {
             url,
             requestedBy,
             requestedByUsername,
+            next,
           }),
         true
       );

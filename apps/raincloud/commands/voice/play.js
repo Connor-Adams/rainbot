@@ -21,11 +21,15 @@ module.exports = {
         )
         .setRequired(true)
         .setAutocomplete(true)
+    )
+    .addBooleanOption((option) =>
+      option.setName('next').setDescription('Play right after the current track')
     ),
 
   async execute(interaction) {
     const guildId = interaction.guildId;
     const source = interaction.options.getString('source');
+    const next = interaction.options.getBoolean('next') === true;
     const user = interaction.user.tag;
     const userId = interaction.user.id;
 
@@ -44,7 +48,9 @@ module.exports = {
         source,
         userId,
         'discord',
-        interaction.user.username
+        interaction.user.username,
+        undefined,
+        { next }
       );
 
       if (!result.success) {
@@ -62,7 +68,7 @@ module.exports = {
 
       log.info(`Enqueued: "${source}" at position ${result.position} in ${interaction.guild.name}`);
       await interaction.editReply({
-        content: `🎵 Added to queue at position **${result.position}**`,
+        content: next ? `⏭️ Playing next` : `🎵 Added to queue at position **${result.position}**`,
       });
     } catch (error) {
       log.error(`Failed to play "${source}": ${error.message}`);

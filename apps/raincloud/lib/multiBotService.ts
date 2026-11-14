@@ -200,7 +200,8 @@ export class MultiBotService {
     userId: string,
     _requestSource: string = 'discord',
     username?: string,
-    _discriminator?: string
+    _discriminator?: string,
+    options: { next?: boolean } = {}
   ): Promise<PlayResult> {
     log.info(`Play request: "${source}" by ${username || userId} in guild ${guildId}`);
 
@@ -254,7 +255,13 @@ export class MultiBotService {
         };
       }
 
-      const result = await this.coordinator.enqueueTrack(guildId, source, userId, username);
+      const result = await this.coordinator.enqueueTrack(
+        guildId,
+        source,
+        userId,
+        username,
+        options.next
+      );
 
       return {
         success: result.success,

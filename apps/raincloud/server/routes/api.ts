@@ -909,7 +909,7 @@ router.post(
   requireAuth,
   requireGuildMember,
   async (req: Request, res: Response): Promise<void> => {
-    const { guildId, source } = req.body;
+    const { guildId, source, next } = req.body;
 
     if (!guildId || !source) {
       res.status(400).json({ error: 'guildId and source are required' });
@@ -928,7 +928,9 @@ router.post(
         source,
         effectiveUserId,
         'api',
-        effectiveUsername
+        effectiveUsername,
+        undefined,
+        { next: next === true }
       );
       if (!result.success) {
         throw new Error(result.message || result.error || 'Play failed');
