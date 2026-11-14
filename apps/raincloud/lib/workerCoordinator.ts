@@ -395,7 +395,11 @@ export class WorkerCoordinator {
     }
 
     try {
-      const getStatus = async (): Promise<{ connected: boolean; channelId?: string }> => {
+      const getStatus = async (): Promise<{
+        connected: boolean;
+        channelId?: string;
+        volume?: number;
+      }> => {
         if (botType === 'rainbot') {
           return rainbotClient.getState.query({ guildId });
         }
@@ -418,6 +422,7 @@ export class WorkerCoordinator {
       let status = await this.requestWithRetry(botType, getStatus, true);
       if (status.connected && status.channelId === channelId) {
         log.debug(`${botType} already connected to channel ${channelId} in guild ${guildId}`);
+        await this.restoreWorkerVolume(botType, guildId, status.volume);
         return { success: true };
       }
 
@@ -428,6 +433,7 @@ export class WorkerCoordinator {
         if (status.connected && status.channelId === channelId) {
           log.debug(`${botType} connected via auto-follow`);
           await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
+          await this.restoreWorkerVolume(botType, guildId, status.volume);
           return { success: true };
         }
       }
@@ -437,6 +443,7 @@ export class WorkerCoordinator {
       if (joinResponse.status === 'joined' || joinResponse.status === 'already_connected') {
         await this.voiceStateManager.setWorkerStatus(botType, guildId, channelId, true);
         log.info(`${botType} joined channel ${channelId} in guild ${guildId}`);
+        await this.restoreWorkerVolume(botType, guildId, undefined);
         return { success: true };
       }
       return { success: false, error: joinResponse.message };
@@ -700,6 +707,33 @@ export class WorkerCoordinator {
     } catch (error: unknown) {
       log.warn(`Failed to refresh rainbot cookies: ${getErrorMessage(error)}`);
       return false;
+    }
+  }
+
+  /**
+   * Re-apply the guild's saved volume to a worker that is reporting a different
+   * one. Volume lives in worker memory, so a restarted worker comes back at its
+   * hardcoded default while Redis still holds what the user last set.
+   * Best-effort: a failure here must not fail the connect.
+   */
+  private async restoreWorkerVolume(
+    botType: BotType,
+    guildId: string,
+    reportedVolume: number | undefined
+  ): Promise<void> {
+    try {
+      const saved = await this.voiceStateManager.getVolume(guildId, botType);
+      if (saved === null || saved === reportedVolume) return;
+      const result = await this.setWorkerVolume(botType, guildId, saved);
+      if (result.success) {
+        log.info(`Restored ${botType} volume to ${saved} in guild ${guildId}`);
+      } else {
+        log.warn(`Failed to restore ${botType} volume in guild ${guildId}: ${result.message}`);
+      }
+    } catch (error: unknown) {
+      log.warn(
+        `Failed to restore ${botType} volume in guild ${guildId}: ${getErrorMessage(error)}`
+      );
     }
   }
 
